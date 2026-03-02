@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **闲管家订单回调闭环**：
+  - Dashboard 新增 `/api/orders/callback`，支持接收订单推送并在支付后自动同步订单状态
+  - 当已配置闲管家且开启自动履约时，实物订单可在支付后自动触发物流发货
+- **Dashboard 闲管家控制面板**：
+  - 首页新增闲管家可视化配置区，可保存 AppKey/AppSecret、自动改价、自动发货与“支付后自动触发”开关
+  - 新增 Dashboard 手动重试入口：API 改价、API 发货
+
+### Changed
+- 实物订单在未真正提交物流单、仅降级为人工发货任务时，状态保持为 `processing`，避免误标记为 `shipping`
+
 ## [6.0.0] - 2026-03-02
 
 ### Added

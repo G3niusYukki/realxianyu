@@ -34,6 +34,10 @@ class OrderFulfillmentService:
         "refund": "已收到您的退款诉求，我会按平台流程尽快处理，请放心。",
         "quality": "非常抱歉给您带来不便，我这边会先登记问题并提供处理方案（补发/退款/协商）。",
     }
+    _ORDER_ID_KEYS = ("order_id", "orderId", "order_no", "orderNo", "id")
+    _RAW_STATUS_KEYS = ("raw_status", "status", "order_status", "orderStatus", "trade_status", "tradeStatus")
+    _SESSION_ID_KEYS = ("session_id", "sessionId", "chat_id", "chatId", "biz_id", "bizId")
+    _ITEM_TYPE_KEYS = ("item_type", "itemType", "goods_type", "goodsType")
 
     def __init__(
         self,
@@ -107,6 +111,41 @@ class OrderFulfillmentService:
             merchant_id=str(cfg.get("merchant_id", "")).strip() or None,
             merchant_query_key=str(cfg.get("merchant_query_key", "merchantId")).strip() or "merchantId",
         )
+
+    @staticmethod
+    def _pick_first(payload: dict[str, Any], keys: tuple[str, ...], default: str = "") -> str:
+        for key in keys:
+            if key in payload:
+                value = str(payload.get(key) or "").strip()
+                if value:
+                    return value
+        return default
+
+    @classmethod
+    def _extract_shipping_info(cls, payload: dict[str, Any], quote_snapshot: dict[str, Any]) -> dict[str, Any]:
+        direct = payload.get("shipping_info")
+        if isinstance(direct, dict):
+            return dict(direct)
+
+        nested = payload.get("shipping")
+        if isinstance(nested, dict):
+            return dict(nested)
+
+        from_snapshot = quote_snapshot.get("shipping_info")
+        if isinstance(from_snapshot, dict):
+            return dict(from_snapshot)
+        return {}
+
+    @classmethod
+    def _normalize_item_type(cls, value: str, shipping_info: dict[str, Any]) -> str:
+        text = str(value or "").strip().lower()
+        if text in {"physical", "实体", "实物"}:
+            return "physical"
+        if text in {"virtual", "虚拟", "卡密"}:
+            return "virtual"
+        if shipping_info:
+            return "physical"
+        return "virtual"
 
     def map_status(self, raw_status: str) -> str:
         if raw_status in self.STATUS_MAP:
@@ -307,7 +346,7 @@ class OrderFulfillmentService:
                     detail["shipping_info"] = shipping_ctx
                 if api_error:
                     detail["api_error"] = api_error
-            next_status = "shipping"
+            next_status = "shipping" if detail.get("channel") == "xianguanjia_api" else "processing"
 
         with self._connect() as conn:
             conn.execute(
@@ -322,6 +361,52 @@ class OrderFulfillmentService:
             "handled": True,
             "status": updated["status"],
             "delivery": detail,
+        }
+
+    def process_callback(
+        self,
+        payload: dict[str, Any],
+        *,
+        dry_run: bool = False,
+        auto_deliver: bool = False,
+    ) -> dict[str, Any]:
+        data = dict(payload or {})
+        order_id = self._pick_first(data, self._ORDER_ID_KEYS)
+        if not order_id:
+            raise ValueError("Missing order_id in callback payload")
+
+        raw_status = self._pick_first(data, self._RAW_STATUS_KEYS, default="待处理")
+        session_id = self._pick_first(data, self._SESSION_ID_KEYS)
+        quote_snapshot = data.get("quote_snapshot")
+        if not isinstance(quote_snapshot, dict):
+            quote_snapshot = {}
+        else:
+            quote_snapshot = dict(quote_snapshot)
+
+        shipping_info = self._extract_shipping_info(data, quote_snapshot)
+        if shipping_info and not isinstance(quote_snapshot.get("shipping_info"), dict):
+            quote_snapshot["shipping_info"] = dict(shipping_info)
+
+        item_type = self._normalize_item_type(self._pick_first(data, self._ITEM_TYPE_KEYS), shipping_info)
+        order = self.upsert_order(
+            order_id=order_id,
+            raw_status=raw_status,
+            session_id=session_id,
+            quote_snapshot=quote_snapshot,
+            item_type=item_type,
+        )
+
+        delivery = None
+        should_deliver = auto_deliver and item_type == "physical" and order.get("status") in {"paid", "processing"}
+        if should_deliver:
+            delivery = self.deliver(order_id, dry_run=dry_run, shipping_info=shipping_info or None)
+            order = self.get_order(order_id) or order
+
+        return {
+            "success": True,
+            "order": order,
+            "auto_delivery_triggered": bool(delivery),
+            "delivery": delivery,
         }
 
     def generate_after_sales_reply(self, issue_type: str = "delay") -> str:

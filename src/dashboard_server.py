@@ -489,6 +489,193 @@ class MimicOps:
         self.env_path.write_text("\n".join(lines).strip() + "\n", encoding="utf-8")
         os.environ[key] = value
 
+    @staticmethod
+    def _to_bool(value: Any, default: bool = False) -> bool:
+        if isinstance(value, bool):
+            return value
+        text = str(value or "").strip().lower()
+        if not text:
+            return default
+        return text in {"1", "true", "yes", "on", "enabled"}
+
+    def _get_env_bool(self, key: str, default: bool = False) -> bool:
+        raw = self._get_env_value(key)
+        return self._to_bool(raw, default=default)
+
+    def _get_xianguanjia_settings(self) -> dict[str, Any]:
+        app_key = self._get_env_value("XGJ_APP_KEY").strip()
+        app_secret = self._get_env_value("XGJ_APP_SECRET").strip()
+        merchant_id = self._get_env_value("XGJ_MERCHANT_ID").strip()
+        base_url = self._get_env_value("XGJ_BASE_URL").strip() or "https://open.goofish.pro"
+        auto_price_enabled = self._get_env_bool("XGJ_AUTO_PRICE_ENABLED", default=True)
+        auto_ship_enabled = self._get_env_bool("XGJ_AUTO_SHIP_ENABLED", default=True)
+        auto_ship_on_paid = self._get_env_bool("XGJ_AUTO_SHIP_ON_PAID", default=True)
+        return {
+            "configured": bool(app_key and app_secret),
+            "app_key": app_key,
+            "app_secret": app_secret,
+            "merchant_id": merchant_id,
+            "base_url": base_url,
+            "auto_price_enabled": auto_price_enabled,
+            "auto_ship_enabled": auto_ship_enabled,
+            "auto_ship_on_paid": auto_ship_on_paid,
+        }
+
+    @staticmethod
+    def _mask_secret(value: str) -> str:
+        text = str(value or "").strip()
+        if len(text) <= 6:
+            return "*" * len(text)
+        return text[:3] + "*" * (len(text) - 6) + text[-3:]
+
+    def get_xianguanjia_settings(self) -> dict[str, Any]:
+        settings = self._get_xianguanjia_settings()
+        return {
+            "success": True,
+            "configured": settings["configured"],
+            "app_key": settings["app_key"],
+            "app_secret_masked": self._mask_secret(settings["app_secret"]),
+            "merchant_id": settings["merchant_id"],
+            "base_url": settings["base_url"],
+            "auto_price_enabled": settings["auto_price_enabled"],
+            "auto_ship_enabled": settings["auto_ship_enabled"],
+            "auto_ship_on_paid": settings["auto_ship_on_paid"],
+            "callback_url": "/api/orders/callback",
+        }
+
+    def save_xianguanjia_settings(self, payload: dict[str, Any]) -> dict[str, Any]:
+        data = dict(payload or {})
+        updates = {
+            "XGJ_APP_KEY": str(data.get("app_key") or self._get_env_value("XGJ_APP_KEY")).strip(),
+            "XGJ_APP_SECRET": str(data.get("app_secret") or self._get_env_value("XGJ_APP_SECRET")).strip(),
+            "XGJ_MERCHANT_ID": str(data.get("merchant_id") or self._get_env_value("XGJ_MERCHANT_ID")).strip(),
+            "XGJ_BASE_URL": str(data.get("base_url") or self._get_env_value("XGJ_BASE_URL")).strip()
+            or "https://open.goofish.pro",
+            "XGJ_AUTO_PRICE_ENABLED": "1"
+            if self._to_bool(data.get("auto_price_enabled"), default=self._get_env_bool("XGJ_AUTO_PRICE_ENABLED", True))
+            else "0",
+            "XGJ_AUTO_SHIP_ENABLED": "1"
+            if self._to_bool(data.get("auto_ship_enabled"), default=self._get_env_bool("XGJ_AUTO_SHIP_ENABLED", True))
+            else "0",
+            "XGJ_AUTO_SHIP_ON_PAID": "1"
+            if self._to_bool(data.get("auto_ship_on_paid"), default=self._get_env_bool("XGJ_AUTO_SHIP_ON_PAID", True))
+            else "0",
+        }
+        for key, value in updates.items():
+            self._set_env_value(key, value)
+
+        saved = self.get_xianguanjia_settings()
+        saved["message"] = "闲管家设置已更新"
+        return saved
+
+    def _xianguanjia_service_config(self) -> dict[str, Any]:
+        settings = self._get_xianguanjia_settings()
+        return {
+            "xianguanjia": {
+                "enabled": bool(settings["configured"]),
+                "app_key": settings["app_key"],
+                "app_secret": settings["app_secret"],
+                "merchant_id": settings["merchant_id"] or None,
+                "base_url": settings["base_url"],
+            }
+        }
+
+    def retry_xianguanjia_delivery(self, payload: dict[str, Any]) -> dict[str, Any]:
+        from src.modules.orders.service import OrderFulfillmentService
+
+        settings = self._get_xianguanjia_settings()
+        if not settings["configured"]:
+            return {"success": False, "error": "闲管家凭证未配置"}
+
+        data = dict(payload or {})
+        shipping_info = data.get("shipping_info")
+        if not isinstance(shipping_info, dict):
+            shipping_info = {}
+
+        for field in (
+            "order_no",
+            "waybill_no",
+            "express_code",
+            "express_name",
+            "ship_name",
+            "ship_mobile",
+            "ship_province",
+            "ship_city",
+            "ship_area",
+            "ship_address",
+        ):
+            if field in data and data.get(field) not in (None, ""):
+                shipping_info[field] = data.get(field)
+
+        order_id = str(data.get("order_id") or data.get("order_no") or "").strip()
+        if not order_id:
+            return {"success": False, "error": "缺少订单号"}
+
+        service = OrderFulfillmentService(
+            db_path=str(self.project_root / "data" / "orders.db"),
+            config=self._xianguanjia_service_config(),
+        )
+        result = service.deliver(
+            order_id=order_id,
+            dry_run=self._to_bool(data.get("dry_run"), default=False),
+            shipping_info=shipping_info or None,
+        )
+        return {"success": True, **result}
+
+    def retry_xianguanjia_price(self, payload: dict[str, Any]) -> dict[str, Any]:
+        from src.modules.operations.service import OperationsService
+
+        settings = self._get_xianguanjia_settings()
+        if not settings["configured"]:
+            return {"success": False, "error": "闲管家凭证未配置"}
+
+        data = dict(payload or {})
+        product_id = str(data.get("product_id") or data.get("productId") or "").strip()
+        if not product_id:
+            return {"success": False, "error": "缺少商品 ID"}
+
+        try:
+            new_price = float(data.get("new_price"))
+        except Exception:
+            return {"success": False, "error": "缺少有效的新价格"}
+
+        original_price_raw = data.get("original_price")
+        original_price = None
+        if original_price_raw not in (None, ""):
+            try:
+                original_price = float(original_price_raw)
+            except Exception:
+                return {"success": False, "error": "原价格式无效"}
+
+        service = OperationsService(config=self._xianguanjia_service_config())
+        result = _run_async(service.update_price(product_id, new_price, original_price))
+        return {"success": bool(result.get("success")), **result}
+
+    def handle_order_callback(self, payload: dict[str, Any]) -> dict[str, Any]:
+        from src.modules.orders.service import OrderFulfillmentService
+
+        data = dict(payload or {})
+        settings = self._get_xianguanjia_settings()
+        service = OrderFulfillmentService(
+            db_path=str(self.project_root / "data" / "orders.db"),
+            config=self._xianguanjia_service_config(),
+        )
+        try:
+            result = service.process_callback(
+                data,
+                dry_run=self._to_bool(data.get("dry_run"), default=False),
+                auto_deliver=bool(settings["configured"] and settings["auto_ship_enabled"] and settings["auto_ship_on_paid"]),
+            )
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+        result["settings"] = {
+            "configured": settings["configured"],
+            "auto_ship_enabled": settings["auto_ship_enabled"],
+            "auto_ship_on_paid": settings["auto_ship_on_paid"],
+        }
+        return result
+
     def get_cookie(self) -> dict[str, Any]:
         cookie = self._get_env_value("XIANYU_COOKIE_1").strip()
         return {
@@ -2457,6 +2644,7 @@ class MimicOps:
         cookie = self.get_cookie()
         cookie_text = str(cookie.get("cookie", "") or "")
         route_stats = self.route_stats()
+        xgj_settings = self.get_xianguanjia_settings()
         risk_control = self._risk_control_status_from_logs(target="presales", tail_lines=300)
         modules = module_status.get("modules") if isinstance(module_status, dict) else {}
         if not isinstance(modules, dict):
@@ -2553,6 +2741,7 @@ class MimicOps:
             "route_stats": route_stat_payload,
             "route_stats_by_courier": route_stats_by_courier,
             "message_stats": message_stats,
+            "xianguanjia": xgj_settings,
             "risk_control": risk_control,
             "recovery": recovery,
             "system_running": alive_count > 0,
@@ -2967,6 +3156,39 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       <div id="messageStatusContent"></div>
     </div>
 
+    <div class="status-box">
+      <h2>闲管家自动履约</h2>
+      <div id="xgjStatusContent"></div>
+      <div style="margin-top:12px; display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:12px;">
+        <div style="border:1px solid #e5e7eb; border-radius:8px; padding:12px; background:#f8fafc;">
+          <div style="font-weight:700; margin-bottom:10px;">连接与开关</div>
+          <input id="xgjAppKey" type="text" placeholder="AppKey" style="width:100%; padding:8px; margin-bottom:8px; border:1px solid #d1d5db; border-radius:6px;">
+          <input id="xgjAppSecret" type="password" placeholder="AppSecret（留空表示不改）" style="width:100%; padding:8px; margin-bottom:8px; border:1px solid #d1d5db; border-radius:6px;">
+          <input id="xgjMerchantId" type="text" placeholder="Merchant ID（可选）" style="width:100%; padding:8px; margin-bottom:8px; border:1px solid #d1d5db; border-radius:6px;">
+          <input id="xgjBaseUrl" type="text" placeholder="Base URL" style="width:100%; padding:8px; margin-bottom:8px; border:1px solid #d1d5db; border-radius:6px;">
+          <label style="display:block; margin:6px 0; color:#374151;"><input id="xgjAutoPriceEnabled" type="checkbox"> 启用 API 改价通道</label>
+          <label style="display:block; margin:6px 0; color:#374151;"><input id="xgjAutoShipEnabled" type="checkbox"> 启用自动物流发货</label>
+          <label style="display:block; margin:6px 0 10px; color:#374151;"><input id="xgjAutoShipOnPaid" type="checkbox"> 支付后自动触发履约</label>
+          <button class="action-btn" style="width:100%;" onclick="saveXgjSettings()">保存闲管家设置</button>
+        </div>
+        <div style="border:1px solid #e5e7eb; border-radius:8px; padding:12px; background:#f8fafc;">
+          <div style="font-weight:700; margin-bottom:10px;">手动重试改价</div>
+          <input id="xgjRetryProductId" type="text" placeholder="商品 ID" style="width:100%; padding:8px; margin-bottom:8px; border:1px solid #d1d5db; border-radius:6px;">
+          <input id="xgjRetryNewPrice" type="number" min="0" step="0.01" placeholder="新价格" style="width:100%; padding:8px; margin-bottom:8px; border:1px solid #d1d5db; border-radius:6px;">
+          <input id="xgjRetryOldPrice" type="number" min="0" step="0.01" placeholder="原价（可选）" style="width:100%; padding:8px; margin-bottom:8px; border:1px solid #d1d5db; border-radius:6px;">
+          <button class="action-btn" style="width:100%;" onclick="retryXgjPrice()">提交 API 改价</button>
+        </div>
+        <div style="border:1px solid #e5e7eb; border-radius:8px; padding:12px; background:#f8fafc;">
+          <div style="font-weight:700; margin-bottom:10px;">手动重试发货</div>
+          <input id="xgjRetryOrderId" type="text" placeholder="订单号" style="width:100%; padding:8px; margin-bottom:8px; border:1px solid #d1d5db; border-radius:6px;">
+          <input id="xgjRetryWaybillNo" type="text" placeholder="物流单号" style="width:100%; padding:8px; margin-bottom:8px; border:1px solid #d1d5db; border-radius:6px;">
+          <input id="xgjRetryExpressName" type="text" placeholder="快递公司名称（如 圆通）" style="width:100%; padding:8px; margin-bottom:8px; border:1px solid #d1d5db; border-radius:6px;">
+          <input id="xgjRetryExpressCode" type="text" placeholder="快递编码（可选）" style="width:100%; padding:8px; margin-bottom:8px; border:1px solid #d1d5db; border-radius:6px;">
+          <button class="action-btn warning" style="width:100%;" onclick="retryXgjShip()">提交 API 发货</button>
+        </div>
+      </div>
+    </div>
+
     <div class="action-row">
       <button class="refresh-btn" onclick="loadStatus()">刷新所有状态</button>
       <button class="action-btn" onclick="runFullCheck()">全链路体检</button>
@@ -3220,6 +3442,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     function renderStatusBlocks(data) {
       const routeStats = data.route_stats || {};
       const msgStats = data.message_stats || {};
+      const xgj = data.xianguanjia || {};
       const modules = (data.module && data.module.modules) || {};
       const risk = data.risk_control || {};
       const aliveCount = Number(data.alive_count || 0);
@@ -3275,6 +3498,86 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         row("最近事件", formatCount(msgStats.recent_replied || 0), "info"),
         row("会话数量", formatCount(msgStats.total_conversations || 0), "info")
       ].join("");
+
+      document.getElementById("xgjStatusContent").innerHTML = [
+        row("凭证状态", xgj.configured ? "已配置" : "未配置", xgj.configured ? "success" : "warning"),
+        row("API 地址", xgj.base_url || "-", "info"),
+        row("自动改价", xgj.auto_price_enabled ? "开启" : "关闭", xgj.auto_price_enabled ? "success" : "warning"),
+        row("自动发货", xgj.auto_ship_enabled ? "开启" : "关闭", xgj.auto_ship_enabled ? "success" : "warning"),
+        row("支付后自动触发", xgj.auto_ship_on_paid ? "开启" : "关闭", xgj.auto_ship_on_paid ? "success" : "warning"),
+        row("订单推送地址", xgj.callback_url || "/api/orders/callback", "info")
+      ].join("");
+
+      document.getElementById("xgjAppKey").value = xgj.app_key || "";
+      document.getElementById("xgjMerchantId").value = xgj.merchant_id || "";
+      document.getElementById("xgjBaseUrl").value = xgj.base_url || "https://open.goofish.pro";
+      document.getElementById("xgjAppSecret").value = "";
+      document.getElementById("xgjAutoPriceEnabled").checked = !!xgj.auto_price_enabled;
+      document.getElementById("xgjAutoShipEnabled").checked = !!xgj.auto_ship_enabled;
+      document.getElementById("xgjAutoShipOnPaid").checked = !!xgj.auto_ship_on_paid;
+    }
+
+    async function saveXgjSettings() {
+      try {
+        const res = await fetch("/api/xgj/settings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            app_key: document.getElementById("xgjAppKey").value.trim(),
+            app_secret: document.getElementById("xgjAppSecret").value.trim(),
+            merchant_id: document.getElementById("xgjMerchantId").value.trim(),
+            base_url: document.getElementById("xgjBaseUrl").value.trim(),
+            auto_price_enabled: document.getElementById("xgjAutoPriceEnabled").checked,
+            auto_ship_enabled: document.getElementById("xgjAutoShipEnabled").checked,
+            auto_ship_on_paid: document.getElementById("xgjAutoShipOnPaid").checked
+          })
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || "保存失败");
+        await loadStatus();
+        alert(data.message || "闲管家设置已保存");
+      } catch (err) {
+        alert("保存失败: " + err.message);
+      }
+    }
+
+    async function retryXgjPrice() {
+      try {
+        const res = await fetch("/api/xgj/retry-price", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            product_id: document.getElementById("xgjRetryProductId").value.trim(),
+            new_price: document.getElementById("xgjRetryNewPrice").value.trim(),
+            original_price: document.getElementById("xgjRetryOldPrice").value.trim()
+          })
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || "改价失败");
+        alert("改价成功，通道: " + (data.channel || "unknown"));
+      } catch (err) {
+        alert("改价失败: " + err.message);
+      }
+    }
+
+    async function retryXgjShip() {
+      try {
+        const res = await fetch("/api/xgj/retry-ship", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            order_id: document.getElementById("xgjRetryOrderId").value.trim(),
+            waybill_no: document.getElementById("xgjRetryWaybillNo").value.trim(),
+            express_name: document.getElementById("xgjRetryExpressName").value.trim(),
+            express_code: document.getElementById("xgjRetryExpressCode").value.trim()
+          })
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || "发货失败");
+        alert("发货结果: " + ((data.delivery && data.delivery.message) || data.status || "success"));
+      } catch (err) {
+        alert("发货失败: " + err.message);
+      }
     }
 
     function loadStatus() {
@@ -5725,6 +6028,30 @@ class DashboardHandler(BaseHTTPRequestHandler):
             if path == "/api/test-reply":
                 body = self._read_json_body()
                 payload = self.mimic_ops.test_reply(body)
+                self._send_json(payload, status=200 if payload.get("success") else 400)
+                return
+
+            if path == "/api/xgj/settings":
+                body = self._read_json_body()
+                payload = self.mimic_ops.save_xianguanjia_settings(body)
+                self._send_json(payload, status=200 if payload.get("success") else 400)
+                return
+
+            if path == "/api/xgj/retry-price":
+                body = self._read_json_body()
+                payload = self.mimic_ops.retry_xianguanjia_price(body)
+                self._send_json(payload, status=200 if payload.get("success") else 400)
+                return
+
+            if path == "/api/xgj/retry-ship":
+                body = self._read_json_body()
+                payload = self.mimic_ops.retry_xianguanjia_delivery(body)
+                self._send_json(payload, status=200 if payload.get("success") else 400)
+                return
+
+            if path == "/api/orders/callback":
+                body = self._read_json_body()
+                payload = self.mimic_ops.handle_order_callback(body)
                 self._send_json(payload, status=200 if payload.get("success") else 400)
                 return
 

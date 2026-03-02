@@ -247,6 +247,13 @@ python3 -m src.cli orders \
 
 `OperationsService.update_price(...)` 也已支持“闲管家 API 优先，失败再回退 DOM”。
 
+现在 Dashboard 首页也已经接入闲管家控制面板：
+
+- 可直接保存 `AppKey` / `AppSecret` / `Merchant ID`
+- 可视化开启或关闭“API 改价通道”“自动物流发货”“支付后自动触发履约”
+- 可手动重试单次改价或单次发货
+- 可将订单推送回调直接指向 `POST /api/orders/callback`
+
 ---
 
 ### 后台数据可视化

@@ -43,7 +43,7 @@ def test_order_manual_takeover_and_resume(temp_dir) -> None:
     assert service.set_manual_takeover("o2", False) is True
     delivered = service.deliver("o2")
     assert delivered["handled"] is True
-    assert delivered["status"] == "shipping"
+    assert delivered["status"] == "processing"
 
 
 def test_order_after_sales_template(temp_dir) -> None:
@@ -138,7 +138,54 @@ def test_order_physical_delivery_falls_back_when_shipping_info_incomplete(temp_d
     delivered = service.deliver("o_fallback")
 
     assert delivered["handled"] is True
+    assert delivered["status"] == "processing"
     assert delivered["delivery"]["channel"] == "manual_fallback"
     assert delivered["delivery"]["action"] == "create_shipping_task"
     assert delivered["delivery"]["api_error"] == "missing_waybill_no"
+    api.ship_order.assert_not_called()
+
+
+def test_order_callback_triggers_auto_delivery_for_paid_physical_order(temp_dir) -> None:
+    api = Mock()
+    api.find_express_company = Mock(return_value={"express_code": "YTO", "express_name": "圆通"})
+    api.ship_order = Mock(return_value={"code": 0, "data": {"ok": True}})
+
+    service = OrderFulfillmentService(db_path=str(temp_dir / "orders_callback.db"), shipping_api_client=api)
+
+    out = service.process_callback(
+        {
+            "order_id": "o_callback",
+            "status": "已付款",
+            "item_type": "physical",
+            "shipping_info": {
+                "waybill_no": "YT123456789",
+                "express_name": "圆通",
+            },
+        },
+        auto_deliver=True,
+    )
+
+    assert out["success"] is True
+    assert out["auto_delivery_triggered"] is True
+    assert out["order"]["status"] == "shipping"
+    assert out["delivery"]["delivery"]["channel"] == "xianguanjia_api"
+    api.ship_order.assert_called_once()
+
+
+def test_order_callback_upserts_without_auto_delivery_when_disabled(temp_dir) -> None:
+    api = Mock()
+    service = OrderFulfillmentService(db_path=str(temp_dir / "orders_callback_idle.db"), shipping_api_client=api)
+
+    out = service.process_callback(
+        {
+            "orderNo": "o_callback_idle",
+            "tradeStatus": "已付款",
+            "shipping_info": {"waybill_no": "YT123456789"},
+        },
+        auto_deliver=False,
+    )
+
+    assert out["success"] is True
+    assert out["auto_delivery_triggered"] is False
+    assert out["order"]["status"] == "paid"
     api.ship_order.assert_not_called()
