@@ -27,6 +27,17 @@
 
 ---
 
+## 6.0.0 更新摘要（2026-03-02）
+
+- **闲管家开放平台接入**：
+  - 新增统一签名与 API 客户端，支持商品改价、订单改价、物流发货、快递公司查询。
+  - `OperationsService.update_price(...)` 现支持“闲管家 API 优先，DOM 自动回退”。
+  - `OrderFulfillmentService.deliver(...)` 现支持实物订单自动物流发货，失败自动降级为人工发货任务。
+- **CLI 发货升级**：
+  - `orders --action deliver` 新增物流单号、快递公司、寄件信息和闲管家凭证参数，可直接走物流发货。
+- **发布级稳定性修复**：
+  - 修复 `MediaService.add_watermark()` 在 `watermark: null` 配置下导致 CI 测试失败的问题。
+
 ## 5.3.0 更新摘要（2026-03-02）
 
 - **Lite 直连模式**：新增 `python -m src.lite` 轻量运行时，支持直连 Goofish WebSocket 收发消息、双层去重、自动回复与自动报价。
@@ -158,7 +169,8 @@ AI: 📊 今日浏览 1,247 | 想要 89 | 成交 12 | 营收 ¥38,700
 | 💬 | **消息自动回复 + 自动报价** | 询价识别、缺参补问、结构化报价、失败降级与合规回复 |
 | ⚡ | **Lite 直连运行时** | 直连 Goofish WebSocket，无需完整浏览器链路即可执行轻量消息自动回复 |
 | 🛡️ | **合规策略中心** | 账号级/会话级分级规则、发送前拦截、审计回放 |
-| 📦 | **订单履约闭环（MVP）** | 下单状态映射、虚拟/实物交付动作、售后模板、人工接管与追溯 |
+| 🚚 | **闲管家 API 自动履约** | 商品改价、订单改价、物流发货、快递公司编码映射 |
+| 📦 | **订单履约闭环（MVP）** | 下单状态映射、虚拟/实物交付动作、自动物流发货、售后模板、人工接管与追溯 |
 | ⚙️ | **常驻 Workflow Worker** | 7x24 轮询处理、幂等去重、崩溃恢复、人工接管跳过 |
 | 📈 | **运营 SLA 监控** | 首响 P95 / 报价成功率 / 报价回退率采集与阈值告警 |
 | 🧪 | **增长实验与漏斗** | A/B 分流、策略版本管理、漏斗统计、显著性检验 |
@@ -215,6 +227,25 @@ scripts\windows\setup_windows.bat
 # 一键：安装依赖 + 严格自检 + 启动容器
 scripts\windows\quickstart.bat
 ```
+
+### 闲管家自动改价 / 自动发货（可选）
+
+如果你已经有闲管家开放平台凭证，现在可以直接把运营改价和实物订单发货切到 API 链路：
+
+```bash
+python3 -m src.cli orders \
+  --action deliver \
+  --order-id ORDER001 \
+  --item-type physical \
+  --waybill-no YT123456789 \
+  --express-name 圆通 \
+  --ship-name 张三 \
+  --ship-mobile 13800138000 \
+  --xgj-app-key your_app_key \
+  --xgj-app-secret your_app_secret
+```
+
+`OperationsService.update_price(...)` 也已支持“闲管家 API 优先，失败再回退 DOM”。
 
 ---
 

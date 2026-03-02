@@ -1,5 +1,7 @@
 """订单履约模块测试。"""
 
+from unittest.mock import Mock
+
 from src.modules.orders.service import OrderFulfillmentService
 
 
@@ -89,3 +91,54 @@ def test_record_after_sales_followup_event(temp_dir) -> None:
     assert recorded["sent"] is True
     assert trace["events"][-1]["event_type"] == "after_sales_followup"
     assert trace["events"][-1]["detail"]["reason"] == "sent"
+
+
+def test_order_physical_delivery_prefers_xianguanjia_shipping(temp_dir) -> None:
+    api = Mock()
+    api.find_express_company = Mock(return_value={"express_code": "YTO", "express_name": "圆通"})
+    api.ship_order = Mock(return_value={"code": 0, "data": {"ok": True}})
+
+    service = OrderFulfillmentService(db_path=str(temp_dir / "orders_ship.db"), shipping_api_client=api)
+    service.upsert_order(
+        order_id="o_ship",
+        raw_status="待发货",
+        item_type="physical",
+        quote_snapshot={
+            "shipping_info": {
+                "waybill_no": "YT123456789",
+                "express_name": "圆通",
+                "ship_name": "张三",
+                "ship_mobile": "13800138000",
+            }
+        },
+    )
+
+    delivered = service.deliver("o_ship")
+
+    assert delivered["handled"] is True
+    assert delivered["status"] == "shipping"
+    assert delivered["delivery"]["channel"] == "xianguanjia_api"
+    assert delivered["delivery"]["action"] == "ship_order_via_xianguanjia"
+    api.ship_order.assert_called_once()
+
+
+def test_order_physical_delivery_falls_back_when_shipping_info_incomplete(temp_dir) -> None:
+    api = Mock()
+    api.find_express_company = Mock(return_value=None)
+    api.ship_order = Mock()
+
+    service = OrderFulfillmentService(db_path=str(temp_dir / "orders_ship_fallback.db"), shipping_api_client=api)
+    service.upsert_order(
+        order_id="o_fallback",
+        raw_status="待发货",
+        item_type="physical",
+        quote_snapshot={"shipping_info": {"express_name": "未知快递"}},
+    )
+
+    delivered = service.deliver("o_fallback")
+
+    assert delivered["handled"] is True
+    assert delivered["delivery"]["channel"] == "manual_fallback"
+    assert delivered["delivery"]["action"] == "create_shipping_task"
+    assert delivered["delivery"]["api_error"] == "missing_waybill_no"
+    api.ship_order.assert_not_called()

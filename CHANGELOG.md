@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.0.0] - 2026-03-02
+
+### Added
+- **闲管家开放平台适配层**：
+  - 新增 `src/modules/orders/xianguanjia.py`
+  - 支持商品改价、SKU 库存/价格更新、订单改价、物流发货、快递公司查询与签名生成
+- **运营改价 API 优先链路**：
+  - `OperationsService.update_price(...)` 现支持优先走闲管家 API
+  - API 成功直接完成改价；API 失败时自动回退到原有 DOM 改价
+- **订单自动物流发货**：
+  - `OrderFulfillmentService.deliver(...)` 现支持为实物订单直连闲管家发货
+  - 支持 `shipping_info` 直接传参，或从 `quote_snapshot.shipping_info` 读取
+  - 支持快递公司名称自动映射编码（如 `圆通 -> YTO`）
+- **CLI 发货参数增强**：
+  - `orders --action deliver` 新增物流单号、快递公司、寄件信息、闲管家凭证参数
+
+### Changed
+- `OrderFulfillmentService` 新增 `config` / `shipping_api_client` 注入能力，实物发货优先走闲管家 API，失败时降级为人工发货任务
+- `OperationsService` 新增 `price_api_client` 注入与 `xianguanjia` 配置支持
+- `README.md` / `USER_GUIDE.md` 更新为 6.0.0 版本说明
+
+### Fixed
+- 修复 `MediaService.add_watermark()` 在 `watermark: null` 配置下会抛出 `AttributeError` 的问题，CI 全量测试恢复通过
+
 ## [5.3.0] - 2026-03-02
 
 ### Added

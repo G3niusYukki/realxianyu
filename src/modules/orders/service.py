@@ -10,6 +10,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from .xianguanjia import XianGuanJiaClient
+
 
 class OrderFulfillmentService:
     """订单履约闭环最小实现。"""
@@ -33,9 +35,16 @@ class OrderFulfillmentService:
         "quality": "非常抱歉给您带来不便，我这边会先登记问题并提供处理方案（补发/退款/协商）。",
     }
 
-    def __init__(self, db_path: str = "data/orders.db") -> None:
+    def __init__(
+        self,
+        db_path: str = "data/orders.db",
+        config: dict[str, Any] | None = None,
+        shipping_api_client: XianGuanJiaClient | None = None,
+    ) -> None:
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        self.config = config or {}
+        self.shipping_api_client = shipping_api_client or self._build_shipping_api_client()
         self._init_db()
 
     @staticmethod
@@ -77,6 +86,27 @@ class OrderFulfillmentService:
                 ON order_events(order_id, created_at DESC);
                 """
             )
+
+    def _build_shipping_api_client(self) -> XianGuanJiaClient | None:
+        cfg = self.config.get("xianguanjia")
+        if not isinstance(cfg, dict):
+            return None
+        if not cfg.get("enabled", False):
+            return None
+
+        app_key = str(cfg.get("app_key", "")).strip()
+        app_secret = str(cfg.get("app_secret", "")).strip()
+        if not app_key or not app_secret:
+            return None
+
+        return XianGuanJiaClient(
+            app_key=app_key,
+            app_secret=app_secret,
+            base_url=str(cfg.get("base_url", "https://open.goofish.pro")).strip(),
+            timeout=float(cfg.get("timeout", 30.0)),
+            merchant_id=str(cfg.get("merchant_id", "")).strip() or None,
+            merchant_query_key=str(cfg.get("merchant_query_key", "merchantId")).strip() or "merchantId",
+        )
 
     def map_status(self, raw_status: str) -> str:
         if raw_status in self.STATUS_MAP:
@@ -169,7 +199,76 @@ class OrderFulfillmentService:
                 )
             return cur.rowcount > 0
 
-    def deliver(self, order_id: str, dry_run: bool = False) -> dict[str, Any]:
+    @staticmethod
+    def _shipping_context_from(order: dict[str, Any], override: dict[str, Any] | None = None) -> dict[str, Any]:
+        if override:
+            return dict(override)
+
+        quote_snapshot = order.get("quote_snapshot")
+        if isinstance(quote_snapshot, dict):
+            ctx = quote_snapshot.get("shipping_info")
+            if isinstance(ctx, dict):
+                return dict(ctx)
+        return {}
+
+    def _ship_via_xianguanjia(
+        self, order_id: str, shipping_info: dict[str, Any], dry_run: bool
+    ) -> tuple[dict[str, Any] | None, str | None]:
+        if not self.shipping_api_client:
+            return None, None
+
+        waybill_no = str(shipping_info.get("waybill_no", "")).strip()
+        express_code = str(shipping_info.get("express_code", "")).strip()
+        express_name = str(shipping_info.get("express_name", "")).strip()
+        if not express_code and express_name:
+            company = self.shipping_api_client.find_express_company(express_name)
+            if company:
+                express_code = str(company.get("express_code", "")).strip()
+                if not express_name:
+                    express_name = str(company.get("express_name", "")).strip()
+
+        if not waybill_no:
+            return None, "missing_waybill_no"
+        if not express_code:
+            return None, "missing_express_code"
+
+        if dry_run:
+            return {
+                "action": "ship_order_via_xianguanjia",
+                "channel": "xianguanjia_api",
+                "message": "已模拟调用闲管家物流发货。",
+                "dry_run": True,
+                "waybill_no": waybill_no,
+                "express_code": express_code,
+                "express_name": express_name,
+            }, None
+
+        response = self.shipping_api_client.ship_order(
+            order_no=str(shipping_info.get("order_no") or order_id),
+            waybill_no=waybill_no,
+            express_code=express_code,
+            express_name=express_name or None,
+            ship_name=str(shipping_info.get("ship_name", "")).strip() or None,
+            ship_mobile=str(shipping_info.get("ship_mobile", "")).strip() or None,
+            ship_province=str(shipping_info.get("ship_province", "")).strip() or None,
+            ship_city=str(shipping_info.get("ship_city", "")).strip() or None,
+            ship_area=str(shipping_info.get("ship_area", "")).strip() or None,
+            ship_address=str(shipping_info.get("ship_address", "")).strip() or None,
+        )
+        return {
+            "action": "ship_order_via_xianguanjia",
+            "channel": "xianguanjia_api",
+            "message": "已通过闲管家提交物流发货。",
+            "dry_run": False,
+            "waybill_no": waybill_no,
+            "express_code": express_code,
+            "express_name": express_name,
+            "api_response": response,
+        }, None
+
+    def deliver(
+        self, order_id: str, dry_run: bool = False, shipping_info: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         order = self.get_order(order_id)
         if not order:
             raise ValueError(f"Order not found: {order_id}")
@@ -184,16 +283,33 @@ class OrderFulfillmentService:
         if order["item_type"] == "virtual":
             detail = {
                 "action": "send_virtual_code",
+                "channel": "message_session",
                 "message": "已通过闲鱼会话发送兑换信息。",
             }
+            next_status = "completed" if dry_run else "shipping"
         else:
-            detail = {
-                "action": "create_shipping_task",
-                "message": "已创建实物发货任务，待揽收。",
-            }
+            shipping_ctx = self._shipping_context_from(order, shipping_info)
+            detail = None
+            api_error = ""
+            if self.shipping_api_client:
+                try:
+                    detail, api_error = self._ship_via_xianguanjia(order_id, shipping_ctx, dry_run)
+                except Exception as e:
+                    api_error = str(e)
+
+            if detail is None:
+                detail = {
+                    "action": "create_shipping_task",
+                    "channel": "manual_fallback",
+                    "message": "已创建实物发货任务，待揽收。",
+                }
+                if shipping_ctx:
+                    detail["shipping_info"] = shipping_ctx
+                if api_error:
+                    detail["api_error"] = api_error
+            next_status = "shipping"
 
         with self._connect() as conn:
-            next_status = "completed" if dry_run and order["item_type"] == "virtual" else "shipping"
             conn.execute(
                 "UPDATE orders SET status=?, updated_at=? WHERE order_id=?",
                 (next_status, self._now(), order_id),

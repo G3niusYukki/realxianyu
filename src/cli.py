@@ -764,7 +764,25 @@ async def cmd_messages(args: argparse.Namespace) -> None:
 async def cmd_orders(args: argparse.Namespace) -> None:
     from src.modules.orders.service import OrderFulfillmentService
 
-    service = OrderFulfillmentService(db_path=args.db_path or "data/orders.db")
+    service_config: dict[str, Any] = {}
+    xgj_app_key = getattr(args, "xgj_app_key", None)
+    xgj_app_secret = getattr(args, "xgj_app_secret", None)
+    if xgj_app_key and xgj_app_secret:
+        service_config["xianguanjia"] = {
+            "enabled": True,
+            "app_key": xgj_app_key,
+            "app_secret": xgj_app_secret,
+            "merchant_id": getattr(args, "xgj_merchant_id", None),
+            "base_url": getattr(args, "xgj_base_url", None) or "https://open.goofish.pro",
+        }
+
+    service_kwargs: dict[str, Any] = {
+        "db_path": args.db_path or "data/orders.db",
+    }
+    if service_config:
+        service_kwargs["config"] = service_config
+
+    service = OrderFulfillmentService(**service_kwargs)
     action = args.action
 
     if action == "upsert":
@@ -785,7 +803,26 @@ async def cmd_orders(args: argparse.Namespace) -> None:
         if not args.order_id:
             _json_out({"error": "Specify --order-id"})
             return
-        _json_out(service.deliver(order_id=args.order_id, dry_run=bool(args.dry_run)))
+        shipping_info = {
+            "order_no": getattr(args, "ship_order_no", None) or args.order_id,
+            "waybill_no": getattr(args, "waybill_no", None),
+            "express_code": getattr(args, "express_code", None),
+            "express_name": getattr(args, "express_name", None),
+            "ship_name": getattr(args, "ship_name", None),
+            "ship_mobile": getattr(args, "ship_mobile", None),
+            "ship_province": getattr(args, "ship_province", None),
+            "ship_city": getattr(args, "ship_city", None),
+            "ship_area": getattr(args, "ship_area", None),
+            "ship_address": getattr(args, "ship_address", None),
+        }
+        shipping_info = {k: v for k, v in shipping_info.items() if v not in (None, "")}
+        _json_out(
+            service.deliver(
+                order_id=args.order_id,
+                dry_run=bool(args.dry_run),
+                shipping_info=shipping_info or None,
+            )
+        )
         return
 
     if action == "after-sales":
@@ -1687,6 +1724,20 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--issue-type", default="delay", help="售后类型：delay/refund/quality")
     p.add_argument("--db-path", default="data/orders.db", help="订单数据库路径")
     p.add_argument("--dry-run", action="store_true", help="仅模拟执行")
+    p.add_argument("--ship-order-no", default=None, help="物流发货时的第三方订单号（默认复用 --order-id）")
+    p.add_argument("--waybill-no", default=None, help="物流单号")
+    p.add_argument("--express-code", default=None, help="快递公司编码（如 YTO）")
+    p.add_argument("--express-name", default=None, help="快递公司名称（如 圆通，可自动换算编码）")
+    p.add_argument("--ship-name", default=None, help="寄件人姓名")
+    p.add_argument("--ship-mobile", default=None, help="寄件人手机号")
+    p.add_argument("--ship-province", default=None, help="寄件省份")
+    p.add_argument("--ship-city", default=None, help="寄件城市")
+    p.add_argument("--ship-area", default=None, help="寄件区县")
+    p.add_argument("--ship-address", default=None, help="寄件详细地址")
+    p.add_argument("--xgj-app-key", default=None, help="闲管家 AppKey（启用 API 发货）")
+    p.add_argument("--xgj-app-secret", default=None, help="闲管家 AppSecret（启用 API 发货）")
+    p.add_argument("--xgj-merchant-id", default=None, help="闲管家商家 ID（如需要）")
+    p.add_argument("--xgj-base-url", default="https://open.goofish.pro", help="闲管家 API 地址")
 
     # compliance
     p = sub.add_parser("compliance", help="合规策略中心")
