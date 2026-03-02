@@ -161,8 +161,7 @@ async def test_listing_service_targeted_branches() -> None:
 async def test_media_and_content_service_error_branches(monkeypatch: pytest.MonkeyPatch) -> None:
     media = MediaService()
     assert media.resize_image_for_xianyu("/tmp/not_exist.png") == "/tmp/not_exist.png"
-    with pytest.raises(AttributeError):
-        media.add_watermark("/tmp/not_exist.png")
+    assert media.add_watermark("/tmp/not_exist.png") == "/tmp/not_exist.png"
 
     content = ContentService()
     optimized = content.optimize_title("", category="Unknown")
@@ -178,7 +177,11 @@ async def test_analytics_service_and_report_generator_branches(temp_dir, monkeyp
 
     fake_analytics = SimpleNamespace(
         get_monthly_report=AsyncMock(
-            return_value={"period": {"start": "s", "end": "e"}, "summary": {"total_revenue": 0, "total_sold": 0}, "top_categories": []}
+            return_value={
+                "period": {"start": "s", "end": "e"},
+                "summary": {"total_revenue": 0, "total_sold": 0},
+                "top_categories": [],
+            }
         ),
         get_product_metrics=AsyncMock(return_value=[{"views": 1, "wants": 2}]),
         get_product_performance=AsyncMock(return_value=[{"product_id": "p1", "total_wants": 1}]),
@@ -192,7 +195,9 @@ async def test_analytics_service_and_report_generator_branches(temp_dir, monkeyp
     product = await rg.generate_product_report("none", days=7)
     assert product["ranking"]["rank"] is None
 
-    md = ReportFormatter.to_markdown({"report_type": "daily", "period": {"start": "a", "end": "b"}, "summary": {}, "operations": {"x": 1}})
+    md = ReportFormatter.to_markdown(
+        {"report_type": "daily", "period": {"start": "a", "end": "b"}, "summary": {}, "operations": {"x": 1}}
+    )
     assert "Period" in md
     slack = ReportFormatter.to_slack({"report_type": "daily", "period": {"start": "a", "end": "b"}, "summary": {}})
     assert "a - b" in slack
@@ -227,7 +232,10 @@ def test_dashboard_handler_multipart_and_stream_and_entrypoints(monkeypatch: pyt
         f"--{boundary}--\r\n"
     ).encode("utf-8")
     mime = b"Content-Type: multipart/form-data; boundary=" + boundary.encode() + b"\r\nMIME-Version: 1.0\r\n\r\n"
-    h.headers = {"Content-Type": f"multipart/form-data; boundary={boundary}", "Content-Length": str(len(mime + payload))}
+    h.headers = {
+        "Content-Type": f"multipart/form-data; boundary={boundary}",
+        "Content-Length": str(len(mime + payload)),
+    }
     h.rfile = io.BytesIO(mime + payload)
     files = h._read_multipart_files()
     assert len(files) == 1
