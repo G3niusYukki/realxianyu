@@ -207,7 +207,6 @@ def test_workflow_worker_init_accepts_non_dict_feishu_config(temp_dir) -> None:
     )
     assert worker.notify_on_alert is True
 
-
 def test_workflow_claim_is_not_reentrant_under_double_claim(temp_dir) -> None:
     store = WorkflowStore(db_path=str(temp_dir / "workflow.db"))
     session = {"session_id": "s_claim", "last_message": "hello"}
@@ -231,16 +230,13 @@ def test_workflow_complete_and_fail_require_matching_lease(temp_dir) -> None:
     assert job.lease_until is not None
 
     assert store.complete_job(job.id, expected_lease_until="2099-01-01T00:00:00Z") is False
-    assert (
-        store.fail_job(
-            job.id,
-            error="should-not-update",
-            max_attempts=3,
-            base_backoff_seconds=0,
-            expected_lease_until="2099-01-01T00:00:00Z",
-        )
-        is False
-    )
+    assert store.fail_job(
+        job.id,
+        error="should-not-update",
+        max_attempts=3,
+        base_backoff_seconds=0,
+        expected_lease_until="2099-01-01T00:00:00Z",
+    ) is False
 
     assert store.complete_job(job.id, expected_lease_until=job.lease_until) is True
     summary = store.get_workflow_summary()
@@ -256,13 +252,10 @@ def test_workflow_fail_is_not_reentrant_after_complete(temp_dir) -> None:
     job = jobs[0]
     assert store.complete_job(job.id, expected_lease_until=job.lease_until) is True
 
-    assert (
-        store.fail_job(
-            job.id,
-            error="late-fail",
-            max_attempts=3,
-            base_backoff_seconds=0,
-            expected_lease_until=job.lease_until,
-        )
-        is False
-    )
+    assert store.fail_job(
+        job.id,
+        error="late-fail",
+        max_attempts=3,
+        base_backoff_seconds=0,
+        expected_lease_until=job.lease_until,
+    ) is False

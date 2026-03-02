@@ -33,7 +33,7 @@
 
 - 用例：`tests/test_e2e_minimal_closed_loop.py::test_minimal_e2e_inquiry_reprice_callback_writeback`
 - 命令：
-  - `pytest -q -o addopts='' tests/test_e2e_minimal_closed_loop.py::test_minimal_e2e_inquiry_reprice_callback_writeback`
+  - `.venv/bin/pytest -q -o addopts='' tests/test_e2e_minimal_closed_loop.py::test_minimal_e2e_inquiry_reprice_callback_writeback`
 - 结果：`PASS | FAIL`
 - 失败摘要：`<如果失败填写>`
 
@@ -49,14 +49,16 @@
 ## 5) 可直接复跑步骤（copy & run）
 
 ```bash
+cd "/Users/brianzhibo/Documents/New project/xianyu-openclaw"
+
 # 1) 跑最小闭环
-pytest -q -o addopts='' tests/test_e2e_minimal_closed_loop.py::test_minimal_e2e_inquiry_reprice_callback_writeback
+.venv/bin/pytest -q -o addopts='' tests/test_e2e_minimal_closed_loop.py::test_minimal_e2e_inquiry_reprice_callback_writeback
 
 # 2) 跑统一覆盖率口径
-pytest --cov=src --cov-report=term-missing --cov-report=json:coverage_qa_check.json > qa_report.txt
+.venv/bin/pytest --cov=src --cov-report=term-missing --cov-report=json:coverage_qa_check.json > qa_report.txt
 
 # 3) 快速核验门槛证据
-python - <<'PY'
+.venv/bin/python - <<'PY'
 import json
 from pathlib import Path
 
