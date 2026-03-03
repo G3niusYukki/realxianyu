@@ -8,27 +8,35 @@ import threading
 import webbrowser
 from pathlib import Path
 
+import importlib.util
+
 import customtkinter as ctk
 
-try:
-    from src.setup_wizard import (
-        ALL_SUPPORTED_KEYS,
-        CONTENT_PROVIDERS,
-        GATEWAY_PROVIDERS,
-        _build_env_content,
-        _read_existing_env,
-    )
-except ModuleNotFoundError:
-    project_root = Path(__file__).resolve().parents[1]
-    if str(project_root) not in sys.path:
-        sys.path.insert(0, str(project_root))
-    from src.setup_wizard import (  # type: ignore[no-redef]
-        ALL_SUPPORTED_KEYS,
-        CONTENT_PROVIDERS,
-        GATEWAY_PROVIDERS,
-        _build_env_content,
-        _read_existing_env,
-    )
+
+def _load_setup_wizard():
+    """Load setup_wizard module directly from file to avoid src/__init__.py import chain.
+
+    src/__init__.py imports heavy modules (httpx, etc.) that are excluded from the
+    PyInstaller bundle. Loading setup_wizard.py by filepath sidesteps the package
+    __init__ entirely.
+    """
+    wizard_path = Path(__file__).resolve().parent / "setup_wizard.py"
+    if not wizard_path.exists():
+        meipass = getattr(sys, "_MEIPASS", None)
+        if meipass:
+            wizard_path = Path(meipass) / "src" / "setup_wizard.py"
+    spec = importlib.util.spec_from_file_location("setup_wizard", wizard_path)
+    mod = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    return mod
+
+
+_sw = _load_setup_wizard()
+ALL_SUPPORTED_KEYS = _sw.ALL_SUPPORTED_KEYS
+CONTENT_PROVIDERS = _sw.CONTENT_PROVIDERS
+GATEWAY_PROVIDERS = _sw.GATEWAY_PROVIDERS
+_build_env_content = _sw._build_env_content
+_read_existing_env = _sw._read_existing_env
 
 
 DOCKER_INSTALLER_URL = "https://desktop.docker.com/win/main/amd64/Docker%20Desktop%20Installer.exe"

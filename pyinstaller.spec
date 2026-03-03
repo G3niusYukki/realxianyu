@@ -50,7 +50,6 @@ a = Analysis(
         'dotenv',
         'pydantic',
         'loguru',
-        'src.setup_wizard',
     ],
     hookspath=[],
     hooksconfig={},
