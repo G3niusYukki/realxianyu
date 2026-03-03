@@ -36,7 +36,7 @@ DOCKER_INSTALLER_URL = "https://desktop.docker.com/win/main/amd64/Docker%20Deskt
 
 def _runtime_root() -> Path:
     if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
-        return Path(getattr(sys, "_MEIPASS"))
+        return Path(sys._MEIPASS)  # noqa: SLF001
     return Path(__file__).resolve().parents[1]
 
 
@@ -737,7 +737,8 @@ class WindowsLauncherApp(ctk.CTk):
                 stderr = (result.stderr or "").strip()
                 self.after(0, lambda: self._on_deploy_finished(result.returncode, stdout, stderr))
             except Exception as exc:
-                self.after(0, lambda: self._on_deploy_exception(exc))
+                err = exc
+                self.after(0, lambda: self._on_deploy_exception(err))
 
         threading.Thread(target=worker, daemon=True).start()
 
@@ -783,7 +784,8 @@ class WindowsLauncherApp(ctk.CTk):
                 text = (result.stdout or "") + ("\n" + result.stderr if result.stderr else "")
                 self.after(0, lambda: self._open_logs_window(text.strip() or "暂无日志输出"))
             except Exception as exc:
-                self.after(0, lambda: self._open_logs_window(f"读取日志失败：{exc}"))
+                err = exc
+                self.after(0, lambda: self._open_logs_window(f"读取日志失败：{err}"))
 
         threading.Thread(target=worker, daemon=True).start()
 
