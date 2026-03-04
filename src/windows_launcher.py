@@ -833,7 +833,7 @@ class WindowsLauncherApp(ctk.CTk):
         def worker() -> None:
             try:
                 result = subprocess.run(
-                    ["docker", "compose", "up", "-d"],
+                    ["docker", "compose", "--env-file", str(self.env_path), "up", "-d"],
                     capture_output=True,
                     text=True,
                     check=False,
@@ -881,7 +881,7 @@ class WindowsLauncherApp(ctk.CTk):
         def worker() -> None:
             try:
                 result = subprocess.run(
-                    ["docker", "compose", "logs", "--tail=80"],
+                    ["docker", "compose", "--env-file", str(self.env_path), "logs", "--tail=80"],
                     capture_output=True,
                     text=True,
                     check=False,
