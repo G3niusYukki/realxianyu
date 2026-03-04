@@ -852,18 +852,16 @@ class WindowsLauncherApp(ctk.CTk):
         self.progress.grid_remove()
         self._set_deploy_controls(False)
 
-        if code == 0:
-            port = self.port_var.get().strip()
-            suffix = f"\n\n命令输出：\n{stdout}" if stdout else ""
-            self._set_status(f"启动完成！访问地址：http://localhost:{port}{suffix}", "#8ad9a0")
-            self.open_browser_btn.grid()
-            self.show_logs_btn.grid_remove()
+        if code != 0:
+            detail = stderr or stdout or "未知错误"
+            self._set_status(f"启动失败，请检查配置或 Docker 状态。\n错误详情：{detail}", "#ff8d8d")
+            self.show_logs_btn.grid()
+            self.open_browser_btn.grid_remove()
             return
 
-        detail = stderr or stdout or "未知错误"
-        self._set_status(f"启动失败，请检查配置或 Docker 状态。\n错误详情：{detail}", "#ff8d8d")
-        self.show_logs_btn.grid()
-        self.open_browser_btn.grid_remove()
+        port = self.port_var.get().strip()
+        self._set_status("容器启动中，正在检查状态...", "gray85")
+        self.after(3000, lambda: self._check_container_status(port))
 
     def _on_deploy_exception(self, exc: Exception) -> None:
         self.progress.stop()
@@ -871,6 +869,66 @@ class WindowsLauncherApp(ctk.CTk):
         self._set_deploy_controls(False)
         self._set_status(f"执行启动命令时出现异常：{exc}", "#ff8d8d")
         self.show_logs_btn.grid()
+
+    def _check_container_status(self, port: str) -> None:
+        def worker() -> None:
+            try:
+                import time
+
+                time.sleep(2)
+
+                result = subprocess.run(
+                    ["docker", "compose", "--env-file", str(self.env_path), "ps", "--format", "json"],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+
+                if result.returncode != 0:
+                    self.after(
+                        0,
+                        lambda: self._set_status(
+                            f"启动完成！访问地址：http://localhost:{port}\n（注意：无法获取容器状态，请手动检查）",
+                            "#8ad9a0",
+                        ),
+                    )
+                    self.after(0, self.open_browser_btn.grid)
+                    return
+
+                output = result.stdout or ""
+                if '"Restarting"' in output or "restarting" in output.lower():
+                    logs_result = subprocess.run(
+                        ["docker", "compose", "--env-file", str(self.env_path), "logs", "--tail=30"],
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                    )
+                    logs = (logs_result.stdout or "") + (logs_result.stderr or "")
+                    error_msg = "容器正在重启，可能原因：\n"
+                    if "At least one AI provider API key" in logs:
+                        error_msg += "• AI Key未配置：请在第2步配置Gateway AI的API Key\n"
+                    elif "pairing required" in logs.lower():
+                        error_msg += "• 需要设备配对：请在PowerShell执行配对命令\n"
+                    elif "cookie" in logs.lower() and ("missing" in logs.lower() or "invalid" in logs.lower()):
+                        error_msg += "• Cookie无效：请在第5步配置有效的闲鱼Cookie\n"
+                    else:
+                        error_msg += "• 配置错误或其他问题，请查看日志\n"
+
+                    error_msg += "\n查看日志了解详情。"
+
+                    self.after(0, lambda: self._set_status(error_msg, "#ff8d8d"))
+                    self.after(0, self.show_logs_btn.grid)
+                    self.after(0, self.open_browser_btn.grid_remove)
+                else:
+                    self.after(0, lambda: self._set_status(f"启动完成！访问地址：http://localhost:{port}", "#8ad9a0"))
+                    self.after(0, self.open_browser_btn.grid)
+                    self.after(0, self.show_logs_btn.grid_remove)
+
+            except Exception:
+                self.after(0, lambda: self._set_status(f"启动完成！访问地址：http://localhost:{port}", "#8ad9a0"))
+                self.after(0, self.open_browser_btn.grid)
+
+        threading.Thread(target=worker, daemon=True).start()
 
     def _open_web(self) -> None:
         webbrowser.open(f"http://localhost:{self.port_var.get().strip()}")
