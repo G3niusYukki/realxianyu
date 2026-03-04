@@ -403,40 +403,46 @@ class WindowsLauncherApp(ctk.CTk):
 
         nav = ctk.CTkFrame(frame, fg_color="transparent")
         nav.grid(row=7, column=0, padx=30, pady=24, sticky="ew")
-        nav.grid_columnconfigure(0, weight=1)
-        ctk.CTkButton(nav, text="上一步", width=140, command=self._goto_prev).grid(row=0, column=0, sticky="w")
+        nav.grid_columnconfigure(1, weight=1)
+        ctk.CTkButton(nav, text="上一步", width=140, command=self._goto_prev).grid(
+            row=0, column=0, padx=(0, 10), sticky="w"
+        )
+        ctk.CTkButton(
+            nav, text="跳过，稍后配置", width=160, fg_color="transparent", border_width=1, command=self._skip_cookie
+        ).grid(row=0, column=1, padx=(0, 10), sticky="e")
         ctk.CTkButton(nav, text="下一步", width=140, command=self._validate_cookie_and_next).grid(
-            row=0, column=1, sticky="e"
+            row=0, column=2, sticky="e"
         )
         return frame
 
     def _build_page_confirm(self) -> ctk.CTkFrame:
         frame = ctk.CTkFrame(self.page_container)
         frame.grid_columnconfigure(0, weight=1)
-        frame.grid_rowconfigure(2, weight=1)
+        frame.grid_rowconfigure(1, weight=1)
 
         ctk.CTkLabel(frame, text="第 6 步：确认并部署", font=ctk.CTkFont(size=24, weight="bold")).grid(
-            row=0, column=0, padx=30, pady=(30, 12), sticky="w"
+            row=0, column=0, padx=30, pady=(20, 10), sticky="w"
         )
 
-        self.summary_box = ctk.CTkTextbox(frame, width=700, height=260)
-        self.summary_box.grid(row=1, column=0, padx=30, pady=(0, 12), sticky="nsew")
+        self.summary_box = ctk.CTkTextbox(frame, width=700, height=240)
+        self.summary_box.grid(row=1, column=0, padx=30, pady=(0, 10), sticky="nsew")
         self.summary_box.configure(state="disabled")
 
         action_frame = ctk.CTkFrame(frame, fg_color="transparent")
-        action_frame.grid(row=2, column=0, padx=30, pady=(0, 8), sticky="ew")
-        action_frame.grid_columnconfigure(2, weight=1)
+        action_frame.grid(row=2, column=0, padx=30, pady=(0, 10), sticky="ew")
+        action_frame.grid_columnconfigure((0, 1, 2), weight=1)
 
-        ctk.CTkButton(action_frame, text="上一步", width=140, command=self._goto_prev).grid(
-            row=0, column=0, padx=(0, 10), sticky="w"
-        )
+        self.back_btn = ctk.CTkButton(action_frame, text="上一步", width=140, command=self._goto_prev)
+        self.back_btn.grid(row=0, column=0, padx=(0, 10), sticky="w")
+
         self.generate_only_btn = ctk.CTkButton(action_frame, text="仅生成配置", width=160, command=self._generate_only)
-        self.generate_only_btn.grid(row=0, column=1, padx=(0, 10), sticky="w")
+        self.generate_only_btn.grid(row=0, column=1, padx=10)
+
         self.deploy_btn = ctk.CTkButton(action_frame, text="生成配置并启动", width=180, command=self._deploy)
-        self.deploy_btn.grid(row=0, column=2, sticky="e")
+        self.deploy_btn.grid(row=0, column=2, padx=(10, 0), sticky="e")
 
         self.progress = ctk.CTkProgressBar(frame, mode="indeterminate")
-        self.progress.grid(row=3, column=0, padx=30, pady=(4, 10), sticky="ew")
+        self.progress.grid(row=3, column=0, padx=30, pady=(10, 10), sticky="ew")
         self.progress.grid_remove()
 
         self.result_label = ctk.CTkLabel(
@@ -445,7 +451,7 @@ class WindowsLauncherApp(ctk.CTk):
         self.result_label.grid(row=4, column=0, padx=30, pady=(0, 8), sticky="w")
 
         bottom = ctk.CTkFrame(frame, fg_color="transparent")
-        bottom.grid(row=5, column=0, padx=30, pady=(0, 24), sticky="ew")
+        bottom.grid(row=5, column=0, padx=30, pady=(0, 16), sticky="ew")
         bottom.grid_columnconfigure(0, weight=1)
         self.open_browser_btn = ctk.CTkButton(bottom, text="打开浏览器", width=140, command=self._open_web)
         self.open_browser_btn.grid(row=0, column=0, sticky="w")
@@ -682,6 +688,11 @@ class WindowsLauncherApp(ctk.CTk):
         if not self.cookie_1_placeholder.get():
             self.cookie_error_label.configure(text="请填写 XIANYU_COOKIE_1")
             return
+        self._goto_next()
+
+    def _skip_cookie(self) -> None:
+        self.cookie_1_placeholder.set("")
+        self.cookie_2_placeholder.set("")
         self._goto_next()
 
     def _collect_merged_values(self) -> tuple[dict[str, str], object, object]:
