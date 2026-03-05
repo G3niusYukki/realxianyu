@@ -2707,8 +2707,11 @@ class MimicOps:
             route_stat_payload.get("courier_details", {}) if isinstance(route_stat_payload, dict) else {}
         )
         risk_level = str(risk_control.get("level", "unknown") or "unknown").lower()
-        risk_signals = risk_control.get("signals", [])
-        risk_signal_text = " ".join(str(x) for x in risk_signals) if isinstance(risk_signals, list) else ""
+        risk_signals_raw = risk_control.get("signals", [])
+        risk_signals = (
+            [str(x).strip() for x in risk_signals_raw if str(x).strip()] if isinstance(risk_signals_raw, list) else []
+        )
+        risk_signal_text = " ".join(risk_signals)
         risk_event_text = str(risk_control.get("last_event", "") or "")
         risk_text = f"{risk_signal_text} {risk_event_text}".lower()
 
@@ -2751,6 +2754,16 @@ class MimicOps:
             token_error=token_error,
             cookie_text=cookie_text,
         )
+        recovery_stage = str(recovery.get("stage") or "monitoring").strip().lower() or "monitoring"
+        next_retry_at: str | None = None
+        if recovery_stage in {"recover_triggered", "waiting_reconnect"}:
+            last_auto_recover_at = str(recovery.get("last_auto_recover_at") or "").strip()
+            if last_auto_recover_at:
+                try:
+                    dt = datetime.fromisoformat(last_auto_recover_at.replace("Z", "+00:00"))
+                    next_retry_at = (dt + timedelta(seconds=20)).strftime("%Y-%m-%dT%H:%M:%S")
+                except Exception:
+                    next_retry_at = None
 
         user_id = None
         for key, value in self._extract_cookie_pairs_from_header(cookie_text):
@@ -2782,6 +2795,9 @@ class MimicOps:
             "xianguanjia": xgj_settings,
             "risk_control": risk_control,
             "recovery": recovery,
+            "recovery_stage": recovery_stage,
+            "next_retry_at": next_retry_at,
+            "risk_signals": risk_signals,
             "system_running": alive_count > 0,
             "alive_count": alive_count,
             "total_modules": total_modules,
