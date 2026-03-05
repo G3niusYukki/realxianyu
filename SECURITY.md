@@ -43,7 +43,7 @@ export ENCRYPTION_KEY="your-secure-key-here"
 如果你发现安全漏洞，请：
 
 1. **不要** 在公开 Issue 中报告
-2. 发送邮件至：**security@example.com**
+2. 发送邮件至：**haoyang056@gmail.com**
 3. 提供详细的复现步骤
 4. 等待修复后再公开
 
