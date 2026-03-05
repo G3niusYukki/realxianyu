@@ -36,13 +36,13 @@ def _get_or_create_key() -> bytes:
         # 检查文件权限，确保只有所有者可读写
         try:
             import stat
+
             file_stat = key_path.stat()
             file_mode = stat.filemode(file_stat.st_mode)
             # 检查是否过于宽松（组或其他用户有读写权限）
             if file_stat.st_mode & (stat.S_IRWXG | stat.S_IRWXO):
                 logger.warning(
-                    f"Key file {_KEY_FILE} has overly permissive permissions ({file_mode}). "
-                    f"Run: chmod 600 {_KEY_FILE}"
+                    f"Key file {_KEY_FILE} has overly permissive permissions ({file_mode}). Run: chmod 600 {_KEY_FILE}"
                 )
         except Exception as e:
             logger.debug(f"Could not check key file permissions: {e}")
@@ -61,6 +61,7 @@ def _get_or_create_key() -> bytes:
     # 设置安全的文件权限（仅所有者可读写）
     try:
         import stat
+
         key_path.chmod(stat.S_IRUSR | stat.S_IWUSR)  # 0o600
         logger.info(f"Generated new encryption key (saved to {_KEY_FILE} with permissions 600)")
     except Exception as e:
