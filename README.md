@@ -57,6 +57,17 @@
 
 ---
 
+## 6.3.3 更新摘要（2026-03-06）
+
+- **状态合约稳定化（PR-B Unblock）**：
+  - `src/core/config.py`: 确认 `.env` 加载使用 `override=False`，保护命令行环境变量
+  - `src/dashboard_server.py`: `/api/status` 接口字段规范化
+    - 保留 PR-A 字段：`instance_id`, `project_root`, `python_exec`, `started_at`
+    - 新增 PR-B 状态字段：`recovery_stage`（恢复阶段）, `next_retry_at`（下次重试时间）, `risk_signals`（风险信号数组）
+    - `risk_signals` 字段格式化为标准字符串数组，空值保护
+    - `recovery_stage` 默认为 "monitoring"，支持 "recover_triggered" / "waiting_reconnect" 等状态
+    - `next_retry_at` 根据上次恢复时间自动计算（+20秒）
+
 ## 6.3.2 更新摘要（2026-03-06）
 
 - **严格模式修复（PR-A Unblock）**：
