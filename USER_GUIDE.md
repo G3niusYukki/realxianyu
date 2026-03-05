@@ -126,6 +126,170 @@ XIANYU_COOKIE_1=你的闲鱼Cookie（下一步教你获取）
 
 ---
 
+### 3.5 中国大陆网络受限环境部署（离线/镜像方案）
+
+如果你在中国大陆，遇到以下问题：
+- 无法访问 GitHub
+- Docker Hub 拉取镜像失败
+- pip 安装 Python 包超时
+- 无法连接 OpenAI/Anthropic 等国外 AI 服务
+
+请使用以下方案：
+
+#### 方案 A：使用国内镜像源（推荐，网络受限但可联网）
+
+**1. 使用国内 pip 镜像（清华/阿里云）**
+
+修改安装脚本，在 `scripts/windows/setup_windows.bat` 中，将第19行改为：
+
+```batch
+call .venv\Scripts\pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+```
+
+或在用户目录创建 `pip.ini` 文件：
+
+```ini
+[global]
+index-url = https://pypi.tuna.tsinghua.edu.cn/simple
+trusted-host = pypi.tuna.tsinghua.edu.cn
+```
+
+文件位置：
+- Windows: `C:\Users\你的用户名\pip\pip.ini`
+- 或 `C:\Users\你的用户名\AppData\Roaming\pip\pip.ini`
+
+**2. 使用国内 Docker 镜像加速器**
+
+编辑 Docker Desktop 设置：
+- 打开 Docker Desktop → Settings → Docker Engine
+- 添加 registry-mirrors：
+
+```json
+{
+  "registry-mirrors": [
+    "https://mirror.ccs.tencentyun.com",
+    "https://hub-mirror.c.163.com",
+    "https://docker.mirrors.ustc.edu.cn"
+  ]
+}
+```
+
+**3. 使用国产 AI 服务（绕过 OpenAI/Anthropic）**
+
+编辑 `.env` 文件，使用 DeepSeek 或阿里云百炼：
+
+```env
+# === 网关配置 ===
+CUSTOM_GATEWAY_API_KEY=sk-your-deepseek-key
+CUSTOM_GATEWAY_BASE_URL=https://api.deepseek.com/v1
+
+# === 业务 AI 配置 ===
+DEEPSEEK_API_KEY=sk-your-deepseek-key
+AI_PROVIDER=deepseek
+AI_API_KEY=sk-your-deepseek-key
+AI_BASE_URL=https://api.deepseek.com/v1
+AI_MODEL=deepseek-chat
+```
+
+备选（阿里云百炼）：
+```env
+DASHSCOPE_API_KEY=sk-your-dashscope-key
+AI_PROVIDER=aliyun_bailian
+AI_API_KEY=sk-your-dashscope-key
+AI_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+AI_MODEL=qwen-turbo
+```
+
+#### 方案 B：完全离线部署（无法访问任何外网）
+
+**准备阶段（在有网络的电脑上进行）：**
+
+1. **下载项目代码**
+   - 从 GitHub 下载 ZIP 包，或让朋友帮你下载后复制
+
+2. **下载所有 Python 依赖包（whl格式）**
+
+在能联网的电脑上执行：
+```bash
+mkdir offline_packages
+pip download -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple --only-binary=:all: --platform win_amd64
+pip download playwright -i https://pypi.tuna.tsinghua.edu.cn/simple --only-binary=:all: --platform win_amd64
+```
+
+3. **下载 Playwright 浏览器**
+- 从阿里云镜像下载 Chromium 浏览器
+- 或使用 U 盘从其他电脑复制已安装的浏览器
+
+4. **导出 Docker 镜像（如使用 Docker）**
+```bash
+docker pull coollabsio/openclaw:latest
+docker save coollabsio/openclaw:latest > openclaw-image.tar
+```
+
+**部署阶段（在离线 Windows 11 机器上）：**
+
+1. **传输文件**
+   将以下文件复制到目标机器：
+   - 项目代码文件夹
+   - `offline_packages/` 文件夹（所有 whl 文件）
+   - `chromium/` 浏览器文件夹
+   - `openclaw-image.tar`（如使用 Docker）
+
+2. **创建离线安装脚本**
+
+创建 `setup_offline.bat` 文件：
+
+```batch
+@echo off
+setlocal enabledelayedexpansion
+echo ============================================
+echo   闲鱼 OpenClaw - 离线部署
+echo ============================================
+cd /d %~dp0
+
+:: 检查 Python
+python --version >nul 2>&1
+if errorlevel 1 (
+    echo [错误] 未检测到 Python，请先安装 Python 3.10+
+    pause
+    exit /b 1
+)
+
+:: 创建虚拟环境
+echo [*] 创建虚拟环境...
+python -m venv .venv
+
+:: 离线安装依赖
+echo [*] 离线安装依赖...
+.venv\Scripts\pip install --no-index --find-links=offline_packages -r requirements.txt
+
+:: 配置浏览器
+echo [*] 配置浏览器...
+set PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+xcopy /E /I /Y chromium .venv\Lib\site-packages\playwright\driver\package\.local-browsers\chromium-1097 2>nul
+
+:: 创建目录
+mkdir data 2>nul
+mkdir logs 2>nul
+mkdir config 2>nul
+
+:: 复制配置文件
+if not exist .env copy .env.example .env
+if not exist config\config.yaml copy config\config.example.yaml config\config.yaml
+
+echo [OK] 部署完成！请编辑 .env 配置 AI Key 和 Cookie。
+pause
+```
+
+3. **运行安装脚本**
+   双击 `setup_offline.bat` 执行安装
+
+4. **配置和启动**
+   - 编辑 `.env` 文件，配置国产 AI 服务
+   - 运行 `scripts\windows\menu.bat` 启动
+
+---
+
 ## 4. 获取闲鱼 Cookie
 
 **什么是 Cookie？** 简单理解：当你登录闲鱼后，浏览器保存了一个"通行证"。我们需要把这个通行证告诉工具，工具才能代替你操作。
