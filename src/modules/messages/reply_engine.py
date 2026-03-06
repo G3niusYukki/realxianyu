@@ -107,7 +107,7 @@ class IntentRule:
 
 
 class ReplyStrategyEngine:
-    """通用自动回复策略引擎 — 支持关键词规则 + AI 意图识别 + 合规检查。"""
+    """通用自动回复策略引擎 — 支持关键词规则 + AI 意图识别 + 合规检查 + 消息去重 + 议价计数。"""
 
     def __init__(
         self,
@@ -120,12 +120,16 @@ class ReplyStrategyEngine:
         virtual_product_keywords: list[str] | None = None,
         ai_intent_enabled: bool = False,
         compliance_enabled: bool = True,
+        dedup_enabled: bool = True,
+        bargain_tracking_enabled: bool = True,
     ):
         self.default_reply = default_reply
         self.virtual_default_reply = virtual_default_reply or default_reply
         self.reply_prefix = reply_prefix
         self.ai_intent_enabled = ai_intent_enabled
         self.compliance_enabled = compliance_enabled
+        self.dedup_enabled = dedup_enabled
+        self.bargain_tracking_enabled = bargain_tracking_enabled
         self.virtual_product_keywords = [
             kw.lower() for kw in (virtual_product_keywords or DEFAULT_VIRTUAL_PRODUCT_KEYWORDS) if str(kw).strip()
         ]
@@ -138,6 +142,8 @@ class ReplyStrategyEngine:
 
         self._content_service = None
         self._compliance_guard = None
+        self._dedup = None
+        self._bargain_tracker = None
 
     def _get_content_service(self):
         if self._content_service is None:
@@ -156,6 +162,24 @@ class ReplyStrategyEngine:
             except Exception:
                 pass
         return self._compliance_guard
+
+    def _get_dedup(self):
+        if self._dedup is None and self.dedup_enabled:
+            try:
+                from src.modules.messages.dedup import MessageDedup
+                self._dedup = MessageDedup()
+            except Exception:
+                pass
+        return self._dedup
+
+    def _get_bargain_tracker(self):
+        if self._bargain_tracker is None and self.bargain_tracking_enabled:
+            try:
+                from src.modules.messages.bargain_tracker import BargainTracker
+                self._bargain_tracker = BargainTracker()
+            except Exception:
+                pass
+        return self._bargain_tracker
 
     def classify_intent(self, message_text: str, item_title: str = "") -> str:
         """识别买家消息意图。优先使用关键词规则，可选 AI 兜底。
@@ -242,6 +266,48 @@ class ReplyStrategyEngine:
             "intent_label": INTENT_LABELS.get(intent, "未知"),
             "should_quote": intent == "price_bargain" or intent == "price_inquiry",
         }
+
+    def process_message(
+        self,
+        chat_id: str,
+        message_text: str,
+        create_time: int,
+        item_title: str = "",
+    ) -> dict[str, Any]:
+        """完整消息处理流程：去重 -> 议价计数 -> 生成回复 -> 标记已回复。
+
+        Returns:
+            dict with keys: reply, intent, skipped, skip_reason, bargain_count, bargain_hint
+        """
+        dedup = self._get_dedup()
+        if dedup and dedup.is_replied(chat_id, create_time, message_text):
+            logger.debug(f"[reply_engine] skipped duplicate: chat={chat_id}")
+            return {
+                "reply": "",
+                "intent": "duplicate",
+                "skipped": True,
+                "skip_reason": "duplicate",
+                "bargain_count": 0,
+                "bargain_hint": None,
+            }
+
+        tracker = self._get_bargain_tracker()
+        bargain_count = 0
+        bargain_hint = None
+        if tracker:
+            bargain_count = tracker.record_if_bargain(chat_id, message_text)
+            bargain_hint = tracker.get_context_hint(chat_id)
+
+        result = self.generate_reply_with_intent(message_text, item_title)
+
+        if dedup:
+            dedup.mark_replied(chat_id, create_time, message_text, result["reply"])
+
+        result["skipped"] = False
+        result["skip_reason"] = None
+        result["bargain_count"] = bargain_count
+        result["bargain_hint"] = bargain_hint
+        return result
 
     def _check_compliance(self, reply_text: str) -> str:
         """检查回复内容是否包含敏感词，有则替换为安全版本。"""

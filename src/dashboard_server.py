@@ -3205,6 +3205,22 @@ class MimicOps:
                 user_id = str(value or "").strip() or None
                 break
 
+        cookie_health_info: dict[str, Any] = {"healthy": False, "message": "未检查", "score": 0}
+        try:
+            from src.core.cookie_health import CookieHealthChecker
+            if cookie_text:
+                _ck_checker = CookieHealthChecker(cookie_text, timeout_seconds=5.0)
+                _ck_result = _ck_checker.check_sync(force=False)
+                cookie_health_info = {
+                    "healthy": bool(_ck_result.get("healthy")),
+                    "message": _ck_result.get("message", ""),
+                    "score": 100 if _ck_result.get("healthy") else 0,
+                }
+            else:
+                cookie_health_info = {"healthy": False, "message": "Cookie 未配置", "score": 0}
+        except Exception:
+            pass
+
         return {
             "success": True,
             "service": dict(self._service_state),
@@ -3212,6 +3228,7 @@ class MimicOps:
             "cookie_exists": bool(cookie.get("success", False)),
             "cookie_valid": bool(cookie.get("success", False)),
             "cookie_length": int(cookie.get("length", 0) or 0),
+            "cookie_health": cookie_health_info,
             "xianyu_connected": xianyu_connected,
             "token_available": token_available,
             "token_error": token_error,
@@ -6612,6 +6629,89 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 self._send_json({"ok": True, "templates": list_templates()})
                 return
 
+            if path == "/api/health/check":
+                import time as _t
+                result: dict[str, Any] = {"timestamp": _now_iso()}
+
+                cookie_info: dict[str, Any] = {"ok": False, "message": "未检查"}
+                try:
+                    from src.core.cookie_health import CookieHealthChecker
+                    cookie_text = os.environ.get("XIANYU_COOKIE_1", "")
+                    if not cookie_text:
+                        ck = self.mimic_ops.get_cookie()
+                        cookie_text = str(ck.get("cookie", "") or "")
+                    checker = CookieHealthChecker(cookie_text, timeout_seconds=8.0)
+                    ck_result = checker.check_sync(force=True)
+                    cookie_info = {"ok": bool(ck_result.get("healthy")), "message": ck_result.get("message", "")}
+                except Exception as exc:
+                    cookie_info = {"ok": False, "message": f"检查异常: {exc}"}
+                result["cookie"] = cookie_info
+
+                ai_info: dict[str, Any] = {"ok": False, "message": "未配置"}
+                try:
+                    ai_key = os.environ.get("AI_API_KEY", "")
+                    ai_base = os.environ.get("AI_BASE_URL", "")
+                    if not ai_key or not ai_base:
+                        try:
+                            cfg_res = self._xianguanjia_service_config()
+                            ai_cfg = cfg_res.get("ai", {})
+                            ai_key = ai_key or str(ai_cfg.get("api_key", "") or "")
+                            ai_base = ai_base or str(ai_cfg.get("base_url", "") or "")
+                        except Exception:
+                            pass
+                    if ai_key and ai_base:
+                        t0 = _t.time()
+                        import httpx
+                        models_url = ai_base.rstrip("/") + "/models"
+                        with httpx.Client(timeout=8.0) as hc:
+                            resp = hc.get(models_url, headers={"Authorization": f"Bearer {ai_key}"})
+                        latency = int((_t.time() - t0) * 1000)
+                        if resp.status_code == 200:
+                            ai_info = {"ok": True, "message": "连通", "latency_ms": latency}
+                        else:
+                            ai_info = {"ok": False, "message": f"HTTP {resp.status_code}", "latency_ms": latency}
+                    else:
+                        ai_info = {"ok": False, "message": "API Key 或 Base URL 未配置"}
+                except Exception as exc:
+                    ai_info = {"ok": False, "message": f"检查异常: {type(exc).__name__}"}
+                result["ai"] = ai_info
+
+                result["services"] = {"python": {"ok": True, "message": "运行中"}}
+                self._send_json(result)
+                return
+
+            if path == "/api/cookie/auto-grab/status":
+                self.send_response(200)
+                self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+                self.send_header("Cache-Control", "no-cache")
+                self.send_header("Connection", "keep-alive")
+                self.end_headers()
+                grabber = getattr(DashboardHandler, "_cookie_grabber", None)
+                try:
+                    for _ in range(600):
+                        if grabber is not None:
+                            p = grabber.progress
+                            event = json.dumps({
+                                "stage": p.stage.value if hasattr(p.stage, "value") else str(p.stage),
+                                "message": p.message,
+                                "hint": p.hint,
+                                "progress": p.progress,
+                                "error": p.error,
+                            }, ensure_ascii=False)
+                            self.wfile.write(f"data: {event}\n\n".encode())
+                            self.wfile.flush()
+                            if p.stage.value in {"success", "failed", "cancelled"}:
+                                break
+                        else:
+                            event = json.dumps({"stage": "idle", "message": "未在运行", "hint": "", "progress": 0, "error": ""}, ensure_ascii=False)
+                            self.wfile.write(f"data: {event}\n\n".encode())
+                            self.wfile.flush()
+                            break
+                        time.sleep(0.5)
+                except (BrokenPipeError, ConnectionResetError):
+                    return
+                return
+
             self._send_json(_error_payload("Not Found", code="NOT_FOUND"), status=404)
         except sqlite3.Error as e:
             self._send_json(_error_payload(f"Database error: {e}", code="DATABASE_ERROR"), status=500)
@@ -6831,6 +6931,49 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 body = self._read_json_body()
                 payload = self._handle_listing_publish(body)
                 self._send_json(payload, status=200 if payload.get("ok") else 400)
+                return
+
+            if path == "/api/cookie/auto-grab":
+                import threading
+                from src.core.cookie_grabber import CookieGrabber
+
+                if getattr(DashboardHandler, "_cookie_grab_running", False):
+                    self._send_json({"ok": False, "error": "已有获取任务在运行"}, status=409)
+                    return
+
+                grabber = CookieGrabber()
+                DashboardHandler._cookie_grabber = grabber
+                DashboardHandler._cookie_grab_running = True
+
+                def _run_grab() -> None:
+                    import asyncio
+                    loop = asyncio.new_event_loop()
+                    try:
+                        result = loop.run_until_complete(grabber.auto_grab())
+                        DashboardHandler._cookie_grab_result = {
+                            "ok": result.ok,
+                            "source": result.source,
+                            "message": result.message,
+                            "error": result.error,
+                        }
+                    except Exception as exc:
+                        DashboardHandler._cookie_grab_result = {"ok": False, "error": str(exc)}
+                    finally:
+                        loop.close()
+                        DashboardHandler._cookie_grab_running = False
+
+                t = threading.Thread(target=_run_grab, daemon=True)
+                t.start()
+                self._send_json({"ok": True, "message": "Cookie 获取任务已启动，请通过 SSE 接口监听进度"})
+                return
+
+            if path == "/api/cookie/auto-grab/cancel":
+                grabber = getattr(DashboardHandler, "_cookie_grabber", None)
+                if grabber is not None:
+                    grabber.cancel()
+                    self._send_json({"ok": True, "message": "已取消"})
+                else:
+                    self._send_json({"ok": False, "error": "没有正在运行的获取任务"})
                 return
 
             self._send_json(_error_payload("Not Found", code="NOT_FOUND"), status=404)

@@ -123,7 +123,7 @@ export default function ProductList() {
               return (
                 <div key={p.product_id} className="p-5 hover:bg-xy-gray-50 transition-colors flex flex-col md:flex-row gap-5">
                   <div className="w-24 h-24 bg-xy-gray-100 rounded-lg overflow-hidden border border-xy-border flex-shrink-0 relative">
-                    <img src={p.pic_url || (Array.isArray(p.images) && p.images[0]) || 'https://via.placeholder.com/100'} alt={p.title || '商品图片'} className="w-full h-full object-cover" />
+                    <img src={p.pic_url || (Array.isArray(p.images) && p.images[0]) || `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" fill="%23f3f4f6"><rect width="100" height="100"/><text x="50" y="55" text-anchor="middle" fill="%239ca3af" font-size="12">暂无图片</text></svg>')}`} alt={p.title || '商品图片'} className="w-full h-full object-cover" />
                     {!isOnline && (
                       <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
                         <span className="text-white text-xs font-bold px-2 py-1 bg-black/50 rounded">已下架</span>

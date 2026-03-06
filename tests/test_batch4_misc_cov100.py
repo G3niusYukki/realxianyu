@@ -120,6 +120,7 @@ class TestFollowUpEngine:
             db_path = f.name
         try:
             engine = self._make_engine(db_path)
+            engine._is_silent_hours = lambda: False
             result = engine.process_unpaid_order(
                 session_id="buyer_session",
                 order_id="order_123",
@@ -136,6 +137,7 @@ class TestFollowUpEngine:
             db_path = f.name
         try:
             engine = self._make_engine(db_path)
+            engine._is_silent_hours = lambda: False
             result = engine.process_unpaid_order(
                 session_id="buyer_session2",
                 order_id="order_456",

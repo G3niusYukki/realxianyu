@@ -16,15 +16,15 @@ pip install -r requirements.txt
 
 ```
 src/
-├── cli.py              # CLI entry point — all agent commands
-├── core/               # Framework: config, logging, browser client, crypto
-└── modules/            # Business logic: listing, operations, analytics, accounts
-skills/                 # OpenClaw SKILL.md files (one per directory)
+├── cli.py              # CLI entry point
+├── core/               # Framework: config, logging, browser client, crypto, cookie_grabber
+├── modules/            # Business logic: listing, operations, messages, orders, analytics
+├── dashboard_server.py # Python Dashboard API server
+└── integrations/       # Third-party integrations (xianguanjia)
+server/                 # Node.js backend (config proxy, webhook gate)
+client/                 # React frontend (Vite + Tailwind)
+tests/                  # Python test suite
 ```
-
-Note:
-- `skills/xianyu_*` Python packages are deprecated compatibility stubs.
-- Use `skills/*/SKILL.md + src/cli.py` as the only supported skill execution path.
 
 ## How to Contribute
 
@@ -46,7 +46,7 @@ Open an [issue](https://github.com/G3niusYukki/xianyu-openclaw/issues/new?templa
 2. Create a feature branch: `git checkout -b feat/my-feature`
 3. Make your changes
 4. Run linting: `ruff check src/`
-5. If your change affects publishing/operations, also verify `config/rules.yaml` compatibility behavior.
+5. Run tests: `python -m pytest tests/ -x`
 6. Commit with a clear message: `git commit -m "feat: add price optimization"`
 7. Push to your fork and open a PR
 
@@ -62,13 +62,6 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/):
 | `refactor:` | Code restructuring (no behavior change) |
 | `test:` | Adding or updating tests |
 | `chore:` | Build, CI, dependency updates |
-
-### Adding a New Skill
-
-1. Create `skills/your-skill/SKILL.md` following the [OpenClaw Skill format](https://docs.openclaw.ai/skills/)
-2. Add corresponding CLI command in `src/cli.py`
-3. Add service logic in `src/modules/`
-4. Update the skill table in `README.md`
 
 ## Code Style
 
