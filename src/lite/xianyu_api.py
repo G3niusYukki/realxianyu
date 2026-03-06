@@ -30,7 +30,7 @@ def parse_cookie_string(cookie_text: str) -> dict[str, str]:
 def generate_sign(timestamp_ms: str, token: str, data: str, app_key: str = "34839810") -> str:
     """Generate mtop sign."""
 
-    return hashlib.md5(f"{token}&{timestamp_ms}&{app_key}&{data}".encode("utf-8")).hexdigest()
+    return hashlib.md5(f"{token}&{timestamp_ms}&{app_key}&{data}".encode()).hexdigest()
 
 
 def generate_device_id(user_id: str) -> str:

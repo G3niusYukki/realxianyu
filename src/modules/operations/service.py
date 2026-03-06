@@ -12,10 +12,10 @@ from datetime import UTC, datetime
 from typing import Any
 
 from src.core.compliance import get_compliance_guard
-from src.integrations.xianguanjia.open_platform_client import OpenPlatformClient
 from src.core.config import get_config
 from src.core.error_handler import BrowserError
 from src.core.logger import get_logger
+from src.integrations.xianguanjia.open_platform_client import OpenPlatformClient
 from src.modules.analytics.service import AnalyticsService
 from src.modules.listing.models import Listing
 from src.modules.listing.service import ListingService
@@ -404,7 +404,9 @@ class OperationsService:
             return [str(pid) for pid in extracted[:limit]]
         return [f"unknown_{i + 1}" for i in range(limit)]
 
-    async def modify_order_price(self, order_no: str, order_price: int, express_fee: int | None = None) -> dict[str, Any]:
+    async def modify_order_price(
+        self, order_no: str, order_price: int, express_fee: int | None = None
+    ) -> dict[str, Any]:
         if not self.price_api_client:
             return {"success": False, "channel": "order_price_api", "error": "price_api_client_not_configured"}
         try:
