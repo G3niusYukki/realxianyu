@@ -49,7 +49,7 @@
 ## 5) 可直接复跑步骤（copy & run）
 
 ```bash
-cd "/Users/brianzhibo/Documents/New project/xianyu-openclaw"
+cd "/Users/peterzhang/xianyu-openclaw"
 
 # 1) 跑最小闭环
 .venv/bin/pytest -q -o addopts='' tests/test_e2e_minimal_closed_loop.py::test_minimal_e2e_inquiry_reprice_callback_writeback

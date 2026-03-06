@@ -311,22 +311,14 @@ def run_setup() -> int:
             required=True,
         )
 
-    xgj_app_key = _prompt("填写 XGJ_APP_KEY（可留空，稍后也可在 /config 配置）", default=existing.get("XGJ_APP_KEY", ""))
-    xgj_app_secret = _prompt(
-        "填写 XGJ_APP_SECRET（可留空，稍后也可在 /config 配置）",
-        default=existing.get("XGJ_APP_SECRET", ""),
-        secret=True,
-    )
-    xgj_merchant_id = _prompt("填写 XGJ_MERCHANT_ID（可选）", default=existing.get("XGJ_MERCHANT_ID", ""))
-    xgj_base_url = _prompt("设置 XGJ_BASE_URL", default=existing.get("XGJ_BASE_URL", "https://open.goofish.pro"), required=True)
+    web_port = _prompt("设置 FRONTEND_PORT（前端端口）", default=existing.get("FRONTEND_PORT", "5173"), required=True)
+    username = _prompt("设置 AUTH_USERNAME", default=existing.get("AUTH_USERNAME", "admin"), required=True)
     password = _prompt(
         "设置 AUTH_PASSWORD（后台登录密码）",
         default=existing.get("AUTH_PASSWORD"),
         required=True,
         secret=True,
     )
-    username = _prompt("设置 AUTH_USERNAME", default=existing.get("AUTH_USERNAME", "admin"), required=True)
-    web_port = _prompt("设置 FRONTEND_PORT（前端端口）", default=existing.get("FRONTEND_PORT", "5173"), required=True)
 
     cookie_1 = _prompt("粘贴 XIANYU_COOKIE_1", default=existing.get("XIANYU_COOKIE_1"), required=True)
     cookie_2 = _prompt("粘贴 XIANYU_COOKIE_2（可留空）", default=existing.get("XIANYU_COOKIE_2", ""), required=False)
@@ -370,10 +362,10 @@ def run_setup() -> int:
             "AI_TEMPERATURE": existing.get("AI_TEMPERATURE", "0.7"),
             "OPENAI_BASE_URL": existing.get("OPENAI_BASE_URL", ""),
             "CUSTOM_GATEWAY_BASE_URL": gateway_base_url,
-            "XGJ_APP_KEY": xgj_app_key,
-            "XGJ_APP_SECRET": xgj_app_secret,
-            "XGJ_MERCHANT_ID": xgj_merchant_id,
-            "XGJ_BASE_URL": xgj_base_url,
+            "XGJ_APP_KEY": existing.get("XGJ_APP_KEY", ""),
+            "XGJ_APP_SECRET": existing.get("XGJ_APP_SECRET", ""),
+            "XGJ_MERCHANT_ID": existing.get("XGJ_MERCHANT_ID", ""),
+            "XGJ_BASE_URL": existing.get("XGJ_BASE_URL", "https://open.goofish.pro"),
         }
     )
 
