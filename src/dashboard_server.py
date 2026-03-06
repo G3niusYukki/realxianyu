@@ -6205,6 +6205,54 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    def _handle_listing_preview(self, body: dict[str, Any]) -> dict[str, Any]:
+        """生成自动上架预览。"""
+        try:
+            import asyncio
+            from src.modules.listing.auto_publish import AutoPublishService
+            service = AutoPublishService(config=self._xianguanjia_service_config())
+            loop = asyncio.new_event_loop()
+            try:
+                return loop.run_until_complete(service.generate_preview(body))
+            finally:
+                loop.close()
+        except Exception as e:
+            return {"ok": False, "step": "error", "error": str(e)}
+
+    def _handle_listing_publish(self, body: dict[str, Any]) -> dict[str, Any]:
+        """执行自动上架。"""
+        try:
+            import asyncio
+            from src.modules.listing.auto_publish import AutoPublishService
+            from src.integrations.xianguanjia.open_platform_client import OpenPlatformClient
+
+            cfg = self._xianguanjia_service_config().get("xianguanjia", {})
+            app_key = str(cfg.get("app_key", "")).strip()
+            app_secret = str(cfg.get("app_secret", "")).strip()
+            if not app_key or not app_secret:
+                return {"ok": False, "step": "init", "error": "闲管家 API 未配置"}
+
+            api_client = OpenPlatformClient(
+                base_url=str(cfg.get("base_url", "https://open.goofish.pro")).strip(),
+                app_key=app_key,
+                app_secret=app_secret,
+            )
+            service = AutoPublishService(
+                api_client=api_client,
+                config=self._xianguanjia_service_config(),
+            )
+
+            preview_data = body.get("preview_data")
+            loop = asyncio.new_event_loop()
+            try:
+                if preview_data and isinstance(preview_data, dict):
+                    return loop.run_until_complete(service.publish_from_preview(preview_data))
+                return loop.run_until_complete(service.publish(body))
+            finally:
+                loop.close()
+        except Exception as e:
+            return {"ok": False, "step": "error", "error": str(e)}
+
     def _read_json_body(self) -> dict[str, Any]:
         try:
             content_len = int(self.headers.get("Content-Length", "0"))
@@ -6553,6 +6601,11 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 self._send_json(payload, status=200 if payload.get("success") else 400)
                 return
 
+            if path == "/api/listing/templates":
+                from src.modules.listing.templates import list_templates
+                self._send_json({"ok": True, "templates": list_templates()})
+                return
+
             self._send_json(_error_payload("Not Found", code="NOT_FOUND"), status=404)
         except sqlite3.Error as e:
             self._send_json(_error_payload(f"Database error: {e}", code="DATABASE_ERROR"), status=500)
@@ -6760,6 +6813,18 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 order_id = str(body.get("order_id") or body.get("xianyu_order_id") or "").strip()
                 payload = self.mimic_ops.inspect_virtual_goods_order(order_id)
                 self._send_json(payload, status=200 if payload.get("success") else 400)
+                return
+
+            if path == "/api/listing/preview":
+                body = self._read_json_body()
+                payload = self._handle_listing_preview(body)
+                self._send_json(payload, status=200 if payload.get("ok") else 400)
+                return
+
+            if path == "/api/listing/publish":
+                body = self._read_json_body()
+                payload = self._handle_listing_publish(body)
+                self._send_json(payload, status=200 if payload.get("ok") else 400)
                 return
 
             self._send_json(_error_payload("Not Found", code="NOT_FOUND"), status=404)
