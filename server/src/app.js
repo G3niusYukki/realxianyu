@@ -10,6 +10,8 @@ const userRoutes = require('./routes/user');
 const reviewRoutes = require('./routes/review');
 const githubRoutes = require('./routes/github');
 const paymentRoutes = require('./routes/payment');
+const xianguanjiaRoutes = require('./routes/xianguanjia');
+const configRoutes = require('./routes/config');
 
 const app = express();
 
@@ -34,6 +36,8 @@ app.use('/api/user', userRoutes);
 app.use('/api/review', reviewRoutes);
 app.use('/api/github', githubRoutes);
 app.use('/api/payment', paymentRoutes);
+app.use('/api/xgj', xianguanjiaRoutes);
+app.use('/api/config', configRoutes);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

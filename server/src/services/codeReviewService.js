@@ -7,9 +7,43 @@ const PLAN_CONFIGS = {
   team: { limit: 1000, price: 199, name: 'Team' }
 };
 
+const PROVIDER_CONFIGS = {
+  qwen: {
+    baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
+    model: 'qwen-plus-latest',
+    envKey: 'DASHSCOPE_API_KEY',
+  },
+  glm: {
+    baseUrl: 'https://open.bigmodel.cn/api/paas/v4/chat/completions',
+    model: 'glm-4',
+    envKey: 'GLM5_API_KEY',
+  },
+  deepseek: {
+    baseUrl: 'https://api.deepseek.com/v1/chat/completions',
+    model: 'deepseek-chat',
+    envKey: 'DEEPSEEK_API_KEY',
+  },
+};
+
+function resolveProvider() {
+  const provider = (process.env.AI_PROVIDER || 'qwen').toLowerCase();
+  const cfg = PROVIDER_CONFIGS[provider] || PROVIDER_CONFIGS.qwen;
+  return {
+    url: process.env.AI_BASE_URL || process.env.GLM5_API_URL || cfg.baseUrl,
+    model: process.env.AI_MODEL || cfg.model,
+    apiKey: process.env.AI_API_KEY || process.env[cfg.envKey] || process.env.GLM5_API_KEY || '',
+    provider,
+  };
+}
+
 async function reviewCode(codeContent, language, options = {}) {
   const startTime = Date.now();
+  const { url, model, apiKey, provider } = resolveProvider();
   
+  if (!apiKey) {
+    throw new Error('AI API Key not configured. Set AI_API_KEY or provider-specific env var.');
+  }
+
   try {
     const systemPrompt = `You are an expert code reviewer. Analyze the code for:
 1. Security vulnerabilities (SQL injection, XSS, auth issues, etc.)
@@ -24,9 +58,9 @@ ${options.language === 'zh' ? 'Please respond in Chinese.' : 'Please respond in 
 Provide a detailed analysis with specific line numbers and actionable suggestions.`;
 
     const response = await axios.post(
-      process.env.GLM5_API_URL,
+      url,
       {
-        model: 'glm-4',
+        model,
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: `Please review this code:\n\n\`\`\`${language}\n${codeContent}\n\`\`\`` }
@@ -36,7 +70,7 @@ Provide a detailed analysis with specific line numbers and actionable suggestion
       },
       {
         headers: {
-          'Authorization': `Bearer ${process.env.GLM5_API_KEY}`,
+          'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json'
         },
         timeout: 60000
@@ -51,10 +85,12 @@ Provide a detailed analysis with specific line numbers and actionable suggestion
     return {
       ...result,
       processingTime,
-      rawResponse: reviewText
+      rawResponse: reviewText,
+      provider,
+      model,
     };
   } catch (error) {
-    console.error('GLM-5 API Error:', error.response?.data || error.message);
+    console.error(`AI API Error (${provider}/${model}):`, error.response?.data || error.message);
     throw new Error(`Code review failed: ${error.message}`);
   }
 }
