@@ -42,6 +42,11 @@ async def generate_product_images(
     if not params_list:
         params_list = [{}]
 
+    allowed = {t["key"] for t in list_templates()}
+    if category not in allowed:
+        logger.error(f"Invalid category: {category}, allowed: {allowed}")
+        return []
+
     out = Path(output_dir or DEFAULT_OUTPUT_DIR)
     out.mkdir(parents=True, exist_ok=True)
 
@@ -52,7 +57,8 @@ async def generate_product_images(
             logger.warning(f"Template not found for category: {category}")
             continue
 
-        filename = f"{category}_{uuid.uuid4().hex[:8]}_{i}.png"
+        safe_cat = category.replace("/", "_").replace("\\", "_").replace("..", "")
+        filename = f"{safe_cat}_{uuid.uuid4().hex[:8]}_{i}.png"
         filepath = out / filename
 
         try:

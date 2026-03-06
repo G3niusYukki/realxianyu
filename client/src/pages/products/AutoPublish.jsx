@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { getTemplates, previewListing, publishListing } from '../../api/listing';
 import toast from 'react-hot-toast';
 import { Wand2, Image as ImageIcon, Send, RefreshCw, AlertCircle } from 'lucide-react';
 
 export default function AutoPublish() {
+  const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -103,7 +105,7 @@ export default function AutoPublish() {
               {categories.map(cat => (
                 <button
                   key={cat.key}
-                  onClick={() => setFormData({ ...formData, category: cat.key })}
+                  onClick={() => setFormData(prev => ({ ...prev, category: cat.key }))}
                   className={`p-3 rounded-lg border text-sm font-medium transition-colors ${
                     formData.category === cat.key 
                       ? 'border-xy-brand-500 bg-xy-brand-50 text-xy-brand-600' 
@@ -124,7 +126,7 @@ export default function AutoPublish() {
                 className="xy-input px-3 py-2"
                 placeholder="例如：爱奇艺会员月卡"
                 value={formData.name}
-                onChange={e => setFormData({ ...formData, name: e.target.value })}
+                onChange={e => setFormData(prev => ({ ...prev, name: e.target.value }))}
               />
             </div>
             <div>
@@ -134,7 +136,7 @@ export default function AutoPublish() {
                 className="xy-input px-3 py-2"
                 placeholder="例如：15"
                 value={formData.price}
-                onChange={e => setFormData({ ...formData, price: e.target.value })}
+                onChange={e => setFormData(prev => ({ ...prev, price: e.target.value }))}
               />
             </div>
           </div>
@@ -145,7 +147,7 @@ export default function AutoPublish() {
               className="xy-input px-3 py-2 h-24 resize-none"
               placeholder={`官方正品秒发\n到账快无封号风险\n支持售后指导`}
               value={formData.features}
-              onChange={e => setFormData({ ...formData, features: e.target.value })}
+              onChange={e => setFormData(prev => ({ ...prev, features: e.target.value }))}
             />
           </div>
 
@@ -155,7 +157,7 @@ export default function AutoPublish() {
               className="xy-input px-3 py-2 h-16 resize-none"
               placeholder="例如：强调这是个人闲置转让，不可退换"
               value={formData.extra_info}
-              onChange={e => setFormData({ ...formData, extra_info: e.target.value })}
+              onChange={e => setFormData(prev => ({ ...prev, extra_info: e.target.value }))}
             />
           </div>
 
@@ -258,10 +260,10 @@ export default function AutoPublish() {
           <h2 className="text-2xl font-bold text-xy-text-primary mb-2">发布成功！</h2>
           <p className="text-xy-text-secondary mb-6">商品已成功推送到闲管家并等待闲鱼平台审核</p>
           <div className="flex justify-center gap-4">
-            <button onClick={() => { setFormData({...formData, name: ''}); setStep(1); }} className="xy-btn-secondary">
+            <button onClick={() => { setFormData(prev => ({...prev, name: ''})); setStep(1); }} className="xy-btn-secondary">
               继续发布
             </button>
-            <button onClick={() => window.location.href='/products'} className="xy-btn-primary">
+            <button onClick={() => navigate('/products')} className="xy-btn-primary">
               查看商品列表
             </button>
           </div>

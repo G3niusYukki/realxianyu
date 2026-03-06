@@ -8,7 +8,7 @@ import os
 from dotenv import load_dotenv
 
 
-@dataclass(slots=True)
+@dataclass
 class LiteConfig:
     """Configuration for Lite mode runtime."""
 

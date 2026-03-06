@@ -1,5 +1,10 @@
 import React from 'react'
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate, useParams } from 'react-router-dom'
+
+function HistoryRedirect() {
+  const { id } = useParams();
+  return <Navigate to={`/review/${id}`} replace />;
+}
 import { Toaster } from 'react-hot-toast'
 import { AuthProvider } from './hooks/useAuth'
 import { AccountProvider } from './contexts/AccountContext'
@@ -129,7 +134,7 @@ function App() {
               />
               <Route
                 path="/history/:id"
-                element={<Navigate to="/review/:id" replace />}
+                element={<HistoryRedirect />}
               />
               <Route
                 path="/settings"

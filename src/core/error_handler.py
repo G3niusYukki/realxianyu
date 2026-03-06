@@ -5,6 +5,8 @@ Unified Error Handling
 提供异常装饰器和工具函数
 """
 
+from __future__ import annotations
+
 import asyncio
 import inspect
 from collections.abc import Callable

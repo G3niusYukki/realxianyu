@@ -5,10 +5,12 @@ Listing Service
 提供闲鱼商品发布功能
 """
 
+from __future__ import annotations
+
 import asyncio
 import json
 import random
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from typing import Any
 from urllib.parse import urlparse
 
@@ -123,7 +125,7 @@ class ListingService:
 
     @staticmethod
     def _ts() -> str:
-        return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+        return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     @staticmethod
     def _build_execution_contract(

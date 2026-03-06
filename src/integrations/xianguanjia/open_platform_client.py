@@ -22,7 +22,7 @@ from .models import XianGuanJiaResponse
 from .signing import sign_open_platform_request
 
 
-@dataclass(slots=True)
+@dataclass
 class OpenPlatformClient:
     base_url: str
     app_key: str

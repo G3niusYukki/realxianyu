@@ -242,5 +242,7 @@ def get_template(key: str) -> dict[str, Any] | None:
 def render_template(key: str, params: dict[str, Any] | None = None) -> str | None:
     tpl = TEMPLATES.get(key)
     if not tpl:
-        return None
+        tpl = TEMPLATES.get("exchange")
+        if not tpl:
+            return None
     return tpl["render"](params or {})

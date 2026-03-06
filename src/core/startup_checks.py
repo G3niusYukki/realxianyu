@@ -5,6 +5,8 @@ Startup Health Checks
 在应用启动时验证所有关键依赖和配置是否就绪
 """
 
+from __future__ import annotations
+
 import os
 import sqlite3
 import sys

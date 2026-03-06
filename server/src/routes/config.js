@@ -4,7 +4,11 @@ const path = require('path');
 const { auth } = require('../middleware/auth');
 
 const router = express.Router();
-const CONFIG_FILE = path.resolve(process.env.CONFIG_FILE || 'data/system_config.json');
+const CONFIG_FILE = path.join(__dirname, '../../data/system_config.json');
+
+const ALLOWED_SECTIONS = new Set([
+  'xianguanjia', 'ai', 'oss', 'auto_reply', 'auto_publish', 'order_reminder',
+]);
 
 function readConfig() {
   try {
@@ -20,7 +24,9 @@ function readConfig() {
 function writeConfig(data) {
   const dir = path.dirname(CONFIG_FILE);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(CONFIG_FILE, JSON.stringify(data, null, 2), 'utf8');
+  const tmp = CONFIG_FILE + '.tmp';
+  fs.writeFileSync(tmp, JSON.stringify(data, null, 2), 'utf8');
+  fs.renameSync(tmp, CONFIG_FILE);
 }
 
 const SENSITIVE_KEYS = ['app_secret', 'api_key', 'access_key_secret', 'mch_secret'];
@@ -49,10 +55,17 @@ router.put('/', auth, (req, res) => {
   const updates = req.body || {};
 
   for (const [section, values] of Object.entries(updates)) {
+    if (!ALLOWED_SECTIONS.has(section)) {
+      continue;
+    }
     if (typeof values === 'object' && values !== null && !Array.isArray(values)) {
-      current[section] = { ...(current[section] || {}), ...values };
-    } else {
-      current[section] = values;
+      const clean = {};
+      for (const [k, v] of Object.entries(values)) {
+        if (typeof k === 'string' && !k.startsWith('__')) {
+          clean[k] = v;
+        }
+      }
+      current[section] = { ...(current[section] || {}), ...clean };
     }
   }
 

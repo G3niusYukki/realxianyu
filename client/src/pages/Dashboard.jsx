@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { useCurrentAccount } from '../contexts/AccountContext'
 import { getDashboardSummary, getRecentOperations, getSystemStatus } from '../api/dashboard'
-import { Store, ShoppingBag, MessageCircle, FileText, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react'
+import { Store, ShoppingBag, MessageCircle, FileText, CheckCircle, AlertCircle, RefreshCw, Settings } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const Dashboard = () => {

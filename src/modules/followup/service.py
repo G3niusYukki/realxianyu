@@ -8,14 +8,14 @@ import time
 from collections.abc import Iterator
 from contextlib import closing, contextmanager
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from src.core.logger import get_logger
 
 
-@dataclass(slots=True)
+@dataclass
 class FollowUpPolicy:
     max_touches_per_day: int = 2
     min_interval_hours: float = 4.0
@@ -27,7 +27,7 @@ class FollowUpPolicy:
     forbidden_keywords: tuple[str, ...] = ("微信", "vx", "v信", "私聊", "转账", "加我")
 
 
-@dataclass(slots=True)
+@dataclass
 class FollowUpAudit:
     id: int
     session_id: str
@@ -113,7 +113,7 @@ class FollowUpEngine:
             )
 
     def _is_silent_hours(self) -> bool:
-        now = datetime.now(UTC)
+        now = datetime.now(timezone.utc)
         hour = now.hour
         start = self.policy.silent_hours_start
         end = self.policy.silent_hours_end
@@ -238,7 +238,7 @@ class FollowUpEngine:
                     now,
                 ),
             )
-            return int(cur.rowcount)
+            return int(cur.lastrowid or 0)
 
     def process_session(
         self,
@@ -336,7 +336,10 @@ class FollowUpEngine:
         result: list[dict[str, Any]] = []
         for row in rows:
             data = dict(row)
-            data["metadata"] = json.loads(data.get("metadata") or "{}")
+            try:
+                data["metadata"] = json.loads(data.get("metadata") or "{}")
+            except (json.JSONDecodeError, TypeError):
+                data["metadata"] = {}
             result.append(data)
         return result
 

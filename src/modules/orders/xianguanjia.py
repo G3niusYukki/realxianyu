@@ -3,6 +3,7 @@
 已废弃 — 请使用 src.integrations.xianguanjia.open_platform_client.OpenPlatformClient。
 本文件存在签名 bug（无逗号分隔、毫秒时间戳、sort_keys=True），保留仅为向后兼容。
 """
+from __future__ import annotations
 
 import warnings as _warnings
 _warnings.warn(
@@ -11,8 +12,6 @@ _warnings.warn(
     DeprecationWarning,
     stacklevel=2,
 )
-
-from __future__ import annotations
 
 import hashlib
 import json
@@ -54,7 +53,7 @@ def build_sign(
     return _md5_hex("".join(pieces))
 
 
-@dataclass(slots=True)
+@dataclass
 class XianGuanJiaAPIError(Exception):
     """闲管家 API 返回错误。"""
 

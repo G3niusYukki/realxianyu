@@ -19,7 +19,7 @@ from .models import XianGuanJiaResponse
 from .signing import sign_virtual_supply_request
 
 
-@dataclass(slots=True)
+@dataclass
 class VirtualSupplyClient:
     base_url: str
     app_id: str

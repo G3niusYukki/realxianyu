@@ -9,6 +9,8 @@ Message Reply Strategy Engine
 - 自动报价引擎联动
 """
 
+from __future__ import annotations
+
 import re
 from dataclasses import dataclass, field
 from typing import Any
@@ -84,7 +86,7 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
 ]
 
 
-@dataclass(slots=True)
+@dataclass
 class IntentRule:
     """单条回复规则。"""
 

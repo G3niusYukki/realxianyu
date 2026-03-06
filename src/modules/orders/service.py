@@ -6,7 +6,7 @@ import json
 import sqlite3
 from collections.abc import Iterator
 from contextlib import closing, contextmanager
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -62,7 +62,7 @@ class OrderFulfillmentService:
 
     @staticmethod
     def _now() -> str:
-        return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+        return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     @contextmanager
     def _connect(self) -> Iterator[sqlite3.Connection]:

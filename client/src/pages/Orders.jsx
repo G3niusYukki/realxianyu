@@ -8,7 +8,8 @@ export default function Orders() {
   const { currentAccountId } = useCurrentAccount();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState('ALL'); // ALL, WAIT_BUYER_PAY, WAIT_SELLER_SEND
+  const [tab, setTab] = useState('ALL');
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     fetchOrders();
@@ -97,6 +98,8 @@ export default function Orders() {
                 type="text" 
                 placeholder="搜索订单号/买家" 
                 className="xy-input pl-9 pr-3 py-1.5 text-sm"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
               />
             </div>
             <button className="xy-btn-secondary p-2">

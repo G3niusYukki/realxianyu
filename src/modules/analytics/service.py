@@ -5,6 +5,8 @@ Analytics Service
 提供数据存储、查询、分析和报表生成功能
 """
 
+from __future__ import annotations
+
 import asyncio
 import csv
 import json
@@ -58,8 +60,14 @@ class AnalyticsService:
         self._allowed_export_types = {"products", "logs", "metrics"}
         self._allowed_formats = {"csv", "json"}
         self._db_timeout = int(self.config.get("timeout", 30))
-        self._write_lock = asyncio.Lock()
+        self._write_lock: asyncio.Lock | None = None
         self._init_db_sync()
+
+    @property
+    def _lock(self) -> asyncio.Lock:
+        if self._write_lock is None:
+            self._write_lock = asyncio.Lock()
+        return self._write_lock
 
     def _validate_metric(self, metric: str) -> str:
         """
@@ -269,7 +277,7 @@ class AnalyticsService:
         Returns:
             日志ID
         """
-        async with self._write_lock:
+        async with self._lock:
             async with aiosqlite.connect(self.db_path, timeout=self._db_timeout) as db:
                 cursor = await db.execute(
                     """
@@ -312,7 +320,7 @@ class AnalyticsService:
         Returns:
             记录ID
         """
-        async with self._write_lock:
+        async with self._lock:
             async with aiosqlite.connect(self.db_path, timeout=self._db_timeout) as db:
                 cursor = await db.execute(
                     """
@@ -341,7 +349,7 @@ class AnalyticsService:
         Returns:
             商品ID
         """
-        async with self._write_lock:
+        async with self._lock:
             async with aiosqlite.connect(self.db_path, timeout=self._db_timeout) as db:
                 cursor = await db.execute(
                     """
@@ -365,7 +373,7 @@ class AnalyticsService:
         Returns:
             是否成功
         """
-        async with self._write_lock:
+        async with self._lock:
             async with aiosqlite.connect(self.db_path, timeout=self._db_timeout) as db:
                 if status == "sold":
                     await db.execute(
@@ -891,7 +899,7 @@ class AnalyticsService:
         Returns:
             清理统计
         """
-        async with self._write_lock:
+        async with self._lock:
             async with aiosqlite.connect(self.db_path, timeout=self._db_timeout) as db:
                 cursor = await db.execute(
                     """

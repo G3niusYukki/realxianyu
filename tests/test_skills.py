@@ -1,5 +1,7 @@
 """技能文档与 CLI 契约测试。"""
 
+from __future__ import annotations
+
 import argparse
 import re
 from pathlib import Path

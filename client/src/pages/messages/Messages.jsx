@@ -9,10 +9,8 @@ export default function Messages() {
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState('');
 
-  // 模拟数据加载
+  // TODO: 目前使用模拟数据，后续接入 WebSocket 真实会话
   useEffect(() => {
-    // 这里在真实业务中应调用 pyApi 去获取 WebSocket 会话列表
-    // 或者连上前端的 WebSocket
     setSessions([
       { id: '1', name: '咸鱼买家123', itemTitle: '爱奇艺会员', lastMsg: '在吗？', time: '10:32', unread: 1 },
       { id: '2', name: '数码发烧友', itemTitle: '顺丰快递代发', lastMsg: '多少钱', time: '09:15', unread: 0 },
@@ -21,7 +19,7 @@ export default function Messages() {
 
   useEffect(() => {
     if (activeSession) {
-      // 模拟加载对话记录
+      // TODO: 后续接入真实消息 API
       setMessages([
         { id: 1, sender: 'buyer', text: activeSession.lastMsg, time: '10:32', intent: '询价' },
         { id: 2, sender: 'bot', text: '在的，自动发货，请直接下单', time: '10:32' },
@@ -101,9 +99,9 @@ export default function Messages() {
               {/* Messages Area */}
               <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-xy-gray-50/50">
                 {messages.map(msg => {
-                  const isMe = msg.sender === 'me' || msg.sender === 'bot';
+                  const isSellerSide = msg.sender === 'me' || msg.sender === 'bot';
                   return (
-                    <div key={msg.id} className={`flex gap-3 ${isMe ? 'flex-row-reverse' : ''}`}>
+                    <div key={msg.id} className={`flex gap-3 ${isSellerSide ? 'flex-row-reverse' : ''}`}>
                       <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
                         msg.sender === 'buyer' ? 'bg-blue-100 text-blue-600' :
                         msg.sender === 'bot' ? 'bg-orange-100 text-orange-600' :
@@ -114,15 +112,15 @@ export default function Messages() {
                          <User className="w-5 h-5" />}
                       </div>
                       
-                      <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[70%]`}>
+                      <div className={`flex flex-col ${isSellerSide ? 'items-end' : 'items-start'} max-w-[70%]`}>
                         <div className="flex items-center gap-2 mb-1 px-1 text-xs text-xy-text-muted">
                           {msg.sender === 'bot' && <span className="text-orange-500 font-medium">自动回复</span>}
                           {msg.intent && <span className="bg-xy-gray-200 px-1.5 py-0.5 rounded text-xy-gray-600">意图: {msg.intent}</span>}
                           <span>{msg.time}</span>
                         </div>
                         <div className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap shadow-sm ${
-                          isMe 
-                            ? 'bg-xy-brand-500 text-white rounded-tr-sm' 
+                          isSellerSide 
+                            ? (msg.sender === 'bot' ? 'bg-orange-50 border border-orange-200 text-xy-text-primary rounded-tr-sm' : 'bg-xy-brand-500 text-white rounded-tr-sm')
                             : 'bg-white border border-xy-border text-xy-text-primary rounded-tl-sm'
                         }`}>
                           {msg.text}

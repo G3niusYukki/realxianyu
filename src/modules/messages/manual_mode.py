@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
-@dataclass(slots=True)
+@dataclass
 class ManualModeState:
     session_id: str
     enabled: bool
@@ -16,7 +16,7 @@ class ManualModeState:
     expires_at: float | None
 
 
-@dataclass(slots=True)
+@dataclass
 class ManualModeResult:
     state: ManualModeState
     toggled: bool = False

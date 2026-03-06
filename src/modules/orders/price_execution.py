@@ -5,7 +5,7 @@ from __future__ import annotations
 import inspect
 import json
 import sqlite3
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -21,7 +21,7 @@ class PriceExecutionService:
 
     @staticmethod
     def _now() -> str:
-        return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+        return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.db_path)

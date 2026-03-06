@@ -7,7 +7,7 @@ import math
 import sqlite3
 from collections.abc import Iterator
 from contextlib import closing, contextmanager
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -26,7 +26,7 @@ class GrowthService:
 
     @staticmethod
     def _now() -> str:
-        return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+        return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     def _init_db(self) -> None:
         with self._connect() as conn:
@@ -191,7 +191,7 @@ class GrowthService:
         }
 
     def funnel_stats(self, days: int = 7, bucket: str = "day") -> dict[str, Any]:
-        cutoff = (datetime.now(UTC) - timedelta(days=max(1, days))).strftime("%Y-%m-%dT%H:%M:%SZ")
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=max(1, days))).strftime("%Y-%m-%dT%H:%M:%SZ")
         group_expr = "substr(created_at, 1, 10)" if bucket == "day" else "strftime('%Y-%W', created_at)"
 
         with self._connect() as conn:

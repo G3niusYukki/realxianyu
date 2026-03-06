@@ -322,18 +322,21 @@ class GoofishWsTransport:
         self._token_ts: float = 0.0
 
         self._queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=max(10, self.max_queue_size))
-        self._queue_event = asyncio.Event()
+        self._queue_event: asyncio.Event = asyncio.Event()
         self._session_peer: dict[str, str] = {}
         self._seen_event: dict[str, float] = {}
 
         self._ws: Any | None = None
-        self._stop_event = asyncio.Event()
+        self._stop_event: asyncio.Event = asyncio.Event()
         self._run_task: asyncio.Task[Any] | None = None
-        self._ready = asyncio.Event()
+        self._ready: asyncio.Event = asyncio.Event()
         self._last_heartbeat_sent = 0.0
         self._last_heartbeat_ack = 0.0
         self._connect_failures = 0
         self._last_disconnect_reason = ""
+
+    def _ensure_async_primitives(self) -> None:
+        pass
 
     def _apply_cookie_text(self, cookie_text: str, reason: str = "") -> bool:
         text = str(cookie_text or "").strip()
@@ -739,6 +742,7 @@ class GoofishWsTransport:
         if websockets is None:
             raise BrowserError("WebSocket transport requires `websockets`. Install: pip install websockets")
 
+        self._ensure_async_primitives()
         while not self._stop_event.is_set():
             try:
                 self._maybe_reload_cookie(reason="connect")
@@ -823,6 +827,7 @@ class GoofishWsTransport:
                     self._ws = None
 
     async def start(self) -> None:
+        self._ensure_async_primitives()
         if self._run_task and not self._run_task.done():
             return
         self._stop_event.clear()
@@ -866,6 +871,7 @@ class GoofishWsTransport:
                     pass
 
     async def get_unread_sessions(self, limit: int = 20) -> list[dict[str, Any]]:
+        self._ensure_async_primitives()
         await self.start()
         if not self._ready.is_set() and not await self._wait_event_with_timeout(self._ready, 10.0):
             return []
@@ -891,6 +897,7 @@ class GoofishWsTransport:
         return out
 
     async def send_text(self, session_id: str, text: str) -> bool:
+        self._ensure_async_primitives()
         await self.start()
         if not self._ready.is_set() and not await self._wait_event_with_timeout(self._ready, 10.0):
             return False

@@ -5,6 +5,8 @@ Accounts Management Service
 提供多闲鱼账号的统一管理功能
 """
 
+from __future__ import annotations
+
 import json
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -391,6 +393,7 @@ class AccountsService:
             if enabled is not None:
                 account["enabled"] = enabled
                 account["status"] = AccountStatus.ACTIVE if enabled else AccountStatus.MAINTENANCE
+            self._persist_accounts()
             return True
         return False
 
@@ -505,6 +508,7 @@ class AccountsService:
             if account.get("id") == account_id:
                 account["cookie_encrypted"] = ensure_encrypted(new_cookie)
                 account["last_login"] = datetime.now().isoformat()
+                self._persist_accounts()
                 self.logger.info(f"Refreshed cookie for account: {account_id}")
                 return True
         return False

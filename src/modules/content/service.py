@@ -5,6 +5,8 @@ Content Generation Service
 提供AI驱动的商品标题和描述生成功能
 """
 
+from __future__ import annotations
+
 import os
 import time
 from hashlib import sha1

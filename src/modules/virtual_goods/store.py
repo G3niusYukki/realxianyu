@@ -5,7 +5,7 @@ import os
 import socket
 import sqlite3
 from contextlib import closing, contextmanager
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Iterator
 
@@ -28,11 +28,11 @@ class VirtualGoodsStore:
 
     @staticmethod
     def _now() -> str:
-        return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+        return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     def _lease_expires_at(self, ttl_sec: int | None = None) -> str:
         ttl = self.callback_lease_ttl_sec if ttl_sec is None else max(1, int(ttl_sec))
-        return (datetime.now(UTC) + timedelta(seconds=ttl)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        return (datetime.now(timezone.utc) + timedelta(seconds=ttl)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.db_path)

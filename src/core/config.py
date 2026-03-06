@@ -5,6 +5,8 @@ Configuration Management Module
 提供YAML配置加载、环境变量管理、配置验证等功能
 """
 
+from __future__ import annotations
+
 import os
 import threading
 from functools import lru_cache

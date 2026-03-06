@@ -24,7 +24,8 @@ app.use(morgan('combined'));
 app.use(express.json({
   limit: '10mb',
   verify: (req, res, buf) => {
-    if (req.originalUrl === '/api/payment/webhook') {
+    const rawBodyPaths = ['/api/payment/webhook', '/api/xgj/order/receive', '/api/xgj/product/receive'];
+    if (rawBodyPaths.some(p => req.originalUrl.startsWith(p))) {
       req.rawBody = buf;
     }
   }

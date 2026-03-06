@@ -6,6 +6,8 @@ BrowserClient (OpenClaw Gateway) 已废弃。
 create_browser_client() 现在默认使用 PlaywrightBrowserClient (lite 模式)。
 """
 
+from __future__ import annotations
+
 import asyncio
 import os
 import random

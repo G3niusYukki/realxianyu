@@ -5,10 +5,12 @@ Operations Service
 提供闲鱼店铺日常运营操作功能
 """
 
+from __future__ import annotations
+
 import asyncio
 import random
 import time
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from src.core.compliance import get_compliance_guard
@@ -109,7 +111,7 @@ class OperationsService:
 
     @staticmethod
     def _ts() -> str:
-        return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+        return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     @classmethod
     def _exec_contract(
@@ -465,8 +467,11 @@ class OperationsService:
             strategy: 改价策略 (step_down=阶梯降价, restore=恢复原价)
             step_amount: 每次降价金额
             min_price: 最低价格保护
-            max_discount_pct: 最大折扣比例
+            max_discount_pct: 最大折扣比例 (0.0~1.0)
         """
+        if not 0.0 <= max_discount_pct <= 1.0:
+            return self._error_result("auto_adjust_price", product_id, "max_discount_pct must be between 0.0 and 1.0")
+
         if strategy == "restore":
             return await self.update_price(product_id, current_price)
 

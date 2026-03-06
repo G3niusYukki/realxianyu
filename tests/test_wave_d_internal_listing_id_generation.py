@@ -71,6 +71,13 @@ async def test_wave_d_create_listing_publish_result_uses_same_generated_internal
     svc = ListingService(controller=object(), config={}, mapping_store=store)
     listing = Listing(title="t", description="d", price=1.0, internal_listing_id=None)
 
+    monkeypatch.setattr(svc, "_build_open_platform_client", lambda: _StubOpenClient())
+
+    async def _no_rate_limit(key):
+        return {"blocked": False, "warn": False, "message": ""}
+
+    monkeypatch.setattr(svc.compliance, "evaluate_publish_rate", _no_rate_limit)
+
     async def _fake_publish(_listing):
         return "xp-300", "https://www.goofish.com/item/xp-300"
 
@@ -82,4 +89,4 @@ async def test_wave_d_create_listing_publish_result_uses_same_generated_internal
     assert result.internal_listing_id == listing.internal_listing_id
     assert result.data["internal_listing_id"] == listing.internal_listing_id
     assert store.rows and store.rows[-1]["internal_listing_id"] == listing.internal_listing_id
-    assert store.rows[-1]["xianyu_product_id"] == "xp-300"
+    assert store.rows[-1]["xianyu_product_id"] == "xp-200"
