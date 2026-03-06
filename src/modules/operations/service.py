@@ -12,10 +12,10 @@ from datetime import UTC, datetime
 from typing import Any
 
 from src.core.compliance import get_compliance_guard
-from src.integrations.xianguanjia.open_platform_client import OpenPlatformClient
 from src.core.config import get_config
 from src.core.error_handler import BrowserError
 from src.core.logger import get_logger
+from src.integrations.xianguanjia.open_platform_client import OpenPlatformClient
 from src.modules.analytics.service import AnalyticsService
 from src.modules.listing.models import Listing
 from src.modules.listing.service import ListingService

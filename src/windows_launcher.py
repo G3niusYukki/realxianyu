@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.util
 import secrets
 import shutil
 import subprocess
@@ -7,8 +8,6 @@ import sys
 import threading
 import webbrowser
 from pathlib import Path
-
-import importlib.util
 
 import customtkinter as ctk
 
@@ -47,7 +46,7 @@ DOCKER_INSTALLER_URL = "https://desktop.docker.com/win/main/amd64/Docker%20Deskt
 
 def _runtime_root() -> Path:
     if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
-        return Path(sys._MEIPASS)  # noqa: SLF001
+        return Path(sys._MEIPASS)
     return Path(__file__).resolve().parents[1]
 
 

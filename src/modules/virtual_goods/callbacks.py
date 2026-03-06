@@ -28,7 +28,7 @@ class VirtualGoodsCallbackService:
 
     @staticmethod
     def _dedupe_key(callback_type: str, order_id: str, raw_body: str) -> str:
-        return hashlib.md5(f"{callback_type}|{order_id}|{raw_body}".encode("utf-8")).hexdigest()
+        return hashlib.md5(f"{callback_type}|{order_id}|{raw_body}".encode()).hexdigest()
 
     @staticmethod
     def _normalize_source_family(source_family: str) -> str:
