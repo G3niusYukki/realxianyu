@@ -469,7 +469,80 @@ class VirtualGoodsService:
             exception_total += self._to_int(item.get("exception_count"))
             manual_total += self._to_int(item.get("manual_takeover_count"))
 
+        has_ops_snapshot_data = len(items) > 0
         conversion_rate = round((paid_order_total / exposure_total) * 100, 4) if exposure_total > 0 else 0.0
+
+        stable_summary: dict[str, Any]
+        stable_field_state: dict[str, str]
+        stable_field_class: dict[str, str]
+        if has_ops_snapshot_data:
+            stable_summary = {
+                "exposure_count": exposure_total,
+                "paid_order_count": paid_order_total,
+                "paid_amount_cents": paid_amount_total,
+                "refund_order_count": refund_total,
+                "exception_count": exception_total,
+                "manual_takeover_count": manual_total,
+                "conversion_rate_pct": conversion_rate,
+            }
+            stable_field_state = {
+                "exposure_count": "available",
+                "paid_order_count": "available",
+                "paid_amount_cents": "available",
+                "refund_order_count": "available",
+                "exception_count": "available",
+                "manual_takeover_count": "available",
+                "conversion_rate_pct": "available",
+            }
+            stable_field_class = {
+                "exposure_count": "real_source",
+                "paid_order_count": "real_source",
+                "paid_amount_cents": "real_source",
+                "refund_order_count": "real_source",
+                "exception_count": "real_source",
+                "manual_takeover_count": "real_source",
+                "conversion_rate_pct": "real_source",
+            }
+        else:
+            stable_summary = {
+                "exposure_count": None,
+                "paid_order_count": None,
+                "paid_amount_cents": None,
+                "refund_order_count": None,
+                "exception_count": None,
+                "manual_takeover_count": None,
+                "conversion_rate_pct": None,
+            }
+            stable_field_state = {
+                "exposure_count": "placeholder",
+                "paid_order_count": "placeholder",
+                "paid_amount_cents": "placeholder",
+                "refund_order_count": "placeholder",
+                "exception_count": "placeholder",
+                "manual_takeover_count": "placeholder",
+                "conversion_rate_pct": "placeholder",
+            }
+            stable_field_class = {
+                "exposure_count": "placeholder_disabled",
+                "paid_order_count": "placeholder_disabled",
+                "paid_amount_cents": "placeholder_disabled",
+                "refund_order_count": "placeholder_disabled",
+                "exception_count": "placeholder_disabled",
+                "manual_takeover_count": "placeholder_disabled",
+                "conversion_rate_pct": "placeholder_disabled",
+            }
+
+        # 模块A约束：views/wants/sales/上下架重上/擦亮/Top-Bottom 二选一。
+        # 当前 orders.db 内无稳定来源，明确返回禁用态，供前端与测试识别。
+        optional_fields = {
+            "views": {"state": "placeholder_disabled", "reason": "no_stable_source", "value": None},
+            "wants": {"state": "placeholder_disabled", "reason": "no_stable_source", "value": None},
+            "sales": {"state": "placeholder_disabled", "reason": "no_stable_source", "value": None},
+            "relist_count": {"state": "placeholder_disabled", "reason": "no_stable_source", "value": None},
+            "polish_count": {"state": "placeholder_disabled", "reason": "no_stable_source", "value": None},
+            "top_bottom_count": {"state": "placeholder_disabled", "reason": "no_stable_source", "value": None},
+        }
+
         errors = []
         if unknown_event_kind > 0:
             errors.append({"code": "UNKNOWN_EVENT_KIND", "message": "unknown event_kind in exception pool", "count": unknown_event_kind})
@@ -481,17 +554,17 @@ class VirtualGoodsService:
             message="product operation metrics ready",
             data={
                 "items": items,
-                "summary": {
-                    "exposure_count": exposure_total,
-                    "paid_order_count": paid_order_total,
-                    "paid_amount_cents": paid_amount_total,
-                    "refund_order_count": refund_total,
-                    "exception_count": exception_total,
-                    "manual_takeover_count": manual_total,
-                    "conversion_rate_pct": conversion_rate,
-                },
+                "summary": stable_summary,
+                "field_state": stable_field_state,
+                "field_class": stable_field_class,
+                "optional_fields": optional_fields,
             },
-            metrics={"rows": len(items), "unknown_event_kind": unknown_event_kind, "source": "ops_item_daily_snapshot"},
+            metrics={
+                "rows": len(items),
+                "unknown_event_kind": unknown_event_kind,
+                "source": "ops_item_daily_snapshot",
+                "has_ops_snapshot_data": has_ops_snapshot_data,
+            },
             errors=errors,
         )
 

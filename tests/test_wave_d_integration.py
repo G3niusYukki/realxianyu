@@ -122,9 +122,14 @@ def test_wave_d_action_routing_matrix_execution_contract_and_dashboard_contract(
     out_event = svc.replay_callback_by_event_id("evt-d-order")
     out_dedupe = svc.replay_callback_by_dedupe_key("dk-d-coupon")
     dashboard = svc.get_dashboard_metrics(timeout_seconds=0)
+    product_ops = svc.get_product_operation_metrics(limit=50)
 
     for out in (out_event, out_dedupe, dashboard):
         assert set(out.keys()) == CONTRACT_KEYS
+
+    assert product_ops["action"] == "get_product_operation_metrics"
+    assert product_ops["data"]["optional_fields"]["views"]["state"] == "placeholder_disabled"
+    assert product_ops["data"]["optional_fields"]["views"]["reason"] == "no_stable_source"
 
     # 动作路由矩阵: order -> open_platform/order, coupon -> virtual_supply/coupon
     assert ("open_platform", "order") in routed

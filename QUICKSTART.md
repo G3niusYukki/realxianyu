@@ -1,273 +1,130 @@
-# 快速开始指南
+# QUICKSTART（推荐路径：Lite/Core）
 
-> 🚀 5分钟内启动你的闲鱼 AI 助手
-
----
-
-## 📋 环境要求
-
-在开始之前，请确保你已准备好：
-
-| 需求 | 说明 | 是否必须 |
-|------|------|---------|
-| **Docker** | 20.10+ 版本 | ✅ 必须 |
-| **Docker Compose** | 随 Docker Desktop 安装 | ✅ 必须 |
-| **AI API Key** | Anthropic / OpenAI / Moonshot / MiniMax / ZAI 任选一个 | ✅ 必须 |
-| **闲鱼 Cookie** | 从浏览器获取的登录凭证 | ✅ 必须 |
-| **Python 3.10+** | 仅在使用 Lite 模式时需要 | ❌ 可选 |
+> 目标：0 基础用户首次启动并在 **http://127.0.0.1:8091** 完成配置与验证。
+> 说明：`5173` 仅用于前端开发热更新，不是默认使用地址。
 
 ---
 
-## 🚀 三步启动
+## 1) 推荐启动路径（唯一推荐）：Lite/Core
 
-### 第 1 步：克隆项目
+本项目默认推荐 **Lite/Core 本地运行**：
+- Python 本地启动
+- Dashboard 默认地址 `http://127.0.0.1:8091`
+- 可直接在 Dashboard 完成 Cookie 配置、状态检查与模块控制
+
+> OpenClaw Gateway / Docker 部署属于可选方案，见文末“可选路径”。
+
+---
+
+## 2) 最小环境变量集
+
+先复制模板：
 
 ```bash
-git clone https://github.com/G3niusYukki/xianyu-openclaw.git
-cd xianyu-openclaw
-```
-
-### 第 2 步：配置环境
-
-```bash
-# 复制环境变量模板
 cp .env.example .env
 ```
 
-编辑 `.env` 文件，填入以下必需信息：
+然后至少填写以下变量（最小可运行集合）：
 
 ```bash
-# === 网关 AI 配置（至少填一个）===
-ANTHROPIC_API_KEY=sk-ant-api03-...          # Anthropic Claude
-OPENAI_API_KEY=sk-...                       # OpenAI
-MOONSHOT_API_KEY=sk-...                     # Moonshot (Kimi)
-MINIMAX_API_KEY=...                         # MiniMax
-ZAI_API_KEY=...                             # 智谱 ZAI
+# 网关模型 Key：以下至少 1 个
+ANTHROPIC_API_KEY=
+# 或 OPENAI_API_KEY / MOONSHOT_API_KEY / MINIMAX_API_KEY / ZAI_API_KEY / CUSTOM_GATEWAY_API_KEY
 
-# === OpenClaw 网关配置 ===
-OPENCLAW_GATEWAY_TOKEN=your-secret-token    # 任意自定义密钥
-OPENCLAW_WEB_PORT=8080                      # Web 界面端口
-AUTH_PASSWORD=changeme                      # 登录密码
-AUTH_USERNAME=admin                         # 登录用户名
+# 本地鉴权
+OPENCLAW_GATEWAY_TOKEN=your-secret-token
+AUTH_PASSWORD=changeme
 
-# === 闲鱼 Cookie ===
-XIANYU_COOKIE_1=your_cookie_here            # 主账号 Cookie
-XIANYU_COOKIE_2=                            # 第二个账号（可选）
-
-# === 业务文案 AI（可选，推荐 DeepSeek）===
-AI_PROVIDER=deepseek
-AI_API_KEY=sk-...
-AI_BASE_URL=https://api.deepseek.com/v1
-AI_MODEL=deepseek-chat
+# 闲鱼登录态
+XIANYU_COOKIE_1=your_cookie_here
 ```
 
-**获取闲鱼 Cookie 的方法：**
+> 其余变量（如 `AI_PROVIDER/AI_API_KEY/AI_BASE_URL/AI_MODEL`）可按需后续补充，不阻塞首次启动验证。
 
-1. 用 Chrome 打开 [https://www.goofish.com](https://www.goofish.com) 并登录
-2. 按 **F12** 打开开发者工具
-3. 切换到 **Network（网络）** 标签
-4. 按 **F5** 刷新页面
-5. 点击任意一个请求
-6. 在右侧 **Request Headers** 中找到 `Cookie:` 一行
-7. 全部复制并粘贴到 `.env` 文件中
+---
 
-### 第 3 步：启动服务
+## 3) 0 基础首次配置步骤
+
+### Step A. 准备 Python 环境
+
+```bash
+python3.12 -m venv .venv312
+source .venv312/bin/activate
+pip install -r requirements.txt
+```
+
+### Step B. 获取并写入 Cookie
+
+1. 浏览器打开 `https://www.goofish.com` 并登录
+2. 按 `F12` → `Network`
+3. 刷新页面并点任意请求
+4. 在 `Request Headers` 复制整行 `Cookie:` 内容
+5. 粘贴到 `.env` 的 `XIANYU_COOKIE_1`
+
+### Step C. 启动 Dashboard（首次入口）
+
+```bash
+python -m src.dashboard_server --host 127.0.0.1 --port 8091
+```
+
+浏览器访问：**http://127.0.0.1:8091**
+
+---
+
+## 4) 首次验证步骤（必须做）
+
+### 方式 1（推荐）：一条命令自动验证
+
+```bash
+bash scripts/verify-quickstart.sh
+```
+
+脚本会验证：
+- `.env` 和最小环境变量是否就绪
+- Dashboard 是否可启动并通过 `/healthz`
+- Cookie 是否被 `/api/get-cookie` 正常读取
+
+验证日志：`logs/verify-quickstart.log`
+
+### 方式 2：手动验证命令链
+
+```bash
+# 1) 启动 dashboard
+python -m src.dashboard_server --host 127.0.0.1 --port 8091
+
+# 2) 新终端执行健康检查
+curl -fsS http://127.0.0.1:8091/healthz
+
+# 3) 检查 cookie 就绪
+curl -fsS http://127.0.0.1:8091/api/get-cookie
+```
+
+成功标准：
+- `/healthz` 返回 `{"status":"ok"}`
+- `/api/get-cookie` 返回 `"success": true`
+
+---
+
+## 5) 可选路径（非推荐）
+
+### 可选 A：Docker
 
 ```bash
 docker compose up -d
-```
-
-等待约 30 秒，让服务完全启动。
-
----
-
-## 🪟 Windows 一键部署（推荐小白用户）
-
-如果你使用 Windows，可以直接使用图形化工具，无需命令行：
-
-### 方式 1：下载 EXE 工具
-
-1. 访问 [Releases 页面](https://github.com/G3niusYukki/xianyu-openclaw/releases/latest)
-2. 下载 `xianyu-openclaw-launcher.zip`
-3. 解压到任意位置（如桌面）
-4. 双击 `xianyu-openclaw-launcher.exe`
-5. 按向导步骤操作：
-   - **第 1 步**：检测 Docker 安装
-   - **第 2 步**：选择 AI 服务并填入 API Key
-   - **第 3 步**：设置登录密码
-   - **第 4 步**：粘贴闲鱼 Cookie
-   - **第 5 步**：一键启动
-
-### 方式 2：使用批处理脚本
-
-```bat
-# 快速启动（安装 + 检查 + 启动）
-scripts\windows\quickstart.bat
-
-# 或使用菜单式启动器
-scripts\windows\launcher.bat
-```
-
----
-
-## ✅ 验证启动
-
-### 1. 检查容器状态
-
-```bash
 docker compose ps
 ```
 
-应该看到 `xianyu-openclaw` 容器处于 `Up (healthy)` 状态。
+> Docker 用于容器化运维；不作为默认首启路径。
 
-### 2. 访问 Web 界面
+### 可选 B：OpenClaw Gateway 深度集成
 
-打开浏览器访问：**http://localhost:8080**
-
-- 用户名：`admin`（或你在 `.env` 中设置的 `AUTH_USERNAME`）
-- 密码：你在 `.env` 中设置的 `AUTH_PASSWORD`
-
-### 3. 网关配对（首次启动可能需要）
-
-如果看到 `pairing required` 提示，运行：
-
-```bash
-# 查看配对请求
-docker compose exec -it openclaw-gateway openclaw devices list
-
-# 批准配对（将 <requestId> 替换为实际的请求 ID）
-docker compose exec -it openclaw-gateway openclaw devices approve <requestId>
-```
+如需 OpenClaw 设备配对与 Gateway 运维，可参考：
+- `docs/DEPLOYMENT.md`（可选部署章节）
+- `README.md` 的部署说明
 
 ---
 
-## 🎯 快速测试
+## 6) 常见地址说明（统一口径）
 
-登录 Web 界面后，尝试以下对话命令：
-
-```
-你: 帮我发布一个 iPhone 15 Pro，价格 5999，95新
-AI: ✅ 已发布！标题：【自用出】iPhone 15 Pro 256G 原色钛金属 95新
-    链接：https://www.goofish.com/item/xxx
-```
-
-```
-你: 擦亮所有商品
-AI: ✅ 已擦亮 23 件商品
-```
-
-```
-你: 今天卖得怎么样？
-AI: 📊 今日浏览 1,247 | 想要 89 | 成交 12 | 营收 ¥38,700
-```
-
----
-
-## 🔧 故障排查
-
-### 问题 1：Docker 未运行
-
-**症状**：`Cannot connect to the Docker daemon`
-
-**解决**：
-- Windows/macOS：打开 Docker Desktop 应用
-- Linux：`sudo systemctl start docker`
-
-### 问题 2：端口 8080 被占用
-
-**症状**：`Bind for 0.0.0.0:8080 failed: port is already allocated`
-
-**解决**：
-1. 修改 `.env` 文件中的 `OPENCLAW_WEB_PORT`，例如改为 `8081`
-2. 重新启动：`docker compose up -d`
-
-### 问题 3：Cookie 失效
-
-**症状**：无法获取闲鱼数据，或提示认证失败
-
-**解决**：
-1. 重新获取闲鱼 Cookie（有效期通常 7-30 天）
-2. 更新 `.env` 文件
-3. 重启服务：`docker compose restart`
-
-### 问题 4：AI 服务报错
-
-**症状**：AI 回复异常或超时
-
-**解决**：
-1. 检查 API Key 是否正确
-2. 检查 API Key 余额是否充足
-3. 查看网关日志：`docker compose logs -f openclaw-gateway`
-
----
-
-## 📊 查看运行状态
-
-### 诊断工具
-
-```bash
-# 运行完整诊断
-python -m src.cli doctor --strict
-
-# 检查模块状态
-python -m src.cli module --action status --target all
-```
-
-### 查看日志
-
-```bash
-# 查看所有服务日志
-docker compose logs
-
-# 查看特定服务日志（实时）
-docker compose logs -f openclaw-gateway
-
-# 查看最近 100 行
-docker compose logs --tail 100
-```
-
-### 数据看板
-
-启动独立的数据看板：
-
-```bash
-python -m src.dashboard_server --port 8091
-```
-
-然后访问：**http://localhost:8091**
-
----
-
-## 🛑 停止服务
-
-```bash
-# 停止服务（保留数据）
-docker compose down
-
-# 停止服务并删除数据（谨慎使用）
-docker compose down -v
-```
-
----
-
-## 📚 下一步
-
-- 📖 **详细使用指南**：查看 [USER_GUIDE.md](USER_GUIDE.md)
-- 🚀 **生产部署**：查看 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
-- 🔧 **CLI 命令参考**：查看 [docs/API.md](docs/API.md)
-- 🛠️ **参与开发**：查看 [CONTRIBUTING.md](CONTRIBUTING.md)
-
----
-
-## 💡 提示
-
-- **首次启动**：可能需要 1-2 分钟下载 Docker 镜像
-- **Cookie 更新**：定期更新 Cookie 以避免失效
-- **备份数据**：定期备份 `data/` 目录
-- **监控告警**：配置飞书 webhook 接收告警通知
-
----
-
-<p align="center">
-  遇到问题？查看 <a href="USER_GUIDE.md">详细用户指南</a> 或提交 <a href="https://github.com/G3niusYukki/xianyu-openclaw/issues">Issue</a>
-</p>
+- 默认业务面板：`http://127.0.0.1:8091`
+- `http://127.0.0.1:5173`：仅前端开发服务（Vite dev server）

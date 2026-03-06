@@ -258,81 +258,51 @@ AI: 📊 今日浏览 1,247 | 想要 89 | 成交 12 | 营收 ¥38,700
 
 <h2 id="快速开始">快速开始</h2>
 
-### 准备工作
+> 默认与推荐：**Lite/Core 本地启动**  
+> 默认地址：**http://127.0.0.1:8091**  
+> 说明：`5173` 仅用于前端开发（Vite dev server）。
 
-- [Docker](https://docs.docker.com/get-docker/)（20.10+）
-- 网关 AI Key（必填，支持 Anthropic / OpenAI / Moonshot(Kimi) / MiniMax / ZAI）
-- 业务文案 AI Key（可选，支持 DeepSeek / 阿里百炼 / 火山方舟 / MiniMax / 智谱）
-- 闲鱼账号 Cookie（[获取方法](#获取闲鱼-cookie)）
-
-### 三步启动
+### 单一推荐启动路径（Lite/Core）
 
 ```bash
-# 1. 克隆
 git clone https://github.com/G3niusYukki/xianyu-openclaw.git
 cd xianyu-openclaw
 
-# 2. 配置
 cp .env.example .env
-# 编辑 .env，填入 AI 密钥、闲鱼 Cookie 和密码
+# 至少填写：
+# - ANTHROPIC_API_KEY（或 OPENAI_API_KEY / MOONSHOT_API_KEY / MINIMAX_API_KEY / ZAI_API_KEY / CUSTOM_GATEWAY_API_KEY）
+# - OPENCLAW_GATEWAY_TOKEN
+# - AUTH_PASSWORD
+# - XIANYU_COOKIE_1
 
-# 3. 启动
-docker compose up -d
+python3.12 -m venv .venv312
+source .venv312/bin/activate
+pip install -r requirements.txt
+
+python -m src.dashboard_server --host 127.0.0.1 --port 8091
 ```
 
-打开 **http://localhost:8080** ，开始跟你的闲鱼 AI 助手对话。
+浏览器打开：**http://127.0.0.1:8091**
 
-### 一键部署向导（推荐）
-
-如果你不想手动编辑 `.env`，可以直接运行交互式向导。向导会分开配置「网关模型」和「业务文案模型」，并做启动后健康检查：
+### 首次验证（推荐一条命令）
 
 ```bash
-python3 -m src.setup_wizard
-# 或
-./scripts/one_click_deploy.sh
+bash scripts/verify-quickstart.sh
 ```
 
-Windows 可执行：
+验证内容：
+- 服务可启动（`/healthz`）
+- Dashboard 可访问（`http://127.0.0.1:8091`）
+- Cookie/配置就绪（`/api/get-cookie`）
 
-```bat
-scripts\windows\setup_windows.bat
-# 一键：安装依赖 + 严格自检 + 启动容器
-scripts\windows\quickstart.bat
-```
+日志文件：`logs/verify-quickstart.log`
 
-### Windows 一键部署工具（EXE）
+### 可选路径（非推荐）
 
-不想装 Python？直接下载 EXE：
+- Docker：`docker compose up -d`
+- OpenClaw 深度模式（配对/网关运维）：见 `docs/DEPLOYMENT.md`
 
-1. 从 [Releases](https://github.com/G3niusYukki/xianyu-openclaw/releases/latest) 下载 `xianyu-openclaw-launcher.zip`
-2. 解压到任意位置
-3. 双击 `xianyu-openclaw-launcher.exe`
-4. 按向导步骤填写 AI 密钥、Cookie 等信息
-5. 点击"生成配置并启动"
-
-> 前提：需要先安装 [Docker Desktop](https://www.docker.com/products/docker-desktop/)。向导会自动检测并引导安装。
-
-自行构建 EXE：
-
-```bat
-scripts\windows\build_exe.bat
-```
-
----
-
-### 后台数据可视化
-
-项目内置了轻量后台页面（本地 Web）：
-
-```bash
-python3 -m src.dashboard_server --port 8091
-```
-
-打开 **http://localhost:8091** 可查看：
-- 总操作数 / 今日操作 / 在售商品等核心指标
-- 近 30 天趋势图
-- 最近操作日志
-- 商品表现 Top 列表
+更多细节：`QUICKSTART.md` / `docs/DEPLOYMENT.md`
 
 ---
 
