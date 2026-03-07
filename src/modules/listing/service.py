@@ -15,10 +15,10 @@ from typing import Any
 from urllib.parse import urlparse
 
 from src.core.compliance import get_compliance_guard
-from src.integrations.xianguanjia.open_platform_client import OpenPlatformClient
 from src.core.config import get_config
 from src.core.error_handler import BrowserError
 from src.core.logger import get_logger
+from src.integrations.xianguanjia.open_platform_client import OpenPlatformClient
 from src.modules.listing.models import Listing, PublishResult, generate_internal_listing_id
 from src.modules.virtual_goods.store import VirtualGoodsStore
 

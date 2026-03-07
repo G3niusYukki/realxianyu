@@ -6,7 +6,8 @@ import pytest
 
 import inspect
 
-from src.dashboard_server import DASHBOARD_HTML, DashboardHandler, MimicOps
+from src.dashboard.embedded_html import DASHBOARD_HTML
+from src.dashboard_server import DashboardHandler, MimicOps
 
 
 def test_wave_d_dashboard_only_consumes_service_aggregate(monkeypatch: pytest.MonkeyPatch, temp_dir) -> None:
@@ -33,7 +34,9 @@ def test_wave_d_dashboard_only_consumes_service_aggregate(monkeypatch: pytest.Mo
                     "unknown_event_kind": 1,
                     "timeout_seconds": 300,
                 },
-                "errors": [{"code": "UNKNOWN_EVENT_KIND", "count": 1, "message": "unknown event_kind callbacks detected"}],
+                "errors": [
+                    {"code": "UNKNOWN_EVENT_KIND", "count": 1, "message": "unknown event_kind callbacks detected"}
+                ],
                 "ts": "2026-03-06T00:00:00Z",
             }
 
@@ -55,7 +58,11 @@ def test_wave_d_dashboard_only_consumes_service_aggregate(monkeypatch: pytest.Mo
 
         def list_priority_exceptions(self, *, limit: int = 100, status: str = "open"):
             called["list_priority_exceptions"] = True
-            return {"ok": True, "action": "list_priority_exceptions", "data": {"items": [{"priority": "P0", "type": "UNKNOWN_EVENT_KIND", "count": 1, "summary": "unknown"}]}}
+            return {
+                "ok": True,
+                "action": "list_priority_exceptions",
+                "data": {"items": [{"priority": "P0", "type": "UNKNOWN_EVENT_KIND", "count": 1, "summary": "unknown"}]},
+            }
 
         def get_fulfillment_efficiency_metrics(self, *, limit: int = 500):
             called["get_fulfillment_efficiency_metrics"] = True
@@ -77,7 +84,21 @@ def test_wave_d_dashboard_only_consumes_service_aggregate(monkeypatch: pytest.Mo
 
         def get_product_operation_metrics(self, *, limit: int = 500):
             called["get_product_operation_metrics"] = True
-            return {"ok": True, "action": "get_product_operation_metrics", "data": {"summary": {"exposure_count": 100, "paid_order_count": 5, "paid_amount_cents": 2000, "refund_order_count": 1, "exception_count": 2, "manual_takeover_count": 1, "conversion_rate_pct": 5.0}}}
+            return {
+                "ok": True,
+                "action": "get_product_operation_metrics",
+                "data": {
+                    "summary": {
+                        "exposure_count": 100,
+                        "paid_order_count": 5,
+                        "paid_amount_cents": 2000,
+                        "refund_order_count": 1,
+                        "exception_count": 2,
+                        "manual_takeover_count": 1,
+                        "conversion_rate_pct": 5.0,
+                    }
+                },
+            }
 
         def list_manual_takeover_orders(self):
             called["list_manual_takeover_orders"] = True
@@ -180,7 +201,13 @@ def test_wave_d_inspect_unknown_event_kind_must_enter_exception_pool(monkeypatch
                         "manual_takeover": 0,
                     },
                     "callbacks": [
-                        {"id": 1, "event_kind": "unknown_event_kind", "verify_passed": 1, "processed": 0, "attempt_count": 2},
+                        {
+                            "id": 1,
+                            "event_kind": "unknown_event_kind",
+                            "verify_passed": 1,
+                            "processed": 0,
+                            "attempt_count": 2,
+                        },
                         {"id": 2, "event_kind": "paid", "verify_passed": 1, "processed": 1, "attempt_count": 1},
                     ],
                 },

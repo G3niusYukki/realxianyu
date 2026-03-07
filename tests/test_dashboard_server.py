@@ -12,7 +12,8 @@ from pathlib import Path
 
 import pytest
 
-from src.dashboard_server import DASHBOARD_HTML, MIMIC_COOKIE_HTML, DashboardRepository, MimicOps, ModuleConsole, _safe_int
+from src.dashboard.embedded_html import DASHBOARD_HTML, MIMIC_COOKIE_HTML
+from src.dashboard_server import DashboardRepository, MimicOps, ModuleConsole, _safe_int
 
 
 def _init_db(path: str) -> None:
@@ -853,7 +854,6 @@ def test_service_auto_fix_returns_cookie_update_required_when_validate_failed(te
     assert "更新 Cookie" in payload["message"]
 
 
-
 def test_query_message_stats_from_workflow_success(monkeypatch, temp_dir) -> None:
     db_path = temp_dir / "workflow.db"
     with sqlite3.connect(db_path) as conn:
@@ -991,10 +991,14 @@ def test_test_reply_builds_structured_quote_prompt(monkeypatch, temp_dir) -> Non
         def __init__(self, controller, config):
             captured["cfg"] = config
 
-        async def _generate_reply_with_quote(self, message, item_title=""):
+        async def _generate_reply_with_quote(self, message, item_title="", session_id=None):
             captured["message"] = message
             captured["item_title"] = item_title
-            return "报价回复", {"is_quote": True, "quote_result": {"fee": 12.3}, "quote_all_couriers": [{"name": "圆通"}]}
+            return "报价回复", {
+                "is_quote": True,
+                "quote_result": {"fee": 12.3},
+                "quote_all_couriers": [{"name": "圆通"}],
+            }
 
     import src.dashboard_server as ds
 
@@ -1069,7 +1073,11 @@ def test_service_control_and_auto_fix_paths(temp_dir) -> None:
     assert start["message"] == "服务已启动"
 
     ops.service_recover = lambda target="presales": {"ok": True, "target": target}  # type: ignore[assignment]
-    ops.service_status = lambda: {"service_status": "stopped", "cookie_update_required": False, "xianyu_connected": True}  # type: ignore[assignment]
+    ops.service_status = lambda: {
+        "service_status": "stopped",
+        "cookie_update_required": False,
+        "xianyu_connected": True,
+    }  # type: ignore[assignment]
     auto = ops.service_auto_fix()
     assert auto["success"] is True
     assert "start_service" in auto["actions"]
@@ -1100,7 +1108,7 @@ def test_dashboard_targeted_misc_branches(temp_dir, monkeypatch) -> None:
 
     # 1420-1422: template invalid json fallback
     ops.template_path.parent.mkdir(parents=True, exist_ok=True)
-    ops.template_path.write_text('{bad json', encoding='utf-8')
+    ops.template_path.write_text("{bad json", encoding="utf-8")
     tpl = ops.get_template()
     assert tpl["success"] is True
     assert "weight_template" in tpl
@@ -1161,7 +1169,10 @@ def test_dashboard_targeted_route_and_markup_branches(temp_dir, monkeypatch) -> 
 
     # 1287-1288: collide multiple times
     fixed_ts = "20260302_010101"
-    monkeypatch.setattr("src.dashboard_server.datetime", type("D", (), {"now": staticmethod(lambda: type("T", (), {"strftime": lambda self, _fmt: fixed_ts})())}))
+    monkeypatch.setattr(
+        "src.dashboard_server.datetime",
+        type("D", (), {"now": staticmethod(lambda: type("T", (), {"strftime": lambda self, _fmt: fixed_ts})())}),
+    )
     (quote_dir / "a.csv").write_text("x", encoding="utf-8")
     (quote_dir / f"a_{fixed_ts}.csv").write_text("x", encoding="utf-8")
     name = ops._save_route_content(quote_dir, "a.csv", b"1")
@@ -1229,7 +1240,9 @@ def test_dashboard_targeted_remaining_branches(temp_dir, monkeypatch) -> None:
     assert not any(name.endswith("nested_dir") for name in names)
 
     # 1338-1343: non-zip supported route file save raises
-    monkeypatch.setattr(ops, "_save_route_content", lambda *_a, **_k: (_ for _ in ()).throw(RuntimeError("save failed")))
+    monkeypatch.setattr(
+        ops, "_save_route_content", lambda *_a, **_k: (_ for _ in ()).throw(RuntimeError("save failed"))
+    )
     route_payload = ops.import_route_files([("a.csv", b"x,y\n")])
     assert route_payload["success"] is False
     assert "a.csv" in route_payload["skipped_files"]
@@ -1252,7 +1265,17 @@ def test_dashboard_targeted_remaining_branches(temp_dir, monkeypatch) -> None:
     ]
     parsed_rows = ops._parse_markup_rules_from_rows(rows)
     assert parsed_rows == {}
-    parsed_list = ops._parse_markup_rules_from_json_like([{"name": "圆通", "normal_first_add": 0.9, "member_first_add": 0.5, "normal_extra_add": 0.4, "member_extra_add": 0.3}])
+    parsed_list = ops._parse_markup_rules_from_json_like(
+        [
+            {
+                "name": "圆通",
+                "normal_first_add": 0.9,
+                "member_first_add": 0.5,
+                "normal_extra_add": 0.4,
+                "member_extra_add": 0.3,
+            }
+        ]
+    )
     assert "圆通" in parsed_list
 
     # 1842 / 1849 / 1852-1853
@@ -1288,7 +1311,13 @@ def test_dashboard_targeted_remaining_branches(temp_dir, monkeypatch) -> None:
     assert ops._infer_markup_rules_from_route_table("a.csv", b"x") == {}
 
     # 1867 / 1871
-    monkeypatch.setattr(ops, "_parse_markup_rules_from_xlsx_bytes", lambda _b: {"圆通": {"normal_first_add": 1.0, "member_first_add": 1.0, "normal_extra_add": 1.0, "member_extra_add": 1.0}})
+    monkeypatch.setattr(
+        ops,
+        "_parse_markup_rules_from_xlsx_bytes",
+        lambda _b: {
+            "圆通": {"normal_first_add": 1.0, "member_first_add": 1.0, "normal_extra_add": 1.0, "member_extra_add": 1.0}
+        },
+    )
     parsed, fmt = ops._parse_markup_rules_from_file("a.xlsx", b"x")
     assert fmt == "excel_xml" and "圆通" in parsed
 
@@ -1368,7 +1397,15 @@ def test_dashboard_cover_missing_markup_row_and_json_name_fallback(temp_dir, mon
     # cover 1760: fallback key loop breaks on "name"
     monkeypatch.setattr(ops, "_MARKUP_FIELD_ALIASES", {**ops._MARKUP_FIELD_ALIASES, "courier": ["运力别名"]})
     parsed_json = ops._parse_markup_rules_from_json_like(
-        [{"name": "申通", "normal_first_add": 0.8, "member_first_add": 0.5, "normal_extra_add": 0.4, "member_extra_add": 0.3}]
+        [
+            {
+                "name": "申通",
+                "normal_first_add": 0.8,
+                "member_first_add": 0.5,
+                "normal_extra_add": 0.4,
+                "member_extra_add": 0.3,
+            }
+        ]
     )
     assert "申通" in parsed_json
 

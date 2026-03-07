@@ -15,7 +15,8 @@ from pathlib import Path
 from typing import Any
 
 from src.core.logger import get_logger
-from .templates import render_template, list_templates
+
+from .templates import list_templates, render_template
 
 logger = get_logger()
 

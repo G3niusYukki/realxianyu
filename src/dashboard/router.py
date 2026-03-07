@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import TYPE_CHECKING
 
-RouteHandler = Callable[["DashboardHandler"], None]  # type: ignore[name-defined]
+if TYPE_CHECKING:
+    from src.dashboard_server import DashboardHandler
+
+RouteHandler = Callable[["DashboardHandler"], None]
 
 _GET_ROUTES: dict[str, RouteHandler] = {}
 _POST_ROUTES: dict[str, RouteHandler] = {}
@@ -13,25 +17,31 @@ _PUT_ROUTES: dict[str, RouteHandler] = {}
 
 def get(path: str):
     """Register a GET route handler."""
+
     def decorator(fn: RouteHandler) -> RouteHandler:
         _GET_ROUTES[path] = fn
         return fn
+
     return decorator
 
 
 def post(path: str):
     """Register a POST route handler."""
+
     def decorator(fn: RouteHandler) -> RouteHandler:
         _POST_ROUTES[path] = fn
         return fn
+
     return decorator
 
 
 def put(path: str):
     """Register a PUT route handler."""
+
     def decorator(fn: RouteHandler) -> RouteHandler:
         _PUT_ROUTES[path] = fn
         return fn
+
     return decorator
 
 

@@ -20,7 +20,7 @@ import httpx
 
 from .errors import is_retryable_error, map_error
 from .models import XianGuanJiaResponse
-from .signing import sign_open_platform_request, sign_business_request
+from .signing import sign_business_request, sign_open_platform_request
 
 
 @dataclass

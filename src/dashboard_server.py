@@ -8,6 +8,7 @@ import csv
 import hashlib
 import io
 import json
+import logging
 import mimetypes
 import os
 import re
@@ -17,30 +18,31 @@ import sys
 import threading
 import time
 import zipfile
-from collections.abc import Iterator
-from contextlib import closing, contextmanager
+from contextlib import closing
 from datetime import datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
-import logging
-
 import yaml
 
 from src.core.config import get_config
-from src.dashboard.repository import DashboardRepository
-from src.dashboard.module_console import ModuleConsole, MODULE_TARGETS
 from src.dashboard.config_service import (
-    read_system_config as _read_system_config,
-    write_system_config as _write_system_config,
-    CONFIG_SECTIONS as _CONFIG_SECTIONS,
     _ALLOWED_CONFIG_SECTIONS,
     _SENSITIVE_CONFIG_KEYS,
-    mask_sensitive as _mask_config_sensitive,
-    update_config as _update_config,
 )
+from src.dashboard.config_service import (
+    CONFIG_SECTIONS as _CONFIG_SECTIONS,
+)
+from src.dashboard.config_service import (
+    read_system_config as _read_system_config,
+)
+from src.dashboard.config_service import (
+    write_system_config as _write_system_config,
+)
+from src.dashboard.module_console import MODULE_TARGETS, ModuleConsole
+from src.dashboard.repository import DashboardRepository
 from src.modules.messages.service import MessagesService
 from src.modules.quote.cost_table import CostTableRepository, normalize_courier_name
 from src.modules.quote.setup import DEFAULT_MARKUP_RULES, QuoteSetupService
@@ -2766,10 +2768,10 @@ class MimicOps:
             "updated_at": _now_iso(),
         }
 
-    _sandbox_services: dict[str, tuple[float, "MessagesService"]] = {}
+    _sandbox_services: dict[str, tuple[float, MessagesService]] = {}
     _SANDBOX_TTL = 1800
 
-    def _get_sandbox_service(self, session_id: str) -> "MessagesService":
+    def _get_sandbox_service(self, session_id: str) -> MessagesService:
         now = time.time()
         stale = [k for k, (ts, _) in self._sandbox_services.items() if now - ts > self._SANDBOX_TTL]
         for k in stale:
@@ -3166,9 +3168,9 @@ def _get_embedded_html(name: str) -> str:
     from src.dashboard.embedded_html import (
         DASHBOARD_HTML,
         MIMIC_COOKIE_HTML,
-        MIMIC_TEST_HTML,
         MIMIC_LOGS_HTML,
         MIMIC_LOGS_REALTIME_HTML,
+        MIMIC_TEST_HTML,
     )
 
     return {
@@ -3214,6 +3216,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
         """生成自动上架预览。"""
         try:
             import asyncio
+
             from src.modules.listing.auto_publish import AutoPublishService
 
             service = AutoPublishService(config=self._xianguanjia_service_config())
@@ -3229,8 +3232,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
         """执行自动上架。"""
         try:
             import asyncio
-            from src.modules.listing.auto_publish import AutoPublishService
+
             from src.integrations.xianguanjia.open_platform_client import OpenPlatformClient
+            from src.modules.listing.auto_publish import AutoPublishService
 
             cfg = self._xianguanjia_service_config().get("xianguanjia", {})
             app_key = str(cfg.get("app_key", "")).strip()
@@ -4133,6 +4137,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
             if path == "/api/cookie/auto-grab":
                 import threading
+
                 from src.core.cookie_grabber import CookieGrabber
 
                 if getattr(DashboardHandler, "_cookie_grab_running", False):
@@ -4232,7 +4237,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     return
                 payload_str = json.dumps(req_body, ensure_ascii=False)
                 ts = str(int(time.time()))
-                from src.integrations.xianguanjia.signing import sign_open_platform_request, sign_business_request
+                from src.integrations.xianguanjia.signing import sign_business_request, sign_open_platform_request
 
                 if mode == "business" and seller_id:
                     sign = sign_business_request(
