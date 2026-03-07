@@ -101,7 +101,7 @@ class TestCookieHealthChecker:
         with patch("httpx.Client", return_value=mock_client):
             result = checker.check_sync(force=True)
             assert result["healthy"] is False
-            assert "403" in result["message"]
+            assert "过期" in result["message"] or "无效" in result["message"]
 
     def test_check_sync_timeout(self):
         checker = CookieHealthChecker("cookie")
