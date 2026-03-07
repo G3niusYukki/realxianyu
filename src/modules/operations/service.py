@@ -230,7 +230,9 @@ class OperationsService:
             "details": [],
         }
 
-    async def modify_order_price(self, order_no: str, order_price: int, express_fee: int | None = None) -> dict[str, Any]:
+    async def modify_order_price(
+        self, order_no: str, order_price: int, express_fee: int | None = None
+    ) -> dict[str, Any]:
         if not self.api_client:
             return {"success": False, "channel": "xianguanjia_api", "error": "api_client_not_configured"}
         payload: dict[str, Any] = {
@@ -339,9 +341,7 @@ class OperationsService:
             return self._error_result("delist", product_id, "api_client_not_configured")
 
         try:
-            response = await asyncio.to_thread(
-                self.api_client.unpublish_product, {"product_id": str(product_id)}
-            )
+            response = await asyncio.to_thread(self.api_client.unpublish_product, {"product_id": str(product_id)})
             success = response.ok
             result = {
                 "success": success,
@@ -369,9 +369,7 @@ class OperationsService:
             return self._error_result("relist", product_id, "api_client_not_configured")
 
         try:
-            response = await asyncio.to_thread(
-                self.api_client.publish_product, {"product_id": str(product_id)}
-            )
+            response = await asyncio.to_thread(self.api_client.publish_product, {"product_id": str(product_id)})
             success = response.ok
             result = {
                 "success": success,
@@ -398,9 +396,7 @@ class OperationsService:
             return {"success": False, "action": "inventory_refresh", "error": "api_client_not_configured"}
 
         try:
-            response = await asyncio.to_thread(
-                self.api_client.list_products, {"page_no": 1, "page_size": 100}
-            )
+            response = await asyncio.to_thread(self.api_client.list_products, {"page_no": 1, "page_size": 100})
             if not response.ok:
                 return {"success": False, "action": "inventory_refresh", "error": response.error_message}
 
@@ -424,9 +420,7 @@ class OperationsService:
             return {"error": "api_client_not_configured"}
 
         try:
-            response = await asyncio.to_thread(
-                self.api_client.list_products, {"page_no": 1, "page_size": 100}
-            )
+            response = await asyncio.to_thread(self.api_client.list_products, {"page_no": 1, "page_size": 100})
             if not response.ok:
                 return {"error": response.error_message or "api_call_failed"}
 

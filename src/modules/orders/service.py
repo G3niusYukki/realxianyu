@@ -560,7 +560,15 @@ class OrderFulfillmentService:
             "waybill_no": waybill_no,
             "express_code": express_code,
         }
-        for key in ("express_name", "ship_name", "ship_mobile", "ship_province", "ship_city", "ship_area", "ship_address"):
+        for key in (
+            "express_name",
+            "ship_name",
+            "ship_mobile",
+            "ship_province",
+            "ship_city",
+            "ship_area",
+            "ship_address",
+        ):
             val = str(shipping_info.get(key, "")).strip()
             if val:
                 payload[key] = val
@@ -623,6 +631,7 @@ class OrderFulfillmentService:
                 if api_error:
                     detail["api_error"] = api_error
                     from src.core.notify import send_system_notification
+
                     item_title = (order.get("item_title") or order_id)[:30]
                     send_system_notification(
                         f"【闲鱼自动化】⚠️ 发货失败\n"
@@ -762,6 +771,7 @@ class OrderFulfillmentService:
             )
 
         from src.core.notify import send_system_notification
+
         item_title = (order.get("item_title") or order_id)[:30]
         send_system_notification(
             f"【闲鱼自动化】⚠️ 售后介入\n"

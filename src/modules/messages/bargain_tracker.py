@@ -16,10 +16,22 @@ from src.core.logger import get_logger
 logger = get_logger()
 
 BARGAIN_KEYWORDS = [
-    "便宜", "优惠", "少一点", "能少", "能便宜",
-    "打折", "折扣", "最低", "底价",
-    "减", "降", "让", "砍",
-    "多少能卖", "什么价", "最低多少",
+    "便宜",
+    "优惠",
+    "少一点",
+    "能少",
+    "能便宜",
+    "打折",
+    "折扣",
+    "最低",
+    "底价",
+    "减",
+    "降",
+    "让",
+    "砍",
+    "多少能卖",
+    "什么价",
+    "最低多少",
 ]
 
 
@@ -57,9 +69,7 @@ class BargainTracker:
         """获取某会话的议价次数。"""
         conn = sqlite3.connect(self.db_path)
         try:
-            row = conn.execute(
-                "SELECT count FROM bargain_counts WHERE chat_id = ?", (chat_id,)
-            ).fetchone()
+            row = conn.execute("SELECT count FROM bargain_counts WHERE chat_id = ?", (chat_id,)).fetchone()
             return row[0] if row else 0
         finally:
             conn.close()

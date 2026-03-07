@@ -247,10 +247,9 @@ class WorkflowStore:
 
         if changed and enabled:
             from src.core.notify import send_system_notification
+
             send_system_notification(
-                f"【闲鱼自动化】⚠️ 会话已转人工\n"
-                f"会话: {session_id}\n"
-                f"AI 自动回复已暂停，请及时处理该会话。",
+                f"【闲鱼自动化】⚠️ 会话已转人工\n会话: {session_id}\nAI 自动回复已暂停，请及时处理该会话。",
                 event="manual_takeover",
             )
         return changed
@@ -587,7 +586,9 @@ class WorkflowStore:
 
     def _raise_alert_once(self, alert_type: str, title: str, message: str, cooldown_minutes: int = 30) -> bool:
         now = self._now()
-        cutoff = (datetime.now(timezone.utc) - timedelta(minutes=max(1, cooldown_minutes))).strftime("%Y-%m-%dT%H:%M:%SZ")
+        cutoff = (datetime.now(timezone.utc) - timedelta(minutes=max(1, cooldown_minutes))).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"
+        )
         with self._connect() as conn:
             existed = conn.execute(
                 """

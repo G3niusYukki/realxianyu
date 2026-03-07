@@ -151,4 +151,3 @@ class OpenPlatformClient:
 
     def list_express_companies(self, payload: dict[str, Any] | None = None) -> XianGuanJiaResponse:
         return self._post("/api/open/express/companies", payload or {})
-

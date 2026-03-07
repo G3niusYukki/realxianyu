@@ -54,15 +54,17 @@ class AutoPublishService:
         price = product_config.get("price")
         extra_params = product_config.get("template_params") or {}
 
-        content = self.content_service.generate_listing_content({
-            "name": product_name or category,
-            "features": features,
-            "category": category,
-            "condition": product_config.get("condition", "全新"),
-            "reason": product_config.get("reason", "闲置出"),
-            "tags": product_config.get("tags", []),
-            "extra_info": product_config.get("extra_info"),
-        })
+        content = self.content_service.generate_listing_content(
+            {
+                "name": product_name or category,
+                "features": features,
+                "category": category,
+                "condition": product_config.get("condition", "全新"),
+                "reason": product_config.get("reason", "闲置出"),
+                "tags": product_config.get("tags", []),
+                "extra_info": product_config.get("extra_info"),
+            }
+        )
 
         title = product_config.get("title") or content.get("title", product_name)
         description = product_config.get("description") or content.get("description", "")
@@ -76,15 +78,17 @@ class AutoPublishService:
                 "compliance": compliance_result,
             }
 
-        image_params = [{
-            "title": title,
-            "desc": description[:80] if description else "",
-            "badge": extra_params.get("badge", ""),
-            "features": features[:6],
-            "price": price,
-            "footer": extra_params.get("footer", ""),
-            **extra_params,
-        }]
+        image_params = [
+            {
+                "title": title,
+                "desc": description[:80] if description else "",
+                "badge": extra_params.get("badge", ""),
+                "features": features[:6],
+                "price": price,
+                "footer": extra_params.get("footer", ""),
+                **extra_params,
+            }
+        ]
         extra_images = product_config.get("extra_images") or []
         for ep in extra_images:
             image_params.append(ep if isinstance(ep, dict) else {"title": str(ep)})

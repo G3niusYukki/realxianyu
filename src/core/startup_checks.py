@@ -32,7 +32,11 @@ class StartupCheckResult:
 def resolve_runtime_mode() -> str:
     # Ensure `.env` values are visible before runtime resolution.
     load_dotenv(override=False)
-    env_runtime = str(os.getenv("APP_RUNTIME") or os.getenv("BROWSER_RUNTIME_MODE") or os.getenv("OPENCLAW_RUNTIME", "")).strip().lower()
+    env_runtime = (
+        str(os.getenv("APP_RUNTIME") or os.getenv("BROWSER_RUNTIME_MODE") or os.getenv("OPENCLAW_RUNTIME", ""))
+        .strip()
+        .lower()
+    )
     if env_runtime in {"auto", "lite", "pro"}:
         return env_runtime
 

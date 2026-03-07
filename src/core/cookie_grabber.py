@@ -108,10 +108,10 @@ class CookieGrabber:
             valid = await self._validate(cookie)
             if valid:
                 self._save(cookie, source="browser_db")
-                self._update(GrabStage.SUCCESS, "Cookie 获取成功！",
-                             "从浏览器数据库直接读取，Cookie 有效期约 7-30 天", 100)
-                return GrabResult(ok=True, cookie_str=cookie, source="browser_db",
-                                  message="从浏览器数据库获取成功")
+                self._update(
+                    GrabStage.SUCCESS, "Cookie 获取成功！", "从浏览器数据库直接读取，Cookie 有效期约 7-30 天", 100
+                )
+                return GrabResult(ok=True, cookie_str=cookie, source="browser_db", message="从浏览器数据库获取成功")
 
         # Level 1.5: Playwright persistent context 复用 Chrome Profile
         cookie = await self._grab_from_profile()
@@ -121,10 +121,12 @@ class CookieGrabber:
             valid = await self._validate(cookie)
             if valid:
                 self._save(cookie, source="chrome_profile")
-                self._update(GrabStage.SUCCESS, "Cookie 获取成功！",
-                             "从 Chrome 已有登录态提取，Cookie 有效期约 7-30 天", 100)
-                return GrabResult(ok=True, cookie_str=cookie, source="chrome_profile",
-                                  message="从 Chrome 已有登录态获取成功")
+                self._update(
+                    GrabStage.SUCCESS, "Cookie 获取成功！", "从 Chrome 已有登录态提取，Cookie 有效期约 7-30 天", 100
+                )
+                return GrabResult(
+                    ok=True, cookie_str=cookie, source="chrome_profile", message="从 Chrome 已有登录态获取成功"
+                )
 
         # Level 2: Playwright 全新窗口 QR 扫码登录
         cookie = await self._grab_via_login()
@@ -134,15 +136,19 @@ class CookieGrabber:
             valid = await self._validate(cookie)
             if valid:
                 self._save(cookie, source="browser_login")
-                self._update(GrabStage.SUCCESS, "Cookie 获取成功！",
-                             "Cookie 有效期约 7-30 天，过期后可再次自动获取", 100)
-                return GrabResult(ok=True, cookie_str=cookie, source="browser_login",
-                                  message="从浏览器登录获取成功")
+                self._update(
+                    GrabStage.SUCCESS, "Cookie 获取成功！", "Cookie 有效期约 7-30 天，过期后可再次自动获取", 100
+                )
+                return GrabResult(ok=True, cookie_str=cookie, source="browser_login", message="从浏览器登录获取成功")
 
-        self._update(GrabStage.FAILED, "Cookie 获取失败",
-                     "所有自动方式均未成功，请手动粘贴 Cookie（F12 → Network → 复制 Cookie 请求头）")
+        self._update(
+            GrabStage.FAILED,
+            "Cookie 获取失败",
+            "所有自动方式均未成功，请手动粘贴 Cookie（F12 → Network → 复制 Cookie 请求头）",
+        )
 
         from src.core.notify import send_system_notification
+
         send_system_notification(
             "【闲鱼自动化】⚠️ Cookie 自动获取全部失败\n"
             "三级策略（浏览器数据库 → Chrome Profile → QR 扫码登录）均未成功。\n"
@@ -156,8 +162,9 @@ class CookieGrabber:
     # ------------------------------------------------------------------
 
     async def _grab_from_browser_db(self) -> str | None:
-        self._update(GrabStage.READING_DB, "正在读取浏览器 Cookie 数据库...",
-                     '如果弹出"钥匙串访问"弹窗，请点击"允许"', 5)
+        self._update(
+            GrabStage.READING_DB, "正在读取浏览器 Cookie 数据库...", '如果弹出"钥匙串访问"弹窗，请点击"允许"', 5
+        )
 
         browsers = [
             ("Chrome", self._read_chrome),
@@ -183,6 +190,7 @@ class CookieGrabber:
     def _read_chrome(self) -> str | None:
         try:
             import rookiepy
+
             cookies = rookiepy.chrome(domains=[".goofish.com"])
             return self._format_cookies(cookies)
         except Exception as exc:
@@ -192,6 +200,7 @@ class CookieGrabber:
     def _read_edge(self) -> str | None:
         try:
             import rookiepy
+
             cookies = rookiepy.edge(domains=[".goofish.com"])
             return self._format_cookies(cookies)
         except Exception as exc:
@@ -201,6 +210,7 @@ class CookieGrabber:
     def _read_firefox(self) -> str | None:
         try:
             import rookiepy
+
             cookies = rookiepy.firefox(domains=[".goofish.com"])
             return self._format_cookies(cookies)
         except Exception as exc:
@@ -213,8 +223,12 @@ class CookieGrabber:
 
     async def _grab_from_profile(self) -> str | None:
         """静默加载用户 Chrome Profile，提取已有登录态 Cookie。"""
-        self._update(GrabStage.READING_PROFILE, "正在尝试读取 Chrome 已有登录态...",
-                     "如果你之前在 Chrome 中登录过闲鱼，可直接提取", 20)
+        self._update(
+            GrabStage.READING_PROFILE,
+            "正在尝试读取 Chrome 已有登录态...",
+            "如果你之前在 Chrome 中登录过闲鱼，可直接提取",
+            20,
+        )
 
         try:
             from playwright.async_api import async_playwright
@@ -229,8 +243,12 @@ class CookieGrabber:
 
         if self._is_chrome_running():
             logger.info("Level 1.5: Chrome 正在运行，无法使用其 Profile（会产生锁冲突）")
-            self._update(GrabStage.READING_PROFILE, "Chrome 正在运行，跳过 Profile 读取...",
-                         "关闭 Chrome 后重试可直接提取已有登录态", 25)
+            self._update(
+                GrabStage.READING_PROFILE,
+                "Chrome 正在运行，跳过 Profile 读取...",
+                "关闭 Chrome 后重试可直接提取已有登录态",
+                25,
+            )
             await asyncio.sleep(1)
             return None
 
@@ -238,8 +256,7 @@ class CookieGrabber:
         context = None
         try:
             pw = await async_playwright().start()
-            self._update(GrabStage.READING_PROFILE, "正在加载 Chrome 用户数据...",
-                         "静默读取中，无需操作", 30)
+            self._update(GrabStage.READING_PROFILE, "正在加载 Chrome 用户数据...", "静默读取中，无需操作", 30)
 
             context = await pw.chromium.launch_persistent_context(
                 str(chrome_dir),
@@ -330,7 +347,8 @@ class CookieGrabber:
             elif system == "Windows":
                 r = subprocess.run(
                     ["tasklist", "/FI", "IMAGENAME eq chrome.exe"],
-                    capture_output=True, text=True,
+                    capture_output=True,
+                    text=True,
                 )
                 return "chrome.exe" in (r.stdout or "").lower()
             else:
@@ -366,8 +384,9 @@ class CookieGrabber:
         try:
             from playwright.async_api import async_playwright
         except ImportError:
-            self._update(GrabStage.FAILED, "Playwright 未安装",
-                         "请执行: pip install playwright && playwright install chromium")
+            self._update(
+                GrabStage.FAILED, "Playwright 未安装", "请执行: pip install playwright && playwright install chromium"
+            )
             return None
 
         pw = None
@@ -390,8 +409,7 @@ class CookieGrabber:
                     continue
 
             if not browser:
-                self._update(GrabStage.FAILED, "无法启动浏览器",
-                             "请确认已安装 Chrome 或 Edge 浏览器")
+                self._update(GrabStage.FAILED, "无法启动浏览器", "请确认已安装 Chrome 或 Edge 浏览器")
                 return None
 
             context = await browser.new_context(
@@ -403,18 +421,20 @@ class CookieGrabber:
             )
             page = await context.new_page()
 
-            self._update(GrabStage.WAITING_LOGIN, "正在打开闲鱼...",
-                         "请等待浏览器加载完成", 45)
+            self._update(GrabStage.WAITING_LOGIN, "正在打开闲鱼...", "请等待浏览器加载完成", 45)
 
             await page.goto(_MY_PAGE_URL, wait_until="domcontentloaded", timeout=30000)
 
             await asyncio.sleep(2)
             initial_cookies = await context.cookies()
             initial_names = {c.get("name", "") for c in initial_cookies}
-            logger.debug(f"Level 2: 初始 Cookie 数量={len(initial_cookies)}, 名称={initial_names & (_AUTH_COOKIES | _WEAK_LOGIN_COOKIES)}")
+            logger.debug(
+                f"Level 2: 初始 Cookie 数量={len(initial_cookies)}, 名称={initial_names & (_AUTH_COOKIES | _WEAK_LOGIN_COOKIES)}"
+            )
 
-            self._update(GrabStage.WAITING_LOGIN, "请在浏览器中登录闲鱼",
-                         "点击页面上的「登录」按钮，用闲鱼 App 扫码完成登录", 50)
+            self._update(
+                GrabStage.WAITING_LOGIN, "请在浏览器中登录闲鱼", "点击页面上的「登录」按钮，用闲鱼 App 扫码完成登录", 50
+            )
 
             deadline = time.time() + (_LOGIN_TIMEOUT_MS / 1000)
             logged_in = False
@@ -443,8 +463,7 @@ class CookieGrabber:
                 )
 
             if not logged_in:
-                self._update(GrabStage.FAILED, "登录超时",
-                             "5 分钟内未完成登录，请重试或手动粘贴 Cookie")
+                self._update(GrabStage.FAILED, "登录超时", "5 分钟内未完成登录，请重试或手动粘贴 Cookie")
                 return None
 
             self._update(GrabStage.WAITING_LOGIN, "登录成功，正在提取 Cookie...", "", 88)
@@ -454,8 +473,7 @@ class CookieGrabber:
             cookie_str = self._extract_goofish_cookies(all_cookies)
 
             if not cookie_str:
-                self._update(GrabStage.FAILED, "登录成功但未获取到 Cookie",
-                             "请尝试手动粘贴 Cookie")
+                self._update(GrabStage.FAILED, "登录成功但未获取到 Cookie", "请尝试手动粘贴 Cookie")
                 return None
 
             if not self._has_login_cookies(all_cookies):
@@ -466,8 +484,7 @@ class CookieGrabber:
 
         except Exception as exc:
             logger.error(f"Level 2: 浏览器登录失败: {exc}")
-            self._update(GrabStage.FAILED, f"浏览器打开失败: {type(exc).__name__}",
-                         "请确认已安装 Chrome 浏览器")
+            self._update(GrabStage.FAILED, f"浏览器打开失败: {type(exc).__name__}", "请确认已安装 Chrome 浏览器")
             return None
 
     # ------------------------------------------------------------------
@@ -488,15 +505,10 @@ class CookieGrabber:
 
     @staticmethod
     def _extract_goofish_cookies(all_cookies: list[dict[str, Any]]) -> str | None:
-        goofish = [
-            c for c in all_cookies
-            if any(d in (c.get("domain", "")) for d in _GOOFISH_DOMAINS)
-        ]
+        goofish = [c for c in all_cookies if any(d in (c.get("domain", "")) for d in _GOOFISH_DOMAINS)]
         if not goofish:
             return None
-        cookie_str = "; ".join(
-            f"{c['name']}={c['value']}" for c in goofish if c.get("name")
-        )
+        cookie_str = "; ".join(f"{c['name']}={c['value']}" for c in goofish if c.get("name"))
         return cookie_str if len(cookie_str) > 50 else None
 
     @staticmethod
@@ -517,8 +529,7 @@ class CookieGrabber:
     @staticmethod
     def _is_login_page(url: str) -> bool:
         url_lower = url.lower()
-        return ("login" in url_lower or "signin" in url_lower
-                or "passport" in url_lower or "qrcode" in url_lower)
+        return "login" in url_lower or "signin" in url_lower or "passport" in url_lower or "qrcode" in url_lower
 
     # ------------------------------------------------------------------
     # Validation & persistence
@@ -528,6 +539,7 @@ class CookieGrabber:
         self._update(GrabStage.VALIDATING, "正在验证 Cookie 有效性...", "", 92)
         try:
             from src.core.cookie_health import CookieHealthChecker
+
             checker = CookieHealthChecker(cookie_str, timeout_seconds=10.0)
             result = checker.check_sync(force=True)
             if result.get("healthy"):
@@ -566,9 +578,11 @@ class CookieGrabber:
 # 后台静默 Cookie 自动刷新器
 # ======================================================================
 
+
 @dataclass
 class AutoRefreshStatus:
     """自动刷新器的运行状态快照。"""
+
     enabled: bool = False
     interval_minutes: int = 30
     last_check_at: float = 0.0
@@ -733,6 +747,7 @@ class CookieAutoRefresher:
     @staticmethod
     def _send_notification(title: str, body: str, *, event: str = "") -> None:
         from src.core.notify import send_system_notification
+
         send_system_notification(body, event=event)
 
     @staticmethod
@@ -741,6 +756,7 @@ class CookieAutoRefresher:
             return False, "Cookie 未配置"
         try:
             from src.core.cookie_health import CookieHealthChecker
+
             checker = CookieHealthChecker(cookie_text, timeout_seconds=10.0)
             result = checker.check_sync(force=True)
             return bool(result.get("healthy")), result.get("message", "")
@@ -751,6 +767,7 @@ class CookieAutoRefresher:
     def _validate_sync(cookie_str: str) -> bool:
         try:
             from src.core.cookie_health import CookieHealthChecker
+
             checker = CookieHealthChecker(cookie_str, timeout_seconds=10.0)
             result = checker.check_sync(force=True)
             return bool(result.get("healthy"))
