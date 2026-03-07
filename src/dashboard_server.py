@@ -2818,7 +2818,9 @@ class MimicOps:
         else:
             msg_cfg = get_config().get_section("messages", {})
             service = MessagesService(controller=None, config=msg_cfg)
-        reply, detail = _run_async(service._generate_reply_with_quote(message_eval, item_title=item_title, session_id=session_id))
+        reply, detail = _run_async(
+            service._generate_reply_with_quote(message_eval, item_title=item_title, session_id=session_id)
+        )
 
         quote_part: dict[str, Any] | None = None
         if isinstance(detail, dict) and bool(detail.get("is_quote")):
@@ -3990,6 +3992,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     self._send_json({"ok": False, "grade": "F", "message": "Cookie 不能为空"}, status=400)
                     return
                 diagnosis = self.mimic_ops.diagnose_cookie(cookie_text)
+                domain_filter = self.mimic_ops._cookie_domain_filter_stats(cookie_text)
                 grade = diagnosis.get("grade", "F")
                 self._send_json(
                     {
@@ -4000,6 +4003,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                         "required_present": diagnosis.get("required_present", []),
                         "required_missing": diagnosis.get("required_missing", []),
                         "cookie_items": diagnosis.get("cookie_items", 0),
+                        "domain_filter": domain_filter,
                     }
                 )
                 return
