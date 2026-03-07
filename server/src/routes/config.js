@@ -6,7 +6,7 @@ const CONFIG_FILE = path.join(__dirname, '../../data/system_config.json');
 
 const ALLOWED_SECTIONS = new Set([
   'xianguanjia', 'ai', 'oss', 'auto_reply', 'auto_publish', 'order_reminder',
-  'pricing', 'delivery',
+  'pricing', 'delivery', 'notifications',
 ]);
 
 function readConfig() {
@@ -33,7 +33,7 @@ function writeConfig(data) {
   }
 }
 
-const SENSITIVE_KEYS = ['app_secret', 'api_key', 'access_key_secret', 'mch_secret'];
+const SENSITIVE_KEYS = ['app_secret', 'api_key', 'access_key_secret', 'mch_secret', 'webhook'];
 
 function maskSensitive(obj) {
   if (!obj || typeof obj !== 'object') return obj;
@@ -158,6 +158,20 @@ router.get('/sections', (req, res) => {
           { key: 'auto_delivery', label: '自动发货', type: 'toggle', default: true },
           { key: 'delivery_timeout_minutes', label: '发货超时(分钟)', type: 'number', default: 30 },
           { key: 'notify_on_delivery', label: '发货通知', type: 'toggle', default: true },
+        ],
+      },
+      {
+        key: 'notifications',
+        name: '告警通知',
+        fields: [
+          { key: 'feishu_enabled', label: '飞书通知', type: 'toggle', default: false },
+          { key: 'feishu_webhook', label: '飞书 Webhook URL', type: 'password', placeholder: 'https://open.feishu.cn/open-apis/bot/v2/hook/xxx' },
+          { key: 'wechat_enabled', label: '企业微信通知', type: 'toggle', default: false },
+          { key: 'wechat_webhook', label: '企业微信 Webhook URL', type: 'password', placeholder: 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxx' },
+          { key: 'notify_cookie_expire', label: 'Cookie 过期告警', type: 'toggle', default: true },
+          { key: 'notify_cookie_refresh', label: 'Cookie 刷新成功通知', type: 'toggle', default: true },
+          { key: 'notify_sla_alert', label: 'SLA 异常告警', type: 'toggle', default: true },
+          { key: 'notify_order_fail', label: '订单异常告警', type: 'toggle', default: true },
         ],
       },
     ],

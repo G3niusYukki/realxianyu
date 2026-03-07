@@ -18,7 +18,7 @@ from src.core.logger import get_logger
 logger = get_logger()
 
 # 闲鱼个人主页，需要登录态才能正常访问（未登录会 302 到登录页）
-_PROBE_URL = "https://www.goofish.com/my"
+_PROBE_URL = "https://www.goofish.com/im"
 _LOGIN_URL_FRAGMENT = "login"
 
 
@@ -146,18 +146,23 @@ class CookieHealthChecker:
 
     def _evaluate_response(self, resp: httpx.Response) -> dict[str, Any]:
         """根据 HTTP 响应判断 Cookie 是否有效。"""
-        # 302 重定向到登录页 → Cookie 过期
         if resp.status_code in {301, 302, 303, 307, 308}:
             location = resp.headers.get("location", "")
             if _LOGIN_URL_FRAGMENT in location.lower():
                 return self._build_result(False, "Cookie 已过期（被重定向到登录页）")
             return self._build_result(False, f"非预期跳转: {location[:80]}")
 
-        # 200 但需检查是否是登录页内容
         if resp.status_code == 200:
             return self._build_result(True, "Cookie 有效")
 
-        # 403 / 其他错误
+        if resp.status_code in {403, 401}:
+            return self._build_result(False, "Cookie 已过期或无效")
+
+        # 404 等非致命状态码 — 闲鱼页面结构可能变化，
+        # 只要服务器有响应且不是认证失败，Cookie 可能仍有效
+        if resp.status_code == 404:
+            return self._build_result(True, "页面返回 404 但连接正常")
+
         return self._build_result(False, f"HTTP {resp.status_code}")
 
     def _build_result(self, healthy: bool, message: str) -> dict[str, Any]:

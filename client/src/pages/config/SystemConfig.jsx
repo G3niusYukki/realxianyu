@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { getSystemConfig, getConfigSections, saveSystemConfig } from '../../api/config';
+import { pyApi } from '../../api/index';
 import toast from 'react-hot-toast';
-import { Settings, Save, AlertCircle, RefreshCw } from 'lucide-react';
+import { Settings, Save, AlertCircle, RefreshCw, Send, Bell } from 'lucide-react';
 
 export default function SystemConfig() {
   const [sections, setSections] = useState([]);
@@ -56,6 +57,8 @@ export default function SystemConfig() {
     }
   };
 
+  const [testingSend, setTestingSend] = useState(null);
+
   const handleChange = (sectionKey, fieldKey, value) => {
     setConfig(prev => ({
       ...prev,
@@ -64,6 +67,29 @@ export default function SystemConfig() {
         [fieldKey]: value
       }
     }));
+  };
+
+  const handleTestNotification = async (channel) => {
+    const notifyCfg = config.notifications || {};
+    const webhookKey = channel === 'feishu' ? 'feishu_webhook' : 'wechat_webhook';
+    const webhookUrl = notifyCfg[webhookKey] || '';
+    if (!webhookUrl || webhookUrl.includes('****')) {
+      toast.error('请先填写并保存 Webhook URL');
+      return;
+    }
+    setTestingSend(channel);
+    try {
+      const res = await pyApi.post('/api/notifications/test', { channel, webhook_url: webhookUrl });
+      if (res.data?.ok) {
+        toast.success(channel === 'feishu' ? '飞书测试消息发送成功' : '企业微信测试消息发送成功');
+      } else {
+        toast.error(res.data?.error || '发送失败');
+      }
+    } catch (err) {
+      toast.error('发送失败: ' + (err?.response?.data?.error || err.message));
+    } finally {
+      setTestingSend(null);
+    }
   };
 
   if (loading) {
@@ -182,6 +208,42 @@ export default function SystemConfig() {
                     我们推荐使用<strong>百炼千问 (qwen)</strong>，其在处理中文语境和电商营销文案时表现最为稳定。
                     <br/>如果你使用了其他服务商，请确保填入了正确的 Base URL。
                   </p>
+                </div>
+              )}
+
+              {currentSection.key === 'notifications' && (
+                <div className="mt-8 space-y-4">
+                  <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg flex items-start gap-3 text-blue-800 text-sm">
+                    <Bell className="w-5 h-5 flex-shrink-0 mt-0.5 text-blue-600" />
+                    <div>
+                      <p className="font-medium mb-1">告警通知说明</p>
+                      <p>配置后，以下事件将自动推送通知：Cookie 过期告警、Cookie 静默刷新成功/失败、SLA 异常、订单处理失败等。</p>
+                      <p className="mt-1">飞书：使用<strong>自定义机器人</strong>的 Webhook 地址。企业微信：使用<strong>群机器人</strong>的 Webhook 地址。</p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3">
+                    {(config.notifications?.feishu_enabled) && (
+                      <button
+                        onClick={() => handleTestNotification('feishu')}
+                        disabled={testingSend === 'feishu'}
+                        className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border border-blue-300 text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors disabled:opacity-50"
+                      >
+                        {testingSend === 'feishu' ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                        测试飞书通知
+                      </button>
+                    )}
+                    {(config.notifications?.wechat_enabled) && (
+                      <button
+                        onClick={() => handleTestNotification('wechat')}
+                        disabled={testingSend === 'wechat'}
+                        className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border border-green-300 text-green-700 bg-green-50 hover:bg-green-100 transition-colors disabled:opacity-50"
+                      >
+                        {testingSend === 'wechat' ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                        测试企业微信通知
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

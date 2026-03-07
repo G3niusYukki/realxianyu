@@ -1,16 +1,17 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { pyApi } from '../../api/index';
 import { nodeApi } from '../../api/index';
-import { Store, Plus, Settings, Power, PowerOff, ShieldAlert, RefreshCw, Zap, Loader2, CheckCircle, XCircle, Monitor, ClipboardPaste } from 'lucide-react';
+import { Store, Plus, Settings, Power, PowerOff, ShieldAlert, RefreshCw, Zap, Loader2, CheckCircle, XCircle, Monitor, ClipboardPaste, Timer, Activity } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 
 const GRAB_STAGE_CONFIG = {
   idle: { color: 'text-xy-gray-500', label: '就绪' },
-  reading_db: { color: 'text-blue-600', label: '读取浏览器 Cookie' },
+  reading_db: { color: 'text-blue-600', label: '方式一：读取浏览器数据库' },
+  reading_profile: { color: 'text-blue-600', label: '方式二：读取 Chrome 登录态' },
   validating: { color: 'text-blue-600', label: '验证有效性' },
-  login_required: { color: 'text-orange-600', label: '需要登录' },
-  waiting_login: { color: 'text-orange-600', label: '等待登录' },
+  login_required: { color: 'text-orange-600', label: '方式三：扫码登录' },
+  waiting_login: { color: 'text-orange-600', label: '等待扫码登录' },
   saving: { color: 'text-blue-600', label: '保存中' },
   success: { color: 'text-green-600', label: '获取成功' },
   failed: { color: 'text-red-600', label: '获取失败' },
@@ -25,15 +26,29 @@ export default function AccountList() {
   const [saving, setSaving] = useState(false);
   const [grabbing, setGrabbing] = useState(false);
   const [grabProgress, setGrabProgress] = useState(null);
+  const [autoRefresh, setAutoRefresh] = useState(null);
   const eventSourceRef = useRef(null);
+  const refreshTimerRef = useRef(null);
   const navigate = useNavigate();
+
+  const fetchAutoRefreshStatus = useCallback(async () => {
+    try {
+      const res = await pyApi.get('/api/cookie/auto-refresh/status');
+      setAutoRefresh(res.data);
+    } catch {
+      setAutoRefresh(null);
+    }
+  }, []);
 
   useEffect(() => {
     fetchAccounts();
+    fetchAutoRefreshStatus();
+    refreshTimerRef.current = setInterval(fetchAutoRefreshStatus, 30000);
     return () => {
       if (eventSourceRef.current) eventSourceRef.current.close();
+      if (refreshTimerRef.current) clearInterval(refreshTimerRef.current);
     };
-  }, []);
+  }, [fetchAutoRefreshStatus]);
 
   const fetchAccounts = async () => {
     setLoading(true);
@@ -210,6 +225,68 @@ export default function AccountList() {
         ))}
       </div>
 
+      {autoRefresh && (
+        <div className="mt-6 xy-card p-5">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Activity className="w-5 h-5 text-xy-brand-500" />
+              <h3 className="font-bold text-xy-text-primary">Cookie 自动刷新</h3>
+            </div>
+            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${autoRefresh.enabled ? 'bg-green-50 text-green-700' : 'bg-xy-gray-100 text-xy-text-secondary'}`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${autoRefresh.enabled ? 'bg-green-500' : 'bg-xy-gray-400'}`}></span>
+              {autoRefresh.enabled ? '已启用' : '未启用'}
+            </span>
+          </div>
+
+          {autoRefresh.enabled ? (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+              <div className="p-3 bg-xy-gray-50 rounded-lg">
+                <p className="text-xy-text-secondary text-xs mb-1">检查间隔</p>
+                <p className="font-medium text-xy-text-primary">每 {autoRefresh.interval_minutes} 分钟</p>
+              </div>
+              <div className="p-3 bg-xy-gray-50 rounded-lg">
+                <p className="text-xy-text-secondary text-xs mb-1">上次检查</p>
+                <p className="font-medium text-xy-text-primary">
+                  {autoRefresh.last_check_at > 0
+                    ? new Date(autoRefresh.last_check_at * 1000).toLocaleTimeString()
+                    : '尚未检查'}
+                </p>
+                {autoRefresh.last_check_ok !== null && (
+                  <p className={`text-xs mt-0.5 ${autoRefresh.last_check_ok ? 'text-green-600' : 'text-orange-600'}`}>
+                    {autoRefresh.last_check_message || (autoRefresh.last_check_ok ? '健康' : '异常')}
+                  </p>
+                )}
+              </div>
+              <div className="p-3 bg-xy-gray-50 rounded-lg">
+                <p className="text-xy-text-secondary text-xs mb-1">下次检查</p>
+                <p className="font-medium text-xy-text-primary flex items-center gap-1">
+                  <Timer className="w-3.5 h-3.5" />
+                  {autoRefresh.next_check_in_seconds > 0
+                    ? `${Math.ceil(autoRefresh.next_check_in_seconds / 60)} 分钟后`
+                    : '即将执行'}
+                </p>
+              </div>
+
+              {autoRefresh.total_refreshes > 0 && (
+                <div className="sm:col-span-3 p-3 bg-green-50 rounded-lg border border-green-200">
+                  <p className="text-sm text-green-700">
+                    <strong>上次静默刷新：</strong>
+                    {new Date(autoRefresh.last_refresh_at * 1000).toLocaleString()}
+                    {' — '}
+                    {autoRefresh.last_refresh_ok ? '成功' : '失败'}
+                    {autoRefresh.total_refreshes > 1 && ` (累计 ${autoRefresh.total_refreshes} 次)`}
+                  </p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className="text-sm text-xy-text-secondary">
+              {autoRefresh.message || '设置环境变量 COOKIE_AUTO_REFRESH=true 可启用自动刷新，系统将定期检查 Cookie 有效性并在失效时自动从浏览器获取新 Cookie。'}
+            </p>
+          )}
+        </div>
+      )}
+
       {cookieMode === 'choose' && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden">
@@ -310,8 +387,21 @@ export default function AccountList() {
                   {grabProgress.stage === 'reading_db' && (
                     <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
                       <p className="text-sm text-blue-700">
-                        <strong>提示：</strong>如果系统弹出"钥匙串访问"弹窗，请点击"允许"以读取浏览器 Cookie。
+                        <strong>方式一</strong> — 直接读取浏览器 Cookie 数据库。如果弹出"钥匙串访问"弹窗，请点击"允许"。
                       </p>
+                    </div>
+                  )}
+
+                  {grabProgress.stage === 'reading_profile' && (
+                    <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                      <p className="text-sm text-blue-700">
+                        <strong>方式二</strong> — 读取 Chrome 已有登录态。如果你之前在 Chrome 中登录过闲鱼，系统将静默提取 Cookie，无需操作。
+                      </p>
+                      {grabProgress.hint?.includes('Chrome 正在运行') && (
+                        <p className="text-sm text-orange-600 mt-1">
+                          <strong>注意：</strong>Chrome 正在运行，无法读取其 Profile。关闭 Chrome 后重试可直接提取。
+                        </p>
+                      )}
                     </div>
                   )}
 
@@ -367,11 +457,16 @@ export default function AccountList() {
                   <li>复制完整 Cookie 值粘贴到下方</li>
                 </ol>
               </div>
+              <div className="p-2.5 bg-xy-gray-50 rounded-lg border border-xy-border">
+                <p className="text-xs text-xy-text-secondary">
+                  <strong>支持格式：</strong>Header 格式（key=value; ...）、JSON 数组、Netscape cookies.txt、DevTools 表格复制，系统会自动识别并转换。
+                </p>
+              </div>
               <div>
                 <label className="xy-label">闲鱼 Cookie</label>
                 <textarea 
                   className="xy-input px-3 py-2 h-32 resize-none" 
-                  placeholder="粘贴从浏览器抓取的闲鱼 Cookie"
+                  placeholder={"支持多种格式粘贴，例如：\n• key1=value1; key2=value2\n• [{\"name\":\"key1\",\"value\":\"value1\"}]\n• Netscape cookies.txt 内容"}
                   value={newCookie}
                   onChange={e => setNewCookie(e.target.value)}
                 />

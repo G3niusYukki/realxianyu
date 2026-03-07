@@ -6712,6 +6712,20 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     return
                 return
 
+            if path == "/api/cookie/auto-refresh/status":
+                refresher = getattr(DashboardHandler, "_cookie_auto_refresher", None)
+                if refresher is None:
+                    self._send_json({
+                        "enabled": False,
+                        "interval_minutes": 0,
+                        "message": "自动刷新未启用（设置 COOKIE_AUTO_REFRESH=true 启用）",
+                    })
+                else:
+                    from dataclasses import asdict
+                    s = refresher.status()
+                    self._send_json(asdict(s))
+                return
+
             self._send_json(_error_payload("Not Found", code="NOT_FOUND"), status=404)
         except sqlite3.Error as e:
             self._send_json(_error_payload(f"Database error: {e}", code="DATABASE_ERROR"), status=500)
@@ -6976,6 +6990,38 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     self._send_json({"ok": False, "error": "没有正在运行的获取任务"})
                 return
 
+            if path == "/api/notifications/test":
+                body = self._read_json_body()
+                channel = str(body.get("channel", "")).strip()
+                webhook_url = str(body.get("webhook_url", "")).strip()
+                if not channel or not webhook_url:
+                    self._send_json({"ok": False, "error": "缺少 channel 或 webhook_url"}, status=400)
+                    return
+
+                import asyncio
+                test_msg = "【闲鱼自动化】通知测试\n如果你看到这条消息，说明通知配置成功！"
+
+                async def _send() -> bool:
+                    if channel == "feishu":
+                        from src.modules.messages.notifications import FeishuNotifier
+                        return await FeishuNotifier(webhook_url).send_text(test_msg)
+                    elif channel == "wechat":
+                        from src.modules.messages.notifications import WeChatNotifier
+                        return await WeChatNotifier(webhook_url).send_text(test_msg)
+                    return False
+
+                loop = asyncio.new_event_loop()
+                try:
+                    ok = loop.run_until_complete(_send())
+                finally:
+                    loop.close()
+
+                if ok:
+                    self._send_json({"ok": True, "message": "测试消息发送成功"})
+                else:
+                    self._send_json({"ok": False, "error": "发送失败，请检查 Webhook URL 是否正确"}, status=400)
+                return
+
             self._send_json(_error_payload("Not Found", code="NOT_FOUND"), status=404)
         except Exception as e:  # pragma: no cover - safety net
             self._send_json(_error_payload(str(e), code="INTERNAL_ERROR"), status=500)
@@ -6998,10 +7044,30 @@ def run_server(host: str = "127.0.0.1", port: int = 8091, db_path: str | None = 
         module_console=DashboardHandler.module_console,
     )
 
+    # Cookie 静默自动刷新
+    auto_refresh_enabled = os.environ.get("COOKIE_AUTO_REFRESH", "true").lower() in ("true", "1", "yes")
+    refresher = None
+    if auto_refresh_enabled:
+        from src.core.cookie_grabber import CookieAutoRefresher
+        interval = int(os.environ.get("COOKIE_REFRESH_INTERVAL", "30"))
+        mimic_ops = DashboardHandler.mimic_ops
+
+        def _on_refreshed(cookie: str) -> None:
+            try:
+                mimic_ops.update_cookie(cookie, auto_recover=True)
+            except Exception as exc:
+                logger.error(f"Cookie 自动刷新回调失败: {exc}")
+
+        refresher = CookieAutoRefresher(interval_minutes=interval, on_refreshed=_on_refreshed)
+        refresher.start()
+        DashboardHandler._cookie_auto_refresher = refresher
+
     server = ThreadingHTTPServer((host, port), DashboardHandler)
 
     def _shutdown(signum, frame):
         logger.info("收到信号 %s，正在关闭...", signum)
+        if refresher:
+            refresher.stop()
         server.shutdown()
 
     signal.signal(signal.SIGTERM, _shutdown)
