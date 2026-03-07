@@ -120,6 +120,7 @@ def _create_db(db_path: str) -> None:
 def _make_service(db_path: str):
     with patch("src.modules.virtual_goods.store.VirtualGoodsStore._init_db"):
         from src.modules.virtual_goods.service import VirtualGoodsService
+
         svc = VirtualGoodsService(db_path=db_path, config={})
     _create_db(db_path)
     return svc
@@ -139,34 +140,42 @@ def service(db_path):
 class TestStaticHelpers:
     def test_loads_json_valid(self):
         from src.modules.virtual_goods.service import VirtualGoodsService
+
         assert VirtualGoodsService._loads_json('{"a":1}', {}) == {"a": 1}
 
     def test_loads_json_invalid(self):
         from src.modules.virtual_goods.service import VirtualGoodsService
+
         assert VirtualGoodsService._loads_json("not json", "fb") == "fb"
 
     def test_loads_json_not_string(self):
         from src.modules.virtual_goods.service import VirtualGoodsService
+
         assert VirtualGoodsService._loads_json(123, "fb") == "fb"
 
     def test_loads_json_empty(self):
         from src.modules.virtual_goods.service import VirtualGoodsService
+
         assert VirtualGoodsService._loads_json("", "fb") == "fb"
 
     def test_to_int_valid(self):
         from src.modules.virtual_goods.service import VirtualGoodsService
+
         assert VirtualGoodsService._to_int("42") == 42
 
     def test_to_int_invalid(self):
         from src.modules.virtual_goods.service import VirtualGoodsService
+
         assert VirtualGoodsService._to_int("abc", 5) == 5
 
     def test_to_float_valid(self):
         from src.modules.virtual_goods.service import VirtualGoodsService
+
         assert VirtualGoodsService._to_float("3.14") == 3.14
 
     def test_to_float_invalid(self):
         from src.modules.virtual_goods.service import VirtualGoodsService
+
         assert VirtualGoodsService._to_float("abc", 1.0) == 1.0
 
 
@@ -183,8 +192,7 @@ class TestListTimeoutBacklog:
             (xianyu_order_id, event_kind, verify_passed, processed, created_at,
              external_event_id, dedupe_key, source_family, payload_json, headers_json, attempt_count)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            ("order1", "order", 1, 0, "2020-01-01T00:00:00Z",
-             "evt1", "dk1", "open_platform", '{}', '{}', 0),
+            ("order1", "order", 1, 0, "2020-01-01T00:00:00Z", "evt1", "dk1", "open_platform", "{}", "{}", 0),
         )
         conn.commit()
         conn.close()
@@ -200,8 +208,7 @@ class TestListTimeoutBacklog:
             (xianyu_order_id, event_kind, verify_passed, processed, created_at,
              external_event_id, dedupe_key, source_family, payload_json, headers_json, attempt_count)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            ("order2", "unknown", 1, 0, "2020-01-01T00:00:00Z",
-             "evt2", "dk2", "unknown", '{}', '{}', 0),
+            ("order2", "unknown", 1, 0, "2020-01-01T00:00:00Z", "evt2", "dk2", "unknown", "{}", "{}", 0),
         )
         conn.commit()
         conn.close()
@@ -223,8 +230,7 @@ class TestListReplayCandidates:
             (xianyu_order_id, event_kind, verify_passed, processed, created_at,
              external_event_id, dedupe_key, source_family, payload_json, headers_json, attempt_count)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            ("order1", "order", 1, 0, "2025-01-01T00:00:00Z",
-             "evt1", "dk1", "open_platform", '{}', '{}', 0),
+            ("order1", "order", 1, 0, "2025-01-01T00:00:00Z", "evt1", "dk1", "open_platform", "{}", "{}", 0),
         )
         conn.commit()
         conn.close()
@@ -238,8 +244,7 @@ class TestListReplayCandidates:
             (xianyu_order_id, event_kind, verify_passed, processed, created_at,
              external_event_id, dedupe_key, source_family, payload_json, headers_json, attempt_count)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            ("order2", "unknown", 1, 0, "2025-01-01T00:00:00Z",
-             "evt2", "dk2", "unknown", '{}', '{}', 0),
+            ("order2", "unknown", 1, 0, "2025-01-01T00:00:00Z", "evt2", "dk2", "unknown", "{}", "{}", 0),
         )
         conn.commit()
         conn.close()
@@ -282,8 +287,7 @@ class TestGetDashboardMetrics:
             (xianyu_order_id, event_kind, verify_passed, processed, created_at,
              external_event_id, dedupe_key, source_family, payload_json, headers_json, attempt_count)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            ("order1", "unknown", 1, 0, "2020-01-01T00:00:00Z",
-             "evt1", "dk1", "unknown", '{}', '{}', 0),
+            ("order1", "unknown", 1, 0, "2020-01-01T00:00:00Z", "evt1", "dk1", "unknown", "{}", "{}", 0),
         )
         conn.commit()
         conn.close()
@@ -316,8 +320,19 @@ class TestInspectOrder:
             (xianyu_order_id, event_kind, verify_passed, processed, attempt_count, created_at,
              external_event_id, dedupe_key, source_family, payload_json, headers_json)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            ("order1", "order", 1, 1, 1, "2025-01-01T00:00:00Z",
-             "evt1", "dk1", "open_platform", '{"k":"v"}', '{"h":"v"}'),
+            (
+                "order1",
+                "order",
+                1,
+                1,
+                1,
+                "2025-01-01T00:00:00Z",
+                "evt1",
+                "dk1",
+                "open_platform",
+                '{"k":"v"}',
+                '{"h":"v"}',
+            ),
         )
         conn.commit()
         conn.close()
@@ -337,8 +352,7 @@ class TestInspectOrder:
             (xianyu_order_id, event_kind, verify_passed, processed, created_at,
              external_event_id, dedupe_key, source_family, payload_json, headers_json, attempt_count)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            ("order2", "unknown", 1, 0, "2025-01-01T00:00:00Z",
-             "evt2", "dk2", "unknown", '{}', '{}', 0),
+            ("order2", "unknown", 1, 0, "2025-01-01T00:00:00Z", "evt2", "dk2", "unknown", "{}", "{}", 0),
         )
         conn.commit()
         conn.close()
@@ -358,9 +372,19 @@ class TestInspectOrder:
             (xianyu_order_id, event_kind, exception_code, severity, status,
              first_seen_at, last_seen_at, occurrence_count, detail_json, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            ("order3", "order", "DUPLICATE_ORDER", "P1", "open",
-             "2025-01-01T00:00:00Z", "2025-01-01T01:00:00Z", 3,
-             '{"detail":"test"}', "2025-01-01T00:00:00Z", "2025-01-01T01:00:00Z"),
+            (
+                "order3",
+                "order",
+                "DUPLICATE_ORDER",
+                "P1",
+                "open",
+                "2025-01-01T00:00:00Z",
+                "2025-01-01T01:00:00Z",
+                3,
+                '{"detail":"test"}',
+                "2025-01-01T00:00:00Z",
+                "2025-01-01T01:00:00Z",
+            ),
         )
         conn.commit()
         conn.close()
@@ -408,7 +432,8 @@ class TestGetProductOperationMetrics:
     def test_no_data(self, service):
         result = service.get_product_operation_metrics()
         assert result["ok"] is True
-        assert result["data"]["summary"]["conversion_rate_pct"] == 0.0
+        # Empty snapshot should return None as placeholder, not fake zero
+        assert result["data"]["summary"]["conversion_rate_pct"] is None
 
     def test_with_data(self, service, db_path):
         conn = sqlite3.connect(db_path)
@@ -496,7 +521,7 @@ class TestListPriorityExceptions:
             """INSERT INTO ops_exception_pool
             (exception_code, severity, status, event_kind, occurrence_count, detail_json, last_seen_at)
             VALUES (?, ?, ?, ?, ?, ?, ?)""",
-            ("TIMEOUT", "P5", "open", "order", 1, 'invalid', "2025-01-01T00:00:00Z"),
+            ("TIMEOUT", "P5", "open", "order", 1, "invalid", "2025-01-01T00:00:00Z"),
         )
         conn.commit()
         conn.close()
@@ -704,10 +729,20 @@ class TestReplay:
              source_family, verify_passed, processed, raw_body,
              payload_json, headers_json, created_at, attempt_count)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            ("evt1", "dk1", "order1", "order", "open_platform",
-             1, 0, '{"test":true}', '{}',
-             '{"query_params":{"k":"v"},"Authorization":"x"}',
-             "2025-01-01T00:00:00Z", 0),
+            (
+                "evt1",
+                "dk1",
+                "order1",
+                "order",
+                "open_platform",
+                1,
+                0,
+                '{"test":true}',
+                "{}",
+                '{"query_params":{"k":"v"},"Authorization":"x"}',
+                "2025-01-01T00:00:00Z",
+                0,
+            ),
         )
         conn.execute(
             "INSERT INTO virtual_goods_orders (xianyu_order_id, updated_at) VALUES (?, ?)",
@@ -728,9 +763,7 @@ class TestReplay:
              source_family, verify_passed, processed, raw_body,
              payload_json, headers_json, created_at, attempt_count)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            ("evt2", "dk2", "order2", "order", "open_platform",
-             1, 0, '{}', '{}', '{}',
-             "2025-01-01T00:00:00Z", 0),
+            ("evt2", "dk2", "order2", "order", "open_platform", 1, 0, "{}", "{}", "{}", "2025-01-01T00:00:00Z", 0),
         )
         conn.execute(
             "INSERT INTO virtual_goods_orders (xianyu_order_id, updated_at) VALUES (?, ?)",
@@ -751,9 +784,7 @@ class TestReplay:
              source_family, verify_passed, processed, raw_body,
              payload_json, headers_json, created_at, attempt_count)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            ("evt3", "dk3", "order3", "order", "open_platform",
-             1, 0, '{}', '{}', '{}',
-             "2025-01-01T00:00:00Z", 0),
+            ("evt3", "dk3", "order3", "order", "open_platform", 1, 0, "{}", "{}", "{}", "2025-01-01T00:00:00Z", 0),
         )
         conn.execute(
             "INSERT INTO virtual_goods_orders (xianyu_order_id, updated_at) VALUES (?, ?)",
@@ -775,9 +806,7 @@ class TestReplay:
              source_family, verify_passed, processed, raw_body,
              payload_json, headers_json, created_at, attempt_count)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            ("evt4", "dk4", "", "unknown", "unknown",
-             1, 0, '{}', '{}', '{}',
-             "2025-01-01T00:00:00Z", 0),
+            ("evt4", "dk4", "", "unknown", "unknown", 1, 0, "{}", "{}", "{}", "2025-01-01T00:00:00Z", 0),
         )
         conn.commit()
         conn.close()
@@ -794,9 +823,7 @@ class TestReplay:
              source_family, verify_passed, processed, raw_body,
              payload_json, headers_json, created_at, attempt_count)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            ("evt5", "dk5", "", "order", "open_platform",
-             1, 0, '{}', '{}', '{}',
-             "2025-01-01T00:00:00Z", 0),
+            ("evt5", "dk5", "", "order", "open_platform", 1, 0, "{}", "{}", "{}", "2025-01-01T00:00:00Z", 0),
         )
         conn.commit()
         conn.close()
