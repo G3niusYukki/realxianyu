@@ -10,7 +10,6 @@ const Navbar = () => {
     { to: '/products', label: '商品' },
     { to: '/orders', label: '订单' },
     { to: '/messages', label: '消息' },
-    { to: '/analytics', label: '数据' },
   ]
 
   return (
@@ -58,7 +57,6 @@ const Navbar = () => {
             ))}
           </div>
           <div className="px-4 space-y-1">
-            <Link to="/accounts" className="block py-2 text-sm text-xy-text-secondary" onClick={() => setIsOpen(false)}>店铺管理</Link>
             <Link to="/config" className="block py-2 text-sm text-xy-text-secondary" onClick={() => setIsOpen(false)}>系统配置</Link>
           </div>
         </div>

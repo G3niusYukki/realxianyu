@@ -8,6 +8,7 @@ import csv
 import hashlib
 import io
 import json
+import mimetypes
 import os
 import re
 import sqlite3
@@ -37,6 +38,135 @@ from src.modules.quote.setup import DEFAULT_MARKUP_RULES, QuoteSetupService
 from src.modules.virtual_goods.service import VirtualGoodsService
 
 MODULE_TARGETS = ("presales", "operations", "aftersales")
+
+# --------------- system_config.json management (migrated from Node.js) ---------------
+
+_SYS_CONFIG_FILE = Path(__file__).resolve().parents[1] / "server" / "data" / "system_config.json"
+
+_ALLOWED_CONFIG_SECTIONS = {
+    "xianguanjia", "ai", "oss", "auto_reply", "auto_publish",
+    "order_reminder", "pricing", "delivery", "notifications", "store",
+}
+
+_SENSITIVE_CONFIG_KEYS = ["app_secret", "api_key", "access_key_secret", "mch_secret", "webhook"]
+
+
+def _read_system_config() -> dict[str, Any]:
+    try:
+        if _SYS_CONFIG_FILE.exists():
+            return json.loads(_SYS_CONFIG_FILE.read_text(encoding="utf-8"))
+    except Exception as e:
+        logger.error("Failed to read system config: %s", e)
+    return {}
+
+
+def _write_system_config(data: dict[str, Any]) -> None:
+    _SYS_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    tmp = _SYS_CONFIG_FILE.with_suffix(".tmp")
+    tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+    tmp.rename(_SYS_CONFIG_FILE)
+
+
+_CONFIG_SECTIONS: list[dict[str, Any]] = [
+    {
+        "key": "xianguanjia",
+        "name": "闲管家配置",
+        "fields": [
+            {"key": "mode", "label": "接入模式", "type": "select", "options": ["self_developed", "business"], "default": "self_developed", "labels": {"self_developed": "自研应用", "business": "商务对接"}, "hint": "自研应用：个人或自有 ERP 直连；商务对接：第三方代商家接入"},
+            {"key": "app_key", "label": "AppKey", "type": "text", "required": True, "hint": "在闲管家开放平台创建应用后获取"},
+            {"key": "app_secret", "label": "AppSecret", "type": "password", "required": True, "hint": "应用密钥，请妥善保管不要泄露"},
+            {"key": "seller_id", "label": "商家 ID (Seller ID)", "type": "text", "required_when": {"mode": "business"}, "hint": "商务对接模式下的商家标识，自研模式无需填写"},
+            {"key": "base_url", "label": "API 网关", "type": "text", "default": "https://open.goofish.pro", "hint": "默认无需修改，仅在私有化部署时更改"},
+        ],
+    },
+    {
+        "key": "ai",
+        "name": "AI 配置",
+        "fields": [
+            {"key": "provider", "label": "提供商", "type": "select", "options": ["qwen", "deepseek", "openai"], "default": "qwen", "labels": {"qwen": "百炼千问 (Qwen)", "deepseek": "DeepSeek", "openai": "OpenAI"}},
+            {"key": "api_key", "label": "API Key", "type": "text", "required": True},
+            {"key": "model", "label": "模型", "type": "combobox", "default": "qwen-plus-latest", "options": ["qwen-plus-latest", "qwen-max-latest", "qwen-turbo-latest", "qwen-flash", "qwen3-max", "qwen3.5-plus", "qwq-plus-latest"]},
+            {"key": "base_url", "label": "API 地址", "type": "text", "placeholder": "https://dashscope.aliyuncs.com/compatible-mode/v1"},
+        ],
+    },
+    {
+        "key": "oss",
+        "name": "阿里云 OSS",
+        "fields": [
+            {"key": "access_key_id", "label": "Access Key ID", "type": "text", "required": True},
+            {"key": "access_key_secret", "label": "Access Key Secret", "type": "password", "required": True},
+            {"key": "bucket", "label": "Bucket", "type": "text", "required": True},
+            {"key": "endpoint", "label": "Endpoint", "type": "text", "required": True},
+            {"key": "prefix", "label": "路径前缀", "type": "text", "default": "xianyu/listing/"},
+            {"key": "custom_domain", "label": "自定义域名", "type": "text"},
+        ],
+    },
+    {
+        "key": "auto_reply",
+        "name": "自动回复",
+        "fields": [
+            {"key": "enabled", "label": "启用", "type": "toggle", "default": True},
+            {"key": "ai_intent_enabled", "label": "AI意图识别", "type": "toggle", "default": False},
+            {"key": "default_reply", "label": "默认回复", "type": "textarea"},
+            {"key": "virtual_default_reply", "label": "虚拟商品默认回复", "type": "textarea"},
+        ],
+    },
+    {
+        "key": "auto_publish",
+        "name": "自动上架",
+        "fields": [
+            {"key": "enabled", "label": "启用", "type": "toggle", "default": False},
+            {"key": "default_category", "label": "默认品类", "type": "select", "options": ["express", "recharge", "exchange", "account", "movie_ticket", "game"], "default": "exchange"},
+            {"key": "auto_compliance", "label": "自动合规检查", "type": "toggle", "default": True},
+        ],
+    },
+    {
+        "key": "order_reminder",
+        "name": "催单设置",
+        "fields": [
+            {"key": "enabled", "label": "启用", "type": "toggle", "default": True},
+            {"key": "max_daily", "label": "每日最大次数", "type": "number", "default": 2},
+            {"key": "min_interval_hours", "label": "最小间隔(小时)", "type": "number", "default": 4},
+            {"key": "silent_start", "label": "静默开始(时)", "type": "number", "default": 22},
+            {"key": "silent_end", "label": "静默结束(时)", "type": "number", "default": 8},
+        ],
+    },
+    {
+        "key": "pricing",
+        "name": "定价规则",
+        "fields": [
+            {"key": "auto_adjust", "label": "自动调价", "type": "toggle", "default": False},
+            {"key": "min_margin_percent", "label": "最低利润率(%)", "type": "number", "default": 10},
+            {"key": "max_discount_percent", "label": "最大降价幅度(%)", "type": "number", "default": 20},
+        ],
+    },
+    {
+        "key": "delivery",
+        "name": "发货规则",
+        "fields": [
+            {"key": "auto_delivery", "label": "自动发货", "type": "toggle", "default": True},
+            {"key": "delivery_timeout_minutes", "label": "发货超时(分钟)", "type": "number", "default": 30},
+            {"key": "notify_on_delivery", "label": "发货通知", "type": "toggle", "default": True},
+        ],
+    },
+    {
+        "key": "notifications",
+        "name": "告警通知",
+        "fields": [
+            {"key": "feishu_enabled", "label": "飞书通知", "type": "toggle", "default": False},
+            {"key": "feishu_webhook", "label": "飞书 Webhook URL", "type": "password", "placeholder": "https://open.feishu.cn/open-apis/bot/v2/hook/xxx"},
+            {"key": "wechat_enabled", "label": "企业微信通知", "type": "toggle", "default": False},
+            {"key": "wechat_webhook", "label": "企业微信 Webhook URL", "type": "password", "placeholder": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxx"},
+            {"key": "notify_cookie_expire", "label": "Cookie 过期告警", "type": "toggle", "default": True},
+            {"key": "notify_cookie_refresh", "label": "Cookie 刷新成功通知", "type": "toggle", "default": True},
+            {"key": "notify_sla_alert", "label": "SLA 异常告警", "type": "toggle", "default": True},
+            {"key": "notify_order_fail", "label": "订单异常告警", "type": "toggle", "default": True},
+            {"key": "notify_after_sales", "label": "售后介入告警", "type": "toggle", "default": True},
+            {"key": "notify_ship_fail", "label": "发货失败告警", "type": "toggle", "default": True},
+            {"key": "notify_manual_takeover", "label": "人工接管告警", "type": "toggle", "default": True},
+        ],
+    },
+]
 
 
 def _safe_int(value: str | None, default: int, min_value: int, max_value: int) -> int:
@@ -6437,24 +6567,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 )
                 return
 
-            if path == "/":
-                self._send_html(DASHBOARD_HTML)
-                return
-
-            if path == "/cookie":
-                self._send_html(MIMIC_COOKIE_HTML)
-                return
-
-            if path == "/test":
-                self._send_html(MIMIC_TEST_HTML)
-                return
-
-            if path == "/logs":
-                self._send_html(MIMIC_LOGS_HTML)
-                return
-
-            if path == "/logs/realtime":
-                self._send_html(MIMIC_LOGS_REALTIME_HTML)
+            if path in {"/", "/cookie", "/test", "/logs", "/logs/realtime"}:
+                self._serve_spa_file(path)
                 return
 
             if path in {"/api/summary", "/api/trend", "/api/recent-operations", "/api/top-products"}:
@@ -6651,31 +6765,75 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 try:
                     ai_key = os.environ.get("AI_API_KEY", "")
                     ai_base = os.environ.get("AI_BASE_URL", "")
+                    ai_model = os.environ.get("AI_MODEL", "")
                     if not ai_key or not ai_base:
                         try:
-                            cfg_res = self._xianguanjia_service_config()
-                            ai_cfg = cfg_res.get("ai", {})
-                            ai_key = ai_key or str(ai_cfg.get("api_key", "") or "")
-                            ai_base = ai_base or str(ai_cfg.get("base_url", "") or "")
+                            _sys_cfg_path = Path(__file__).resolve().parents[1] / "server" / "data" / "system_config.json"
+                            if _sys_cfg_path.exists():
+                                _sys_cfg = json.loads(_sys_cfg_path.read_text(encoding="utf-8"))
+                                ai_cfg = _sys_cfg.get("ai", {})
+                                ai_key = ai_key or str(ai_cfg.get("api_key", "") or "")
+                                ai_base = ai_base or str(ai_cfg.get("base_url", "") or "")
+                                ai_model = ai_model or str(ai_cfg.get("model", "") or "")
                         except Exception:
                             pass
+                    ai_model = ai_model or "qwen-plus"
                     if ai_key and ai_base:
                         t0 = _t.time()
                         import httpx
-                        models_url = ai_base.rstrip("/") + "/models"
+                        chat_url = ai_base.rstrip("/") + "/chat/completions"
                         with httpx.Client(timeout=8.0) as hc:
-                            resp = hc.get(models_url, headers={"Authorization": f"Bearer {ai_key}"})
+                            resp = hc.post(
+                                chat_url,
+                                headers={"Authorization": f"Bearer {ai_key}", "Content-Type": "application/json"},
+                                json={"model": ai_model, "max_tokens": 1, "messages": [{"role": "user", "content": "hi"}]},
+                            )
                         latency = int((_t.time() - t0) * 1000)
                         if resp.status_code == 200:
                             ai_info = {"ok": True, "message": "连通", "latency_ms": latency}
                         else:
-                            ai_info = {"ok": False, "message": f"HTTP {resp.status_code}", "latency_ms": latency}
+                            _status_msgs = {401: "API Key 无效", 403: "无权访问", 429: "请求过频"}
+                            _msg = _status_msgs.get(resp.status_code, f"HTTP {resp.status_code}")
+                            ai_info = {"ok": False, "message": _msg, "latency_ms": latency}
                     else:
                         ai_info = {"ok": False, "message": "API Key 或 Base URL 未配置"}
                 except Exception as exc:
                     ai_info = {"ok": False, "message": f"检查异常: {type(exc).__name__}"}
                 result["ai"] = ai_info
 
+                # XGJ connectivity check (migrated from Node.js)
+                xgj_info: dict[str, Any] = {"ok": False, "message": "未检查"}
+                try:
+                    sys_cfg = _read_system_config()
+                    xgj_cfg = sys_cfg.get("xianguanjia", {})
+                    xgj_app_key = str(xgj_cfg.get("app_key", "") or os.environ.get("XGJ_APP_KEY", ""))
+                    xgj_app_secret = str(xgj_cfg.get("app_secret", "") or os.environ.get("XGJ_APP_SECRET", ""))
+                    xgj_base = str(xgj_cfg.get("base_url", "") or os.environ.get("XGJ_BASE_URL", "https://open.goofish.pro"))
+                    if not xgj_app_key or not xgj_app_secret:
+                        xgj_info = {"ok": False, "message": "AppKey 或 AppSecret 未配置"}
+                    else:
+                        from src.integrations.xianguanjia.signing import sign_open_platform_request as _xgj_sign
+                        xgj_ts = str(int(time.time()))
+                        xgj_body = json.dumps({"method": "health.check"})
+                        xgj_sign_val = _xgj_sign(app_key=xgj_app_key, app_secret=xgj_app_secret, timestamp=xgj_ts, body=xgj_body)
+                        xgj_t0 = _t.time()
+                        import httpx as _hx2
+                        xgj_resp = _hx2.post(
+                            f"{xgj_base}/api/open/proxy",
+                            content=xgj_body,
+                            headers={"Content-Type": "application/json", "x-app-key": xgj_app_key, "x-timestamp": xgj_ts, "x-sign": xgj_sign_val},
+                            timeout=8.0,
+                        )
+                        xgj_latency = int((_t.time() - xgj_t0) * 1000)
+                        if xgj_resp.status_code < 500:
+                            xgj_info = {"ok": True, "message": "连通", "latency_ms": xgj_latency}
+                        else:
+                            xgj_info = {"ok": False, "message": f"HTTP {xgj_resp.status_code}", "latency_ms": xgj_latency}
+                except Exception as exc:
+                    xgj_info = {"ok": False, "message": f"检查异常: {type(exc).__name__}"}
+                result["xgj"] = xgj_info
+
+                result["node"] = {"ok": True, "message": "已合并至 Python"}
                 result["services"] = {"python": {"ok": True, "message": "运行中"}}
                 self._send_json(result)
                 return
@@ -6726,10 +6884,80 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     self._send_json(asdict(s))
                 return
 
-            self._send_json(_error_payload("Not Found", code="NOT_FOUND"), status=404)
+            # ---------- Config CRUD (migrated from Node.js) ----------
+            if path == "/api/config":
+                self._send_json({"ok": True, "config": _read_system_config()})
+                return
+
+            if path == "/api/config/sections":
+                self._send_json({"ok": True, "sections": _CONFIG_SECTIONS})
+                return
+
+            # ---------- SPA static file serving ----------
+            if path.startswith("/api/"):
+                self._send_json(_error_payload("Not Found", code="NOT_FOUND"), status=404)
+                return
+
+            self._serve_spa_file(path)
+
         except sqlite3.Error as e:
             self._send_json(_error_payload(f"Database error: {e}", code="DATABASE_ERROR"), status=500)
         except Exception as e:  # pragma: no cover - safety net
+            self._send_json(_error_payload(str(e), code="INTERNAL_ERROR"), status=500)
+
+    def _serve_spa_file(self, path: str) -> None:
+        """Serve React SPA static files from client/dist/."""
+        dist_dir = Path(__file__).resolve().parents[1] / "client" / "dist"
+        if not dist_dir.exists():
+            self._send_html(DASHBOARD_HTML)
+            return
+
+        file_path = dist_dir / path.lstrip("/")
+        if file_path.is_file():
+            content_type, _ = mimetypes.guess_type(str(file_path))
+            content_type = content_type or "application/octet-stream"
+            data = file_path.read_bytes()
+            self.send_response(200)
+            self.send_header("Content-Type", content_type)
+            self.send_header("Content-Length", str(len(data)))
+            if "/assets/" in path:
+                self.send_header("Cache-Control", "public, max-age=31536000, immutable")
+            self.end_headers()
+            self.wfile.write(data)
+            return
+
+        index_html = dist_dir / "index.html"
+        if index_html.is_file():
+            self._send_html(index_html.read_text(encoding="utf-8"))
+        else:
+            self._send_html(DASHBOARD_HTML)
+
+    def do_PUT(self) -> None:
+        parsed = urlparse(self.path)
+        path = parsed.path
+        try:
+            if path == "/api/config":
+                body = self._read_json_body()
+                current = _read_system_config()
+                for section, values in body.items():
+                    if section not in _ALLOWED_CONFIG_SECTIONS:
+                        continue
+                    if not isinstance(values, dict):
+                        continue
+                    clean: dict[str, Any] = {}
+                    for k, v in values.items():
+                        if not isinstance(k, str) or k.startswith("__"):
+                            continue
+                        if any(s in k.lower() for s in _SENSITIVE_CONFIG_KEYS) and isinstance(v, str) and "****" in v:
+                            continue
+                        clean[k] = v
+                    current[section] = {**(current.get(section) or {}), **clean}
+                _write_system_config(current)
+                self._send_json({"ok": True, "message": "Configuration updated", "config": current})
+                return
+
+            self._send_json(_error_payload("Not Found", code="NOT_FOUND"), status=404)
+        except Exception as e:
             self._send_json(_error_payload(str(e), code="INTERNAL_ERROR"), status=500)
 
     def do_POST(self) -> None:
@@ -6737,6 +6965,48 @@ class DashboardHandler(BaseHTTPRequestHandler):
         path = parsed.path
 
         try:
+            if path == "/api/ai/test":
+                import time as _t
+                body = self._read_json_body()
+                ai_key = str(body.get("api_key") or "").strip()
+                ai_base = str(body.get("base_url") or "").strip()
+                ai_model = str(body.get("model") or "").strip() or "qwen-plus"
+                if not ai_key or not ai_base:
+                    self._send_json({"ok": False, "message": "请填写 API Key 和 API 地址"})
+                    return
+                try:
+                    t0 = _t.time()
+                    import httpx
+                    chat_url = ai_base.rstrip("/") + "/chat/completions"
+                    with httpx.Client(timeout=10.0) as hc:
+                        resp = hc.post(
+                            chat_url,
+                            headers={"Authorization": f"Bearer {ai_key}", "Content-Type": "application/json"},
+                            json={"model": ai_model, "max_tokens": 1, "messages": [{"role": "user", "content": "hi"}]},
+                        )
+                    latency = int((_t.time() - t0) * 1000)
+                    if resp.status_code == 200:
+                        self._send_json({"ok": True, "message": f"连接成功（延迟 {latency}ms）", "latency_ms": latency})
+                    else:
+                        detail = ""
+                        try:
+                            detail = resp.json().get("error", {}).get("message", "")
+                        except Exception:
+                            pass
+                        status_msgs = {
+                            401: "API Key 无效或已过期，请检查后重试",
+                            403: "API Key 无权访问该模型",
+                            404: f"模型 {ai_model} 不存在，请检查模型名称",
+                            429: "请求过于频繁，请稍后再试",
+                        }
+                        msg = status_msgs.get(resp.status_code, f"HTTP {resp.status_code}")
+                        if detail:
+                            msg += f"（{detail}）"
+                        self._send_json({"ok": False, "message": msg, "latency_ms": latency})
+                except Exception as exc:
+                    self._send_json({"ok": False, "message": f"连接异常: {type(exc).__name__}: {exc}"})
+                return
+
             if path == "/api/module/control":
                 body = self._read_json_body()
                 action = str(body.get("action") or "").strip().lower()
@@ -7039,6 +7309,77 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     self._send_json({"ok": True, "message": "测试消息发送成功"})
                 else:
                     self._send_json({"ok": False, "error": "发送失败，请检查 Webhook URL 是否正确"}, status=400)
+                return
+
+            # ---------- XGJ proxy (migrated from Node.js) ----------
+            if path == "/api/xgj/proxy":
+                body = self._read_json_body()
+                api_path = str(body.get("apiPath") or body.get("path") or "")
+                req_body = body.get("body") or body.get("payload") or {}
+                if not api_path or not api_path.startswith("/api/open/"):
+                    self._send_json({"error": "Invalid apiPath"}, status=400)
+                    return
+                cfg = _read_system_config()
+                xgj = cfg.get("xianguanjia", {})
+                app_key = str(xgj.get("app_key", ""))
+                app_secret = str(xgj.get("app_secret", ""))
+                base_url = str(xgj.get("base_url", "") or "https://open.goofish.pro")
+                mode = str(xgj.get("mode", "self_developed"))
+                seller_id = str(xgj.get("seller_id", ""))
+                if not app_key or not app_secret:
+                    self._send_json({"ok": False, "error": "闲管家 API 未配置，请在设置中配置 AppKey 和 AppSecret"}, status=400)
+                    return
+                payload_str = json.dumps(req_body, ensure_ascii=False)
+                ts = str(int(time.time()))
+                from src.integrations.xianguanjia.signing import sign_open_platform_request, sign_business_request
+                if mode == "business" and seller_id:
+                    sign = sign_business_request(app_key=app_key, app_secret=app_secret, seller_id=seller_id, timestamp=ts, body=payload_str)
+                else:
+                    sign = sign_open_platform_request(app_key=app_key, app_secret=app_secret, timestamp=ts, body=payload_str)
+                try:
+                    import httpx
+                    url = f"{base_url}{api_path}"
+                    with httpx.Client(timeout=15.0) as hc:
+                        resp = hc.post(url, params={"appid": app_key, "timestamp": ts, "sign": sign}, content=payload_str, headers={"Content-Type": "application/json"})
+                    self._send_json({"ok": True, "data": resp.json()})
+                except Exception as exc:
+                    logger.error("XGJ proxy error: %s", exc)
+                    self._send_json({"ok": False, "error": str(exc)}, status=500)
+                return
+
+            if path in {"/api/xgj/order/receive", "/api/xgj/product/receive"}:
+                content_len = int(self.headers.get("Content-Length", "0"))
+                raw_body = self.rfile.read(content_len) if content_len > 0 else b""
+                body_str = raw_body.decode("utf-8") if raw_body else ""
+                cfg = _read_system_config()
+                xgj = cfg.get("xianguanjia", {})
+                app_key = str(xgj.get("app_key", ""))
+                app_secret = str(xgj.get("app_secret", ""))
+                if not app_key or not app_secret:
+                    self._send_json({"code": 1, "msg": "Not configured"}, status=400)
+                    return
+                parsed_url = urlparse(self.path)
+                qs = parse_qs(parsed_url.query)
+                sign_val = (qs.get("sign", [""])[0])
+                try:
+                    body_data = json.loads(body_str) if body_str else {}
+                except Exception:
+                    body_data = {}
+                ts_val = str(body_data.get("timestamp") or (qs.get("timestamp", [""])[0]))
+                now = int(time.time())
+                try:
+                    if abs(now - int(ts_val)) > 300:
+                        self._send_json({"error": "Timestamp expired"}, status=400)
+                        return
+                except (ValueError, TypeError):
+                    self._send_json({"error": "Invalid timestamp"}, status=400)
+                    return
+                from src.integrations.xianguanjia.signing import verify_open_platform_callback_signature
+                if not verify_open_platform_callback_signature(app_key=app_key, app_secret=app_secret, timestamp=ts_val, sign=sign_val, body=body_str):
+                    self._send_json({"code": 401, "msg": "Invalid signature"}, status=401)
+                    return
+                payload = self.mimic_ops.handle_order_callback(body_data)
+                self._send_json(payload, status=200 if payload.get("success") else 400)
                 return
 
             self._send_json(_error_payload("Not Found", code="NOT_FOUND"), status=404)

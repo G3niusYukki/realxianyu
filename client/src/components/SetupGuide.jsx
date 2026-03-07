@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { nodeApi, pyApi } from '../api/index';
+import { api } from '../api/index';
 import { CheckCircle, Circle, ArrowRight, X, Zap, Cookie, Settings, Bot, Play, ChevronRight, RotateCcw, Info, XCircle } from 'lucide-react';
 
 const DISMISS_KEY = 'xianyu_setup_guide_dismissed';
@@ -35,38 +35,31 @@ export default function SetupGuide() {
     const det = {};
 
     try {
-      const res = await nodeApi.get('/config');
+      const res = await api.get('/config');
       result.nodeBackend = true;
+      result.pythonBackend = true;
       const cfg = res.data?.config || {};
       const xgj = cfg.xianguanjia || {};
       result.xgjConfigured = !!(xgj.app_key && !String(xgj.app_key).includes('****') && xgj.app_secret && !String(xgj.app_secret).includes('****'));
       const ai = cfg.ai || {};
       result.aiConfigured = !!(ai.api_key && !String(ai.api_key).includes('****'));
-    } catch { /* node backend unavailable */ }
+    } catch { /* backend unavailable */ }
 
     try {
-      const res = await pyApi.get('/api/status');
+      const res = await api.get('/status');
       result.pythonBackend = true;
       const cookieHealth = res.data?.cookie_health;
       result.cookieSet = !!(cookieHealth && cookieHealth.score > 0);
       if (cookieHealth) det.cookie = cookieHealth.message;
-    } catch { /* python backend unavailable */ }
+    } catch { /* backend unavailable */ }
 
-    const [nodeHealth, pyHealth] = await Promise.allSettled([
-      nodeApi.get('/health/check'),
-      pyApi.get('/api/health/check'),
-    ]);
-
-    if (nodeHealth.status === 'fulfilled') {
-      const d = nodeHealth.value.data;
+    try {
+      const healthRes = await api.get('/health/check');
+      const d = healthRes.data;
       if (d.xgj) {
         det.xgj = d.xgj.ok ? `连通 (${d.xgj.latency_ms || 0}ms)` : d.xgj.message;
         if (result.xgjConfigured && !d.xgj.ok) result.xgjConfigured = false;
       }
-    }
-
-    if (pyHealth.status === 'fulfilled') {
-      const d = pyHealth.value.data;
       if (d.ai) {
         det.ai = d.ai.ok ? `连通 (${d.ai.latency_ms || 0}ms)` : d.ai.message;
         if (result.aiConfigured && !d.ai.ok) result.aiConfigured = false;
@@ -74,7 +67,7 @@ export default function SetupGuide() {
       if (d.cookie && !result.cookieSet) {
         det.cookie = d.cookie.message;
       }
-    }
+    } catch { /* health check failed */ }
 
     setChecks(result);
     setDetails(det);

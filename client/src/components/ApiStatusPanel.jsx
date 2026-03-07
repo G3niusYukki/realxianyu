@@ -10,8 +10,7 @@ const STATUS_ICON = {
 };
 
 const SERVICES = [
-  { key: 'node',   label: 'Node 后端',   icon: Server },
-  { key: 'python', label: 'Python 后端', icon: Server },
+  { key: 'python', label: '后端服务', icon: Server },
   { key: 'cookie', label: '闲鱼 Cookie', icon: Cookie },
   { key: 'ai',     label: 'AI 服务',     icon: Bot },
   { key: 'xgj',    label: '闲管家 API',  icon: Link2 },

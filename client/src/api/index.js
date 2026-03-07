@@ -1,14 +1,14 @@
 import axios from 'axios';
 
-export const nodeApi = axios.create({
-  baseURL: import.meta.env.VITE_NODE_API_URL || '/api',
+export const api = axios.create({
+  baseURL: import.meta.env.VITE_API_URL || '/api',
   timeout: 15000,
 });
 
-export const pyApi = axios.create({
-  baseURL: import.meta.env.VITE_PY_API_URL || '/py',
-  timeout: 15000,
-});
+/** @deprecated Use `api` instead — kept for backward compat during migration */
+export const nodeApi = api;
+/** @deprecated Use `api` instead — kept for backward compat during migration */
+export const pyApi = api;
 
 const FRIENDLY_ERRORS = {
   'Network Error': {
@@ -76,5 +76,4 @@ const responseErrorInterceptor = (error) => {
   return Promise.reject(error);
 };
 
-nodeApi.interceptors.response.use((response) => response, responseErrorInterceptor);
-pyApi.interceptors.response.use((response) => response, responseErrorInterceptor);
+api.interceptors.response.use((response) => response, responseErrorInterceptor);

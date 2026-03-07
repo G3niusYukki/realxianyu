@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { nodeApi, pyApi } from '../api/index';
+import { api } from '../api/index';
 
 const POLL_INTERVAL = 60_000;
 
@@ -21,40 +21,23 @@ export default function useHealthCheck(enabled = true) {
   const check = useCallback(async () => {
     const next = { loading: false, lastChecked: new Date().toISOString() };
 
-    const [nodeRes, pyRes] = await Promise.allSettled([
-      nodeApi.get('/health/check'),
-      pyApi.get('/api/health/check'),
-    ]);
-
-    if (!mountedRef.current) return;
-
-    if (nodeRes.status === 'fulfilled') {
-      const d = nodeRes.value.data;
+    try {
+      const res = await api.get('/health/check');
+      const d = res.data;
       next.node   = d.node   || { ok: true, message: '运行中' };
-      next.python = d.python || { ok: false, message: '未知' };
+      next.python = d.services?.python || { ok: true, message: '运行中' };
       next.xgj    = d.xgj    || { ok: false, message: '未检查' };
-    } else {
+      next.cookie  = d.cookie || { ok: false, message: '未知' };
+      next.ai      = d.ai     || { ok: false, message: '未知' };
+    } catch {
       next.node   = { ok: false, message: '不可达' };
-      next.python = { ok: false, message: '未知' };
+      next.python = { ok: false, message: '不可达' };
       next.xgj    = { ok: false, message: '未知' };
-    }
-
-    if (pyRes.status === 'fulfilled') {
-      const d = pyRes.value.data;
-      next.cookie = d.cookie || { ok: false, message: '未知' };
-      next.ai     = d.ai     || { ok: false, message: '未知' };
-      if (!next.python.ok && d.services?.python?.ok) {
-        next.python = d.services.python;
-      }
-    } else {
       next.cookie = { ok: false, message: '后端不可达' };
       next.ai     = { ok: false, message: '后端不可达' };
-      if (!next.python?.ok) {
-        next.python = { ok: false, message: '不可达' };
-      }
     }
 
-    setHealth(next);
+    if (mountedRef.current) setHealth(next);
   }, []);
 
   useEffect(() => {

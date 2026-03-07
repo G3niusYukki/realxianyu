@@ -1,3 +1,3 @@
-import { pyApi } from './index';
+import { api } from './index';
 
-export const getAccounts = () => pyApi.get('/api/accounts');
+export const getAccounts = () => api.get('/accounts');

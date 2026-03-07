@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { pyApi } from '../../api/index';
-import { nodeApi } from '../../api/index';
+import { api } from '../../api/index';
 import { Store, Plus, Settings, Power, PowerOff, ShieldAlert, RefreshCw, Zap, Loader2, CheckCircle, XCircle, Monitor, ClipboardPaste, Timer, Activity } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
@@ -33,7 +32,7 @@ export default function AccountList() {
 
   const fetchAutoRefreshStatus = useCallback(async () => {
     try {
-      const res = await pyApi.get('/api/cookie/auto-refresh/status');
+      const res = await api.get('/cookie/auto-refresh/status');
       setAutoRefresh(res.data);
     } catch {
       setAutoRefresh(null);
@@ -53,7 +52,7 @@ export default function AccountList() {
   const fetchAccounts = async () => {
     setLoading(true);
     try {
-      const res = await nodeApi.get('/config');
+      const res = await api.get('/config');
       const cfg = res.data?.config || {};
       const xgj = cfg.xianguanjia || {};
       const configured = !!(xgj.app_key && xgj.app_secret && !String(xgj.app_key).includes('****'));
@@ -73,7 +72,7 @@ export default function AccountList() {
   const toggleAutomation = async (currentStatus) => {
     try {
       const action = currentStatus ? 'stop' : 'start';
-      await pyApi.post('/api/module/control', { action, target: 'presales' });
+      await api.post('/module/control', { action, target: 'presales' });
       toast.success(`已${currentStatus ? '停用' : '启用'}自动化服务`);
       fetchAccounts();
     } catch {
@@ -88,7 +87,7 @@ export default function AccountList() {
     }
     setSaving(true);
     try {
-      await pyApi.post('/api/update-cookie', { cookie: newCookie });
+      await api.post('/update-cookie', { cookie: newCookie });
       toast.success('Cookie 已保存');
       setCookieMode(null);
       setNewCookie('');
@@ -105,7 +104,7 @@ export default function AccountList() {
     setGrabProgress({ stage: 'reading_db', message: '正在启动...', hint: '', progress: 0 });
 
     try {
-      await pyApi.post('/api/cookie/auto-grab');
+      await api.post('/cookie/auto-grab');
     } catch (err) {
       if (err?.response?.status === 409) {
         toast.error('已有获取任务在运行');
@@ -117,8 +116,7 @@ export default function AccountList() {
       }
     }
 
-    const pyBase = pyApi.defaults.baseURL || 'http://localhost:8091';
-    const es = new EventSource(`${pyBase}/api/cookie/auto-grab/status`);
+    const es = new EventSource('/api/cookie/auto-grab/status');
     eventSourceRef.current = es;
 
     es.onmessage = (event) => {
@@ -146,7 +144,7 @@ export default function AccountList() {
 
   const cancelAutoGrab = async () => {
     try {
-      await pyApi.post('/api/cookie/auto-grab/cancel');
+      await api.post('/cookie/auto-grab/cancel');
     } catch {}
     if (eventSourceRef.current) eventSourceRef.current.close();
     setGrabbing(false);
