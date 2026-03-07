@@ -127,9 +127,6 @@ const Dashboard = () => {
             <p className="text-sm font-semibold text-xy-text-primary">数据分析</p>
             <p className="text-xs text-xy-text-secondary mt-1">商品销量、消息量等运营数据统计</p>
           </div>
-          <button onClick={fetchDashboardData} className="p-2 bg-xy-surface border border-xy-border rounded-xl shadow-sm hover:bg-xy-gray-50 transition-colors" aria-label="刷新数据">
-            <RefreshCw className="w-5 h-5 text-xy-text-secondary" />
-          </button>
         </div>
       </div>
 

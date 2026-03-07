@@ -1,8 +1,8 @@
-# DEPLOYMENT
+# 部署指南
 
 > 闲鱼管家 (xianyu-openclaw) 完整部署方案
 
-当前推荐的完整部署形态：
+---
 
 ## 部署方式概览
 
@@ -13,7 +13,7 @@
 | **Windows 脚本** | Windows 用户 | 简单 | 本文件第 4 节 |
 | **模块化部署** | 大规模生产、分离运维 | 困难 | 本文件第 5 节 |
 
-根目录 `.env` 是当前唯一推荐配置入口。
+---
 
 ## 环境要求
 
@@ -71,7 +71,7 @@ git clone https://github.com/G3niusYukki/xianyu-openclaw.git
 cd xianyu-openclaw
 ```
 
-常用可选项：
+### 2. 配置环境变量
 
 ```bash
 cp .env.example .env
@@ -95,28 +95,14 @@ AI_BASE_URL=https://api.deepseek.com/v1
 AI_MODEL=deepseek-chat
 ```
 
-## 本地部署
-
-macOS / Linux：
+### 3. 启动服务
 
 ```bash
 docker compose up -d
 docker compose logs -f
 ```
 
-Compose 服务：
-
-- `react-frontend`
-- `python-backend`
-- `node-backend`
-
-持久化：
-
-- `./data`：SQLite、生成图、运行态数据
-- `./config`：只读配置目录
-- `node-data`：Node 侧少量运行时数据
-
-## 健康检查
+### 4. 验证部署
 
 ```bash
 docker compose ps

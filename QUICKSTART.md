@@ -2,7 +2,7 @@
 
 5 分钟内启动闲鱼管家。
 
-## 1. 准备环境
+---
 
 ## 前提条件
 
@@ -98,13 +98,7 @@ cp .env.example .env
 ### 第 2 步：启动
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-
-cd server && npm install
-cd ../client && npm install
-cd ..
+docker compose up -d
 ```
 
 Docker Compose 会启动以下容器：
@@ -118,42 +112,7 @@ Docker Compose 会启动以下容器：
 ### 第 3 步：验证
 
 ```bash
-python3 -m src.dashboard_server --host 127.0.0.1 --port 8091
-cd server && npm run dev
-cd client && npm run dev
-```
-
-## 5. 访问地址
-
-- 前端工作台：`http://127.0.0.1:5173`
-- Python 核心：`http://127.0.0.1:8091`
-- Node 薄代理：`http://127.0.0.1:3001`
-
-## 6. 首次检查
-
-先做健康检查：
-
-```bash
-curl -fsS http://127.0.0.1:8091/healthz
-curl -fsS http://127.0.0.1:3001/health
-curl -fsS http://127.0.0.1:8091/api/config/sections
-curl -fsS http://127.0.0.1:8091/api/accounts
-```
-
-再在前端确认：
-
-1. `工作台` 能显示系统状态和首次配置引导。
-2. `店铺管理` 能识别 Cookie 和账号状态。
-3. `系统配置` 能读写 AI / 闲管家配置。
-4. `商品管理` 和 `订单中心` 能拉到真实数据。
-5. `自动上架` 能生成真实预览图。
-
-## 7. Docker 启动
-
-```bash
-docker compose up -d --build
 docker compose ps
-docker compose logs -f
 ```
 
 所有容器应处于 `Up (healthy)` 状态。

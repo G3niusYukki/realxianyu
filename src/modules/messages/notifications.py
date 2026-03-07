@@ -1,7 +1,10 @@
-"""消息自动化通知（飞书 webhook）。"""
+"""消息自动化通知（飞书 / 企业微信 webhook）。"""
 
 from __future__ import annotations
 
+import hashlib
+import base64
+import time as _time
 from typing import Any
 
 import httpx
@@ -31,6 +34,59 @@ class FeishuNotifier:
             async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
                 resp = await client.post(self.webhook_url, json=payload)
             return 200 <= resp.status_code < 300
+        except Exception:
+            return False
+
+
+class WeChatNotifier:
+    """企业微信机器人 webhook 通知。
+
+    企业微信群机器人 webhook 文档：
+    https://developer.work.weixin.qq.com/document/path/91770
+    """
+
+    def __init__(self, webhook_url: str, *, timeout_seconds: float = 5.0):
+        self.webhook_url = str(webhook_url or "").strip()
+        self.timeout_seconds = max(1.0, float(timeout_seconds))
+
+    @property
+    def enabled(self) -> bool:
+        return bool(self.webhook_url)
+
+    async def send_text(self, text: str) -> bool:
+        if not self.enabled:
+            return False
+
+        payload = {
+            "msgtype": "text",
+            "text": {"content": str(text or "").strip()},
+        }
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
+                resp = await client.post(self.webhook_url, json=payload)
+            if 200 <= resp.status_code < 300:
+                data = resp.json()
+                return data.get("errcode", -1) == 0
+            return False
+        except Exception:
+            return False
+
+    async def send_markdown(self, content: str) -> bool:
+        """发送 Markdown 格式消息（企业微信支持）。"""
+        if not self.enabled:
+            return False
+
+        payload = {
+            "msgtype": "markdown",
+            "markdown": {"content": str(content or "").strip()},
+        }
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
+                resp = await client.post(self.webhook_url, json=payload)
+            if 200 <= resp.status_code < 300:
+                data = resp.json()
+                return data.get("errcode", -1) == 0
+            return False
         except Exception:
             return False
 
