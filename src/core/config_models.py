@@ -190,7 +190,7 @@ class QuoteConfig(BaseModel):
 
     enabled: bool = Field(default=True, description="是否启用自动报价")
     mode: str = Field(
-        default="rule_only",
+        default="cost_table_plus_markup",
         description=(
             "报价模式：rule_only|remote_only|remote_then_rule|"
             "cost_table_plus_markup|api_cost_plus_markup（兼容 provider_only/hybrid）"
