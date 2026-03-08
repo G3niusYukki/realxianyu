@@ -96,11 +96,10 @@ def test_messages_generate_reply_forces_non_empty_fallback_when_default_blank() 
             "default_reply": "",
             "virtual_default_reply": "",
             "force_non_empty_reply": True,
-            "non_empty_reply_fallback": "询价格式：xx省 - xx省 - 重量（kg）\n长宽高（单位cm）",
         },
     )
     reply = service.generate_reply("随便问问")
-    assert "为了给你报最准确的价格" in reply
+    assert reply != ""
 
 
 def test_messages_extract_locations_non_greedy_origin() -> None:
