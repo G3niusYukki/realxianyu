@@ -19,8 +19,25 @@ import httpx
 from src.core.error_handler import BrowserError
 from src.core.logger import get_logger
 
-_APP_KEY = os.environ.get("XGJ_APP_KEY", "34839810")
-_APP_SECRET = os.environ.get("XGJ_APP_SECRET", "444e9908a51d1cb236a27862abc769c9")
+def _load_xgj_credentials() -> tuple[str, str]:
+    """Load xianguanjia credentials: env > system_config > empty."""
+    env_key = os.environ.get("XGJ_APP_KEY", "")
+    env_secret = os.environ.get("XGJ_APP_SECRET", "")
+    if env_key and env_secret:
+        return env_key, env_secret
+    try:
+        import json
+        from pathlib import Path
+        cfg_path = Path(__file__).resolve().parents[2] / "server" / "data" / "system_config.json"
+        if cfg_path.exists():
+            data = json.loads(cfg_path.read_text(encoding="utf-8"))
+            xgj = data.get("xianguanjia", {})
+            return str(xgj.get("app_key", "")), str(xgj.get("app_secret", ""))
+    except Exception:
+        pass
+    return "", ""
+
+_APP_KEY, _APP_SECRET = _load_xgj_credentials()
 
 try:
     import websockets

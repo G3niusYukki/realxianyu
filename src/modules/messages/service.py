@@ -144,6 +144,7 @@ class MessagesService:
             keyword_replies=self.keyword_replies,
             intent_rules=self.config.get("intent_rules", []),
             virtual_product_keywords=self.config.get("virtual_product_keywords", []),
+            ai_intent_enabled=bool(self.config.get("ai_intent_enabled", False)),
             category=active_category,
         )
 
@@ -1314,6 +1315,9 @@ class MessagesService:
         actor: str = "messages_service",
     ) -> dict[str, Any]:
         """处理单个会话（供批处理与 worker 复用）。"""
+        if not self.config.get("enabled", True):
+            return {"skipped": True, "reason": "auto_reply_disabled", "session_id": str(session.get("session_id", ""))}
+
         session_start = perf_counter()
         session_id = str(session.get("session_id", ""))
         msg = str(session.get("last_message", ""))

@@ -104,6 +104,12 @@ _AUTO_REPLY_TO_YAML_KEYS = {
     "virtual_default_reply": "virtual_default_reply",
     "enabled": "enabled",
     "ai_intent_enabled": "ai_intent_enabled",
+    "quote_missing_template": "quote_missing_template",
+    "strict_format_reply_enabled": "strict_format_reply_enabled",
+    "force_non_empty_reply": "force_non_empty_reply",
+    "non_empty_reply_fallback": "non_empty_reply_fallback",
+    "quote_failed_template": "quote_failed_template",
+    "quote_reply_max_couriers": "quote_reply_max_couriers",
 }
 
 
@@ -126,6 +132,19 @@ def _sync_system_config_to_yaml(sys_config: dict[str, Any]) -> None:
         for src_key, dst_key in _AUTO_REPLY_TO_YAML_KEYS.items():
             if src_key in ar:
                 msgs[dst_key] = ar[src_key]
+                changed = True
+        kw_text = ar.get("keyword_replies_text")
+        if isinstance(kw_text, str) and kw_text.strip():
+            kw_dict: dict[str, str] = {}
+            for line in kw_text.strip().splitlines():
+                line = line.strip()
+                if "=" in line:
+                    k, v = line.split("=", 1)
+                    k, v = k.strip(), v.strip()
+                    if k and v:
+                        kw_dict[k] = v
+            if kw_dict:
+                msgs["keyword_replies"] = kw_dict
                 changed = True
 
     for section_key in ("pricing", "delivery"):
@@ -3264,6 +3283,11 @@ class DashboardHandler(BaseHTTPRequestHandler):
     def _handle_listing_publish(self, body: dict[str, Any]) -> dict[str, Any]:
         """执行自动上架。"""
         try:
+            sys_cfg = _read_system_config()
+            ap_cfg = sys_cfg.get("auto_publish", {})
+            if not ap_cfg.get("enabled", False):
+                return {"ok": False, "error": "自动上架未启用，请在设置中开启"}
+
             import asyncio
             from src.modules.listing.auto_publish import AutoPublishService
             from src.integrations.xianguanjia.open_platform_client import OpenPlatformClient

@@ -46,7 +46,7 @@ const GENERIC_DEFAULTS: CategoryDefaults = {
 const CATEGORY_DEFAULTS: Record<string, CategoryDefaults> = {
   express: {
     auto_reply: {
-      default_reply: '您好！我们提供全国快递代发服务。请告诉我始发地、目的地和大概重量，我帮您查询报价。\n付款后请提供完整的收件信息（姓名、电话、地址），我们会尽快安排发货。',
+      default_reply: '为了给你报最准确的价格，麻烦提供一下：寄件城市、收件城市、包裹重量（kg）\n格式示例：广东省 - 浙江省 - 3kg 30x20x15cm',
       virtual_default_reply: '',
       ai_intent_enabled: true,
       enabled: true,
@@ -1182,15 +1182,60 @@ export default function SystemConfig() {
                 </div>
               </div>
 
-              <div className="p-4 bg-blue-50 rounded-lg border border-blue-200 text-sm text-blue-700">
-                <p className="font-medium mb-2">模板变量说明</p>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                  <div><code className="bg-blue-100 px-1 rounded">{'{{buyer_name}}'}</code> 买家昵称</div>
-                  <div><code className="bg-blue-100 px-1 rounded">{'{{item_title}}'}</code> 商品标题</div>
-                  <div><code className="bg-blue-100 px-1 rounded">{'{{item_price}}'}</code> 商品价格</div>
-                  <div><code className="bg-blue-100 px-1 rounded">{'{{order_id}}'}</code> 订单号</div>
+              <GuideCard summary="通用回复模板用于所有规则/报价引导均未匹配时的兜底回复">
+                <p>回复优先级：关键词规则 &gt; 报价引导话术 &gt; 通用回复模板</p>
+                <p>快递品类下，买家发送招呼语时通常会触发「报价引导话术」（在下方配置），而非此处的通用模板。</p>
+                <p>虚拟商品回复模板仅在系统判断为虚拟商品上下文时使用。</p>
+              </GuideCard>
+
+              {/* 报价引导话术 */}
+              <div className="border-t border-xy-border pt-6">
+                <h3 className="text-sm font-bold text-xy-text-primary mb-1">报价引导话术</h3>
+                <p className="text-xs text-xy-text-secondary mb-4">买家发送招呼语或信息不完整时，系统用此话术引导买家提供报价所需信息</p>
+                <div className="space-y-4">
+                  <div>
+                    <label className="xy-label">引导话术模板</label>
+                    <textarea className="xy-input px-3 py-2 h-24 resize-none" placeholder="为了给你报最准确的价格，麻烦提供一下：{fields}..." value={config.auto_reply?.quote_missing_template || ''} onChange={e => handleChange('auto_reply', 'quote_missing_template', e.target.value)} />
+                    <p className="text-xs text-gray-400 mt-1">变量 <code className="bg-gray-100 px-1 rounded">{'{fields}'}</code> 会自动替换为缺失信息（如"寄件城市、收件城市、包裹重量"）</p>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="flex items-center justify-between p-4 bg-xy-gray-50 rounded-xl border border-xy-border">
+                      <div>
+                        <p className="font-medium text-xy-text-primary text-sm">严格格式引导</p>
+                        <p className="text-xs text-xy-text-secondary mt-0.5">非报价消息也引导买家按标准格式提供信息</p>
+                      </div>
+                      <ToggleSwitch checked={config.auto_reply?.strict_format_reply_enabled !== false} onChange={() => handleChange('auto_reply', 'strict_format_reply_enabled', !(config.auto_reply?.strict_format_reply_enabled !== false))} />
+                    </div>
+                    <div className="flex items-center justify-between p-4 bg-xy-gray-50 rounded-xl border border-xy-border">
+                      <div>
+                        <p className="font-medium text-xy-text-primary text-sm">强制非空回复</p>
+                        <p className="text-xs text-xy-text-secondary mt-0.5">所有规则均未匹配时使用兜底话术</p>
+                      </div>
+                      <ToggleSwitch checked={config.auto_reply?.force_non_empty_reply !== false} onChange={() => handleChange('auto_reply', 'force_non_empty_reply', !(config.auto_reply?.force_non_empty_reply !== false))} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="xy-label">兜底话术</label>
+                    <textarea className="xy-input px-3 py-2 h-20 resize-none" placeholder="所有规则均未匹配且 AI 无返回时的最后兜底回复..." value={config.auto_reply?.non_empty_reply_fallback || ''} onChange={e => handleChange('auto_reply', 'non_empty_reply_fallback', e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="xy-label">报价失败话术</label>
+                    <textarea className="xy-input px-3 py-2 h-20 resize-none" placeholder="报价服务异常时的降级回复..." value={config.auto_reply?.quote_failed_template || ''} onChange={e => handleChange('auto_reply', 'quote_failed_template', e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="xy-label">报价最多展示快递数</label>
+                    <input type="number" className="xy-input px-3 py-2 w-32" value={config.auto_reply?.quote_reply_max_couriers ?? 10} onChange={e => handleChange('auto_reply', 'quote_reply_max_couriers', Number(e.target.value))} />
+                    <p className="text-xs text-gray-400 mt-1">报价回复中最多展示多少家快递公司的价格</p>
+                  </div>
                 </div>
-                <p className="mt-2 text-xs text-blue-500">提示：模板保存后，可在「消息中心 &gt; 测试沙盒」中模拟测试效果</p>
+              </div>
+
+              {/* 关键词快捷回复 */}
+              <div className="border-t border-xy-border pt-6">
+                <h3 className="text-sm font-bold text-xy-text-primary mb-1">关键词快捷回复</h3>
+                <p className="text-xs text-xy-text-secondary mb-4">买家消息中包含关键词时，直接回复对应内容（优先于通用模板）</p>
+                <textarea className="xy-input px-3 py-2 h-36 resize-none text-sm font-mono" placeholder={"还在=在的亲，请问需要寄什么快递？\n最低=价格已经尽量实在了，诚心要的话可以小刀。\n包邮=默认不包邮，具体看地区可以商量。"} value={config.auto_reply?.keyword_replies_text || ''} onChange={e => handleChange('auto_reply', 'keyword_replies_text', e.target.value)} />
+                <p className="text-xs text-gray-400 mt-1">每行一条，格式：关键词=回复内容</p>
               </div>
             </div>
           )}

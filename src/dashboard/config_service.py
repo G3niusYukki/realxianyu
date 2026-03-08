@@ -73,10 +73,17 @@ CONFIG_SECTIONS: list[dict[str, Any]] = [
         "key": "auto_reply",
         "name": "自动回复",
         "fields": [
-            {"key": "enabled", "label": "启用", "type": "toggle", "default": True},
-            {"key": "ai_intent_enabled", "label": "AI意图识别", "type": "toggle", "default": False},
-            {"key": "default_reply", "label": "默认回复", "type": "textarea"},
-            {"key": "virtual_default_reply", "label": "虚拟商品默认回复", "type": "textarea"},
+            {"key": "enabled", "label": "启用", "type": "toggle", "default": True, "hint": "关闭后系统不再自动回复买家消息"},
+            {"key": "ai_intent_enabled", "label": "AI意图识别", "type": "toggle", "default": False, "hint": "使用 AI 分析买家消息意图后生成针对性回复"},
+            {"key": "default_reply", "label": "默认回复", "type": "textarea", "hint": "所有规则均未匹配时的通用兜底回复"},
+            {"key": "virtual_default_reply", "label": "虚拟商品默认回复", "type": "textarea", "hint": "虚拟商品（兑换码/卡密）场景的默认回复"},
+            {"key": "quote_missing_template", "label": "报价引导话术", "type": "textarea", "default": "为了给你报最准确的价格，麻烦提供一下：{fields}\n格式示例：广东省 - 浙江省 - 3kg 30x20x15cm", "hint": "买家信息不完整时的引导回复，{fields} 自动替换为缺失信息"},
+            {"key": "strict_format_reply_enabled", "label": "严格格式引导", "type": "toggle", "default": True, "hint": "开启后非报价消息也会引导买家按标准格式提供信息"},
+            {"key": "force_non_empty_reply", "label": "强制非空回复", "type": "toggle", "default": True, "hint": "避免发送空内容，无匹配时使用兜底话术"},
+            {"key": "non_empty_reply_fallback", "label": "兜底话术", "type": "textarea", "hint": "所有规则均未匹配且 AI 无返回时的最后兜底回复"},
+            {"key": "quote_failed_template", "label": "报价失败话术", "type": "textarea", "default": "报价服务暂时繁忙，我先帮您转人工确认，确保价格准确。", "hint": "报价服务异常时的降级回复"},
+            {"key": "quote_reply_max_couriers", "label": "报价最多展示快递数", "type": "number", "default": 10, "hint": "报价回复中最多展示多少家快递公司"},
+            {"key": "keyword_replies_text", "label": "关键词快捷回复", "type": "textarea", "hint": "每行一条：关键词=回复内容"},
         ],
     },
     {
@@ -114,8 +121,8 @@ CONFIG_SECTIONS: list[dict[str, Any]] = [
         "name": "发货规则",
         "fields": [
             {"key": "auto_delivery", "label": "自动发货", "type": "toggle", "default": True, "hint": "开启后，订单支付成功自动触发闲管家发货"},
-            {"key": "delivery_timeout_minutes", "label": "发货超时(分钟)", "type": "number", "default": 30, "hint": "超过设定时长未发货将触发告警通知"},
-            {"key": "notify_on_delivery", "label": "发货通知", "type": "toggle", "default": True, "hint": "发货成功后通知买家"},
+            {"key": "delivery_timeout_minutes", "label": "发货超时(分钟)", "type": "number", "default": 30, "hint": "超过设定时长未发货将触发告警通知（需配置告警 Webhook）"},
+            {"key": "notify_on_delivery", "label": "发货通知", "type": "toggle", "default": True, "hint": "（规划中）发货成功后通知买家，需配合闲管家消息通道"},
         ],
     },
     {
