@@ -169,14 +169,24 @@ cd client && npm install && cd ..
 cp .env.example .env
 # 编辑 .env，填入 Cookie 和 AI Key
 
-# 5. 启动服务
-npm run dev
+# 5. 启动服务（需要3个终端窗口）
+
+# 终端1 - Python 后端（必需，处理核心API）
+python -m src.dashboard_server --port 8091
+
+# 终端2 - Node.js 后端
+npm run dev:server
+
+# 终端3 - React 前端
+npm run dev:client
 ```
 
 访问地址：
 - **前端面板**: http://localhost:5173
 - **Python API**: http://localhost:8091
 - **Node API**: http://localhost:3001
+
+> ⚠️ **注意**：前端代理配置指向 Python 后端 8091 端口，必须先启动 Python 服务，否则前端页面无法正常工作。
 
 ### Docker 一键部署
 
@@ -328,13 +338,13 @@ xianyu-openclaw/
 ## 🛠️ 开发指南
 
 ```bash
-# 开发模式
-npm run dev              # 启动所有服务
-npm run dev:server       # 仅 Node 后端
-npm run dev:client       # 仅前端
+# 开发模式（需要同时运行3个服务）
+python -m src.dashboard_server --port 8091  # Python 后端（必需）
+npm run dev:server                          # Node 后端
+npm run dev:client                          # React 前端
 
-# Python 开发
-python -m src.dashboard_server --port 8091
+# 或使用 Docker（推荐新手）
+docker compose up -d
 python -m src.cli doctor --strict
 
 # 测试

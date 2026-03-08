@@ -65,7 +65,7 @@ export default function Orders() {
   const handleShip = async (orderId: string) => {
     setActionLoading(prev => ({ ...prev, [orderId]: 'ship' }));
     try {
-      const res = await proxyXgjApi('/api/open/order/delivery', { order_id: orderId });
+      const res = await proxyXgjApi('/api/open/order/ship', { order_id: orderId });
       if (res.data?.ok) { toast.success('发货成功'); fetchOrders(); }
       else toast.error(res.data?.error || '发货失败');
     } catch { toast.error('发货请求失败'); }

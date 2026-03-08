@@ -78,15 +78,7 @@ jobs:
 
       - name: Run tests with coverage
         run: |
-          pytest tests/ -v --tb=short --cov=src --cov-report=xml --cov-report=term-missing \
-            --deselect tests/test_quote_engine.py::test_quote_engine_cost_table_city_to_province_route_fallback \
-            --deselect tests/test_quote_fuzzy.py::test_city_province_mixed_match \
-            --deselect tests/test_quote_targeted_round9_part1.py::test_cost_table_more_branches \
-            --deselect tests/test_targeted_xy_cov_006r.py::test_cost_table_helpers_and_empty_input \
-            --deselect tests/test_targeted_xy_cov_006r.py::test_cost_table_find_candidates_destination_similarity_fallback \
-            --deselect tests/test_targeted_xy_cov_019b.py::test_cost_table_find_candidates_and_rank_edges \
-            --deselect tests/test_modules.py::test_messages_generate_reply_forces_non_empty_fallback_when_default_blank \
-            --deselect tests/test_part5_targeted_coverage.py::test_dashboard_handler_do_get_routes
+          pytest tests/ -v --tb=short --cov=src --cov-report=xml --cov-report=term-missing
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v4

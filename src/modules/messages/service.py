@@ -55,7 +55,13 @@ DEFAULT_VOLUME_REPLY_TEMPLATE = (
     "体积重大于实际重量时按体积计费！"
 )
 
-DEFAULT_NON_EMPTY_REPLY_FALLBACK = "询价格式：xx省 - xx省 - 重量（kg）\n长宽高（单位cm）"
+DEFAULT_NON_EMPTY_REPLY_FALLBACK = (
+    "收到你的消息啦！为了能快速帮你报价，麻烦提供一下：\n"
+    "📦 寄件省份（如：广东）\n"
+    "📍 收件省份（如：浙江）\n"
+    "⚖️ 包裹重量（kg）\n\n"
+    "比如：广东 - 浙江 - 3kg"
+)
 DEFAULT_COURIER_LOCK_TEMPLATE = (
     "已为你锁定 {courier}（{price}，预计{eta_days}）。\n"
     "下单流程：\n"
