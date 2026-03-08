@@ -1,13 +1,38 @@
-# 闲鱼管家 v2.0 - 虚拟商品卖家自动化平台
+<div align="center">
+
+# 🦞 Xianyu OpenClaw — 闲鱼虚拟商品卖家自动化平台
 
 [![CI](https://github.com/G3niusYukki/xianyu-openclaw/actions/workflows/ci.yml/badge.svg)](https://github.com/G3niusYukki/xianyu-openclaw/actions)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![Node.js 18+](https://img.shields.io/badge/node.js-18+-green.svg)](https://nodejs.org/)
+[![Coverage](https://img.shields.io/badge/coverage-95%25-brightgreen.svg)](tests/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-> **⚡ 从消息到履约，全流程自动化。从监控到告警，全链路可观测。**
+**⚡ 从消息到履约，全流程自动化 · 从监控到告警，全链路可观测**
 
-闲鱼管家是专为虚拟商品卖家设计的全自动化工作台。通过 WebSocket 直连闲鱼消息通道，结合 AI 实现智能回复、自动报价、商品管理和订单履约。v2.0 版本新增 Cookie 静默刷新、多通道告警通知、可视化配置中心，让自动化更稳定、更智能、更易用。
+[English](#english) | [简体中文](#简介) | [快速开始](#-快速开始) | [文档](docs/)
+
+</div>
+
+---
+
+## 📖 简介
+
+**Xianyu OpenClaw（闲鱼管家）** 是专为闲鱼(Xianyu/Goofish)虚拟商品卖家设计的 **API-first 全自动化工作台**。
+
+通过 WebSocket 直连闲鱼消息通道，结合 AI 实现智能回复、自动报价、商品管理和订单履约，帮助卖家实现 7×24 小时无人值守运营。
+
+### 🎯 为什么创建这个项目？
+
+闲鱼作为国内最大的二手交易平台，虚拟商品卖家面临以下痛点：
+
+| 痛点 | 传统方案 | Xianyu OpenClaw 方案 |
+|------|---------|---------------------|
+| 消息回复不及时 | 人工盯盘，响应慢 | WebSocket 毫秒级接收 + AI 自动回复 |
+| 报价效率低 | 手动计算，易出错 | 智能报价引擎，自动识别地址/重量/时效 |
+| Cookie 频繁失效 | 手动更新，中断服务 | 后台自动刷新，无感知续期 |
+| 多店铺管理困难 | 频繁切换账号 | 统一配置中心，支持多账号 |
+| 异常无法及时感知 | 被动发现问题 | 多渠道告警（飞书/企微），关键事件不漏接 |
 
 ---
 
@@ -17,72 +42,89 @@
 
 | 功能 | 描述 | 版本 |
 |------|------|------|
-| **🔐 Cookie 静默自动刷新** | 后台守护线程每30分钟自动检查，失效时从浏览器静默获取新 Cookie | v2.0 |
-| **📢 多通道告警通知** | 支持飞书、企业微信 Webhook，覆盖售后、发货、人工接管等全场景 | v2.0 |
-| **🎨 可视化配置中心** | Cookie 配置页支持粘贴验证、AI 配置支持6家提供商引导 | v2.0 |
-| **🔍 API 可用性校验** | 实时健康检查面板，5大服务状态一目了然 | v2.0 |
-| **💬 双层消息去重** | 精确 hash + 内容 hash，防止重复回复 | v2.0 |
-| **💰 智能议价追踪** | 议价计数器辅助 AI 策略，自动识别讨价还价 | v2.0 |
-| **🧹 废弃代码清理** | 删除 src/lite/ 等240+废弃文件，架构更清晰 | v2.0 |
+| 🔐 **Cookie 静默自动刷新** | 后台守护线程每30分钟自动检查，失效时从浏览器静默获取新 Cookie | v2.0 |
+| 📢 **多通道告警通知** | 支持飞书、企业微信 Webhook，覆盖售后、发货、人工接管等全场景 | v2.0 |
+| 🎨 **可视化配置中心** | Cookie 配置页支持粘贴验证、AI 配置支持6家提供商引导 | v2.0 |
+| 🔍 **API 可用性校验** | 实时健康检查面板，5大服务状态一目了然 | v2.0 |
+| 💬 **双层消息去重** | 精确 hash + 内容 hash，防止重复回复 | v2.0 |
+| 💰 **智能议价追踪** | 议价计数器辅助 AI 策略，自动识别讨价还价 | v2.0 |
+| 🧹 **架构重构** | 清理 240+ 废弃文件，Python 后端统一化 | v2.0 |
 
 ---
 
 ## ✨ 核心功能
 
-### 消息自动化
-- **WebSocket 直连** - 毫秒级消息接收，无需轮询
-- **AI 意图识别** - 自动识别咨询、议价、下单意图
-- **双层去重** - 精确 hash + 内容 hash，防重复回复
-- **议价追踪** - 智能计数器，辅助 AI 议价策略
-- **合规护栏** - 禁词拦截、频率限制、审计日志
+### 📨 消息自动化
 
-### 商品自动化
-- **AI 内容生成** - 标题、描述、标签一键生成
-- **自动上架** - HTML模板 → 截图 → OSS → API发布
-- **价格监控** - 自动调价、擦亮、上下架
-- **多店铺管理** - 支持多账号切换和独立配置
+```mermaid
+graph LR
+    A[买家消息] --> B[WebSocket 直连]
+    B --> C[AI 意图识别]
+    C --> D{意图类型}
+    D -->|咨询| E[自动回复]
+    D -->|议价| F[议价追踪]
+    D -->|下单| G[订单处理]
+    F --> H[AI 策略建议]
+```
 
-### 订单自动化
-- **自动发货** - 虚拟商品自动发卡密
-- **物流同步** - 闲管家 API 对接，实时状态更新
-- **售后处理** - 退款、退货自动识别和响应
+- **WebSocket 直连** — 毫秒级消息接收，无需轮询
+- **AI 意图识别** — 自动识别咨询、议价、下单意图
+- **双层去重** — 精确 hash + 内容 hash，防重复回复
+- **议价追踪** — 智能计数器，辅助 AI 议价策略
+- **合规护栏** — 禁词拦截、频率限制、审计日志
 
-### 监控告警
-- **Cookie 健康** - 自动检测、静默刷新、失效告警
-- **服务状态** - 5大服务实时健康检查面板
-- **多渠道告警** - 飞书/企业微信，关键事件不漏接
-- **数据看板** - 曝光、转化、订单数据实时可视化
+### 📦 商品自动化
+
+- **AI 内容生成** — 标题、描述、标签一键生成
+- **自动上架** — HTML模板 → 截图 → OSS → API发布
+- **价格监控** — 自动调价、擦亮、上下架
+- **多店铺管理** — 支持多账号切换和独立配置
+
+### 🚚 订单自动化
+
+- **自动发货** — 虚拟商品自动发卡密
+- **物流同步** — 闲管家 API 对接，实时状态更新
+- **售后处理** — 退款、退货自动识别和响应
+
+### 📊 监控告警
+
+- **Cookie 健康** — 自动检测、静默刷新、失效告警
+- **服务状态** — 5大服务实时健康检查面板
+- **多渠道告警** — 飞书/企业微信，关键事件不漏接
+- **数据看板** — 曝光、转化、订单数据实时可视化
 
 ---
 
 ## 🏗️ 技术架构
 
+### 系统架构图
+
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                     React 前端 (Vite)                       │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐       │
-│  │ Dashboard│ │ 商品管理 │ │ 订单中心 │ │ 系统配置 │       │
-│  └──────────┘ └──────────┘ └──────────┘ └──────────┘       │
-└─────────────────────────┬───────────────────────────────────┘
-                          │ HTTP / WebSocket
-┌─────────────────────────┴───────────────────────────────────┐
-│                   Node.js 后端 (Express)                    │
-│  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐       │
-│  │ 闲管家 API 代理│ │ 配置管理     │ │ Webhook 接收 │       │
-│  └──────────────┘ └──────────────┘ └──────────────┘       │
-└─────────────────────────┬───────────────────────────────────┘
-                          │
-┌─────────────────────────┴───────────────────────────────────┐
-│                 Python 后端 (asyncio)                       │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐       │
-│  │ WebSocket│ │ AI 服务  │ │ 报价引擎 │ │ 任务调度 │       │
-│  │ 消息监听 │ │          │ │          │ │          │       │
-│  └──────────┘ └──────────┘ └──────────┘ └──────────┘       │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐       │
-│  │ Cookie   │ │ 告警通知 │ │ 数据分析 │ │ 合规中心 │       │
-│  │ 自动刷新 │ │          │ │          │ │          │       │
-│  └──────────┘ └──────────┘ └──────────┘ └──────────┘       │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                     🎨 React 前端 (Vite)                        │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐           │
+│  │ Dashboard│ │ 商品管理 │ │ 订单中心 │ │ 系统配置 │           │
+│  └──────────┘ └──────────┘ └──────────┘ └──────────┘           │
+└───────────────────────────┬─────────────────────────────────────┘
+                            │ HTTP / WebSocket
+┌───────────────────────────┴─────────────────────────────────────┐
+│                   📦 Node.js 后端 (Express)                     │
+│  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐           │
+│  │ 闲管家 API 代理│ │ 配置管理     │ │ Webhook 接收 │           │
+│  └──────────────┘ └──────────────┘ └──────────────┘           │
+└───────────────────────────┬─────────────────────────────────────┘
+                            │
+┌───────────────────────────┴─────────────────────────────────────┐
+│                    🐍 Python 后端 (asyncio)                     │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐           │
+│  │ WebSocket│ │ AI 服务  │ │ 报价引擎 │ │ 任务调度 │           │
+│  │ 消息监听 │ │          │ │          │ │          │           │
+│  └──────────┘ └──────────┘ └──────────┘ └──────────┘           │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐           │
+│  │ Cookie   │ │ 告警通知 │ │ 数据分析 │ │ 合规中心 │           │
+│  │ 自动刷新 │ │          │ │          │ │          │           │
+│  └──────────┘ └──────────┘ └──────────┘ └──────────┘           │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ### 技术栈
@@ -231,18 +273,30 @@ Dashboard 集成 5 大服务状态：
 ```
 xianyu-openclaw/
 ├── src/                          # Python 后端
-│   ├── dashboard_server.py       # Dashboard API
+│   ├── main.py                   # 主入口
 │   ├── cli.py                    # CLI 工具
+│   ├── dashboard_server.py       # Dashboard API
 │   ├── core/                     # 核心模块
-│   │   ├── cookie_grabber.py     # Cookie 自动刷新
 │   │   ├── cookie_health.py      # Cookie 健康检查
+│   │   ├── cookie_grabber.py     # Cookie 自动刷新
 │   │   ├── notify.py             # 通知模块
-│   │   └── ...
+│   │   └── playwright_client.py  # 浏览器自动化
 │   └── modules/                  # 业务模块
 │       ├── messages/             # 消息（去重、议价、回复）
+│       │   ├── service.py        # 消息服务
+│       │   ├── reply_engine.py   # 回复引擎
+│       │   └── bargain_tracker.py # 议价追踪
 │       ├── listing/              # 商品（上架、模板、OSS）
+│       │   ├── service.py        # 商品服务
+│       │   ├── auto_publish.py   # 自动发布
+│       │   └── image_generator.py # 图片生成
 │       ├── orders/               # 订单（同步、发货）
+│       │   ├── service.py        # 订单服务
+│       │   └── xianguanjia.py    # 闲管家集成
 │       ├── virtual_goods/        # 虚拟商品（卡密）
+│       ├── quote/                # 报价引擎
+│       │   ├── engine.py         # 报价核心
+│       │   └── providers.py      # 报价数据源
 │       └── accounts/             # 账号管理
 ├── server/                       # Node.js 后端
 │   └── src/
@@ -254,13 +308,19 @@ xianyu-openclaw/
 │       ├── pages/                # 页面
 │       │   ├── config/           # 系统配置
 │       │   ├── accounts/         # 店铺管理
-│       │   └── ...
+│       │   └── dashboard/        # 数据看板
 │       └── components/           # 组件
 │           ├── ApiStatusPanel.jsx    # 状态面板
 │           └── SetupGuide.jsx        # 引导组件
 ├── tests/                        # 测试（覆盖率 95%）
 ├── config/                       # 配置模板
-└── docker-compose.yml            # Docker 编排
+├── docs/                         # 文档
+│   ├── PROJECT_PLAN.md           # 项目规划
+│   ├── reviews/                  # 代码审查
+│   └── xianguanjia-api.md        # 闲管家 API 文档
+├── database/                     # 数据库迁移
+├── docker-compose.yml            # Docker 编排
+└── scripts/                      # 脚本工具
 ```
 
 ---
@@ -311,6 +371,8 @@ cd client && npm run build
 - 修复测试冲突（conversion_rate_placeholder）
 - 修复 axios 导入重复问题
 
+[查看完整更新日志](CHANGELOG.md)
+
 ---
 
 ## 🤝 参与贡献
@@ -338,4 +400,51 @@ cd client && npm run build
 - **GitHub Issues**: 功能建议和 Bug 报告
 - **Email**: 详见 GitHub Profile
 
-> **免责声明**: 本工具仅供学习研究使用，请遵守闲鱼平台规则和相关法律法规。使用者需自行承担使用风险。
+---
+
+## ⚠️ 免责声明
+
+本工具仅供学习研究使用，请遵守闲鱼平台规则和相关法律法规。使用者需自行承担使用风险。
+
+---
+
+## English
+
+### Introduction
+
+**Xianyu OpenClaw** is an API-first full-automation workbench designed for virtual goods sellers on Xianyu (Goofish), China's largest second-hand trading platform.
+
+By connecting directly to Xianyu's message channel via WebSocket and combining AI for intelligent replies, automatic quoting, product management, and order fulfillment, it helps sellers achieve 7×24 hour unattended operation.
+
+### Key Features
+
+- **Message Automation** — WebSocket direct connection, AI intent recognition, double-layer deduplication
+- **Product Automation** — AI content generation, automatic listing, price monitoring
+- **Order Automation** — Automatic delivery for virtual goods, logistics sync, after-sales handling
+- **Monitoring & Alerting** — Cookie health monitoring, multi-channel alerts (Lark/WeCom), real-time dashboard
+
+### Quick Start
+
+```bash
+git clone https://github.com/G3niusYukki/xianyu-openclaw.git
+cd xianyu-openclaw
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+cd server && npm install && cd ../client && npm install && cd ..
+cp .env.example .env
+# Edit .env with your Cookie and AI Key
+npm run dev
+```
+
+Access:
+- Frontend: http://localhost:5173
+- Python API: http://localhost:8091
+- Node API: http://localhost:3001
+
+---
+
+<div align="center">
+
+Made with ❤️ by G3niusYukki
+
+</div>
