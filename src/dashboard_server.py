@@ -8,7 +8,6 @@ import csv
 import hashlib
 import io
 import json
-import logging
 import mimetypes
 import os
 import re
@@ -18,38 +17,36 @@ import sys
 import threading
 import time
 import zipfile
-from contextlib import closing
+from collections.abc import Iterator
+from contextlib import closing, contextmanager
 from datetime import datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
+import logging
+
 import yaml
 
 from src.core.config import get_config
-from src.dashboard.config_service import (
-    _ALLOWED_CONFIG_SECTIONS,
-    _SENSITIVE_CONFIG_KEYS,
-)
-from src.dashboard.config_service import (
-    CONFIG_SECTIONS as _CONFIG_SECTIONS,
-)
+from src.dashboard.repository import DashboardRepository
+from src.dashboard.module_console import ModuleConsole, MODULE_TARGETS
 from src.dashboard.config_service import (
     read_system_config as _read_system_config,
-)
-from src.dashboard.config_service import (
     write_system_config as _write_system_config,
+    CONFIG_SECTIONS as _CONFIG_SECTIONS,
+    _ALLOWED_CONFIG_SECTIONS,
+    _SENSITIVE_CONFIG_KEYS,
+    mask_sensitive as _mask_config_sensitive,
+    update_config as _update_config,
 )
-from src.dashboard.module_console import MODULE_TARGETS, ModuleConsole
-from src.dashboard.repository import DashboardRepository
+
+logger = logging.getLogger(__name__)
 from src.modules.messages.service import MessagesService
 from src.modules.quote.cost_table import CostTableRepository, normalize_courier_name
 from src.modules.quote.setup import DEFAULT_MARKUP_RULES, QuoteSetupService
 from src.modules.virtual_goods.service import VirtualGoodsService
-
-logger = logging.getLogger(__name__)
-
 
 def _safe_int(value: str | None, default: int, min_value: int, max_value: int) -> int:
     try:
@@ -97,6 +94,58 @@ def _extract_json_payload(text: str) -> Any | None:
             except Exception:
                 continue
     return None
+
+
+_YAML_CONFIG_PATH = Path(__file__).resolve().parents[1] / "config" / "config.yaml"
+_YAML_EXAMPLE_PATH = Path(__file__).resolve().parents[1] / "config" / "config.example.yaml"
+
+_AUTO_REPLY_TO_YAML_KEYS = {
+    "default_reply": "default_reply",
+    "virtual_default_reply": "virtual_default_reply",
+    "enabled": "enabled",
+    "ai_intent_enabled": "ai_intent_enabled",
+}
+
+
+def _sync_system_config_to_yaml(sys_config: dict[str, Any]) -> None:
+    """Write relevant system_config fields back to config.yaml so the runtime picks them up."""
+    yaml_path = _YAML_CONFIG_PATH if _YAML_CONFIG_PATH.exists() else _YAML_EXAMPLE_PATH
+    if not yaml_path.exists():
+        return
+    try:
+        raw = yaml_path.read_text(encoding="utf-8")
+        cfg = yaml.safe_load(raw) or {}
+    except Exception:
+        return
+
+    changed = False
+
+    ar = sys_config.get("auto_reply")
+    if isinstance(ar, dict):
+        msgs = cfg.setdefault("messages", {})
+        for src_key, dst_key in _AUTO_REPLY_TO_YAML_KEYS.items():
+            if src_key in ar:
+                msgs[dst_key] = ar[src_key]
+                changed = True
+
+    for section_key in ("pricing", "delivery"):
+        sec = sys_config.get(section_key)
+        if isinstance(sec, dict):
+            cfg.setdefault(section_key, {}).update(sec)
+            changed = True
+
+    store = sys_config.get("store")
+    if isinstance(store, dict) and "category" in store:
+        cfg.setdefault("store", {})["category"] = store["category"]
+        changed = True
+
+    if changed:
+        try:
+            tmp = yaml_path.with_suffix(".tmp")
+            tmp.write_text(yaml.dump(cfg, allow_unicode=True, default_flow_style=False, sort_keys=False), encoding="utf-8")
+            tmp.rename(yaml_path)
+        except Exception as exc:
+            logger.warning("Failed to sync config to YAML: %s", exc)
 
 
 DEFAULT_WEIGHT_TEMPLATE = (
@@ -441,13 +490,22 @@ class MimicOps:
             db_path=str(self.project_root / "data" / "orders.db"),
             config=self._xianguanjia_service_config(),
         )
+
+        sys_cfg = _read_system_config()
+        delivery_cfg = sys_cfg.get("delivery", {})
+        auto_delivery_override = delivery_cfg.get("auto_delivery")
+        if auto_delivery_override is not None:
+            use_auto = bool(auto_delivery_override) and settings["configured"]
+        else:
+            use_auto = bool(
+                settings["configured"] and settings["auto_ship_enabled"] and settings["auto_ship_on_paid"]
+            )
+
         try:
             result = service.process_callback(
                 data,
                 dry_run=self._to_bool(data.get("dry_run"), default=False),
-                auto_deliver=bool(
-                    settings["configured"] and settings["auto_ship_enabled"] and settings["auto_ship_on_paid"]
-                ),
+                auto_deliver=use_auto,
             )
         except Exception as exc:
             return _error_payload(f"回调处理失败: {exc}", code="XGJ_CALLBACK_FAILED")
@@ -456,6 +514,7 @@ class MimicOps:
             "configured": settings["configured"],
             "auto_ship_enabled": settings["auto_ship_enabled"],
             "auto_ship_on_paid": settings["auto_ship_on_paid"],
+            "auto_delivery_source": "system_config" if auto_delivery_override is not None else "env",
         }
         return result
 
@@ -494,23 +553,17 @@ class MimicOps:
         metrics = self._vg_service_metrics(dashboard_result)
         errors = dashboard_result.get("errors") if isinstance(dashboard_result.get("errors"), list) else []
 
-        _total_orders = self._vg_int(metrics, "total_orders")
-        _total_callbacks = self._vg_int(metrics, "total_callbacks")
-        _pending_callbacks = self._vg_int(metrics, "pending_callbacks")
-        _processed_callbacks = self._vg_int(metrics, "processed_callbacks")
+        total_orders = self._vg_int(metrics, "total_orders")
+        total_callbacks = self._vg_int(metrics, "total_callbacks")
+        pending_callbacks = self._vg_int(metrics, "pending_callbacks")
+        processed_callbacks = self._vg_int(metrics, "processed_callbacks")
         failed_callbacks = self._vg_int(metrics, "failed_callbacks")
         timeout_backlog = self._vg_int(metrics, "timeout_backlog")
         unknown_event_kind = self._vg_int(metrics, "unknown_event_kind")
         timeout_seconds = self._vg_int(metrics, "timeout_seconds")
 
-        funnel_data = (
-            funnel_result.get("data")
-            if isinstance(funnel_result, dict) and isinstance(funnel_result.get("data"), dict)
-            else {}
-        )
-        funnel_stage_totals = (
-            funnel_data.get("stage_totals") if isinstance(funnel_data.get("stage_totals"), dict) else {}
-        )
+        funnel_data = funnel_result.get("data") if isinstance(funnel_result, dict) and isinstance(funnel_result.get("data"), dict) else {}
+        funnel_stage_totals = funnel_data.get("stage_totals") if isinstance(funnel_data.get("stage_totals"), dict) else {}
 
         exception_data = (
             exception_result.get("data")
@@ -524,14 +577,10 @@ class MimicOps:
             if isinstance(fulfillment_result, dict) and isinstance(fulfillment_result.get("data"), dict)
             else {}
         )
-        fulfillment_summary = (
-            fulfillment_data.get("summary") if isinstance(fulfillment_data.get("summary"), dict) else {}
-        )
+        fulfillment_summary = fulfillment_data.get("summary") if isinstance(fulfillment_data.get("summary"), dict) else {}
 
         product_data = (
-            product_result.get("data")
-            if isinstance(product_result, dict) and isinstance(product_result.get("data"), dict)
-            else {}
+            product_result.get("data") if isinstance(product_result, dict) and isinstance(product_result.get("data"), dict) else {}
         )
         product_summary_raw = product_data.get("summary") if isinstance(product_data.get("summary"), dict) else {}
 
@@ -555,9 +604,7 @@ class MimicOps:
                 product_field_state[key] = "placeholder"
 
         exception_pool: list[dict[str, Any]] = [x for x in exception_items if isinstance(x, dict)]
-        if unknown_event_kind > 0 and not any(
-            str(x.get("type") or "").upper() == "UNKNOWN_EVENT_KIND" for x in exception_pool
-        ):
+        if unknown_event_kind > 0 and not any(str(x.get("type") or "").upper() == "UNKNOWN_EVENT_KIND" for x in exception_pool):
             exception_pool.insert(
                 0,
                 {
@@ -567,9 +614,7 @@ class MimicOps:
                     "summary": "检测到未知事件类型回调，需人工排查映射。",
                 },
             )
-        if failed_callbacks > 0 and not any(
-            str(x.get("type") or "").upper() == "FAILED_CALLBACK" for x in exception_pool
-        ):
+        if failed_callbacks > 0 and not any(str(x.get("type") or "").upper() == "FAILED_CALLBACK" for x in exception_pool):
             exception_pool.append(
                 {
                     "priority": "P1",
@@ -578,9 +623,7 @@ class MimicOps:
                     "summary": "回调处理失败，建议优先重放失败回调。",
                 }
             )
-        if timeout_backlog > 0 and not any(
-            str(x.get("type") or "").upper() == "TIMEOUT_BACKLOG" for x in exception_pool
-        ):
+        if timeout_backlog > 0 and not any(str(x.get("type") or "").upper() == "TIMEOUT_BACKLOG" for x in exception_pool):
             exception_pool.append(
                 {
                     "priority": "P1",
@@ -602,7 +645,9 @@ class MimicOps:
                     }
                 )
 
-        stage_totals_int = {str(k): self._vg_int(funnel_stage_totals, str(k)) for k in funnel_stage_totals.keys()}
+        stage_totals_int = {
+            str(k): self._vg_int(funnel_stage_totals, str(k)) for k in funnel_stage_totals.keys()
+        }
         funnel_total = sum(stage_totals_int.values())
 
         return {
@@ -613,7 +658,7 @@ class MimicOps:
                     if isinstance(funnel_result, dict)
                     else funnel_total
                 ),
-                "source": str((funnel_result.get("metrics") or {}).get("source") or "ops_funnel_stage_daily")
+                "source": str(((funnel_result.get("metrics") or {}).get("source") or "ops_funnel_stage_daily"))
                 if isinstance(funnel_result, dict)
                 else "ops_funnel_stage_daily",
             },
@@ -626,8 +671,7 @@ class MimicOps:
                 "failed_orders": self._vg_int(fulfillment_summary, "failed_orders"),
                 "fulfillment_rate_pct": float(
                     fulfillment_summary["fulfillment_rate_pct"]
-                    if "fulfillment_rate_pct" in fulfillment_summary
-                    and fulfillment_summary["fulfillment_rate_pct"] is not None
+                    if "fulfillment_rate_pct" in fulfillment_summary and fulfillment_summary["fulfillment_rate_pct"] is not None
                     else 0.0
                 ),
                 "failure_rate_pct": float(
@@ -637,14 +681,12 @@ class MimicOps:
                 ),
                 "avg_fulfillment_seconds": float(
                     fulfillment_summary["avg_fulfillment_seconds"]
-                    if "avg_fulfillment_seconds" in fulfillment_summary
-                    and fulfillment_summary["avg_fulfillment_seconds"] is not None
+                    if "avg_fulfillment_seconds" in fulfillment_summary and fulfillment_summary["avg_fulfillment_seconds"] is not None
                     else 0.0
                 ),
                 "p95_fulfillment_seconds": float(
                     fulfillment_summary["p95_fulfillment_seconds"]
-                    if "p95_fulfillment_seconds" in fulfillment_summary
-                    and fulfillment_summary["p95_fulfillment_seconds"] is not None
+                    if "p95_fulfillment_seconds" in fulfillment_summary and fulfillment_summary["p95_fulfillment_seconds"] is not None
                     else 0.0
                 ),
             },
@@ -787,9 +829,7 @@ class MimicOps:
         exception_pool_raw = (
             data.get("exception_priority_pool") if isinstance(data.get("exception_priority_pool"), dict) else {}
         )
-        exception_items_raw = (
-            exception_pool_raw.get("items") if isinstance(exception_pool_raw.get("items"), list) else []
-        )
+        exception_items_raw = exception_pool_raw.get("items") if isinstance(exception_pool_raw.get("items"), list) else []
 
         callbacks_view = [
             {
@@ -846,9 +886,7 @@ class MimicOps:
         ][:5]
 
         exception_items = [x for x in exception_items_raw if isinstance(x, dict)]
-        if unknown_count > 0 and not any(
-            str(x.get("type") or "").upper() == "UNKNOWN_EVENT_KIND" for x in exception_items
-        ):
+        if unknown_count > 0 and not any(str(x.get("type") or "").upper() == "UNKNOWN_EVENT_KIND" for x in exception_items):
             exception_items.insert(
                 0,
                 {
@@ -2768,10 +2806,10 @@ class MimicOps:
             "updated_at": _now_iso(),
         }
 
-    _sandbox_services: dict[str, tuple[float, MessagesService]] = {}
+    _sandbox_services: dict[str, tuple[float, "MessagesService"]] = {}
     _SANDBOX_TTL = 1800
 
-    def _get_sandbox_service(self, session_id: str) -> MessagesService:
+    def _get_sandbox_service(self, session_id: str) -> "MessagesService":
         now = time.time()
         stale = [k for k, (ts, _) in self._sandbox_services.items() if now - ts > self._SANDBOX_TTL]
         for k in stale:
@@ -2818,9 +2856,7 @@ class MimicOps:
         else:
             msg_cfg = get_config().get_section("messages", {})
             service = MessagesService(controller=None, config=msg_cfg)
-        reply, detail = _run_async(
-            service._generate_reply_with_quote(message_eval, item_title=item_title, session_id=session_id)
-        )
+        reply, detail = _run_async(service._generate_reply_with_quote(message_eval, item_title=item_title, session_id=session_id))
 
         quote_part: dict[str, Any] | None = None
         if isinstance(detail, dict) and bool(detail.get("is_quote")):
@@ -3007,7 +3043,6 @@ class MimicOps:
         cookie_health_info: dict[str, Any] = {"healthy": False, "message": "未检查", "score": 0}
         try:
             from src.core.cookie_health import CookieHealthChecker
-
             if cookie_text:
                 _ck_checker = CookieHealthChecker(cookie_text, timeout_seconds=5.0)
                 _ck_result = _ck_checker.check_sync(force=False)
@@ -3165,23 +3200,21 @@ class MimicOps:
         }
 
 
+
 # -- Embedded HTML moved to src/dashboard/embedded_html.py --
 def _get_embedded_html(name: str) -> str:
     from src.dashboard.embedded_html import (
-        DASHBOARD_HTML,
-        MIMIC_COOKIE_HTML,
-        MIMIC_LOGS_HTML,
-        MIMIC_LOGS_REALTIME_HTML,
-        MIMIC_TEST_HTML,
+        DASHBOARD_HTML, MIMIC_COOKIE_HTML, MIMIC_TEST_HTML,
+        MIMIC_LOGS_HTML, MIMIC_LOGS_REALTIME_HTML,
     )
-
     return {
-        "DASHBOARD_HTML": DASHBOARD_HTML,
-        "MIMIC_COOKIE_HTML": MIMIC_COOKIE_HTML,
-        "MIMIC_TEST_HTML": MIMIC_TEST_HTML,
-        "MIMIC_LOGS_HTML": MIMIC_LOGS_HTML,
-        "MIMIC_LOGS_REALTIME_HTML": MIMIC_LOGS_REALTIME_HTML,
+        'DASHBOARD_HTML': DASHBOARD_HTML,
+        'MIMIC_COOKIE_HTML': MIMIC_COOKIE_HTML,
+        'MIMIC_TEST_HTML': MIMIC_TEST_HTML,
+        'MIMIC_LOGS_HTML': MIMIC_LOGS_HTML,
+        'MIMIC_LOGS_REALTIME_HTML': MIMIC_LOGS_REALTIME_HTML,
     }[name]
+
 
 
 class DashboardHandler(BaseHTTPRequestHandler):
@@ -3218,9 +3251,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
         """生成自动上架预览。"""
         try:
             import asyncio
-
             from src.modules.listing.auto_publish import AutoPublishService
-
             service = AutoPublishService(config=self._xianguanjia_service_config())
             loop = asyncio.new_event_loop()
             try:
@@ -3234,9 +3265,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
         """执行自动上架。"""
         try:
             import asyncio
-
-            from src.integrations.xianguanjia.open_platform_client import OpenPlatformClient
             from src.modules.listing.auto_publish import AutoPublishService
+            from src.integrations.xianguanjia.open_platform_client import OpenPlatformClient
 
             cfg = self._xianguanjia_service_config().get("xianguanjia", {})
             app_key = str(cfg.get("app_key", "")).strip()
@@ -3566,9 +3596,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 metrics_query = getattr(self.mimic_ops, "get_virtual_goods_metrics", None)
                 if callable(metrics_query):
                     result = metrics_query()
-                    payload = (
-                        result if isinstance(result, dict) else _error_payload("virtual_goods metrics payload invalid")
-                    )
+                    payload = result if isinstance(result, dict) else _error_payload("virtual_goods metrics payload invalid")
                 else:
                     aggregate_query = getattr(self.mimic_ops, "get_dashboard_readonly_aggregate", None)
                     aggregate = aggregate_query() if callable(aggregate_query) else None
@@ -3584,9 +3612,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                         if not payload["success"]:
                             payload = aggregate
                     else:
-                        payload = _error_payload(
-                            "virtual_goods metrics endpoint unavailable", code="VG_QUERY_NOT_AVAILABLE"
-                        )
+                        payload = _error_payload("virtual_goods metrics endpoint unavailable", code="VG_QUERY_NOT_AVAILABLE")
                 self._send_json(payload, status=200 if payload.get("success") else 400)
                 return
 
@@ -3603,19 +3629,16 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
             if path == "/api/listing/templates":
                 from src.modules.listing.templates import list_templates
-
                 self._send_json({"ok": True, "templates": list_templates()})
                 return
 
             if path == "/api/health/check":
                 import time as _t
-
                 result: dict[str, Any] = {"timestamp": _now_iso()}
 
                 cookie_info: dict[str, Any] = {"ok": False, "message": "未检查"}
                 try:
                     from src.core.cookie_health import CookieHealthChecker
-
                     cookie_text = os.environ.get("XIANYU_COOKIE_1", "")
                     if not cookie_text:
                         ck = self.mimic_ops.get_cookie()
@@ -3634,9 +3657,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     ai_model = os.environ.get("AI_MODEL", "")
                     if not ai_key or not ai_base:
                         try:
-                            _sys_cfg_path = (
-                                Path(__file__).resolve().parents[1] / "server" / "data" / "system_config.json"
-                            )
+                            _sys_cfg_path = Path(__file__).resolve().parents[1] / "server" / "data" / "system_config.json"
                             if _sys_cfg_path.exists():
                                 _sys_cfg = json.loads(_sys_cfg_path.read_text(encoding="utf-8"))
                                 ai_cfg = _sys_cfg.get("ai", {})
@@ -3649,17 +3670,12 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     if ai_key and ai_base:
                         t0 = _t.time()
                         import httpx
-
                         chat_url = ai_base.rstrip("/") + "/chat/completions"
                         with httpx.Client(timeout=8.0) as hc:
                             resp = hc.post(
                                 chat_url,
                                 headers={"Authorization": f"Bearer {ai_key}", "Content-Type": "application/json"},
-                                json={
-                                    "model": ai_model,
-                                    "max_tokens": 1,
-                                    "messages": [{"role": "user", "content": "hi"}],
-                                },
+                                json={"model": ai_model, "max_tokens": 1, "messages": [{"role": "user", "content": "hi"}]},
                             )
                         latency = int((_t.time() - t0) * 1000)
                         if resp.status_code == 200:
@@ -3681,42 +3697,27 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     xgj_cfg = sys_cfg.get("xianguanjia", {})
                     xgj_app_key = str(xgj_cfg.get("app_key", "") or os.environ.get("XGJ_APP_KEY", ""))
                     xgj_app_secret = str(xgj_cfg.get("app_secret", "") or os.environ.get("XGJ_APP_SECRET", ""))
-                    xgj_base = str(
-                        xgj_cfg.get("base_url", "") or os.environ.get("XGJ_BASE_URL", "https://open.goofish.pro")
-                    )
+                    xgj_base = str(xgj_cfg.get("base_url", "") or os.environ.get("XGJ_BASE_URL", "https://open.goofish.pro"))
                     if not xgj_app_key or not xgj_app_secret:
                         xgj_info = {"ok": False, "message": "AppKey 或 AppSecret 未配置"}
                     else:
                         from src.integrations.xianguanjia.signing import sign_open_platform_request as _xgj_sign
-
                         xgj_ts = str(int(time.time()))
                         xgj_body = json.dumps({"method": "health.check"})
-                        xgj_sign_val = _xgj_sign(
-                            app_key=xgj_app_key, app_secret=xgj_app_secret, timestamp=xgj_ts, body=xgj_body
-                        )
+                        xgj_sign_val = _xgj_sign(app_key=xgj_app_key, app_secret=xgj_app_secret, timestamp=xgj_ts, body=xgj_body)
                         xgj_t0 = _t.time()
                         import httpx as _hx2
-
                         xgj_resp = _hx2.post(
                             f"{xgj_base}/api/open/proxy",
                             content=xgj_body,
-                            headers={
-                                "Content-Type": "application/json",
-                                "x-app-key": xgj_app_key,
-                                "x-timestamp": xgj_ts,
-                                "x-sign": xgj_sign_val,
-                            },
+                            headers={"Content-Type": "application/json", "x-app-key": xgj_app_key, "x-timestamp": xgj_ts, "x-sign": xgj_sign_val},
                             timeout=8.0,
                         )
                         xgj_latency = int((_t.time() - xgj_t0) * 1000)
                         if xgj_resp.status_code < 500:
                             xgj_info = {"ok": True, "message": "连通", "latency_ms": xgj_latency}
                         else:
-                            xgj_info = {
-                                "ok": False,
-                                "message": f"HTTP {xgj_resp.status_code}",
-                                "latency_ms": xgj_latency,
-                            }
+                            xgj_info = {"ok": False, "message": f"HTTP {xgj_resp.status_code}", "latency_ms": xgj_latency}
                 except Exception as exc:
                     xgj_info = {"ok": False, "message": f"检查异常: {type(exc).__name__}"}
                 result["xgj"] = xgj_info
@@ -3737,25 +3738,19 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     for _ in range(600):
                         if grabber is not None:
                             p = grabber.progress
-                            event = json.dumps(
-                                {
-                                    "stage": p.stage.value if hasattr(p.stage, "value") else str(p.stage),
-                                    "message": p.message,
-                                    "hint": p.hint,
-                                    "progress": p.progress,
-                                    "error": p.error,
-                                },
-                                ensure_ascii=False,
-                            )
+                            event = json.dumps({
+                                "stage": p.stage.value if hasattr(p.stage, "value") else str(p.stage),
+                                "message": p.message,
+                                "hint": p.hint,
+                                "progress": p.progress,
+                                "error": p.error,
+                            }, ensure_ascii=False)
                             self.wfile.write(f"data: {event}\n\n".encode())
                             self.wfile.flush()
                             if p.stage.value in {"success", "failed", "cancelled"}:
                                 break
                         else:
-                            event = json.dumps(
-                                {"stage": "idle", "message": "未在运行", "hint": "", "progress": 0, "error": ""},
-                                ensure_ascii=False,
-                            )
+                            event = json.dumps({"stage": "idle", "message": "未在运行", "hint": "", "progress": 0, "error": ""}, ensure_ascii=False)
                             self.wfile.write(f"data: {event}\n\n".encode())
                             self.wfile.flush()
                             break
@@ -3767,18 +3762,80 @@ class DashboardHandler(BaseHTTPRequestHandler):
             if path == "/api/cookie/auto-refresh/status":
                 refresher = getattr(DashboardHandler, "_cookie_auto_refresher", None)
                 if refresher is None:
-                    self._send_json(
-                        {
-                            "enabled": False,
-                            "interval_minutes": 0,
-                            "message": "自动刷新未启用（设置 COOKIE_AUTO_REFRESH=true 启用）",
-                        }
-                    )
+                    self._send_json({
+                        "enabled": False,
+                        "interval_minutes": 0,
+                        "message": "自动刷新未启用（设置 COOKIE_AUTO_REFRESH=true 启用）",
+                    })
                 else:
                     from dataclasses import asdict
-
                     s = refresher.status()
                     self._send_json(asdict(s))
+                return
+
+            # ---------- Setup Progress ----------
+            if path == "/api/config/setup-progress":
+                cfg = _read_system_config()
+                xgj = cfg.get("xianguanjia", {})
+                ai_cfg = cfg.get("ai", {})
+                oss_cfg = cfg.get("oss", {})
+                store = cfg.get("store", {})
+                ar = cfg.get("auto_reply", {})
+                notif = cfg.get("notifications", {})
+
+                def _has_real(d: dict, key: str) -> bool:
+                    v = d.get(key, "")
+                    return bool(v) and "****" not in str(v)
+
+                checks = {
+                    "store_category": bool(store.get("category")),
+                    "xianguanjia": _has_real(xgj, "app_key"),
+                    "ai": _has_real(ai_cfg, "api_key"),
+                    "oss": _has_real(oss_cfg, "access_key_id"),
+                    "auto_reply": bool(ar.get("default_reply")),
+                    "notifications": bool(notif.get("feishu_enabled") or notif.get("wechat_enabled")),
+                }
+                done = sum(1 for v in checks.values() if v)
+                total = len(checks)
+                self._send_json({
+                    "ok": True,
+                    **checks,
+                    "overall_percent": int(done / total * 100) if total else 0,
+                })
+                return
+
+            # ---------- Auto-Publish Scheduler ----------
+            if path == "/api/auto-publish/status":
+                from src.modules.listing.scheduler import AutoPublishScheduler
+                sched = AutoPublishScheduler()
+                self._send_json({"ok": True, **sched.get_status()})
+                return
+
+            # ---------- Brand Assets ----------
+            if path == "/api/brand-assets":
+                from src.modules.listing.brand_assets import BrandAssetManager
+                mgr = BrandAssetManager()
+                cat_filter = parse_qs(parsed.query).get("category", [None])[0]
+                self._send_json({"ok": True, "assets": mgr.list_assets(cat_filter)})
+                return
+
+            if path.startswith("/api/brand-assets/file/"):
+                fname = path.split("/api/brand-assets/file/", 1)[1]
+                if not fname or ".." in fname or "/" in fname:
+                    self._send_json(_error_payload("Invalid filename"), status=400)
+                    return
+                fpath = Path("data/brand_assets") / fname
+                if fpath.is_file():
+                    ct, _ = mimetypes.guess_type(str(fpath))
+                    data = fpath.read_bytes()
+                    self.send_response(200)
+                    self.send_header("Content-Type", ct or "application/octet-stream")
+                    self.send_header("Content-Length", str(len(data)))
+                    self.send_header("Cache-Control", "public, max-age=86400")
+                    self.end_headers()
+                    self.wfile.write(data)
+                else:
+                    self._send_json(_error_payload("File not found", code="NOT_FOUND"), status=404)
                 return
 
             # ---------- Config CRUD (migrated from Node.js) ----------
@@ -3791,7 +3848,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 return
 
             # ---------- SPA static file serving ----------
-            if path.startswith("/api/") or path == "/not-found":
+            if path.startswith("/api/"):
                 self._send_json(_error_payload("Not Found", code="NOT_FOUND"), status=404)
                 return
 
@@ -3806,7 +3863,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
         """Serve React SPA static files from client/dist/."""
         dist_dir = Path(__file__).resolve().parents[1] / "client" / "dist"
         if not dist_dir.exists():
-            self._send_html(_get_embedded_html("DASHBOARD_HTML"))
+            self._send_html(_get_embedded_html('DASHBOARD_HTML'))
             return
 
         file_path = dist_dir / path.lstrip("/")
@@ -3827,7 +3884,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
         if index_html.is_file():
             self._send_html(index_html.read_text(encoding="utf-8"))
         else:
-            self._send_html(_get_embedded_html("DASHBOARD_HTML"))
+            self._send_html(_get_embedded_html('DASHBOARD_HTML'))
 
     def do_PUT(self) -> None:
         parsed = urlparse(self.path)
@@ -3850,9 +3907,30 @@ class DashboardHandler(BaseHTTPRequestHandler):
                         clean[k] = v
                     current[section] = {**(current.get(section) or {}), **clean}
                 _write_system_config(current)
+                _sync_system_config_to_yaml(current)
                 self._send_json({"ok": True, "message": "Configuration updated", "config": current})
                 return
 
+            self._send_json(_error_payload("Not Found", code="NOT_FOUND"), status=404)
+        except Exception as e:
+            self._send_json(_error_payload(str(e), code="INTERNAL_ERROR"), status=500)
+
+    def do_DELETE(self) -> None:
+        parsed = urlparse(self.path)
+        path = parsed.path
+        try:
+            if path.startswith("/api/brand-assets/"):
+                asset_id = path.split("/api/brand-assets/", 1)[1].strip("/")
+                if not asset_id:
+                    self._send_json(_error_payload("Missing asset id"), status=400)
+                    return
+                from src.modules.listing.brand_assets import BrandAssetManager
+                mgr = BrandAssetManager()
+                if mgr.delete_asset(asset_id):
+                    self._send_json({"ok": True, "message": "Asset deleted"})
+                else:
+                    self._send_json(_error_payload("Asset not found", code="NOT_FOUND"), status=404)
+                return
             self._send_json(_error_payload("Not Found", code="NOT_FOUND"), status=404)
         except Exception as e:
             self._send_json(_error_payload(str(e), code="INTERNAL_ERROR"), status=500)
@@ -3862,9 +3940,97 @@ class DashboardHandler(BaseHTTPRequestHandler):
         path = parsed.path
 
         try:
+            if path == "/api/orders/remind":
+                body = self._read_json_body()
+                order_id = str(body.get("order_id", "")).strip()
+                session_id = str(body.get("session_id", "")).strip()
+                if not order_id:
+                    self._send_json(_error_payload("Missing order_id"), status=400)
+                    return
+
+                from src.modules.followup.service import FollowUpEngine
+                engine = FollowUpEngine.from_system_config()
+
+                if not getattr(engine, "_reminder_enabled", True):
+                    self._send_json({"ok": False, "error": "催单功能未启用", "reason": "disabled"})
+                    return
+
+                use_session = session_id or order_id
+                result = engine.process_unpaid_order(
+                    session_id=use_session,
+                    order_id=order_id,
+                )
+
+                if result.get("eligible") and session_id:
+                    template_text = result.get("template_text", "")
+                    if template_text:
+                        try:
+                            import asyncio
+                            from src.modules.messages.service import MessagesService
+                            msgs_cfg = {}
+                            try:
+                                from src.core.config import get_config
+                                msgs_cfg = get_config().messages
+                            except Exception:
+                                pass
+                            svc = MessagesService(msgs_cfg)
+                            loop = asyncio.new_event_loop()
+                            sent = loop.run_until_complete(
+                                svc.reply_to_session(session_id, template_text)
+                            )
+                            loop.close()
+                            result["message_sent"] = sent
+                        except Exception as send_err:
+                            result["message_sent"] = False
+                            result["send_error"] = str(send_err)
+                elif result.get("eligible") and not session_id:
+                    result["message_sent"] = False
+                    result["send_note"] = "no_session_id_provided"
+
+                self._send_json({"ok": True, **result})
+                return
+
+            if path == "/api/brand-assets/upload":
+                import cgi
+                content_type = self.headers.get("Content-Type", "")
+                if "multipart/form-data" in content_type:
+                    form = cgi.FieldStorage(
+                        fp=self.rfile,
+                        headers=self.headers,
+                        environ={"REQUEST_METHOD": "POST", "CONTENT_TYPE": content_type},
+                    )
+                    file_item = form["file"] if "file" in form else None
+                    name = form.getvalue("name", "unnamed")
+                    cat = form.getvalue("category", "default")
+                    if file_item is None or not getattr(file_item, "file", None):
+                        self._send_json(_error_payload("Missing file field"), status=400)
+                        return
+                    file_data = file_item.file.read()
+                    fname = getattr(file_item, "filename", "") or "upload.png"
+                    ext = fname.rsplit(".", 1)[-1] if "." in fname else "png"
+                else:
+                    body = self._read_json_body()
+                    import base64
+                    b64 = body.get("file_data", "")
+                    file_data = base64.b64decode(b64) if b64 else b""
+                    name = body.get("name", "unnamed")
+                    cat = body.get("category", "default")
+                    ext = body.get("file_ext", "png")
+                    if not file_data:
+                        self._send_json(_error_payload("Missing file_data"), status=400)
+                        return
+
+                from src.modules.listing.brand_assets import BrandAssetManager
+                mgr = BrandAssetManager()
+                try:
+                    asset = mgr.add_asset(name, cat, file_data, ext)
+                    self._send_json({"ok": True, "asset": asset})
+                except ValueError as ve:
+                    self._send_json(_error_payload(str(ve)), status=400)
+                return
+
             if path == "/api/ai/test":
                 import time as _t
-
                 body = self._read_json_body()
                 ai_key = str(body.get("api_key") or "").strip()
                 ai_base = str(body.get("base_url") or "").strip()
@@ -3875,7 +4041,6 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 try:
                     t0 = _t.time()
                     import httpx
-
                     chat_url = ai_base.rstrip("/") + "/chat/completions"
                     with httpx.Client(timeout=10.0) as hc:
                         resp = hc.post(
@@ -3994,18 +4159,16 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 diagnosis = self.mimic_ops.diagnose_cookie(cookie_text)
                 domain_filter = self.mimic_ops._cookie_domain_filter_stats(cookie_text)
                 grade = diagnosis.get("grade", "F")
-                self._send_json(
-                    {
-                        "ok": grade in ("A", "B"),
-                        "grade": grade,
-                        "message": diagnosis.get("message", ""),
-                        "actions": diagnosis.get("actions", []),
-                        "required_present": diagnosis.get("required_present", []),
-                        "required_missing": diagnosis.get("required_missing", []),
-                        "cookie_items": diagnosis.get("cookie_items", 0),
-                        "domain_filter": domain_filter,
-                    }
-                )
+                self._send_json({
+                    "ok": grade in ("可用", "高风险"),
+                    "grade": grade,
+                    "message": diagnosis.get("message", ""),
+                    "actions": diagnosis.get("actions", []),
+                    "required_present": diagnosis.get("required_present", []),
+                    "required_missing": diagnosis.get("required_missing", []),
+                    "cookie_items": diagnosis.get("cookie_items", 0),
+                    "domain_filter": domain_filter,
+                })
                 return
 
             if path == "/api/import-routes":
@@ -4141,7 +4304,6 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
             if path == "/api/cookie/auto-grab":
                 import threading
-
                 from src.core.cookie_grabber import CookieGrabber
 
                 if getattr(DashboardHandler, "_cookie_grab_running", False):
@@ -4154,7 +4316,6 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
                 def _run_grab() -> None:
                     import asyncio
-
                     loop = asyncio.new_event_loop()
                     try:
                         result = loop.run_until_complete(grabber.auto_grab())
@@ -4193,17 +4354,14 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     return
 
                 import asyncio
-
                 test_msg = "【闲鱼自动化】通知测试\n如果你看到这条消息，说明通知配置成功！"
 
                 async def _send() -> bool:
                     if channel == "feishu":
                         from src.modules.messages.notifications import FeishuNotifier
-
                         return await FeishuNotifier(webhook_url).send_text(test_msg)
                     elif channel == "wechat":
                         from src.modules.messages.notifications import WeChatNotifier
-
                         return await WeChatNotifier(webhook_url).send_text(test_msg)
                     return False
 
@@ -4235,33 +4393,20 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 mode = str(xgj.get("mode", "self_developed"))
                 seller_id = str(xgj.get("seller_id", ""))
                 if not app_key or not app_secret:
-                    self._send_json(
-                        {"ok": False, "error": "闲管家 API 未配置，请在设置中配置 AppKey 和 AppSecret"}, status=400
-                    )
+                    self._send_json({"ok": False, "error": "闲管家 API 未配置，请在设置中配置 AppKey 和 AppSecret"}, status=400)
                     return
                 payload_str = json.dumps(req_body, ensure_ascii=False)
                 ts = str(int(time.time()))
-                from src.integrations.xianguanjia.signing import sign_business_request, sign_open_platform_request
-
+                from src.integrations.xianguanjia.signing import sign_open_platform_request, sign_business_request
                 if mode == "business" and seller_id:
-                    sign = sign_business_request(
-                        app_key=app_key, app_secret=app_secret, seller_id=seller_id, timestamp=ts, body=payload_str
-                    )
+                    sign = sign_business_request(app_key=app_key, app_secret=app_secret, seller_id=seller_id, timestamp=ts, body=payload_str)
                 else:
-                    sign = sign_open_platform_request(
-                        app_key=app_key, app_secret=app_secret, timestamp=ts, body=payload_str
-                    )
+                    sign = sign_open_platform_request(app_key=app_key, app_secret=app_secret, timestamp=ts, body=payload_str)
                 try:
                     import httpx
-
                     url = f"{base_url}{api_path}"
                     with httpx.Client(timeout=15.0) as hc:
-                        resp = hc.post(
-                            url,
-                            params={"appid": app_key, "timestamp": ts, "sign": sign},
-                            content=payload_str,
-                            headers={"Content-Type": "application/json"},
-                        )
+                        resp = hc.post(url, params={"appid": app_key, "timestamp": ts, "sign": sign}, content=payload_str, headers={"Content-Type": "application/json"})
                     self._send_json({"ok": True, "data": resp.json()})
                 except Exception as exc:
                     logger.error("XGJ proxy error: %s", exc)
@@ -4281,7 +4426,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     return
                 parsed_url = urlparse(self.path)
                 qs = parse_qs(parsed_url.query)
-                sign_val = qs.get("sign", [""])[0]
+                sign_val = (qs.get("sign", [""])[0])
                 try:
                     body_data = json.loads(body_str) if body_str else {}
                 except Exception:
@@ -4296,10 +4441,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     self._send_json({"error": "Invalid timestamp"}, status=400)
                     return
                 from src.integrations.xianguanjia.signing import verify_open_platform_callback_signature
-
-                if not verify_open_platform_callback_signature(
-                    app_key=app_key, app_secret=app_secret, timestamp=ts_val, sign=sign_val, body=body_str
-                ):
+                if not verify_open_platform_callback_signature(app_key=app_key, app_secret=app_secret, timestamp=ts_val, sign=sign_val, body=body_str):
                     self._send_json({"code": 401, "msg": "Invalid signature"}, status=401)
                     return
                 payload = self.mimic_ops.handle_order_callback(body_data)
@@ -4333,7 +4475,6 @@ def run_server(host: str = "127.0.0.1", port: int = 8091, db_path: str | None = 
     refresher = None
     if auto_refresh_enabled:
         from src.core.cookie_grabber import CookieAutoRefresher
-
         interval = int(os.environ.get("COOKIE_REFRESH_INTERVAL", "30"))
         mimic_ops = DashboardHandler.mimic_ops
 

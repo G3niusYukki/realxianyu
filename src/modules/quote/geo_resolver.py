@@ -26,15 +26,7 @@ class GeoResolver:
             return
 
         payload = json.loads(self.mapping_file.read_text(encoding="utf-8"))
-        # 支持两种结构：扁平结构 {"城市": "省份", ...} 或嵌套结构 {"city_to_province": {...}}
-        if isinstance(payload, dict):
-            if "city_to_province" in payload:
-                city_map = payload["city_to_province"]
-            else:
-                # 扁平结构：直接视为城市到省份的映射
-                city_map = payload
-        else:
-            city_map = {}
+        city_map = payload if isinstance(payload, dict) else {}
 
         normalized_city_map: dict[str, str] = {}
         province_aliases: dict[str, str] = {}
