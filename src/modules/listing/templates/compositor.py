@@ -32,7 +32,7 @@ def compose(
 
     各参数为 None 时随机选择。
     """
-    from .layers import (  # noqa: ensure registration
+    from .layers import (  # noqa: F401
         LAYOUT_REGISTRY as _lr,
         MODIFIER_REGISTRY as _mr,
     )
@@ -84,7 +84,7 @@ def compose(
     extra_css = "\n".join(merged_css_parts)
     overlay_html = "\n".join(merged_overlay)
 
-    html = f'''<!DOCTYPE html>
+    html = f"""<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
@@ -110,7 +110,7 @@ body {{
 {layout_out.body_html}
 {overlay_html}
 </body>
-</html>'''
+</html>"""
 
     return html, chosen
 

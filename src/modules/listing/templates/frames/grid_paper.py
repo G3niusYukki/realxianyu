@@ -19,20 +19,23 @@ def render(params: dict[str, Any], theme: dict[str, str]) -> str:
     tagline = e(params.get("tagline") or theme.get("tagline", ""))
     brand_items = params.get("brand_items", [])
     primary = theme.get("primary", "#0284c7")
-    accent = theme.get("accent", "#fbbf24")
 
     grid = brand_grid_html(
-        brand_items, shape="rounded_square", size=120, gap=14,
-        show_name=False, border_color="#c8d6e5", bg_color="#ffffff",
+        brand_items,
+        shape="rounded_square",
+        size=120,
+        gap=14,
+        show_name=False,
+        border_color="#c8d6e5",
+        bg_color="#ffffff",
     )
 
     dots_top = "".join(
-        '<div style="width:6px;height:6px;border-radius:50%;'
-        f'background:{primary};opacity:0.35;"></div>'
+        f'<div style="width:6px;height:6px;border-radius:50%;background:{primary};opacity:0.35;"></div>'
         for _ in range(22)
     )
 
-    body = f'''
+    body = f"""
 <div style="width:1080px;height:1080px;background:#f5f0e8;
     background-image:
         linear-gradient(rgba(180,170,155,0.25) 1px,transparent 1px),
@@ -99,11 +102,12 @@ def render(params: dict[str, Any], theme: dict[str, str]) -> str:
         <!-- 容器顶部装饰点 -->
         <div style="position:absolute;top:-7px;left:30px;right:30px;
             display:flex;justify-content:center;gap:7px;">
-            {"".join(
-                '<div style="width:4px;height:4px;border-radius:50%;'
-                f'background:{primary};opacity:0.45;"></div>'
-                for _ in range(28)
-            )}
+            {
+        "".join(
+            f'<div style="width:4px;height:4px;border-radius:50%;background:{primary};opacity:0.45;"></div>'
+            for _ in range(28)
+        )
+    }
         </div>
         {grid}
     </div>
@@ -124,6 +128,6 @@ def render(params: dict[str, Any], theme: dict[str, str]) -> str:
         font-size:14px;color:{primary};opacity:0.35;">◂◂◂◂ ◂◂◂◂</div>
     <div style="position:absolute;bottom:22px;right:50px;
         font-size:14px;color:{primary};opacity:0.35;">▸▸▸▸ ▸▸▸▸</div>
-</div>'''
+</div>"""
 
     return wrap_page(body, bg="#f5f0e8")

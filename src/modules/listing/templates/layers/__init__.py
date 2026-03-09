@@ -21,10 +21,10 @@ __all__ = [
     "MODIFIER_REGISTRY",
     "LayoutOutput",
     "ModifierOutput",
-    "list_layouts",
-    "list_modifiers",
     "get_layout",
     "get_modifier",
+    "list_layouts",
+    "list_modifiers",
 ]
 
 from . import layouts as _layouts  # noqa: F401  trigger registration

@@ -17,12 +17,16 @@ def render(params: dict[str, Any], theme: dict[str, str]) -> str:
     tagline = e(params.get("tagline") or theme.get("tagline", ""))
     brand_items = params.get("brand_items", [])
 
-    label_pills = "".join(
-        f'<span style="display:inline-block;font-size:22px;font-weight:700;color:#92400e;'
-        f'background:rgba(255,255,255,0.7);padding:8px 18px;border-radius:999px;'
-        f'margin:4px;">{e(l.strip())}</span>'
-        for l in (labels or "").split("/") if l.strip()
-    ) or '<span style="font-size:22px;color:#92400e;">—</span>'
+    label_pills = (
+        "".join(
+            f'<span style="display:inline-block;font-size:22px;font-weight:700;color:#92400e;'
+            f"background:rgba(255,255,255,0.7);padding:8px 18px;border-radius:999px;"
+            f'margin:4px;">{e(label.strip())}</span>'
+            for label in (labels or "").split("/")
+            if label.strip()
+        )
+        or '<span style="font-size:22px;color:#92400e;">—</span>'
+    )
 
     grid = brand_grid_html(
         brand_items,
@@ -34,7 +38,7 @@ def render(params: dict[str, Any], theme: dict[str, str]) -> str:
         bg_color="rgba(255,255,255,0.15)",
     )
 
-    body = f'''
+    body = f"""
 <div style="width:1080px;height:1080px;display:flex;flex-direction:column;
     align-items:center;padding:50px 0 60px;
     background:linear-gradient(180deg,#f97316 0%,#ea580c 100%);">
@@ -78,6 +82,6 @@ def render(params: dict[str, Any], theme: dict[str, str]) -> str:
             </span>
         </div>
     </div>
-</div>'''
+</div>"""
 
     return wrap_page(body, bg="linear-gradient(180deg,#f97316 0%,#ea580c 100%)")

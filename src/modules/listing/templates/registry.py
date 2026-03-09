@@ -8,7 +8,7 @@ from __future__ import annotations
 from typing import Any
 
 from .themes import get_theme, THEMES
-from .frames import list_frames, render_frame, get_frame
+from .frames import list_frames, render_frame
 
 
 def list_all_templates() -> list[dict[str, Any]]:
@@ -17,15 +17,17 @@ def list_all_templates() -> list[dict[str, Any]]:
     result = []
     for frame in frames:
         for cat_key in THEMES:
-            result.append({
-                "key": f"{frame['id']}:{cat_key}",
-                "frame_id": frame["id"],
-                "frame_name": frame["name"],
-                "category": cat_key,
-                "name": f"{frame['name']} · {THEMES[cat_key]['badge']}",
-                "desc": frame.get("desc", ""),
-                "tags": frame.get("tags", []),
-            })
+            result.append(
+                {
+                    "key": f"{frame['id']}:{cat_key}",
+                    "frame_id": frame["id"],
+                    "frame_name": frame["name"],
+                    "category": cat_key,
+                    "name": f"{frame['name']} · {THEMES[cat_key]['badge']}",
+                    "desc": frame.get("desc", ""),
+                    "tags": frame.get("tags", []),
+                }
+            )
     return result
 
 

@@ -672,7 +672,7 @@ class MimicOps:
                 logger.info("Auto-price-modify: no valid fee in quote for order=%s", order_no)
                 return
 
-            target_price_cents = int(round(float(target_fee) * 100))
+            target_price_cents = round(float(target_fee) * 100)
             express_fee_cents = int(float(apm_cfg.get("default_express_fee", 0)) * 100)
 
             if target_price_cents == total_amount:
