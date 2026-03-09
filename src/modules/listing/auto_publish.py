@@ -332,16 +332,24 @@ class AutoPublishService:
         user_name: str,
         scheduled_time: int | None = None,
     ) -> dict[str, Any]:
-        """调用 publish_product API 将草稿商品上架（异步操作）。"""
+        """调用 publish_product API 将草稿商品上架（异步操作）。
+
+        OpenAPI 规范: user_name 为 array[string]，specify_publish_time 为
+        "yyyy-MM-dd HH:mm:ss" 格式字符串。
+        """
         if not self.api_client:
             return {"ok": False, "step": "api_publish", "error": "api_client_not_configured"}
 
         publish_payload: dict[str, Any] = {
             "product_id": product_id,
-            "user_name": user_name,
+            "user_name": [user_name],
         }
         if scheduled_time:
-            publish_payload["specify_publish_time"] = int(scheduled_time)
+            from datetime import datetime as _dt
+
+            publish_payload["specify_publish_time"] = _dt.fromtimestamp(
+                int(scheduled_time)
+            ).strftime("%Y-%m-%d %H:%M:%S")
 
         resp = self.api_client.publish_product(publish_payload)
         if not resp.ok:
@@ -380,32 +388,42 @@ class AutoPublishService:
     ) -> dict[str, Any]:
         """构建符合闲管家 create_product API 规范的请求体。
 
-        必填字段：title, content, images, item_biz_type, sp_biz_type,
-        channel_cat_id, express_fee, stock, stuff_status, province, city, district。
-        user_name 通过 publish_shop 数组传入。
+        顶层 required: item_biz_type, sp_biz_type, channel_cat_id, price,
+                       express_fee, stock, publish_shop
+        publish_shop[] 内 required: user_name, title, content, images,
+                                    province(int), city(int), district(int)
+
+        参考: docs/xianguanjiajieruapi.md OpenAPI /api/open/product/create
         """
         d = defaults or {}
 
         payload: dict[str, Any] = {
-            "title": title,
-            "content": description,
-            "images": image_urls[:9],
             "item_biz_type": int(d.get("default_item_biz_type", 2)),
             "sp_biz_type": int(d.get("default_sp_biz_type", 2)),
             "channel_cat_id": str(d.get("default_channel_cat_id", "")),
-            "stuff_status": str(d.get("default_stuff_status", "1")),
-            "stock": int(d.get("default_stock", 1)),
             "express_fee": int(d.get("default_express_fee", 0)),
-            "province": str(d.get("default_province", "")),
-            "city": str(d.get("default_city", "")),
-            "district": str(d.get("default_district", "")),
+            "stock": int(d.get("default_stock", 1)),
         }
+
+        stuff_status = d.get("default_stuff_status")
+        if stuff_status is not None:
+            payload["stuff_status"] = str(stuff_status)
 
         if price is not None:
             payload["price"] = int(float(price) * 100)
 
+        shop_entry: dict[str, Any] = {
+            "title": title,
+            "content": description,
+            "images": image_urls[:9],
+            "province": int(d.get("default_province", 0)),
+            "city": int(d.get("default_city", 0)),
+            "district": int(d.get("default_district", 0)),
+        }
         if user_name:
-            payload["publish_shop"] = [{"user_name": user_name}]
+            shop_entry["user_name"] = user_name
+
+        payload["publish_shop"] = [shop_entry]
 
         if extra and isinstance(extra, dict):
             payload.update(extra)

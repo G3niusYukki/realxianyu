@@ -1,15 +1,15 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { getSystemConfig, getConfigSections, saveSystemConfig } from '../../api/config';
-import { getBrandAssets, uploadBrandAsset, deleteBrandAsset, type BrandAsset } from '../../api/listing';
+/* Brand asset imports removed — managed in AutoPublish.tsx */
 import { api } from '../../api/index';
 import { useStoreCategory, CATEGORY_META } from '../../contexts/StoreCategoryContext';
 import toast from 'react-hot-toast';
 import {
   Settings, Save, RefreshCw, Send, Bell, CheckCircle2, XCircle,
   ExternalLink, Info, Plug, ChevronDown, ChevronUp, FileText, Zap,
-  DollarSign, Store, X, ArrowRight, Upload, Trash2, Image as ImageIcon,
-  Receipt, Package,
+  DollarSign, Store, X, ArrowRight, Trash2,
+  Receipt, Package, TrendingUp, MessageSquare, Eye, Shield,
 } from 'lucide-react';
 
 interface CategoryDefaults {
@@ -46,14 +46,14 @@ const GENERIC_DEFAULTS: CategoryDefaults = {
 const CATEGORY_DEFAULTS: Record<string, CategoryDefaults> = {
   express: {
     auto_reply: {
-      default_reply: '为了给你报最准确的价格，麻烦提供一下：寄件城市、收件城市、包裹重量（kg）\n格式示例：广东省 - 浙江省 - 3kg 30x20x15cm',
-      virtual_default_reply: '',
+      default_reply: '直接拍就行拍完给您兑换码',
+      virtual_default_reply: '兑换码是兑换余额的，点下单使用余额支付即可',
       ai_intent_enabled: true,
       enabled: true,
     },
     pricing: { auto_adjust: false, min_margin_percent: 15, max_discount_percent: 15 },
     delivery: { auto_delivery: false, delivery_timeout_minutes: 60 },
-    summary: ['自动回复 → 快递代发专用话术', '定价 → 保守方案（利润率 15%）', '发货 → 手动发货（需填快递单号）'],
+    summary: ['自动回复 → 快递兑换码业务话术', '定价 → 保守方案（利润率 15%）', '发货 → 手动发货（需填快递单号）'],
   },
   exchange: {
     auto_reply: {
@@ -205,6 +205,284 @@ const NOTIFICATION_EVENTS = [
   { key: 'notify_manual_takeover', label: '人工接管告警' },
 ];
 
+// ─── 对话流程模拟器 ─────────────────────────────────────
+interface ChatMsg { role: 'buyer' | 'system'; text: string; rule?: string; }
+
+const CONVERSATION_SCENARIOS: Record<string, { label: string; chats: ChatMsg[] }> = {
+  express: {
+    label: '快递代发（兑换码模式）',
+    chats: [
+      { role: 'buyer', text: '在吗' },
+      { role: 'system', text: '在的，请问需要寄什么快递？请发送 寄件城市-收件城市-重量（kg），我帮你查最优价格。', rule: '在线咨询' },
+      { role: 'buyer', text: '怎么买' },
+      { role: 'system', text: '直接拍就行拍完给您兑换码', rule: '购买流程（仅快递）' },
+      { role: 'buyer', text: '你是哪里到哪里的呢' },
+      { role: 'system', text: '你是哪里到哪里的呢', rule: '路线咨询（仅快递）' },
+      { role: 'buyer', text: '兑换码怎么用' },
+      { role: 'system', text: '兑换码是兑换余额的，点下单使用余额支付即可', rule: '兑换码使用（仅快递）' },
+      { role: 'buyer', text: '上门取件吗' },
+      { role: 'system', text: '下单后联系快递员沟通好上门取件时间哈', rule: '取件安排（仅快递）' },
+      { role: 'buyer', text: '有顺丰吗' },
+      { role: 'system', text: '顺丰京东没有了哈', rule: '品牌缺货（仅快递）' },
+      { role: 'buyer', text: '能便宜点吗' },
+      { role: 'system', text: '价格已经尽量优惠，量大或长期合作可以再沟通方案。', rule: '讲价规则' },
+      { role: 'buyer', text: '退款吧' },
+      { role: 'system', text: '这边给你退款，直接转你可以吗？退款对链接不太好，方便吗？', rule: '退款话术（仅快递）' },
+    ],
+  },
+  exchange: {
+    label: '兑换码/卡密',
+    chats: [
+      { role: 'buyer', text: '在吗' },
+      { role: 'system', text: '', rule: '通用回复模板' },
+      { role: 'buyer', text: '兑换码怎么发' },
+      { role: 'system', text: '这是虚拟商品，付款后会通过平台聊天发卡密/兑换信息，请按商品说明使用。', rule: '卡密发放规则' },
+      { role: 'buyer', text: '怎么用' },
+      { role: 'system', text: '下单后我会提供对应使用说明，遇到问题可随时留言，我会协助处理。', rule: '使用咨询规则' },
+      { role: 'buyer', text: '多久发' },
+      { role: 'system', text: '虚拟商品通常付款后几分钟内处理，高峰期会稍有延迟，我会尽快给你。', rule: '发货时间规则' },
+    ],
+  },
+  recharge: {
+    label: '充值代充',
+    chats: [
+      { role: 'buyer', text: '在吗' },
+      { role: 'system', text: '', rule: '通用回复模板' },
+      { role: 'buyer', text: '能充联通吗' },
+      { role: 'system', text: '支持代下单服务，请把具体需求、数量和时效发我，我确认后马上安排。', rule: '代下单规则' },
+      { role: 'buyer', text: '多久到账' },
+      { role: 'system', text: '虚拟商品通常付款后几分钟内处理，高峰期会稍有延迟，我会尽快给你。', rule: '发货时间规则' },
+      { role: 'buyer', text: '安全吗' },
+      { role: 'system', text: '建议全程走闲鱼平台流程交易，按平台规则下单和确认，双方都更有保障。', rule: '平台安全规则' },
+    ],
+  },
+  account: {
+    label: '账号交易',
+    chats: [
+      { role: 'buyer', text: '在吗' },
+      { role: 'system', text: '', rule: '通用回复模板' },
+      { role: 'buyer', text: '账号能验吗' },
+      { role: 'system', text: '', rule: '通用回复模板' },
+      { role: 'buyer', text: '怎么用' },
+      { role: 'system', text: '下单后我会提供对应使用说明，遇到问题可随时留言，我会协助处理。', rule: '使用咨询规则' },
+      { role: 'buyer', text: '靠谱吗' },
+      { role: 'system', text: '建议全程走闲鱼平台流程交易，按平台规则下单和确认，双方都更有保障。', rule: '平台安全规则' },
+    ],
+  },
+  movie_ticket: {
+    label: '电影票代购',
+    chats: [
+      { role: 'buyer', text: '有票吗' },
+      { role: 'system', text: '', rule: '通用回复模板' },
+      { role: 'buyer', text: '能代购吗' },
+      { role: 'system', text: '支持代下单服务，请把具体需求、数量和时效发我，我确认后马上安排。', rule: '代下单规则' },
+      { role: 'buyer', text: '多久出票' },
+      { role: 'system', text: '虚拟商品通常付款后几分钟内处理，高峰期会稍有延迟，我会尽快给你。', rule: '发货时间规则' },
+    ],
+  },
+  game: {
+    label: '游戏道具',
+    chats: [
+      { role: 'buyer', text: '在吗' },
+      { role: 'system', text: '', rule: '通用回复模板' },
+      { role: 'buyer', text: '能代充吗' },
+      { role: 'system', text: '支持代下单服务，请把具体需求、数量和时效发我，我确认后马上安排。', rule: '代下单规则' },
+      { role: 'buyer', text: '怎么用' },
+      { role: 'system', text: '下单后我会提供对应使用说明，遇到问题可随时留言，我会协助处理。', rule: '使用咨询规则' },
+      { role: 'buyer', text: '能便宜点吗' },
+      { role: 'system', text: '价格已经尽量优惠，量大或长期合作可以再沟通方案。', rule: '讲价规则' },
+    ],
+  },
+};
+
+function ConversationSimulator({ category, config }: { category: string; config: any }) {
+  const scenario = CONVERSATION_SCENARIOS[category] || CONVERSATION_SCENARIOS.express;
+  const defaultReply = config.auto_reply?.default_reply || '您好！感谢您的咨询。请问有什么可以帮您的吗？';
+  const meta = CATEGORY_META[category];
+
+  return (
+    <div className="bg-gradient-to-b from-gray-50 to-white rounded-xl border border-xy-border overflow-hidden">
+      <div className="px-4 py-2.5 bg-white border-b border-xy-border flex items-center justify-between">
+        <h4 className="text-sm font-bold text-xy-text-primary flex items-center gap-2">
+          <Eye className="w-4 h-4 text-xy-brand-500" /> 对话效果预览
+        </h4>
+        <span className="text-[11px] text-xy-text-muted bg-xy-gray-100 px-2 py-0.5 rounded-full">
+          {meta?.icon} {scenario.label}品类
+        </span>
+      </div>
+      <div className="p-4 space-y-3 max-h-[400px] overflow-y-auto" style={{ background: 'linear-gradient(180deg, #f5f5f5 0%, #ebebeb 100%)' }}>
+        {scenario.chats.map((msg, i) => {
+          const displayText = (msg.role === 'system' && msg.text === '') ? defaultReply : msg.text;
+          const isLive = msg.role === 'system' && msg.text === '';
+          return (
+            <div key={i} className={`flex ${msg.role === 'buyer' ? 'justify-start' : 'justify-end'}`}>
+              <div className={`max-w-[80%] ${msg.role === 'buyer' ? '' : 'text-right'}`}>
+                {msg.rule && (
+                  <p className={`text-[10px] mb-0.5 ${msg.role === 'buyer' ? 'text-left' : 'text-right'} text-gray-400`}>
+                    {isLive ? '⚡ 来自：你的通用回复模板' : `🤖 ${msg.rule}`}
+                  </p>
+                )}
+                <div className={`inline-block px-3 py-2 rounded-xl text-sm whitespace-pre-line leading-relaxed ${
+                  msg.role === 'buyer'
+                    ? 'bg-white text-gray-800 shadow-sm border border-gray-200 rounded-tl-sm'
+                    : isLive
+                      ? 'bg-xy-brand-500 text-white shadow-sm rounded-tr-sm ring-2 ring-xy-brand-200'
+                      : 'bg-emerald-500 text-white shadow-sm rounded-tr-sm'
+                }`}>
+                  {displayText}
+                </div>
+                <p className={`text-[10px] mt-0.5 ${msg.role === 'buyer' ? 'text-left' : 'text-right'} text-gray-400`}>
+                  {msg.role === 'buyer' ? '👤 买家' : '🤖 系统自动回复'}
+                </p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="px-4 py-2 bg-white border-t border-xy-border">
+        <p className="text-[11px] text-gray-500">
+          <span className="inline-block w-3 h-3 rounded bg-xy-brand-500 mr-1 align-middle" /> 橙色气泡 = 使用你配置的通用回复模板（可在下方修改）&nbsp;&nbsp;
+          <span className="inline-block w-3 h-3 rounded bg-emerald-500 mr-1 align-middle" /> 绿色气泡 = 系统内置规则自动匹配
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ─── 内置规则表 ─────────────────────────────────────
+type RulePhase = 'universal' | 'presale' | 'presale_human' | 'aftersale';
+interface BuiltinRule { intent: string; keywords: string; reply: string; scope?: string; phase: RulePhase; needsHuman?: boolean }
+
+const BUILTIN_RULES: BuiltinRule[] = [
+  // 通用
+  { phase: 'universal', intent: '平台安全', keywords: '靠谱吗、安全、担保、骗子、走平台', reply: '建议全程走闲鱼平台流程交易，按平台规则下单和确认，双方都更有保障。' },
+  { phase: 'universal', intent: '讲价', keywords: '最低、便宜、优惠、少点、能便宜', reply: '这个价格已经是最低了哈，量大可以再商量。' },
+  // 快递售前 - 需人工
+  { phase: 'presale_human', intent: '超偏远地区', keywords: '新疆、西藏', reply: '新疆/西藏属于超偏远地区，需核算体积重', scope: '仅快递', needsHuman: true },
+  { phase: 'presale_human', intent: '体积计费', keywords: '体积大、长宽高、棉被、懒人沙发', reply: '体积较大的物品会按体积重计费（长x宽x高/8000）', scope: '仅快递', needsHuman: true },
+  { phase: 'presale_human', intent: '大件/搬家', keywords: '搬家、毕业寄、大件', reply: '大件/搬家可以走德邦', scope: '仅快递', needsHuman: true },
+  // 快递售前 - 自动回复
+  { phase: 'presale', intent: '咨询在不在', keywords: '在吗、还在、有货吗', reply: '在的亲，你是哪里到哪里的呢？报一下寄件城市-收件城市-重量(kg)帮你查最优价', scope: '仅快递' },
+  { phase: 'presale', intent: '购买流程', keywords: '怎么买、怎么拍、怎么下单', reply: '拍下不付款，我改价，付款后自动给您兑换码', scope: '仅快递' },
+  { phase: 'presale', intent: '兑换码使用', keywords: '怎么用、怎么使用、兑换码', reply: '兑换码是兑换余额的，点下单使用余额支付即可', scope: '仅快递' },
+  { phase: 'presale', intent: '代下单', keywords: '代下单、帮我下单', reply: '我们不做代下单了，拍完给你兑换码，在小城旭下单即可', scope: '仅快递' },
+  { phase: 'presale', intent: '路线咨询', keywords: '哪里到哪里、寄到哪、从哪寄', reply: '你是哪里到哪里的呢', scope: '仅快递' },
+  { phase: 'presale', intent: '上门取件', keywords: '上门取件、取件时间', reply: '下单后联系快递员沟通好上门取件时间哈', scope: '仅快递' },
+  { phase: 'presale', intent: '包装费', keywords: '包装费、耗材费', reply: '包装费需要问下快递员，这个是他这边收费的哈', scope: '仅快递' },
+  { phase: 'presale', intent: '品牌缺货', keywords: '有顺丰吗、有京东吗', reply: '顺丰京东没有了哈', scope: '仅快递' },
+  { phase: 'presale', intent: '仅限首单', keywords: '第二次、再买、续费', reply: '这边仅限首单哈，后续直接在小城旭里下单就行', scope: '仅快递' },
+  { phase: 'presale', intent: '老用户优惠', keywords: '老用户、老客户、更优惠', reply: '小城旭的价格已经是官方5折了，首重续重都有折扣哦', scope: '仅快递' },
+  { phase: 'presale', intent: '有效期', keywords: '过期、有效期', reply: '不会过期的，未兑换就一直有效', scope: '仅快递' },
+  { phase: 'presale', intent: '禁寄物品', keywords: '能发吗、可以寄吗', reply: '刀具/易燃品/易碎品/电池/生鲜/数码产品不支持哈', scope: '仅快递' },
+  { phase: 'presale', intent: '保价', keywords: '保价、保价费', reply: '圆通可以保价1元。韵达不支持保价，取消保价韵达就出来了', scope: '仅快递' },
+  { phase: 'presale', intent: '网点问题', keywords: '不接单、运力不足、被取消', reply: '您那边网点暂时不接单了，换别的快递下单试试', scope: '仅快递' },
+  { phase: 'presale', intent: '快递单号', keywords: '上传单号、填单号', reply: '可以的，选自行寄回填写快递单号就行', scope: '仅快递' },
+  { phase: 'presale', intent: '实名认证', keywords: '实名、身份证', reply: '去圆通/韵达小城旭认证一下就好，是互通的', scope: '仅快递' },
+  // 快递售后 - 引导小城旭客服
+  { phase: 'aftersale', intent: '退款', keywords: '退款、不想要了、退钱', reply: '收到，请在小城旭首页点击「联系客服」处理退款', scope: '仅快递', needsHuman: true },
+  { phase: 'aftersale', intent: '退款申请', keywords: '申请退款、走退款', reply: '退款理由请选"已收到货-与卖家协商一致"', scope: '仅快递', needsHuman: true },
+  { phase: 'aftersale', intent: '投诉/丢件', keywords: '丢件、破损、投诉', reply: '请把快递单号发我，同时在小城旭点击「联系客服」', scope: '仅快递', needsHuman: true },
+  { phase: 'aftersale', intent: '余额不够', keywords: '余额不够、抵扣不了', reply: '是不是选错快递公司了？截图给我看下', scope: '仅快递', needsHuman: true },
+  { phase: 'aftersale', intent: '揽收慢', keywords: '没来取、不来取、揽收慢', reply: '急件可以换快递公司下单，揽收问题请在小城旭联系客服', scope: '仅快递', needsHuman: true },
+  { phase: 'aftersale', intent: '差评风险', keywords: '差评、体验差', reply: '很抱歉，请在小城旭联系客服优先处理', scope: '仅快递', needsHuman: true },
+];
+
+const PHASE_LABELS: Record<RulePhase, { label: string; color: string }> = {
+  universal: { label: '通用', color: 'bg-blue-50 text-blue-600' },
+  presale: { label: '售前·自动', color: 'bg-green-50 text-green-600' },
+  presale_human: { label: '售前·需人工', color: 'bg-yellow-50 text-yellow-700' },
+  aftersale: { label: '售后·引导客服', color: 'bg-red-50 text-red-600' },
+};
+
+const PHASE_ORDER: RulePhase[] = ['universal', 'presale_human', 'presale', 'aftersale'];
+
+function BuiltinRulesTable() {
+  const grouped = PHASE_ORDER.map(phase => ({
+    phase,
+    ...PHASE_LABELS[phase],
+    rules: BUILTIN_RULES.filter(r => r.phase === phase),
+  }));
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-xy-text-secondary">
+        以下规则始终生效。标记「仅快递」的规则仅在快递品类下触发。售后规则引导客户到小城旭联系客服。如需覆盖，在上方「关键词快捷回复」中添加相同关键词（优先级最高）。
+      </p>
+      {grouped.map(group => (
+        <div key={group.phase} className="space-y-1">
+          <div className="flex items-center gap-2 py-1">
+            <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${group.color}`}>{group.label}</span>
+            <span className="text-xs text-gray-400">{group.rules.length} 条规则</span>
+          </div>
+          <div className="divide-y divide-xy-border border border-xy-border rounded-xl overflow-hidden">
+            {group.rules.map((rule, i) => (
+              <div key={i} className="p-3 hover:bg-xy-gray-50 transition-colors">
+                <div className="flex items-start gap-3">
+                  <div className="flex-shrink-0 flex flex-col items-start gap-1">
+                    <span className="px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600 text-[11px] font-medium">{rule.intent}</span>
+                    {rule.scope && <span className="px-1.5 py-0.5 rounded bg-orange-50 text-orange-600 text-[10px] font-medium">{rule.scope}</span>}
+                    {rule.needsHuman && <span className="px-1.5 py-0.5 rounded bg-rose-50 text-rose-600 text-[10px] font-medium">转人工</span>}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-gray-500 mb-1">
+                      触发词：<span className="text-xy-text-primary font-medium">{rule.keywords}</span>
+                    </p>
+                    <p className="text-sm text-xy-text-primary">{rule.reply}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+      <GuideCard summary="回复优先级说明">
+        <p>1. 你的「关键词快捷回复」（优先级 30，最高）</p>
+        <p>2. 快递售前/售后专用规则（优先级 45-50）</p>
+        <p>3. 通用内置规则（优先级 100）</p>
+        <p>4. 虚拟商品回复 / 通用报价引导模板（兜底）</p>
+        <p className="text-orange-600 mt-1">注：售后规则回复中会引导客户到小城旭联系客服，仅做日志记录不触发闲鱼转人工</p>
+      </GuideCard>
+    </div>
+  );
+}
+
+function CopyableUrl({ label, url }: { label: string; url: string }) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = () => {
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-xs text-xy-text-muted w-20 flex-shrink-0">{label}</span>
+      <code className="flex-1 text-xs bg-white border border-xy-border rounded px-2.5 py-1.5 text-xy-text-primary select-all break-all">{url}</code>
+      <button onClick={handleCopy} type="button" className="flex-shrink-0 px-2.5 py-1.5 text-xs rounded border border-xy-border bg-white hover:bg-xy-gray-50 transition-colors text-xy-text-secondary">
+        {copied ? '已复制' : '复制'}
+      </button>
+    </div>
+  );
+}
+
+function PushUrlDisplay() {
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  const orderUrl = `${origin}/api/xgj/order/receive`;
+  const productUrl = `${origin}/api/xgj/product/receive`;
+  return (
+    <div className="mt-5 bg-blue-50/60 border border-blue-200 p-4 rounded-lg">
+      <h4 className="font-semibold text-blue-900 text-sm mb-1 flex items-center gap-2">
+        <Bell className="w-4 h-4" /> 消息推送 URL
+      </h4>
+      <p className="text-xs text-blue-600 mb-3">将以下地址填入闲管家开放平台的「消息推送地址」配置中。需确保本系统可从公网访问（可使用 ngrok、frp 等内网穿透工具）。</p>
+      <div className="space-y-2">
+        <CopyableUrl label="订单推送" url={orderUrl} />
+        <CopyableUrl label="商品推送" url={productUrl} />
+      </div>
+    </div>
+  );
+}
+
 function CollapsibleSection({ title, summary, guide, defaultOpen = false, children, icon }: {
   title: string;
   summary?: React.ReactNode;
@@ -336,137 +614,7 @@ function CategoryContextBanner({ category }: { category: string }) {
   );
 }
 
-const BRAND_GUIDE: Record<string, string> = {
-  express: '请上传您代发的快递品牌 logo（如顺丰、中通、韵达），系统将自动排列组合生成商品主图',
-  exchange: '请上传相关平台 logo（如 Steam、Xbox、PS），系统将生成带平台标识的商品主图',
-  recharge: '请上传充值平台 logo（如移动、联通、电信），用于生成充值代充主图',
-  movie_ticket: '请上传院线 logo（如万达、CGV、IMAX），用于生成电影票代购主图',
-  account: '请上传平台/游戏 logo，用于生成账号交易商品主图',
-  game: '请上传游戏 logo，用于生成游戏道具商品主图',
-};
-
-function BrandAssetsSection({ category }: { category: string }) {
-  const [assets, setAssets] = useState<BrandAsset[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState(false);
-  const [newName, setNewName] = useState('');
-  const fileRef = useRef<HTMLInputElement>(null);
-
-  const fetchAssets = useCallback(async () => {
-    try {
-      const res = await getBrandAssets();
-      if (res.data?.ok) setAssets(res.data.assets || []);
-    } catch { /* ignore */ }
-    setLoading(false);
-  }, []);
-
-  useEffect(() => { fetchAssets(); }, [fetchAssets]);
-
-  const handleUpload = async () => {
-    const file = fileRef.current?.files?.[0];
-    if (!file) { toast.error('请选择图片文件'); return; }
-    if (!newName.trim()) { toast.error('请输入品牌名称'); return; }
-    setUploading(true);
-    try {
-      const res = await uploadBrandAsset(file, newName.trim(), category);
-      if (res.data?.ok) {
-        toast.success(`已上传「${newName.trim()}」`);
-        setNewName('');
-        if (fileRef.current) fileRef.current.value = '';
-        fetchAssets();
-      } else {
-        toast.error('上传失败');
-      }
-    } catch (err: any) {
-      toast.error('上传失败: ' + (err?.response?.data?.error || err.message));
-    }
-    setUploading(false);
-  };
-
-  const handleDelete = async (id: string, name: string) => {
-    try {
-      const res = await deleteBrandAsset(id);
-      if (res.data?.ok) {
-        toast.success(`已删除「${name}」`);
-        setAssets(prev => prev.filter(a => a.id !== id));
-      }
-    } catch { toast.error('删除失败'); }
-  };
-
-  const guide = BRAND_GUIDE[category] || '上传与您商品相关的品牌/平台 logo，AI 将用它们生成美观的商品展示图';
-
-  return (
-    <div>
-      <h3 className="text-sm font-bold text-xy-text-primary mb-4 flex items-center gap-2 pb-2 border-b border-xy-border">
-        <ImageIcon className="w-4 h-4 text-violet-500" /> 品牌素材库
-      </h3>
-      <p className="text-sm text-xy-text-secondary mb-4">{guide}</p>
-
-      <div className="flex items-end gap-3 mb-4">
-        <div className="flex-1 max-w-xs">
-          <label className="xy-label text-xs">品牌名称</label>
-          <input
-            type="text"
-            className="xy-input px-3 py-2 text-sm"
-            placeholder="如：顺丰、中通"
-            value={newName}
-            onChange={e => setNewName(e.target.value)}
-          />
-        </div>
-        <div className="flex-1 max-w-xs">
-          <label className="xy-label text-xs">Logo 图片</label>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/png,image/jpeg,image/webp,image/svg+xml"
-            className="xy-input px-3 py-1.5 text-sm file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:bg-xy-brand-50 file:text-xy-brand-600 file:font-medium file:text-xs"
-          />
-        </div>
-        <button
-          onClick={handleUpload}
-          disabled={uploading}
-          className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-violet-50 border border-violet-300 text-violet-700 hover:bg-violet-100 transition-colors disabled:opacity-50"
-        >
-          {uploading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-          上传
-        </button>
-      </div>
-
-      {loading ? (
-        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3">
-          {[1, 2, 3].map(i => <div key={i} className="h-24 bg-xy-gray-100 rounded-xl animate-pulse" />)}
-        </div>
-      ) : assets.length === 0 ? (
-        <div className="text-center py-8 text-xy-text-muted text-sm border-2 border-dashed border-xy-border rounded-xl">
-          暂无品牌素材，请上传品牌 logo 图片
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3">
-          {assets.map(asset => (
-            <div key={asset.id} className="group relative bg-xy-gray-50 rounded-xl border border-xy-border p-3 text-center">
-              <div className="w-full aspect-square flex items-center justify-center mb-2 bg-white rounded-lg overflow-hidden">
-                <img
-                  src={`/api/brand-assets/file/${asset.filename}`}
-                  alt={asset.name}
-                  className="max-w-full max-h-full object-contain"
-                  onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                />
-              </div>
-              <p className="text-xs font-medium text-xy-text-primary truncate">{asset.name}</p>
-              <p className="text-[10px] text-xy-text-muted">{asset.category}</p>
-              <button
-                onClick={() => handleDelete(asset.id, asset.name)}
-                className="absolute top-1.5 right-1.5 p-1 bg-white/80 rounded-md opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-50"
-              >
-                <Trash2 className="w-3.5 h-3.5 text-red-500" />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
+/* BrandAssetsSection removed — now in AutoPublish.tsx */
 
 export default function SystemConfig() {
   const { category, switchCategory } = useStoreCategory();
@@ -584,25 +732,44 @@ export default function SystemConfig() {
   };
 
   const handleXgjTest = useCallback(async () => {
+    const xgjCfg = config.xianguanjia || {};
+    const appKey = xgjCfg.app_key || '';
+    const appSecret = xgjCfg.app_secret || '';
+    if (!appKey || String(appKey).includes('****')) {
+      setXgjTestResult({ ok: false, message: '请先填写 AppKey' });
+      toast.error('请先填写 AppKey');
+      return;
+    }
+    if (!appSecret || String(appSecret).includes('****')) {
+      setXgjTestResult({ ok: false, message: '请先填写 AppSecret' });
+      toast.error('请先填写 AppSecret');
+      return;
+    }
     setXgjTesting(true);
     setXgjTestResult(null);
     try {
-      const res = await api.get('/health/check');
-      const xgj = res.data?.xgj;
-      if (xgj?.ok) {
-        setXgjTestResult({ ok: true, message: `连接成功（延迟 ${xgj.latency_ms || '?'}ms）` });
+      const res = await api.post('/xgj/test-connection', {
+        app_key: appKey,
+        app_secret: appSecret,
+        base_url: xgjCfg.base_url || '',
+        mode: xgjCfg.mode || 'self_developed',
+        seller_id: xgjCfg.seller_id || '',
+      });
+      if (res.data?.ok) {
+        setXgjTestResult({ ok: true, message: `连接成功（延迟 ${res.data.latency_ms || '?'}ms）` });
         toast.success('闲管家连接测试成功');
       } else {
-        setXgjTestResult({ ok: false, message: xgj?.message || '连接失败' });
-        toast.error('闲管家连接失败: ' + (xgj?.message || '未知错误'));
+        setXgjTestResult({ ok: false, message: res.data?.message || '连接失败' });
+        toast.error('闲管家连接失败: ' + (res.data?.message || '未知错误'));
       }
     } catch (err: any) {
-      setXgjTestResult({ ok: false, message: err.message || '请求失败' });
-      toast.error('连接测试异常');
+      const msg = err?.response?.data?.message || err.message || '请求失败';
+      setXgjTestResult({ ok: false, message: msg });
+      toast.error('连接测试异常: ' + msg);
     } finally {
       setXgjTesting(false);
     }
-  }, []);
+  }, [config.xianguanjia]);
 
   const handleAiTest = useCallback(async () => {
     const aiCfg = config.ai || {};
@@ -788,7 +955,7 @@ export default function SystemConfig() {
                   className="xy-input px-3 py-2"
                   value={value}
                   placeholder={field.placeholder || ''}
-                  onChange={e => handleChange(sectionKey, field.key, e.target.value)}
+                  onChange={e => handleChange(sectionKey, field.key, field.type === 'number' ? Number(e.target.value) : e.target.value)}
                 />
               )}
               {field.hint && <p className="text-xs text-gray-400 mt-1">{field.hint}</p>}
@@ -1026,6 +1193,7 @@ export default function SystemConfig() {
                     </span>
                   )}
                 </div>
+                <PushUrlDisplay />
                 <div className="mt-4 bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 p-5 rounded-lg text-sm">
                   <h4 className="font-bold text-orange-900 mb-3 flex items-center gap-2">
                     <Info className="w-4 h-4" /> 新手引导：从零配置闲管家
@@ -1042,6 +1210,7 @@ export default function SystemConfig() {
                     </li>
                     <li><strong>填入配置</strong> — 把上方字段填写完整后点击「保存设置」</li>
                     <li><strong>测试连接</strong> — 点击「测试连接」按钮，确认绿色「连接成功」</li>
+                    <li><strong>配置消息推送</strong> — 将上方「消息推送 URL」区域中的地址复制到闲管家开放平台的「消息推送地址」配置中</li>
                   </ol>
                   <div className="mt-4 pt-3 border-t border-orange-200/60">
                     <p className="text-xs text-orange-600">
@@ -1121,122 +1290,140 @@ export default function SystemConfig() {
 
           {/* ── 自动回复 ── */}
           {activeTab === 'auto_reply' && (
-            <div className="xy-card p-6 animate-in fade-in slide-in-from-right-4 space-y-6">
-              <CategoryContextBanner category={category} />
-              <div>
-                <h2 className="text-lg font-bold text-xy-text-primary flex items-center gap-2"><FileText className="w-5 h-5" /> 自动回复设置</h2>
-                <p className="text-sm text-xy-text-secondary mt-1">配置自动回复开关、AI 意图识别和回复模板</p>
+            <div className="space-y-4 animate-in fade-in slide-in-from-right-4">
+              <div className="xy-card p-6 pb-4">
+                <h2 className="text-lg font-bold text-xy-text-primary flex items-center gap-2"><MessageSquare className="w-5 h-5" /> 自动回复设置</h2>
+                <p className="text-sm text-xy-text-secondary mt-1">配置买家消息的自动回复策略，设置后系统会按下方模拟的方式回复买家</p>
               </div>
+              <CategoryContextBanner category={category} />
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="flex items-center justify-between p-4 bg-xy-gray-50 rounded-xl border border-xy-border">
+              {/* ═══ 第一层：核心设置 ═══ */}
+              <div className="xy-card p-6 space-y-5">
+                <div className="flex items-center justify-between">
                   <div>
                     <p className="font-medium text-xy-text-primary">启用自动回复</p>
                     <p className="text-xs text-xy-text-secondary mt-0.5">收到买家消息时自动生成回复</p>
                   </div>
                   <ToggleSwitch checked={config.auto_reply?.enabled !== false} onChange={() => handleChange('auto_reply', 'enabled', !(config.auto_reply?.enabled !== false))} />
                 </div>
-                <div className="flex items-center justify-between p-4 bg-xy-gray-50 rounded-xl border border-xy-border">
-                  <div>
-                    <p className="font-medium text-xy-text-primary">AI 意图识别</p>
-                    <p className="text-xs text-xy-text-secondary mt-0.5">使用 AI 分析买家消息意图后生成针对性回复</p>
+
+                <div>
+                  <h3 className="text-sm font-bold text-xy-text-primary mb-3 flex items-center gap-2"><Zap className="w-4 h-4 text-amber-500" /> 一键应用预设话术</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {Object.entries(CATEGORY_DEFAULTS).map(([key, defaults]) => {
+                      const meta = CATEGORY_META[key];
+                      if (!meta) return null;
+                      const isCurrent = key === category;
+                      const isActive = config.auto_reply?.default_reply === defaults.auto_reply.default_reply;
+                      return (
+                        <button key={key} onClick={() => {
+                          handleChange('auto_reply', 'default_reply', defaults.auto_reply.default_reply);
+                          handleChange('auto_reply', 'virtual_default_reply', defaults.auto_reply.virtual_default_reply);
+                          toast.success(`已应用「${meta.label}」话术`);
+                        }} className={`px-3 py-1.5 text-sm border rounded-lg transition-colors ${
+                          isActive ? 'border-xy-brand-500 bg-xy-brand-50 text-xy-brand-700 font-medium' :
+                          isCurrent ? 'border-xy-brand-300 bg-orange-50/50 hover:bg-xy-brand-50' :
+                          'border-xy-border hover:bg-xy-gray-50 hover:border-xy-brand-300'
+                        }`}>
+                          {meta.icon} {meta.label}话术
+                          {isActive && <span className="ml-1 text-xs text-xy-brand-500">(当前)</span>}
+                        </button>
+                      );
+                    })}
                   </div>
-                  <ToggleSwitch checked={!!config.auto_reply?.ai_intent_enabled} onChange={() => handleChange('auto_reply', 'ai_intent_enabled', !config.auto_reply?.ai_intent_enabled)} />
                 </div>
+
+                {/* 对话流程模拟器 */}
+                <ConversationSimulator category={category} config={config} />
               </div>
 
-              <div>
-                <h3 className="text-sm font-bold text-xy-text-primary mb-3 flex items-center gap-2"><Zap className="w-4 h-4 text-amber-500" /> 一键应用预设话术</h3>
-                <div className="flex flex-wrap gap-2">
-                  {Object.entries(CATEGORY_DEFAULTS).map(([key, defaults]) => {
-                    const meta = CATEGORY_META[key];
-                    if (!meta) return null;
-                    const isCurrent = key === category;
-                    const isActive = config.auto_reply?.default_reply === defaults.auto_reply.default_reply;
-                    return (
-                      <button key={key} onClick={() => {
-                        handleChange('auto_reply', 'default_reply', defaults.auto_reply.default_reply);
-                        handleChange('auto_reply', 'virtual_default_reply', defaults.auto_reply.virtual_default_reply);
-                        toast.success(`已应用「${meta.label}」话术`);
-                      }} className={`px-3 py-1.5 text-sm border rounded-lg transition-colors ${
-                        isActive ? 'border-xy-brand-500 bg-xy-brand-50 text-xy-brand-700 font-medium' :
-                        isCurrent ? 'border-xy-brand-300 bg-orange-50/50 hover:bg-xy-brand-50' :
-                        'border-xy-border hover:bg-xy-gray-50 hover:border-xy-brand-300'
-                      }`}>
-                        {meta.icon} {meta.label}话术
-                        {isActive && <span className="ml-1 text-xs text-xy-brand-500">(当前)</span>}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="xy-label">通用回复模板</label>
-                  <textarea className="xy-input px-3 py-2 h-28 resize-none" placeholder="买家消息的默认自动回复内容..." value={config.auto_reply?.default_reply || ''} onChange={e => handleChange('auto_reply', 'default_reply', e.target.value)} />
-                </div>
-                <div>
-                  <label className="xy-label">虚拟商品回复模板</label>
-                  <textarea className="xy-input px-3 py-2 h-28 resize-none" placeholder="虚拟商品（兑换码/卡密）的专用回复模板..." value={config.auto_reply?.virtual_default_reply || ''} onChange={e => handleChange('auto_reply', 'virtual_default_reply', e.target.value)} />
-                </div>
-              </div>
-
-              <GuideCard summary="通用回复模板用于所有规则/报价引导均未匹配时的兜底回复">
-                <p>回复优先级：关键词规则 &gt; 报价引导话术 &gt; 通用回复模板</p>
-                <p>快递品类下，买家发送招呼语时通常会触发「报价引导话术」（在下方配置），而非此处的通用模板。</p>
-                <p>虚拟商品回复模板仅在系统判断为虚拟商品上下文时使用。</p>
-              </GuideCard>
-
-              {/* 报价引导话术 */}
-              <div className="border-t border-xy-border pt-6">
-                <h3 className="text-sm font-bold text-xy-text-primary mb-1">报价引导话术</h3>
-                <p className="text-xs text-xy-text-secondary mb-4">买家发送招呼语或信息不完整时，系统用此话术引导买家提供报价所需信息</p>
+              {/* ═══ 第二层：回复模板 ═══ */}
+              <CollapsibleSection
+                title="回复模板"
+                defaultOpen
+                icon={<FileText className="w-4 h-4 text-blue-500" />}
+                summary={<span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 text-[11px]">通用 + 虚拟商品 + 关键词</span>}
+              >
                 <div className="space-y-4">
                   <div>
-                    <label className="xy-label">引导话术模板</label>
-                    <textarea className="xy-input px-3 py-2 h-24 resize-none" placeholder="为了给你报最准确的价格，麻烦提供一下：{fields}..." value={config.auto_reply?.quote_missing_template || ''} onChange={e => handleChange('auto_reply', 'quote_missing_template', e.target.value)} />
-                    <p className="text-xs text-gray-400 mt-1">变量 <code className="bg-gray-100 px-1 rounded">{'{fields}'}</code> 会自动替换为缺失信息（如"寄件城市、收件城市、包裹重量"）</p>
+                    <label className="xy-label">通用回复模板</label>
+                    <textarea className="xy-input px-3 py-2 h-24 resize-none" placeholder="买家消息的默认自动回复内容..." value={config.auto_reply?.default_reply || ''} onChange={e => handleChange('auto_reply', 'default_reply', e.target.value)} />
+                    <p className="text-[11px] text-gray-400 mt-1">所有内置规则和报价引导均未匹配时，使用此模板回复</p>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="flex items-center justify-between p-4 bg-xy-gray-50 rounded-xl border border-xy-border">
+                  <div>
+                    <label className="xy-label">虚拟商品回复模板</label>
+                    <textarea className="xy-input px-3 py-2 h-24 resize-none" placeholder="虚拟商品（兑换码/卡密）的专用回复模板..." value={config.auto_reply?.virtual_default_reply || ''} onChange={e => handleChange('auto_reply', 'virtual_default_reply', e.target.value)} />
+                    <p className="text-[11px] text-gray-400 mt-1">系统判断为虚拟商品时优先使用此模板</p>
+                  </div>
+                  <div className="border-t border-xy-border pt-4">
+                    <label className="xy-label flex items-center gap-2">关键词快捷回复 <span className="text-[11px] font-normal text-gray-400">(优先于通用模板)</span></label>
+                    <textarea className="xy-input px-3 py-2 h-28 resize-none text-sm font-mono" placeholder={"还在=在的亲，请问需要寄什么快递？\n最低=价格已经尽量实在了，诚心要的话可以小刀。\n包邮=默认不包邮，具体看地区可以商量。"} value={config.auto_reply?.keyword_replies_text || ''} onChange={e => handleChange('auto_reply', 'keyword_replies_text', e.target.value)} />
+                    <p className="text-[11px] text-gray-400 mt-1">每行一条，格式：<code className="bg-gray-100 px-1 rounded">关键词=回复内容</code>。买家消息包含关键词时直接回复。</p>
+                  </div>
+                </div>
+              </CollapsibleSection>
+
+              {/* ═══ 第三层：高级设置 ═══ */}
+              <CollapsibleSection
+                title="高级设置"
+                icon={<Settings className="w-4 h-4 text-gray-400" />}
+                summary={<span className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 text-[11px]">适合进阶用户</span>}
+              >
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="flex items-center justify-between p-3 bg-xy-gray-50 rounded-xl border border-xy-border">
+                      <div>
+                        <p className="font-medium text-xy-text-primary text-sm">AI 意图识别</p>
+                        <p className="text-[11px] text-xy-text-secondary mt-0.5">用 AI 分析买家消息意图</p>
+                      </div>
+                      <ToggleSwitch checked={!!config.auto_reply?.ai_intent_enabled} onChange={() => handleChange('auto_reply', 'ai_intent_enabled', !config.auto_reply?.ai_intent_enabled)} />
+                    </div>
+                    <div className="flex items-center justify-between p-3 bg-xy-gray-50 rounded-xl border border-xy-border">
                       <div>
                         <p className="font-medium text-xy-text-primary text-sm">严格格式引导</p>
-                        <p className="text-xs text-xy-text-secondary mt-0.5">非报价消息也引导买家按标准格式提供信息</p>
+                        <p className="text-[11px] text-xy-text-secondary mt-0.5">招呼语也引导标准格式</p>
                       </div>
                       <ToggleSwitch checked={config.auto_reply?.strict_format_reply_enabled !== false} onChange={() => handleChange('auto_reply', 'strict_format_reply_enabled', !(config.auto_reply?.strict_format_reply_enabled !== false))} />
                     </div>
-                    <div className="flex items-center justify-between p-4 bg-xy-gray-50 rounded-xl border border-xy-border">
+                    <div className="flex items-center justify-between p-3 bg-xy-gray-50 rounded-xl border border-xy-border">
                       <div>
                         <p className="font-medium text-xy-text-primary text-sm">强制非空回复</p>
-                        <p className="text-xs text-xy-text-secondary mt-0.5">所有规则均未匹配时使用兜底话术</p>
+                        <p className="text-[11px] text-xy-text-secondary mt-0.5">无匹配时用兜底话术</p>
                       </div>
                       <ToggleSwitch checked={config.auto_reply?.force_non_empty_reply !== false} onChange={() => handleChange('auto_reply', 'force_non_empty_reply', !(config.auto_reply?.force_non_empty_reply !== false))} />
                     </div>
+                    <div className="flex items-center justify-between p-3 bg-xy-gray-50 rounded-xl border border-xy-border">
+                      <div>
+                        <p className="font-medium text-xy-text-primary text-sm">报价最多展示快递数</p>
+                        <p className="text-[11px] text-xy-text-secondary mt-0.5">报价结果中的快递数量上限</p>
+                      </div>
+                      <input type="number" className="xy-input px-2 py-1 w-16 text-center text-sm" value={config.auto_reply?.quote_reply_max_couriers ?? 10} onChange={e => handleChange('auto_reply', 'quote_reply_max_couriers', Number(e.target.value))} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="xy-label">报价引导话术</label>
+                    <textarea className="xy-input px-3 py-2 h-20 resize-none text-sm" placeholder="为了给你报最准确的价格，麻烦提供一下：{fields}..." value={config.auto_reply?.quote_missing_template || ''} onChange={e => handleChange('auto_reply', 'quote_missing_template', e.target.value)} />
+                    <p className="text-[11px] text-gray-400 mt-1"><code className="bg-gray-100 px-1 rounded">{'{fields}'}</code> 自动替换为缺失信息（寄件城市、收件城市、包裹重量）</p>
                   </div>
                   <div>
                     <label className="xy-label">兜底话术</label>
-                    <textarea className="xy-input px-3 py-2 h-20 resize-none" placeholder="所有规则均未匹配且 AI 无返回时的最后兜底回复..." value={config.auto_reply?.non_empty_reply_fallback || ''} onChange={e => handleChange('auto_reply', 'non_empty_reply_fallback', e.target.value)} />
+                    <textarea className="xy-input px-3 py-2 h-16 resize-none text-sm" placeholder="所有规则均未匹配时的最后兜底回复..." value={config.auto_reply?.non_empty_reply_fallback || ''} onChange={e => handleChange('auto_reply', 'non_empty_reply_fallback', e.target.value)} />
                   </div>
                   <div>
                     <label className="xy-label">报价失败话术</label>
-                    <textarea className="xy-input px-3 py-2 h-20 resize-none" placeholder="报价服务异常时的降级回复..." value={config.auto_reply?.quote_failed_template || ''} onChange={e => handleChange('auto_reply', 'quote_failed_template', e.target.value)} />
-                  </div>
-                  <div>
-                    <label className="xy-label">报价最多展示快递数</label>
-                    <input type="number" className="xy-input px-3 py-2 w-32" value={config.auto_reply?.quote_reply_max_couriers ?? 10} onChange={e => handleChange('auto_reply', 'quote_reply_max_couriers', Number(e.target.value))} />
-                    <p className="text-xs text-gray-400 mt-1">报价回复中最多展示多少家快递公司的价格</p>
+                    <textarea className="xy-input px-3 py-2 h-16 resize-none text-sm" placeholder="报价服务异常时的降级回复..." value={config.auto_reply?.quote_failed_template || ''} onChange={e => handleChange('auto_reply', 'quote_failed_template', e.target.value)} />
                   </div>
                 </div>
-              </div>
+              </CollapsibleSection>
 
-              {/* 关键词快捷回复 */}
-              <div className="border-t border-xy-border pt-6">
-                <h3 className="text-sm font-bold text-xy-text-primary mb-1">关键词快捷回复</h3>
-                <p className="text-xs text-xy-text-secondary mb-4">买家消息中包含关键词时，直接回复对应内容（优先于通用模板）</p>
-                <textarea className="xy-input px-3 py-2 h-36 resize-none text-sm font-mono" placeholder={"还在=在的亲，请问需要寄什么快递？\n最低=价格已经尽量实在了，诚心要的话可以小刀。\n包邮=默认不包邮，具体看地区可以商量。"} value={config.auto_reply?.keyword_replies_text || ''} onChange={e => handleChange('auto_reply', 'keyword_replies_text', e.target.value)} />
-                <p className="text-xs text-gray-400 mt-1">每行一条，格式：关键词=回复内容</p>
-              </div>
+              {/* ═══ 内置规则一览 ═══ */}
+              <CollapsibleSection
+                title="系统内置意图规则"
+                icon={<Shield className="w-4 h-4 text-indigo-500" />}
+                summary={<span className="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600 text-[11px]">7 条规则始终生效</span>}
+              >
+                <BuiltinRulesTable />
+              </CollapsibleSection>
             </div>
           )}
 
@@ -1378,19 +1565,117 @@ export default function SystemConfig() {
                 icon={<Store className="w-4 h-4 text-emerald-500" />}
                 summary={<>
                   <span className={`px-1.5 py-0.5 rounded text-[11px] ${config.auto_publish?.enabled ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{config.auto_publish?.enabled ? '已启用' : '未启用'}</span>
+                  {config.auto_publish?.enabled && (
+                    <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 text-[11px]">
+                      最多 {config.auto_publish?.max_active_listings ?? 10} 条链接
+                    </span>
+                  )}
                 </>}
               >
-                {renderSectionFields('auto_publish')}
+                {/* 开关 + 基础设置 */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-4 bg-xy-gray-50 rounded-xl border border-xy-border">
+                    <div>
+                      <p className="font-medium text-xy-text-primary">启用自动上架</p>
+                      <p className="text-xs text-xy-text-secondary mt-0.5">开启后系统按策略自动上架新商品</p>
+                    </div>
+                    <ToggleSwitch checked={!!config.auto_publish?.enabled} onChange={() => handleChange('auto_publish', 'enabled', !config.auto_publish?.enabled)} />
+                  </div>
+
+                  {config.auto_publish?.enabled && (
+                    <>
+                      {/* 策略时间线可视化 */}
+                      <div className="p-4 bg-gradient-to-r from-emerald-50 to-blue-50 rounded-xl border border-emerald-200">
+                        <h4 className="text-sm font-bold text-xy-text-primary mb-3 flex items-center gap-2">
+                          <TrendingUp className="w-4 h-4 text-emerald-500" /> 上架策略概览
+                        </h4>
+                        <div className="flex items-center gap-0">
+                          {/* 冷启动阶段 */}
+                          <div className="flex-1 text-center">
+                            <div className="bg-emerald-500 text-white text-xs font-bold py-2 px-3 rounded-l-lg">
+                              D1 ~ D{config.auto_publish?.cold_start_days ?? 2}
+                            </div>
+                            <p className="text-xs text-emerald-700 mt-1.5 font-medium">冷启动期</p>
+                            <p className="text-[11px] text-emerald-600">每天新建 {config.auto_publish?.cold_start_daily_count ?? 5} 条</p>
+                          </div>
+                          <div className="text-emerald-400 text-lg font-bold">→</div>
+                          {/* 稳定阶段 */}
+                          <div className="flex-1 text-center">
+                            <div className="bg-blue-500 text-white text-xs font-bold py-2 px-3 rounded-r-lg">
+                              D{(config.auto_publish?.cold_start_days ?? 2) + 1}+
+                            </div>
+                            <p className="text-xs text-blue-700 mt-1.5 font-medium">稳定运营</p>
+                            <p className="text-[11px] text-blue-600">每天替换 {config.auto_publish?.steady_replace_count ?? 1} 条最差链接</p>
+                          </div>
+                        </div>
+                        <p className="text-[11px] text-gray-500 mt-2 text-center">
+                          最大活跃链接 {config.auto_publish?.max_active_listings ?? 10} 条 · 替换依据：{(config.auto_publish?.steady_replace_metric ?? 'views') === 'views' ? '浏览量' : '销量'}
+                        </p>
+                      </div>
+
+                      {/* 调度参数编辑 */}
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                        <div>
+                          <label className="xy-label">冷启动天数</label>
+                          <input type="number" min={1} max={14} className="xy-input px-3 py-2" value={config.auto_publish?.cold_start_days ?? 2} onChange={e => handleChange('auto_publish', 'cold_start_days', Math.max(1, Number(e.target.value)))} />
+                          <p className="text-[11px] text-gray-400 mt-1">前 N 天批量上架</p>
+                        </div>
+                        <div>
+                          <label className="xy-label">每日新建链接数</label>
+                          <input type="number" min={1} max={20} className="xy-input px-3 py-2" value={config.auto_publish?.cold_start_daily_count ?? 5} onChange={e => handleChange('auto_publish', 'cold_start_daily_count', Math.max(1, Number(e.target.value)))} />
+                          <p className="text-[11px] text-gray-400 mt-1">冷启动期每天</p>
+                        </div>
+                        <div>
+                          <label className="xy-label">每日替换链接数</label>
+                          <input type="number" min={1} max={10} className="xy-input px-3 py-2" value={config.auto_publish?.steady_replace_count ?? 1} onChange={e => handleChange('auto_publish', 'steady_replace_count', Math.max(1, Number(e.target.value)))} />
+                          <p className="text-[11px] text-gray-400 mt-1">稳定期每天</p>
+                        </div>
+                        <div>
+                          <label className="xy-label">最大活跃链接数</label>
+                          <input type="number" min={1} max={50} className="xy-input px-3 py-2" value={config.auto_publish?.max_active_listings ?? 10} onChange={e => handleChange('auto_publish', 'max_active_listings', Math.max(1, Number(e.target.value)))} />
+                          <p className="text-[11px] text-gray-400 mt-1">店铺上限</p>
+                        </div>
+                        <div>
+                          <label className="xy-label">替换依据</label>
+                          <select className="xy-input px-3 py-2" value={config.auto_publish?.steady_replace_metric ?? 'views'} onChange={e => handleChange('auto_publish', 'steady_replace_metric', e.target.value)}>
+                            <option value="views">浏览量最低</option>
+                            <option value="sales">销量最低</option>
+                          </select>
+                          <p className="text-[11px] text-gray-400 mt-1">判断"最差"链接</p>
+                        </div>
+                        <div>
+                          <label className="xy-label">默认品类</label>
+                          <select className="xy-input px-3 py-2" value={config.auto_publish?.default_category ?? 'exchange'} onChange={e => handleChange('auto_publish', 'default_category', e.target.value)}>
+                            {Object.entries(CATEGORY_META).map(([k, m]) => (
+                              <option key={k} value={k}>{m.icon} {m.label}</option>
+                            ))}
+                          </select>
+                          <p className="text-[11px] text-gray-400 mt-1">新商品默认归属</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between p-3 bg-xy-gray-50 rounded-xl border border-xy-border">
+                        <div>
+                          <p className="font-medium text-sm text-xy-text-primary">自动合规检查</p>
+                          <p className="text-xs text-xy-text-secondary">上架前自动检测违规关键词和敏感内容</p>
+                        </div>
+                        <ToggleSwitch checked={config.auto_publish?.auto_compliance !== false} onChange={() => handleChange('auto_publish', 'auto_compliance', !(config.auto_publish?.auto_compliance !== false))} />
+                      </div>
+                    </>
+                  )}
+                </div>
               </CollapsibleSection>
 
-              {/* 品牌素材库 */}
-              <CollapsibleSection
-                title="品牌素材库"
-                icon={<ImageIcon className="w-4 h-4 text-violet-500" />}
-                summary={<span className="px-1.5 py-0.5 rounded bg-violet-50 text-violet-600 text-[11px]">用于商品主图生成</span>}
-              >
-                <BrandAssetsSection category={category} />
-              </CollapsibleSection>
+              {/* 品牌素材库 — 已迁移到自动上架页面 */}
+              <div className="bg-violet-50 border border-violet-200 rounded-xl p-4 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-violet-800">品牌素材库 & 模板管理</p>
+                  <p className="text-xs text-violet-600 mt-0.5">管理品牌图片和商品主图模板已移至自动上架页面</p>
+                </div>
+                <a href="/products/auto-publish?tab=assets" className="px-3 py-1.5 text-xs font-medium bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition-colors">
+                  前往管理 →
+                </a>
+              </div>
             </div>
           )}
 
