@@ -32,6 +32,11 @@ def mock_api_client(mock_api_response_ok):
     client.publish_product.return_value = mock_api_response_ok
     client.list_products.return_value = mock_api_response_ok
     client.modify_order_price.return_value = mock_api_response_ok
+    # For relist - returns a mock response with authorized users
+    mock_users_resp = MagicMock()
+    mock_users_resp.ok = True
+    mock_users_resp.data = [{"user_name": "test_user", "nick_name": "测试用户"}]
+    client.list_authorized_users.return_value = mock_users_resp
     return client
 
 
