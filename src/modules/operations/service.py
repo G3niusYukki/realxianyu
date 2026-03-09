@@ -451,6 +451,7 @@ class OperationsService:
         """Load pricing config from system_config.json."""
         try:
             from src.dashboard.config_service import read_system_config
+
             return read_system_config().get("pricing", {})
         except Exception:
             return {}
