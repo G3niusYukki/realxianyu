@@ -347,9 +347,9 @@ class AutoPublishService:
         if scheduled_time:
             from datetime import datetime as _dt
 
-            publish_payload["specify_publish_time"] = _dt.fromtimestamp(
-                int(scheduled_time)
-            ).strftime("%Y-%m-%d %H:%M:%S")
+            publish_payload["specify_publish_time"] = _dt.fromtimestamp(int(scheduled_time)).strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
 
         resp = self.api_client.publish_product(publish_payload)
         if not resp.ok:

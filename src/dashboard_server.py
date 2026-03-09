@@ -444,13 +444,15 @@ class MimicOps:
         xgj_sys = sys_cfg.get("xianguanjia", {})
 
         merged_xgj = dict(xgj_sys) if isinstance(xgj_sys, dict) else {}
-        merged_xgj.update({
-            "enabled": bool(settings["configured"]),
-            "app_key": settings["app_key"],
-            "app_secret": settings["app_secret"],
-            "merchant_id": settings["merchant_id"] or None,
-            "base_url": settings["base_url"],
-        })
+        merged_xgj.update(
+            {
+                "enabled": bool(settings["configured"]),
+                "app_key": settings["app_key"],
+                "app_secret": settings["app_secret"],
+                "merchant_id": settings["merchant_id"] or None,
+                "base_url": settings["base_url"],
+            }
+        )
 
         result: dict[str, Any] = {"xianguanjia": merged_xgj}
         oss_cfg = sys_cfg.get("oss")
