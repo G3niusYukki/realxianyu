@@ -95,6 +95,10 @@ class IntentRule:
     keywords: list[str] = field(default_factory=list)
     patterns: list[str] = field(default_factory=list)
     priority: int = 100
+    categories: list[str] = field(default_factory=list)
+    needs_human: bool = False
+    human_reason: str = ""
+    phase: str = ""
 
     def matches(self, text: str) -> bool:
         for keyword in self.keywords:
@@ -350,8 +354,22 @@ class ReplyStrategyEngine:
         keywords = [str(k).strip().lower() for k in raw_rule.get("keywords", []) if str(k).strip()]
         patterns = [str(p).strip() for p in raw_rule.get("patterns", []) if str(p).strip()]
         priority = int(raw_rule.get("priority", 100))
+        categories = [str(c).strip() for c in raw_rule.get("categories", []) if str(c).strip()]
+        needs_human = bool(raw_rule.get("needs_human", False))
+        human_reason = str(raw_rule.get("human_reason", ""))
+        phase = str(raw_rule.get("phase", ""))
 
-        return IntentRule(name=name, reply=reply, keywords=keywords, patterns=patterns, priority=priority)
+        return IntentRule(
+            name=name,
+            reply=reply,
+            keywords=keywords,
+            patterns=patterns,
+            priority=priority,
+            categories=categories,
+            needs_human=needs_human,
+            human_reason=human_reason,
+            phase=phase,
+        )
 
     def _build_legacy_keyword_rules(self, keyword_replies: dict[str, str]) -> list[IntentRule]:
         rules: list[IntentRule] = []

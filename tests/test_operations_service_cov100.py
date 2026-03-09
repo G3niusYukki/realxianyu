@@ -36,10 +36,13 @@ def mock_api_client(mock_api_response_ok):
 
 
 def _make_ops_service(api_client=None, config=None, analytics=None, controller=None):
-    with patch("src.modules.operations.service.get_compliance_guard") as mock_cg, \
-         patch("src.modules.operations.service.get_config") as mock_gc:
+    with (
+        patch("src.modules.operations.service.get_compliance_guard") as mock_cg,
+        patch("src.modules.operations.service.get_config") as mock_gc,
+    ):
         mock_gc.return_value = MagicMock(browser={"delay": {"min": 0.01, "max": 0.02}})
         from src.modules.operations.service import OperationsService
+
         svc = OperationsService(
             controller=controller,
             config=config or {},
@@ -71,18 +74,31 @@ class TestBuildApiClient:
     def test_success(self):
         with patch("src.modules.operations.service.OpenPlatformClient") as MockClient:
             MockClient.return_value = MagicMock()
-            svc = _make_ops_service(config={"xianguanjia": {
-                "enabled": True, "app_key": "k", "app_secret": "s",
-                "base_url": "https://test.com", "timeout": 10,
-            }})
+            svc = _make_ops_service(
+                config={
+                    "xianguanjia": {
+                        "enabled": True,
+                        "app_key": "k",
+                        "app_secret": "s",
+                        "base_url": "https://test.com",
+                        "timeout": 10,
+                    }
+                }
+            )
             result = svc._build_api_client()
             assert result is not None
 
     def test_exception(self):
         with patch("src.modules.operations.service.OpenPlatformClient", side_effect=RuntimeError("init fail")):
-            svc = _make_ops_service(config={"xianguanjia": {
-                "enabled": True, "app_key": "k", "app_secret": "s",
-            }})
+            svc = _make_ops_service(
+                config={
+                    "xianguanjia": {
+                        "enabled": True,
+                        "app_key": "k",
+                        "app_secret": "s",
+                    }
+                }
+            )
             result = svc._build_api_client()
             assert result is None
 
@@ -281,10 +297,12 @@ class TestGetListingStats:
 
     @pytest.mark.asyncio
     async def test_success(self, mock_api_client, mock_api_response_ok):
-        mock_api_response_ok.data = {"list": [
-            {"status": 1, "view_count": 10, "want_count": 2},
-            {"status": "on_sale", "view_count": 5, "want_count": 3},
-        ]}
+        mock_api_response_ok.data = {
+            "list": [
+                {"status": 1, "view_count": 10, "want_count": 2},
+                {"status": "on_sale", "view_count": 5, "want_count": 3},
+            ]
+        }
         svc = _make_ops_service(api_client=mock_api_client)
         result = await svc.get_listing_stats()
         assert result["total"] == 2
@@ -316,15 +334,21 @@ class TestGetListingStats:
 class TestTimestampAndContract:
     def test_ts(self):
         from src.modules.operations.service import OperationsService
+
         ts = OperationsService._ts()
         assert "T" in ts
         assert ts.endswith("Z")
 
     def test_exec_contract(self):
         from src.modules.operations.service import OperationsService
+
         result = OperationsService._exec_contract(
-            ok=True, action="test", code="OK", message="success",
-            data={"k": "v"}, errors=[{"e": "err"}],
+            ok=True,
+            action="test",
+            code="OK",
+            message="success",
+            data={"k": "v"},
+            errors=[{"e": "err"}],
         )
         assert result["ok"] is True
         assert result["action"] == "test"
@@ -366,7 +390,8 @@ class TestExecuteProductAction:
             mock_ls.execute_product_action = AsyncMock(return_value={"ok": True})
             MockLS.return_value = mock_ls
             result = await svc.execute_product_action(
-                "edit", api_client=mock_api_client,
+                "edit",
+                api_client=mock_api_client,
             )
         assert result["ok"] is True
 
@@ -462,14 +487,14 @@ class TestAutoAdjustPrice:
 
     @pytest.mark.asyncio
     async def test_price_at_floor(self, mock_api_client):
-        svc = _make_ops_service(api_client=mock_api_client)
+        svc = _make_ops_service(api_client=mock_api_client, config={"pricing": {"auto_adjust": True}})
         result = await svc.auto_adjust_price("prod1", 100.0, step_amount=0, min_price=100.0)
         assert result["success"] is False
         assert result["error"] == "price_at_floor"
 
     @pytest.mark.asyncio
     async def test_step_down(self, mock_api_client):
-        svc = _make_ops_service(api_client=mock_api_client)
+        svc = _make_ops_service(api_client=mock_api_client, config={"pricing": {"auto_adjust": True}})
         result = await svc.auto_adjust_price("prod1", 100.0, step_amount=5.0, min_price=90.0)
         assert result.get("action") == "auto_adjust_price"
         assert result.get("strategy") == "step_down"
