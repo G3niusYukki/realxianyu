@@ -444,14 +444,14 @@ class MimicOps:
         xgj_sys = sys_cfg.get("xianguanjia", {}) if isinstance(sys_cfg.get("xianguanjia"), dict) else {}
 
         # env 为空时从 system_config 回退；用于 SystemConfig 写入 system_config.json 但 .env 未同步的场景
-        app_key = (settings["app_key"] or "").strip() or str(xgj_sys.get("app_key", "")).strip()
-        app_secret = (settings["app_secret"] or "").strip() or str(xgj_sys.get("app_secret", "")).strip()
+        app_key = (settings.get("app_key") or "").strip() or str(xgj_sys.get("app_key", "")).strip()
+        app_secret = (settings.get("app_secret") or "").strip() or str(xgj_sys.get("app_secret", "")).strip()
         base_url = (
-            (settings["base_url"] or "").strip()
+            (settings.get("base_url") or "").strip()
             or str(xgj_sys.get("base_url", "")).strip()
             or "https://open.goofish.pro"
         )
-        merchant_id = (settings["merchant_id"] or "").strip() or str(xgj_sys.get("merchant_id", "")).strip() or None
+        merchant_id = (settings.get("merchant_id") or "").strip() or str(xgj_sys.get("merchant_id", "")).strip() or None
 
         merged_xgj = dict(xgj_sys)
         merged_xgj.update(
