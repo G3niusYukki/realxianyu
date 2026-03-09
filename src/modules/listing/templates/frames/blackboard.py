@@ -22,11 +22,14 @@ def render(params: dict[str, Any], theme: dict[str, str]) -> str:
     brand_items = params.get("brand_items", [])
 
     grid = brand_grid_html(
-        brand_items, shape="circle", size=130, gap=14,
+        brand_items,
+        shape="circle",
+        size=130,
+        gap=14,
         border_color="rgba(255,255,255,0.3)",
     )
 
-    body = f'''
+    body = f"""
 <div style="width:1080px;height:1080px;position:relative;display:flex;
     align-items:center;justify-content:center;
     background:linear-gradient(135deg,#1e3326 0%,#2d4a3e 50%,#1e3326 100%);">
@@ -128,6 +131,6 @@ def render(params: dict[str, Any], theme: dict[str, str]) -> str:
             </div>
         </div>
     </div>
-</div>'''
+</div>"""
 
     return wrap_page(body, bg="#1e3326")

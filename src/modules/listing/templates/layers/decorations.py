@@ -38,21 +38,21 @@ def burst_badge(_params: dict[str, Any], _theme: dict[str, Any]) -> ModifierOutp
     overlay = (
         f'<div style="position:absolute;top:20px;right:20px;width:140px;height:140px;'
         f'z-index:10;transform:rotate(12deg);filter:drop-shadow(2px 4px 6px rgba(0,0,0,0.3));">'
-        f'{svg_star}</div>'
+        f"{svg_star}</div>"
     )
     return ModifierOutput(overlay_html=overlay)
 
 
 @register_modifier("decoration", "ribbon", name="飘带横幅", desc="左上角对角飘带")
 def ribbon(_params: dict[str, Any], _theme: dict[str, Any]) -> ModifierOutput:
-    overlay = '''
+    overlay = """
 <div style="position:absolute;top:0;left:0;width:200px;height:200px;overflow:hidden;z-index:10;">
   <div style="position:absolute;top:28px;left:-40px;width:240px;text-align:center;
       transform:rotate(-45deg);background:var(--badge-bg,#dc2626);
       color:var(--badge-text,#fff);font-size:18px;font-weight:800;
       padding:8px 0;box-shadow:0 4px 12px rgba(0,0,0,0.3);
       letter-spacing:2px;">限时特惠</div>
-</div>'''
+</div>"""
     return ModifierOutput(overlay_html=overlay)
 
 

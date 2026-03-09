@@ -29,20 +29,19 @@ def hero_center(params: dict[str, Any], theme: dict[str, Any]) -> LayoutOutput:
     badge = e(theme.get("badge", ""))
 
     label_tags = ""
-    for lb in (labels.split("/") if isinstance(labels, str) else labels):
+    for lb in labels.split("/") if isinstance(labels, str) else labels:
         lb = lb.strip()
         if lb:
             label_tags += (
                 f'<span style="display:inline-block;padding:6px 18px;'
-                f'border-radius:20px;font-size:20px;font-weight:700;'
-                f'background:var(--bg-secondary, #f3f4f6);color:var(--text-primary, #1f2937);'
+                f"border-radius:20px;font-size:20px;font-weight:700;"
+                f"background:var(--bg-secondary, #f3f4f6);color:var(--text-primary, #1f2937);"
                 f'border:2px solid var(--border-color,transparent);">{e(lb)}</span>\n'
             )
 
-    grid = brand_grid_html(brand_items, size=130, show_name=True,
-                           name_color="var(--text-primary)", gap=24)
+    grid = brand_grid_html(brand_items, size=130, show_name=True, name_color="var(--text-primary)", gap=24)
 
-    body = f'''
+    body = f"""
 <div style="position:relative;width:1080px;height:1080px;
     background:var(--bg-primary);display:flex;flex-direction:column;
     align-items:center;justify-content:center;padding:60px;overflow:hidden;">
@@ -65,7 +64,7 @@ def hero_center(params: dict[str, Any], theme: dict[str, Any]) -> LayoutOutput:
 
   <div style="font-size:20px;color:var(--text-light,#fff);opacity:0.7;
       letter-spacing:4px;margin-top:20px;">{tagline}</div>
-</div>'''
+</div>"""
 
     css = ""
     return LayoutOutput(body_html=body, required_css=css)
@@ -81,7 +80,7 @@ def split_panel(params: dict[str, Any], theme: dict[str, Any]) -> LayoutOutput:
     badge = e(theme.get("badge", ""))
 
     label_items = ""
-    for lb in (labels.split("/") if isinstance(labels, str) else labels):
+    for lb in labels.split("/") if isinstance(labels, str) else labels:
         lb = lb.strip()
         if lb:
             label_items += (
@@ -91,12 +90,18 @@ def split_panel(params: dict[str, Any], theme: dict[str, Any]) -> LayoutOutput:
                 f'background:var(--text-accent);"></span>{e(lb)}</div>\n'
             )
 
-    grid = brand_grid_html(brand_items, size=140, show_name=True,
-                           name_color="var(--text-primary)", max_cols=3, gap=20,
-                           bg_color="var(--bg-secondary,rgba(255,255,255,0.15))",
-                           shape="rounded_square")
+    grid = brand_grid_html(
+        brand_items,
+        size=140,
+        show_name=True,
+        name_color="var(--text-primary)",
+        max_cols=3,
+        gap=20,
+        bg_color="var(--bg-secondary,rgba(255,255,255,0.15))",
+        shape="rounded_square",
+    )
 
-    body = f'''
+    body = f"""
 <div style="position:relative;width:1080px;height:1080px;
     background:var(--bg-primary);display:grid;grid-template-columns:1fr 1fr;
     overflow:hidden;">
@@ -128,7 +133,7 @@ def split_panel(params: dict[str, Any], theme: dict[str, Any]) -> LayoutOutput:
       border-left:3px solid var(--border-color,rgba(255,255,255,0.1));">
     {grid}
   </div>
-</div>'''
+</div>"""
 
     return LayoutOutput(body_html=body)
 
@@ -151,7 +156,7 @@ def price_rows(params: dict[str, Any], theme: dict[str, Any]) -> LayoutOutput:
         border_color="var(--border-color,rgba(0,0,0,0.08))",
     )
 
-    body = f'''
+    body = f"""
 <div style="position:relative;width:1080px;height:1080px;
     background:var(--bg-primary);display:flex;flex-direction:column;
     overflow:hidden;">
@@ -175,7 +180,7 @@ def price_rows(params: dict[str, Any], theme: dict[str, Any]) -> LayoutOutput:
   <!-- Footer -->
   <div style="padding:20px;text-align:center;font-size:18px;
       color:var(--text-primary);opacity:0.5;letter-spacing:4px;">{tagline}</div>
-</div>'''
+</div>"""
 
     return LayoutOutput(body_html=body)
 
@@ -188,12 +193,18 @@ def brand_hero(params: dict[str, Any], theme: dict[str, Any]) -> LayoutOutput:
     brand_items = _ensure_brand_items(params)
     badge = e(theme.get("badge", ""))
 
-    grid = brand_grid_html(brand_items, size=180, show_name=True,
-                           name_color="var(--text-primary)", gap=30, max_cols=4,
-                           shape="rounded_square",
-                           bg_color="var(--bg-secondary,rgba(255,255,255,0.2))")
+    grid = brand_grid_html(
+        brand_items,
+        size=180,
+        show_name=True,
+        name_color="var(--text-primary)",
+        gap=30,
+        max_cols=4,
+        shape="rounded_square",
+        bg_color="var(--bg-secondary,rgba(255,255,255,0.2))",
+    )
 
-    body = f'''
+    body = f"""
 <div style="position:relative;width:1080px;height:1080px;
     background:var(--bg-primary);display:flex;flex-direction:column;
     align-items:center;overflow:hidden;">
@@ -220,6 +231,6 @@ def brand_hero(params: dict[str, Any], theme: dict[str, Any]) -> LayoutOutput:
   <!-- Footer -->
   <div style="padding:30px;font-size:20px;color:var(--text-light,#fff);
       opacity:0.6;letter-spacing:4px;">{tagline}</div>
-</div>'''
+</div>"""
 
     return LayoutOutput(body_html=body)

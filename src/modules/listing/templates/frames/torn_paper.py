@@ -35,7 +35,7 @@ def render(params: dict[str, Any], theme: dict[str, str]) -> str:
 
     grid = brand_grid_html(brand_items, shape="circle", size=140, gap=16)
 
-    body = f'''
+    body = f"""
 <div style="width:1080px;height:1080px;position:relative;overflow:hidden;
     background:linear-gradient(160deg,#0c2340 0%,#1a3a5c 40%,#0f2d4a 100%);">
 
@@ -98,6 +98,6 @@ def render(params: dict[str, Any], theme: dict[str, str]) -> str:
             ···{tagline}···
         </span>
     </div>
-</div>'''
+</div>"""
 
     return wrap_page(body, bg="#0c2340")

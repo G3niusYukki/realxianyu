@@ -23,10 +23,14 @@ def render(params: dict[str, Any], theme: dict[str, str]) -> str:
     accent = theme.get("accent", "#fbbf24")
 
     grid = brand_grid_html(
-        brand_items, shape="circle", size=130, gap=16, show_name=False,
+        brand_items,
+        shape="circle",
+        size=130,
+        gap=16,
+        show_name=False,
     )
 
-    body = f'''
+    body = f"""
 <div style="width:1080px;height:1080px;
     background:linear-gradient(180deg,{primary_light}50 0%,{primary}20 100%);
     display:flex;flex-direction:column;align-items:center;
@@ -112,6 +116,6 @@ def render(params: dict[str, Any], theme: dict[str, str]) -> str:
         </span>
         <span style="font-size:22px;color:#ffffff;opacity:0.8;">▸▸▸</span>
     </div>
-</div>'''
+</div>"""
 
     return wrap_page(body, bg=f"linear-gradient(180deg,{primary_light}50 0%,{primary}20 100%)")

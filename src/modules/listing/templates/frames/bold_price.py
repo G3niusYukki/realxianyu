@@ -17,12 +17,17 @@ def render(params: dict[str, Any], theme: dict[str, str]) -> str:
     tagline = e(params.get("tagline") or theme.get("tagline", ""))
     brand_items = params.get("brand_items", [])
 
-    labels_pills = "".join(
-        f'<span style="font-size:20px;color:#fbbf24;letter-spacing:1px;'
-        f'background:rgba(251,191,36,0.12);padding:8px 22px;border-radius:999px;'
-        f'border:2px solid rgba(251,191,36,0.5);margin:0 6px 8px 0;">{e(p.strip())}</span>'
-        for p in labels_raw.split(",") if p.strip()
-    ) if labels_raw else ""
+    labels_pills = (
+        "".join(
+            f'<span style="font-size:20px;color:#fbbf24;letter-spacing:1px;'
+            f"background:rgba(251,191,36,0.12);padding:8px 22px;border-radius:999px;"
+            f'border:2px solid rgba(251,191,36,0.5);margin:0 6px 8px 0;">{e(p.strip())}</span>'
+            for p in labels_raw.split(",")
+            if p.strip()
+        )
+        if labels_raw
+        else ""
+    )
 
     grid = brand_grid_html(
         brand_items,
@@ -34,7 +39,7 @@ def render(params: dict[str, Any], theme: dict[str, str]) -> str:
         border_color="rgba(255,255,255,0.2)",
     )
 
-    body = f'''
+    body = f"""
 <div style="width:1080px;height:1080px;position:relative;overflow:hidden;
     background:#1a1a2e;display:flex;flex-direction:column;align-items:center;">
 
@@ -58,7 +63,7 @@ def render(params: dict[str, Any], theme: dict[str, str]) -> str:
         </div>
 
         <div style="margin-top:28px;display:flex;flex-wrap:wrap;justify-content:center;gap:8px;">
-            {labels_pills if labels_pills else ('<span style="font-size:20px;color:#fbbf24;letter-spacing:1px;background:rgba(251,191,36,0.12);padding:8px 22px;border-radius:999px;border:2px solid rgba(251,191,36,0.5);">' + e(labels_raw) + '</span>')}
+            {labels_pills if labels_pills else ('<span style="font-size:20px;color:#fbbf24;letter-spacing:1px;background:rgba(251,191,36,0.12);padding:8px 22px;border-radius:999px;border:2px solid rgba(251,191,36,0.5);">' + e(labels_raw) + "</span>")}
         </div>
 
         <div style="margin-top:40px;">
@@ -70,6 +75,6 @@ def render(params: dict[str, Any], theme: dict[str, str]) -> str:
             {tagline}
         </div>
     </div>
-</div>'''
+</div>"""
 
     return wrap_page(body, bg="#1a1a2e")

@@ -22,10 +22,14 @@ def render(params: dict[str, Any], theme: dict[str, str]) -> str:
     accent = theme.get("accent", "#fbbf24")
 
     grid = brand_grid_html(
-        brand_items, shape="circle", size=130, gap=14, show_name=False,
+        brand_items,
+        shape="circle",
+        size=130,
+        gap=14,
+        show_name=False,
     )
 
-    body = f'''
+    body = f"""
 <div style="width:1080px;height:1080px;
     background:#d6e8d0;
     background-image:
@@ -110,6 +114,6 @@ def render(params: dict[str, Any], theme: dict[str, str]) -> str:
             </span>
         </div>
     </div>
-</div>'''
+</div>"""
 
     return wrap_page(body, bg="#d6e8d0")

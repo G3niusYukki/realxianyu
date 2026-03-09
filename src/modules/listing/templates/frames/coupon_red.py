@@ -27,7 +27,7 @@ def render(params: dict[str, Any], theme: dict[str, str]) -> str:
         for part in parts:
             label_pills += f'<span style="background:rgba(255,255,255,0.35);color:#fff;padding:8px 20px;border-radius:999px;font-size:24px;font-weight:700;margin:0 6px;">{part}</span>'
 
-    body = f'''
+    body = f"""
 <style>
 .coupon-headline {{
     font-family: 'DisplayBold', sans-serif;
@@ -70,6 +70,6 @@ def render(params: dict[str, Any], theme: dict[str, str]) -> str:
             {tagline}
         </span>
     </div>
-</div>'''
+</div>"""
 
     return wrap_page(body, bg="#dc2626")

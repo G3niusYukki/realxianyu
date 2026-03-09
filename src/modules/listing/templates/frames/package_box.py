@@ -25,8 +25,7 @@ def _barcode_html(width: int = 500, height: int = 50) -> str:
             )
         x += w * 2
     return (
-        f'<div style="position:relative;width:{width}px;height:{height}px;'
-        f'margin:0 auto;overflow:hidden;">{bars}</div>'
+        f'<div style="position:relative;width:{width}px;height:{height}px;margin:0 auto;overflow:hidden;">{bars}</div>'
     )
 
 
@@ -38,13 +37,17 @@ def render(params: dict[str, Any], theme: dict[str, str]) -> str:
     brand_items = params.get("brand_items", [])
 
     grid = brand_grid_html(
-        brand_items, shape="rounded_square", size=120, gap=14,
-        border_color="#a0845e", bg_color="#fff9f0",
+        brand_items,
+        shape="rounded_square",
+        size=120,
+        gap=14,
+        border_color="#a0845e",
+        bg_color="#fff9f0",
     )
 
     barcode = _barcode_html(420, 44)
 
-    body = f'''
+    body = f"""
 <div style="width:1080px;height:1080px;position:relative;overflow:hidden;
     background:#c8a86e;">
 
@@ -126,6 +129,6 @@ def render(params: dict[str, Any], theme: dict[str, str]) -> str:
             </div>
         </div>
     </div>
-</div>'''
+</div>"""
 
     return wrap_page(body, bg="#c8a86e")

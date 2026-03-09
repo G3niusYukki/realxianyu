@@ -23,7 +23,7 @@ def render(params: dict[str, Any], theme: dict[str, str]) -> str:
 
     grid = brand_grid_html(brand_items, shape="circle", size=150, gap=18)
 
-    body = f'''
+    body = f"""
 <style>
 .pop-title {{
     font-family: 'DisplayBold', sans-serif;
@@ -88,6 +88,6 @@ def render(params: dict[str, Any], theme: dict[str, str]) -> str:
             ...{tagline}...
         </span>
     </div>
-</div>'''
+</div>"""
 
     return wrap_page(body, bg="#ffffff")

@@ -22,8 +22,12 @@ def render(params: dict[str, Any], theme: dict[str, str]) -> str:
     primary_light = theme.get("primary_light", "#38bdf8")
 
     grid = brand_grid_html(
-        brand_items, shape="circle", size=130, gap=14,
-        show_name=False, border_color="#bfdbfe",
+        brand_items,
+        shape="circle",
+        size=130,
+        gap=14,
+        show_name=False,
+        border_color="#bfdbfe",
     )
 
     spirals = ""
@@ -31,11 +35,11 @@ def render(params: dict[str, Any], theme: dict[str, str]) -> str:
         y = 80 + i * 115
         spirals += (
             f'<div style="position:absolute;left:20px;top:{y}px;'
-            'width:30px;height:30px;border:3px solid #b0b0b0;border-radius:50%;'
+            "width:30px;height:30px;border:3px solid #b0b0b0;border-radius:50%;"
             'background:linear-gradient(135deg,#e0e0e0,#f8f8f8);z-index:5;"></div>\n'
         )
 
-    body = f'''
+    body = f"""
 <div style="width:1080px;height:1080px;background:{primary_light}30;
     display:flex;align-items:center;justify-content:center;padding:24px;">
 
@@ -109,6 +113,6 @@ def render(params: dict[str, Any], theme: dict[str, str]) -> str:
             </span>
         </div>
     </div>
-</div>'''
+</div>"""
 
     return wrap_page(body, bg=f"{primary_light}30")

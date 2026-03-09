@@ -24,10 +24,7 @@ def render(params: dict[str, Any], theme: dict[str, str]) -> str:
         accent_color=accent,
     )
     if not price_list:
-        price_list = (
-            '<div style="padding:48px 24px;text-align:center;font-size:28px;'
-            'color:#9ca3af;">暂无价格数据</div>'
-        )
+        price_list = '<div style="padding:48px 24px;text-align:center;font-size:28px;color:#9ca3af;">暂无价格数据</div>'
 
     pills = ""
     if labels:
@@ -35,12 +32,12 @@ def render(params: dict[str, Any], theme: dict[str, str]) -> str:
         for part in parts[:6]:
             pills += (
                 f'<span style="display:inline-block;padding:8px 20px;'
-                f'margin:4px;background:rgba(220,38,38,0.12);color:{accent};'
+                f"margin:4px;background:rgba(220,38,38,0.12);color:{accent};"
                 f'font-size:18px;font-weight:700;border-radius:999px;">{part}</span>'
             )
         pills = f'<div style="display:flex;flex-wrap:wrap;justify-content:center;gap:4px;">{pills}</div>'
 
-    body = f'''
+    body = f"""
 <div style="width:1080px;height:1080px;display:flex;flex-direction:column;
     background:#f9fafb;">
     <div style="width:100%;height:4px;background:{accent};flex-shrink:0;"></div>
@@ -57,6 +54,6 @@ def render(params: dict[str, Any], theme: dict[str, str]) -> str:
         {pills}
         <div style="margin-top:24px;font-size:22px;color:#374151;letter-spacing:2px;">{tagline}</div>
     </div>
-</div>'''
+</div>"""
 
     return wrap_page(body, bg="#f9fafb")

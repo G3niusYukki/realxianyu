@@ -20,13 +20,11 @@ def _barcode_html(width: int = 400, height: int = 60) -> str:
     for i, w in enumerate(pattern):
         if i % 2 == 0:
             bars += (
-                f'<div style="position:absolute;left:{x}px;top:0;width:{w * 2}px;height:100%;'
-                f'background:#333;"></div>'
+                f'<div style="position:absolute;left:{x}px;top:0;width:{w * 2}px;height:100%;background:#333;"></div>'
             )
         x += w * 2
     return (
-        f'<div style="position:relative;width:{width}px;height:{height}px;'
-        f'margin:0 auto;overflow:hidden;">{bars}</div>'
+        f'<div style="position:relative;width:{width}px;height:{height}px;margin:0 auto;overflow:hidden;">{bars}</div>'
     )
 
 
@@ -38,15 +36,19 @@ def render(params: dict[str, Any], theme: dict[str, str]) -> str:
     brand_items = params.get("brand_items", [])
 
     grid = brand_grid_html(
-        brand_items, shape="rounded_square", size=110, gap=12,
-        show_name=True, name_color="#333",
+        brand_items,
+        shape="rounded_square",
+        size=110,
+        gap=12,
+        show_name=True,
+        name_color="#333",
     )
 
     barcode = _barcode_html(360, 55)
     sep_eq = "= " * 28 + "="
     sep_dash = "- " * 28 + "-"
 
-    body = f'''
+    body = f"""
 <div style="width:1080px;height:1080px;display:flex;align-items:center;justify-content:center;
     background:#e8e8e0;">
 
@@ -139,6 +141,6 @@ def render(params: dict[str, Any], theme: dict[str, str]) -> str:
             background-size:20px 20px;background-position:bottom;background-repeat:repeat-x;">
         </div>
     </div>
-</div>'''
+</div>"""
 
     return wrap_page(body, bg="#e8e8e0")
