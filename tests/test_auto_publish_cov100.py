@@ -50,10 +50,13 @@ def mock_compliance():
 
 @pytest.fixture
 def auto_publish_service(mock_content_service, mock_oss_uploader, mock_api_client, mock_compliance):
-    with patch("src.modules.listing.auto_publish.get_compliance_guard", return_value=mock_compliance), \
-         patch("src.modules.listing.auto_publish.ContentService", return_value=mock_content_service), \
-         patch("src.modules.listing.auto_publish.OSSUploader", return_value=mock_oss_uploader):
+    with (
+        patch("src.modules.listing.auto_publish.get_compliance_guard", return_value=mock_compliance),
+        patch("src.modules.listing.auto_publish.ContentService", return_value=mock_content_service),
+        patch("src.modules.listing.auto_publish.OSSUploader", return_value=mock_oss_uploader),
+    ):
         from src.modules.listing.auto_publish import AutoPublishService
+
         svc = AutoPublishService(
             api_client=mock_api_client,
             content_service=mock_content_service,
@@ -65,10 +68,13 @@ def auto_publish_service(mock_content_service, mock_oss_uploader, mock_api_clien
 
 class TestAutoPublishServiceInit:
     def test_init_defaults(self):
-        with patch("src.modules.listing.auto_publish.get_compliance_guard"), \
-             patch("src.modules.listing.auto_publish.ContentService") as MockCS, \
-             patch("src.modules.listing.auto_publish.OSSUploader") as MockOSS:
+        with (
+            patch("src.modules.listing.auto_publish.get_compliance_guard"),
+            patch("src.modules.listing.auto_publish.ContentService") as MockCS,
+            patch("src.modules.listing.auto_publish.OSSUploader") as MockOSS,
+        ):
             from src.modules.listing.auto_publish import AutoPublishService
+
             svc = AutoPublishService()
             assert svc.config == {}
             assert svc.api_client is None
@@ -76,10 +82,13 @@ class TestAutoPublishServiceInit:
             MockOSS.assert_called_once_with(None)
 
     def test_init_with_config(self):
-        with patch("src.modules.listing.auto_publish.get_compliance_guard"), \
-             patch("src.modules.listing.auto_publish.ContentService"), \
-             patch("src.modules.listing.auto_publish.OSSUploader") as MockOSS:
+        with (
+            patch("src.modules.listing.auto_publish.get_compliance_guard"),
+            patch("src.modules.listing.auto_publish.ContentService"),
+            patch("src.modules.listing.auto_publish.OSSUploader") as MockOSS,
+        ):
             from src.modules.listing.auto_publish import AutoPublishService
+
             cfg = {"oss": {"bucket": "test"}}
             svc = AutoPublishService(config=cfg)
             MockOSS.assert_called_once_with({"bucket": "test"})
@@ -90,12 +99,14 @@ class TestGeneratePreview:
     async def test_basic_preview(self, auto_publish_service, mock_content_service):
         with patch("src.modules.listing.auto_publish.generate_product_images", new_callable=AsyncMock) as mock_gen:
             mock_gen.return_value = ["/tmp/img1.png"]
-            result = await auto_publish_service.generate_preview({
-                "category": "exchange",
-                "name": "Test Product",
-                "features": ["feat1", "feat2"],
-                "price": 99.9,
-            })
+            result = await auto_publish_service.generate_preview(
+                {
+                    "category": "exchange",
+                    "name": "Test Product",
+                    "features": ["feat1", "feat2"],
+                    "price": 99.9,
+                }
+            )
         assert result["ok"] is True
         assert result["step"] == "preview"
         assert result["title"] == "Generated Title"
@@ -117,10 +128,12 @@ class TestGeneratePreview:
     async def test_preview_with_extra_images_dict(self, auto_publish_service):
         with patch("src.modules.listing.auto_publish.generate_product_images", new_callable=AsyncMock) as mock_gen:
             mock_gen.return_value = ["/tmp/img1.png"]
-            result = await auto_publish_service.generate_preview({
-                "extra_images": [{"title": "extra"}, "string_extra"],
-                "template_params": {"badge": "HOT", "footer": "Limited"},
-            })
+            result = await auto_publish_service.generate_preview(
+                {
+                    "extra_images": [{"title": "extra"}, "string_extra"],
+                    "template_params": {"badge": "HOT", "footer": "Limited"},
+                }
+            )
         assert result["ok"] is True
 
     @pytest.mark.asyncio
@@ -130,10 +143,12 @@ class TestGeneratePreview:
         }
         with patch("src.modules.listing.auto_publish.generate_product_images", new_callable=AsyncMock) as mock_gen:
             mock_gen.return_value = ["/tmp/img.png"]
-            result = await auto_publish_service.generate_preview({
-                "title": "Custom Title",
-                "description": "Custom Desc",
-            })
+            result = await auto_publish_service.generate_preview(
+                {
+                    "title": "Custom Title",
+                    "description": "Custom Desc",
+                }
+            )
         assert result["title"] == "Custom Title"
         assert result["description"] == "Custom Desc"
 
@@ -220,7 +235,7 @@ class TestPublish:
             mock_gen.return_value = ["/tmp/img1.png"]
             result = await auto_publish_service.publish({"name": "test", "price": 50})
         assert result["ok"] is True
-        assert result["step"] == "done"
+        assert result["step"] == "publishing"
         assert result["product_id"] == "prod_123"
 
 
@@ -263,14 +278,16 @@ class TestPublishFromPreview:
 
     @pytest.mark.asyncio
     async def test_success(self, auto_publish_service):
-        result = await auto_publish_service.publish_from_preview({
-            "local_images": ["/img.png"],
-            "title": "Preview Title",
-            "description": "Preview Desc",
-            "price": 50,
-        })
+        result = await auto_publish_service.publish_from_preview(
+            {
+                "local_images": ["/img.png"],
+                "title": "Preview Title",
+                "description": "Preview Desc",
+                "price": 50,
+            }
+        )
         assert result["ok"] is True
-        assert result["step"] == "done"
+        assert result["step"] == "publishing"
 
 
 class TestGetUserName:
@@ -283,9 +300,7 @@ class TestGetUserName:
         assert name == "test_user"
 
     def test_nick_name_fallback(self, auto_publish_service, mock_api_client):
-        mock_api_client.list_authorized_users.return_value = MagicMock(
-            ok=True, data=[{"nick_name": "nick"}]
-        )
+        mock_api_client.list_authorized_users.return_value = MagicMock(ok=True, data=[{"nick_name": "nick"}])
         name = auto_publish_service._get_user_name()
         assert name == "nick"
 
@@ -313,18 +328,26 @@ class TestGetUserName:
 class TestBuildCreatePayload:
     def test_basic(self):
         from src.modules.listing.auto_publish import AutoPublishService
+
         payload = AutoPublishService._build_create_payload(
-            title="T", description="D", price=10.5,
-            image_urls=["url1"], user_name="user", extra=None,
+            title="T",
+            description="D",
+            price=10.5,
+            image_urls=["url1"],
+            user_name="user",
+            extra=None,
         )
         assert payload["title"] == "T"
         assert payload["price"] == 1050
-        assert payload["user_name"] == "user"
+        assert payload["publish_shop"] == [{"user_name": "user"}]
 
     def test_no_price_no_user(self):
         from src.modules.listing.auto_publish import AutoPublishService
+
         payload = AutoPublishService._build_create_payload(
-            title="T", description="D", price=None,
+            title="T",
+            description="D",
+            price=None,
             image_urls=["url1"],
         )
         assert "price" not in payload
@@ -332,25 +355,37 @@ class TestBuildCreatePayload:
 
     def test_with_extra(self):
         from src.modules.listing.auto_publish import AutoPublishService
+
         payload = AutoPublishService._build_create_payload(
-            title="T", description="D", price=None,
-            image_urls=["url1"], extra={"custom": "value"},
+            title="T",
+            description="D",
+            price=None,
+            image_urls=["url1"],
+            extra={"custom": "value"},
         )
         assert payload["custom"] == "value"
 
     def test_extra_not_dict(self):
         from src.modules.listing.auto_publish import AutoPublishService
+
         payload = AutoPublishService._build_create_payload(
-            title="T", description="D", price=None,
-            image_urls=["url1"], extra="not_dict",
+            title="T",
+            description="D",
+            price=None,
+            image_urls=["url1"],
+            extra="not_dict",
         )
         assert "custom" not in payload
 
 
 class TestListCategories:
     def test_list_categories(self):
-        with patch("src.modules.listing.auto_publish.get_available_categories", return_value=[{"id": "exchange", "name": "兑换码"}]):
+        with patch(
+            "src.modules.listing.auto_publish.get_available_categories",
+            return_value=[{"id": "exchange", "name": "兑换码"}],
+        ):
             from src.modules.listing.auto_publish import AutoPublishService
+
             cats = AutoPublishService.list_categories()
             assert len(cats) == 1
             assert cats[0]["id"] == "exchange"

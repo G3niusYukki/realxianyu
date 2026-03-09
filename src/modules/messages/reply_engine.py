@@ -383,7 +383,7 @@ class ReplyStrategyEngine:
         if not message_text:
             return None
         normalized = self._normalize_text(message_text)
-        for rule in self.keyword_rules:
+        for rule in self.rules:
             if rule.matches(normalized):
                 return rule
         return None
