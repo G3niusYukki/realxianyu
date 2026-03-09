@@ -9,7 +9,6 @@ from __future__ import annotations
 import asyncio
 import json
 import random
-import time
 import uuid
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
@@ -46,13 +45,11 @@ DESC_TEMPLATES: dict[str, list[str]] = {
         "【使用方法】兑换码是兑换余额的，在小程序点下单使用余额支付即可\n"
         "【上门取件】下单后联系快递员沟通上门取件时间\n\n"
         "仅限首单，后续直接在小程序里下单就行。全国大部分地区可发，偏远地区除外。",
-
         "{brands}快递优惠券，首重{price}元起。\n\n"
         "拍下不付款→我改价→付款后发兑换码→小程序下单用余额支付\n\n"
         "个人寄件、商家寄件、退换货均可使用。"
         "下单后联系快递员沟通好上门取件时间，全国大部分地区可用。\n"
         "仅限首单哦，后续直接小程序里下单就行。",
-
         "【{brands}快递代下单】首重{price}元起\n\n"
         "直接拍就行，拍完给您兑换码。\n"
         "兑换码是兑换余额的，点下单使用余额支付即可。\n\n"
@@ -90,8 +87,8 @@ def _now_iso() -> str:
 
 
 _PUBLISH_WINDOWS = [
-    (9, 0, 11, 30),   # 上午高峰
-    (13, 0, 15, 0),   # 午后
+    (9, 0, 11, 30),  # 上午高峰
+    (13, 0, 15, 0),  # 午后
     (19, 0, 21, 30),  # 晚间高峰
 ]
 
@@ -232,11 +229,13 @@ class PublishQueue:
         frames = self._get_available_frame_ids()
 
         from .brand_assets import BrandAssetManager
+
         mgr = BrandAssetManager()
         assets = mgr.list_assets(category=category)
         all_asset_ids = [a["id"] for a in assets]
 
         from .auto_publish import AutoPublishService
+
         svc = AutoPublishService()
 
         scheduled_times = _allocate_publish_times(count)
@@ -247,6 +246,7 @@ class PublishQueue:
 
             brand_items = self._load_brand_items_for_generation(mgr, all_asset_ids)
             from .templates.themes import get_random_variant
+
             variant = get_random_variant(category)
             frame_params = {
                 "brand_items": brand_items,
@@ -257,6 +257,7 @@ class PublishQueue:
             }
 
             from .image_generator import generate_composition_images
+
             local_images, used_layers = await generate_composition_images(
                 category=category,
                 params=frame_params,
@@ -265,8 +266,11 @@ class PublishQueue:
             if not local_images:
                 frame_id = random.choice(frames) if frames else "grid_paper"
                 from .image_generator import generate_frame_images
+
                 local_images = await generate_frame_images(
-                    frame_id=frame_id, category=category, params=frame_params,
+                    frame_id=frame_id,
+                    category=category,
+                    params=frame_params,
                 )
                 used_layers = {}
             else:
@@ -297,7 +301,7 @@ class PublishQueue:
             )
             self.add_item(item)
             items.append(item)
-            logger.info(f"Generated queue item {i+1}/{count}: {item.id} composition={used_layers}")
+            logger.info(f"Generated queue item {i + 1}/{count}: {item.id} composition={used_layers}")
 
         return items
 
@@ -311,10 +315,12 @@ class PublishQueue:
             return None
 
         from .brand_assets import BrandAssetManager
+
         mgr = BrandAssetManager()
         brand_items = self._load_brand_items_for_generation(mgr, item.brand_asset_ids)
 
         from .templates.themes import get_random_variant
+
         variant = get_random_variant(item.category)
         frame_params = {
             "brand_items": brand_items,
@@ -328,6 +334,7 @@ class PublishQueue:
 
         if item.composition:
             from .image_generator import generate_composition_images
+
             local_images, used_layers = await generate_composition_images(
                 category=item.category,
                 params=frame_params,
@@ -337,6 +344,7 @@ class PublishQueue:
             updates["composition"] = used_layers
         else:
             from .image_generator import generate_frame_images
+
             local_images = await generate_frame_images(
                 frame_id=item.frame_id or "grid_paper",
                 category=item.category,
@@ -358,6 +366,7 @@ class PublishQueue:
         self.update_item(item_id, {"status": "publishing"})
 
         from .auto_publish import AutoPublishService
+
         svc = AutoPublishService(config=config)
 
         if not item.generated_images:
@@ -378,16 +387,22 @@ class PublishQueue:
 
         if result.get("ok"):
             new_status = "publishing" if result.get("publish_async") else "published"
-            self.update_item(item_id, {
-                "status": new_status,
-                "published_product_id": result.get("product_id"),
-                "error": None,
-            })
+            self.update_item(
+                item_id,
+                {
+                    "status": new_status,
+                    "published_product_id": result.get("product_id"),
+                    "error": None,
+                },
+            )
         else:
-            self.update_item(item_id, {
-                "status": "failed",
-                "error": result.get("error", "发布失败"),
-            })
+            self.update_item(
+                item_id,
+                {
+                    "status": "failed",
+                    "error": result.get("error", "发布失败"),
+                },
+            )
 
         return result
 
@@ -410,13 +425,12 @@ class PublishQueue:
     def _get_available_frame_ids(self) -> list[str]:
         try:
             from .templates.frames import list_frames
+
             return [f["id"] for f in list_frames()]
         except Exception:
             return ["grid_paper", "id_badge", "clipboard"]
 
-    def _load_brand_items_for_generation(
-        self, mgr: Any, asset_ids: list[str]
-    ) -> list[dict[str, str]]:
+    def _load_brand_items_for_generation(self, mgr: Any, asset_ids: list[str]) -> list[dict[str, str]]:
         items = []
         for aid in asset_ids:
             path = mgr.get_asset_path(aid)
@@ -428,24 +442,27 @@ class PublishQueue:
                     entry = a
                     break
             from .brand_assets import file_to_data_uri
-            items.append({
-                "name": entry["name"] if entry else "brand",
-                "src": file_to_data_uri(path),
-            })
+
+            items.append(
+                {
+                    "name": entry["name"] if entry else "brand",
+                    "src": file_to_data_uri(path),
+                }
+            )
         return items
 
-    async def _ai_generate_content(
-        self, svc: Any, category: str, index: int
-    ) -> tuple[str, str]:
+    async def _ai_generate_content(self, svc: Any, category: str, index: int) -> tuple[str, str]:
         """使用 ContentService 生成标题和描述，AI 不可用时用模版池回退。"""
         try:
-            content = svc.content_service.generate_listing_content({
-                "name": category,
-                "category": category,
-                "features": [],
-                "condition": "全新",
-                "reason": "闲置出",
-            })
+            content = svc.content_service.generate_listing_content(
+                {
+                    "name": category,
+                    "category": category,
+                    "features": [],
+                    "condition": "全新",
+                    "reason": "闲置出",
+                }
+            )
             title = content.get("title", "")
             description = content.get("description", "")
             if title and len(title) > 3:
@@ -458,6 +475,7 @@ class PublishQueue:
     def _fallback_content(self, category: str) -> tuple[str, str]:
         """AI 不可用时，从模版池生成标题和描述。"""
         from .brand_assets import BrandAssetManager
+
         mgr = BrandAssetManager()
         assets = mgr.list_assets(category=category)
         brand_names = sorted(set(a.get("name", "") for a in assets if a.get("name")))

@@ -1212,7 +1212,7 @@ class MessagesService:
                 quote_rows=quote_rows,
             )
         except Exception:
-            logger.debug("Failed to persist quote to ledger", exc_info=True)
+            self.logger.debug("Failed to persist quote to ledger", exc_info=True)
 
     def generate_reply(self, message_text: str, item_title: str = "") -> str:
         """按策略引擎生成回复（兼容旧调用）。"""

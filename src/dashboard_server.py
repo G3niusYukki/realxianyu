@@ -655,7 +655,7 @@ class MimicOps:
                 logger.info("Auto-price-modify: no valid fee in quote for order=%s", order_no)
                 return
 
-            target_price_cents = int(round(float(target_fee) * 100))
+            target_price_cents = round(float(target_fee) * 100)
             express_fee_cents = int(apm_cfg.get("default_express_fee", 0))
 
             if target_price_cents == total_amount:
@@ -693,7 +693,6 @@ class MimicOps:
         product_id = payload.get("product_id")
         task_type = payload.get("task_type")
         task_result = payload.get("task_result")
-        item_id = payload.get("item_id")
         err_code = payload.get("err_code", "")
         err_msg = payload.get("err_msg", "")
         product_status = payload.get("product_status")
@@ -5101,7 +5100,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 except (ValueError, TypeError):
                     self._send_json({"result": "fail", "msg": "Invalid timestamp"}, status=400)
                     return
-                from src.integrations.xianguanjia.signing import verify_open_platform_callback_signature
+
                 from src.integrations.xianguanjia.signing import verify_open_platform_callback_signature
 
                 if not verify_open_platform_callback_signature(
