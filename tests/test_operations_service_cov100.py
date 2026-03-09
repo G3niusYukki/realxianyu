@@ -115,14 +115,14 @@ class TestTryUpdatePriceViaApi:
     @pytest.mark.asyncio
     async def test_no_api_client(self):
         svc = _make_ops_service(api_client=None)
-        result, error = await svc._try_update_price_via_api("prod1", 10.0)
+        result, error = await svc._try_update_price_via_api(12345, 10.0)
         assert result is None
         assert error == "api_client_not_configured"
 
     @pytest.mark.asyncio
     async def test_success(self, mock_api_client):
         svc = _make_ops_service(api_client=mock_api_client)
-        result, error = await svc._try_update_price_via_api("prod1", 10.0, 12.0)
+        result, error = await svc._try_update_price_via_api(12345, 10.0, 12.0)
         assert result is not None
         assert result["success"] is True
         assert error is None
@@ -131,7 +131,7 @@ class TestTryUpdatePriceViaApi:
     async def test_api_call_failed(self, mock_api_client, mock_api_response_fail):
         mock_api_client.edit_product.return_value = mock_api_response_fail
         svc = _make_ops_service(api_client=mock_api_client)
-        result, error = await svc._try_update_price_via_api("prod1", 10.0)
+        result, error = await svc._try_update_price_via_api(12345, 10.0)
         assert result is None
         assert error == "api_error"
 
@@ -139,7 +139,7 @@ class TestTryUpdatePriceViaApi:
     async def test_exception(self, mock_api_client):
         mock_api_client.edit_product.side_effect = RuntimeError("timeout")
         svc = _make_ops_service(api_client=mock_api_client)
-        result, error = await svc._try_update_price_via_api("prod1", 10.0)
+        result, error = await svc._try_update_price_via_api(12345, 10.0)
         assert result is None
         assert "timeout" in error
 
@@ -178,13 +178,13 @@ class TestDelist:
     @pytest.mark.asyncio
     async def test_no_api_client(self):
         svc = _make_ops_service(api_client=None)
-        result = await svc.delist("prod1")
+        result = await svc.delist(12345)
         assert result["success"] is False
 
     @pytest.mark.asyncio
     async def test_success(self, mock_api_client):
         svc = _make_ops_service(api_client=mock_api_client)
-        result = await svc.delist("prod1", reason="test")
+        result = await svc.delist(12345, reason="test")
         assert result["success"] is True
         assert result["channel"] == "xianguanjia_api"
 
@@ -192,7 +192,7 @@ class TestDelist:
     async def test_api_fail(self, mock_api_client, mock_api_response_fail):
         mock_api_client.unpublish_product.return_value = mock_api_response_fail
         svc = _make_ops_service(api_client=mock_api_client)
-        result = await svc.delist("prod1")
+        result = await svc.delist(12345)
         assert result["success"] is False
         assert "error" in result
 
@@ -201,7 +201,7 @@ class TestDelist:
         analytics = MagicMock()
         analytics.log_operation = AsyncMock()
         svc = _make_ops_service(api_client=mock_api_client, analytics=analytics)
-        result = await svc.delist("prod1")
+        result = await svc.delist(12345)
         assert result["success"] is True
         analytics.log_operation.assert_called_once()
 
@@ -209,7 +209,7 @@ class TestDelist:
     async def test_exception(self, mock_api_client):
         mock_api_client.unpublish_product.side_effect = RuntimeError("net")
         svc = _make_ops_service(api_client=mock_api_client)
-        result = await svc.delist("prod1")
+        result = await svc.delist(12345)
         assert result["success"] is False
         assert "net" in result["error"]
 
@@ -218,20 +218,20 @@ class TestRelist:
     @pytest.mark.asyncio
     async def test_no_api_client(self):
         svc = _make_ops_service(api_client=None)
-        result = await svc.relist("prod1")
+        result = await svc.relist(12345)
         assert result["success"] is False
 
     @pytest.mark.asyncio
     async def test_success(self, mock_api_client):
         svc = _make_ops_service(api_client=mock_api_client)
-        result = await svc.relist("prod1")
+        result = await svc.relist(12345)
         assert result["success"] is True
 
     @pytest.mark.asyncio
     async def test_api_fail(self, mock_api_client, mock_api_response_fail):
         mock_api_client.publish_product.return_value = mock_api_response_fail
         svc = _make_ops_service(api_client=mock_api_client)
-        result = await svc.relist("prod1")
+        result = await svc.relist(12345)
         assert result["success"] is False
 
     @pytest.mark.asyncio
@@ -239,14 +239,14 @@ class TestRelist:
         analytics = MagicMock()
         analytics.log_operation = AsyncMock()
         svc = _make_ops_service(api_client=mock_api_client, analytics=analytics)
-        result = await svc.relist("prod1")
+        result = await svc.relist(12345)
         analytics.log_operation.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_exception(self, mock_api_client):
         mock_api_client.publish_product.side_effect = RuntimeError("err")
         svc = _make_ops_service(api_client=mock_api_client)
-        result = await svc.relist("prod1")
+        result = await svc.relist(12345)
         assert result["success"] is False
 
 
@@ -400,7 +400,7 @@ class TestPolishListing:
     @pytest.mark.asyncio
     async def test_disabled(self, mock_api_client):
         svc = _make_ops_service(api_client=mock_api_client)
-        result = await svc.polish_listing("prod1")
+        result = await svc.polish_listing(12345)
         assert result["success"] is False
         assert result["error"] == "feature_disabled"
 
@@ -419,7 +419,7 @@ class TestUpdatePrice:
         analytics = MagicMock()
         analytics.log_operation = AsyncMock()
         svc = _make_ops_service(api_client=mock_api_client, analytics=analytics)
-        result = await svc.update_price("prod1", 10.0, 12.0)
+        result = await svc.update_price(12345, 10.0, 12.0)
         assert result["success"] is True
         analytics.log_operation.assert_called_once()
 
@@ -429,7 +429,7 @@ class TestUpdatePrice:
         analytics = MagicMock()
         analytics.log_operation = AsyncMock()
         svc = _make_ops_service(api_client=mock_api_client, analytics=analytics)
-        result = await svc.update_price("prod1", 10.0)
+        result = await svc.update_price(12345, 10.0)
         assert result["success"] is False
         assert result["channel"] == "xianguanjia_api"
         analytics.log_operation.assert_called_once()
@@ -437,7 +437,7 @@ class TestUpdatePrice:
     @pytest.mark.asyncio
     async def test_failure_no_analytics(self):
         svc = _make_ops_service(api_client=None)
-        result = await svc.update_price("prod1", 10.0)
+        result = await svc.update_price(12345, 10.0)
         assert result["success"] is False
 
 
@@ -476,20 +476,20 @@ class TestAutoAdjustPrice:
     @pytest.mark.asyncio
     async def test_invalid_max_discount(self, mock_api_client):
         svc = _make_ops_service(api_client=mock_api_client)
-        result = await svc.auto_adjust_price("prod1", 100.0, max_discount_pct=1.5)
+        result = await svc.auto_adjust_price(12345, 100.0, max_discount_pct=1.5)
         assert result["success"] is False
 
     @pytest.mark.asyncio
     async def test_restore_strategy(self, mock_api_client):
         svc = _make_ops_service(api_client=mock_api_client)
-        result = await svc.auto_adjust_price("prod1", 100.0, strategy="restore")
+        result = await svc.auto_adjust_price(12345, 100.0, strategy="restore")
         assert result is not None
 
     @pytest.mark.asyncio
     async def test_price_at_floor(self, mock_api_client):
         svc = _make_ops_service(api_client=mock_api_client)
         with patch.object(svc, "_load_pricing_config", return_value={"auto_adjust": True}):
-            result = await svc.auto_adjust_price("prod1", 100.0, step_amount=0, min_price=100.0)
+            result = await svc.auto_adjust_price(12345, 100.0, step_amount=0, min_price=100.0)
         assert result["success"] is False
         assert result["error"] == "price_at_floor"
 
@@ -497,7 +497,7 @@ class TestAutoAdjustPrice:
     async def test_step_down(self, mock_api_client):
         svc = _make_ops_service(api_client=mock_api_client)
         with patch.object(svc, "_load_pricing_config", return_value={"auto_adjust": True}):
-            result = await svc.auto_adjust_price("prod1", 100.0, step_amount=5.0, min_price=90.0)
+            result = await svc.auto_adjust_price(12345, 100.0, step_amount=5.0, min_price=90.0)
         assert result.get("action") == "auto_adjust_price"
         assert result.get("strategy") == "step_down"
         assert result.get("price_change") == 5.0

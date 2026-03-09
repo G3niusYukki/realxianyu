@@ -337,9 +337,9 @@ class TestBuildCreatePayload:
             user_name="user",
             extra=None,
         )
-        assert payload["title"] == "T"
+        assert payload["publish_shop"][0]["title"] == "T"
         assert payload["price"] == 1050
-        assert payload["publish_shop"] == [{"user_name": "user"}]
+        assert payload["publish_shop"][0]["user_name"] == "user"
 
     def test_no_price_no_user(self):
         from src.modules.listing.auto_publish import AutoPublishService
