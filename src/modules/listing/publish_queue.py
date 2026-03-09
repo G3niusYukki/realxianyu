@@ -1,7 +1,7 @@
 """发布队列系统。
 
 管理每日待发布的商品列表，支持自动生成、编辑、逐条/批量发布。
-存储：data/publish_queue.json
+存储：data/publish_queue.json，建议通过 project_root 传入绝对路径。
 """
 
 from __future__ import annotations
@@ -24,41 +24,78 @@ QUEUE_FILE = Path("data/publish_queue.json")
 
 TITLE_TEMPLATES: dict[str, list[str]] = {
     "express": [
-        "寄快递 {brands} 首重{price}元起寄全国 上门取件",
-        "{brands}快递优惠 首重低至{price}元 全国通用不限新老",
-        "快递代下单 {brands} 首重{price}元 免费上门取件",
-        "寄件优惠 {brands}首重{price}元起 个人商家退换货均可",
-        "{brands}快递 首重仅{price}元 大小件可寄 全国可发",
-        "快递折扣券 {brands} 首单首重{price}元起 秒出单号",
-        "寄快递省钱 {brands} 首重{price}元起 上门取件当日可发",
-        "{brands}快递代寄 首重{price}元起寄全国 不限品类",
+        "便宜快递代下单 代发 {brands} 优惠发快递 菜鸟裹裹上门取件 全国可寄",
+        "【首重{price}元起】全国寄件 快递代下单 {brands} 免费上门取件",
+        "寄快递低至五折 {brands} 上门取件 个人商家退换货均可",
+        "便宜寄快递 快递代发优惠折扣 {brands} 菜鸟裹裹上门取件",
+        "{brands}快递代下单 低价寄全国 大小件均可 免费上门取件",
+        "快递代发 寄件特惠 {brands} 全国可发 上门取件 价格优惠",
+        "全国寄快递 {brands} 首重低至{price}元 免费上门 大件小件都能发",
+        "{brands}快递优惠 便宜代下单 菜鸟裹裹上门取件 全国不限",
+        "寄快递省钱 {brands} 代发代下单 上门取件当日可发 全国通用",
+        "便宜发快递 {brands} 快递代下单代发 优惠寄件 免费上门取件",
+        "{brands}快递 低价寄全国 首重{price}元起 菜鸟裹裹上门取件",
+        "快递代下单 {brands} 大件小件均可寄 全国免费上门取件",
+        "寄件优惠 {brands} 快递代发代下单 首重{price}元起 全国可发",
+        "{brands}快递代寄 便宜优惠 上门取件 个人商家退换货通用",
+        "低价寄快递 快递代下单 {brands} 菜鸟上门取件 全国通发",
+        "便宜快递 {brands} 代发代下单 首重{price}元起 免费上门",
     ],
 }
 
 PRICE_OPTIONS: dict[str, list[str]] = {
-    "express": ["2", "2.5", "3", "3.39"],
+    "express": ["1", "1", "1", "1.5", "2", "3"],
 }
 
 DESC_TEMPLATES: dict[str, list[str]] = {
     "express": [
-        "支持{brands}等主流快递，首重低至{price}元起。\n\n"
-        "【下单流程】拍下不付款，我改价后付款给您兑换码\n"
-        "【使用方法】兑换码是兑换余额的，在小程序点下单使用余额支付即可\n"
-        "【上门取件】下单后联系快递员沟通上门取件时间\n\n"
-        "仅限首单，后续直接在小程序里下单就行。全国大部分地区可发，偏远地区除外。",
+        "问价：\n"
+        "----------------------\n"
+        "寄件地--收件地--重量\n\n"
+        "例如：浙江-湖南-1kg\n"
+        "----------------------\n\n"
+        "在线秒回，欢迎前来咨询~~~\n\n"
+        "支持{brands}等主流快递\n"
+        "全国免费上门取件，大件小件都能发！\n"
+        "个人寄件、商家发货、退换货均可",
 
-        "{brands}快递优惠券，首重{price}元起。\n\n"
-        "拍下不付款→我改价→付款后发兑换码→小程序下单用余额支付\n\n"
-        "个人寄件、商家寄件、退换货均可使用。"
-        "下单后联系快递员沟通好上门取件时间，全国大部分地区可用。\n"
-        "仅限首单哦，后续直接小程序里下单就行。",
+        "【下单流程】：\n"
+        "①发给我: 例如 浙江-广东-1kg\n"
+        "②我报价给您，接受就拍下\n"
+        "③我改价，您付款\n\n"
+        "支持{brands}等快递\n"
+        "线上下单，快递员免费上门取件！\n\n"
+        "⚠ 请报实际重量，超重需补差价\n"
+        "体积重=长×宽×高/8000（单位厘米）\n\n"
+        "在线秒回，欢迎咨询！",
 
-        "【{brands}快递代下单】首重{price}元起\n\n"
-        "直接拍就行，拍完给您兑换码。\n"
-        "兑换码是兑换余额的，点下单使用余额支付即可。\n\n"
-        "免费上门取件 · 秒出单号 · 全国可发\n"
-        "个人/商家/退换货均可使用，仅限首单。\n"
-        "包装费需下单后问快递员，属于耗材费是快递员收取的。",
+        "支持{brands}等主流快递，低价寄全国\n\n"
+        "📦 下单流程：直接告诉我 寄件地-收件地-重量\n"
+        "💰 报价后拍下不付款，我改价后您再付款\n"
+        "🚚 付款后快递员免费上门取件\n\n"
+        "个人/商家/退换货均可使用\n"
+        "大件小件都能发，在线秒回",
+
+        "{brands}快递代下单，全国可发\n\n"
+        "怎么下单？\n"
+        "告诉我：寄件地-收件地-重量\n"
+        "例如：杭州-北京-2kg\n\n"
+        "我给你报价，满意就拍下\n"
+        "快递员免费上门取件\n\n"
+        "万一破损丢件，快递赔，保障拉满\n"
+        "在线秒回，欢迎咨询~~",
+
+        "全国寄快递 低价优惠\n\n"
+        "----------------------\n"
+        "报价格式：寄件地-收件地-重量\n"
+        "如：上海-成都-3kg\n"
+        "----------------------\n\n"
+        "支持{brands}等快递\n"
+        "免费上门取件，秒出单号\n"
+        "个人商家退换货都能用\n\n"
+        "注意：请报实际重量\n"
+        "超重需要补差价哦\n"
+        "在线秒回！随时欢迎咨询",
     ],
 }
 
@@ -90,9 +127,9 @@ def _now_iso() -> str:
 
 
 _PUBLISH_WINDOWS = [
-    (9, 0, 11, 30),   # 上午高峰
-    (13, 0, 15, 0),   # 午后
-    (19, 0, 21, 30),  # 晚间高峰
+    (8, 30, 11, 30),   # 上午高峰（含通勤）
+    (12, 0, 14, 0),    # 午休高峰
+    (19, 30, 22, 0),   # 晚间高峰（下班后主力时段）
 ]
 
 
@@ -100,7 +137,7 @@ def _allocate_publish_times(count: int) -> list[str]:
     """在活跃时段内均匀分配发布时间，返回 HH:MM 列表。
 
     将三个活跃窗口的总分钟数均分给 count 条队列项，
-    每个时间点加 +-5min 随机偏移模拟自然发布节奏。
+    每个时间点加 +-15min 随机偏移模拟自然发布节奏。
     """
     slots_minutes: list[int] = []
     for h1, m1, h2, m2 in _PUBLISH_WINDOWS:
@@ -117,7 +154,7 @@ def _allocate_publish_times(count: int) -> list[str]:
         base = slots_minutes[min(i * step, len(slots_minutes) - 1)]
         t = ""
         for _attempt in range(20):
-            jitter = random.randint(-5, 5)
+            jitter = random.randint(-15, 15)
             total = max(0, min(base + jitter, 23 * 60 + 59))
             t = f"{total // 60:02d}:{total % 60:02d}"
             if t not in used:
@@ -140,8 +177,17 @@ def _today() -> str:
 class PublishQueue:
     """发布队列 CRUD + 批量发布。"""
 
-    def __init__(self, queue_file: Path | str | None = None) -> None:
-        self._path = Path(queue_file or QUEUE_FILE)
+    def __init__(
+        self,
+        queue_file: Path | str | None = None,
+        project_root: Path | str | None = None,
+    ) -> None:
+        if queue_file is not None:
+            self._path = Path(queue_file).resolve()
+        elif project_root is not None:
+            self._path = Path(project_root).resolve() / "data" / "publish_queue.json"
+        else:
+            self._path = Path(queue_file or QUEUE_FILE)
 
     def _load(self) -> list[dict]:
         if not self._path.exists():
@@ -355,6 +401,21 @@ class PublishQueue:
         if item.status == "published":
             return {"ok": False, "error": "已发布，不可重复发布"}
 
+        cfg = config or {}
+        xgj_cfg = cfg.get("xianguanjia", {})
+        if not xgj_cfg.get("app_key") or not xgj_cfg.get("app_secret"):
+            return {"ok": False, "error": "闲管家 AppKey/AppSecret 未配置，请在「系统配置 → 闲管家」中填写"}
+        if not str(xgj_cfg.get("default_channel_cat_id", "")).strip():
+            return {"ok": False, "error": "闲鱼类目ID 未配置，请在「系统配置 → 闲管家 → 默认闲鱼类目ID」中填写"}
+
+        oss_cfg = cfg.get("oss", {})
+        required_oss = ("access_key_id", "access_key_secret", "bucket", "endpoint")
+        if not all(oss_cfg.get(k) for k in required_oss):
+            return {"ok": False, "error": "OSS 存储未配置，请在「系统配置 → 阿里云 OSS」中填写完整"}
+
+        if not xgj_cfg.get("default_province") or not xgj_cfg.get("default_city") or not xgj_cfg.get("default_district"):
+            return {"ok": False, "error": "发货地区未配置，请在「系统配置 → 闲管家」中填写省/市/区行政编码"}
+
         self.update_item(item_id, {"status": "publishing"})
 
         from .auto_publish import AutoPublishService
@@ -364,14 +425,17 @@ class PublishQueue:
             self.update_item(item_id, {"status": "failed", "error": "没有生成图片"})
             return {"ok": False, "error": "没有生成图片"}
 
-        scheduled_time = getattr(item, "scheduled_time", None)
+        raw_time = getattr(item, "scheduled_time", None) or ""
+        scheduled_time_str = None
+        if raw_time and ":" in raw_time:
+            scheduled_time_str = f"{item.scheduled_date} {raw_time}:00"
 
         preview_data = {
             "title": item.title,
             "description": item.description,
             "price": item.price,
             "local_images": item.generated_images,
-            "scheduled_time": scheduled_time,
+            "scheduled_time": scheduled_time_str,
         }
 
         result = await svc.publish_from_preview(preview_data)
@@ -397,11 +461,13 @@ class PublishQueue:
         interval_seconds: int = 30,
         config: dict | None = None,
     ) -> list[dict]:
-        """批量发布，每条之间等待 interval_seconds。"""
+        """批量发布，每条之间等待 interval_seconds ± 随机偏移。"""
         results = []
         for i, item_id in enumerate(item_ids):
             if i > 0:
-                await asyncio.sleep(interval_seconds)
+                jitter = random.randint(-10, 30)
+                wait = max(15, interval_seconds + jitter)
+                await asyncio.sleep(wait)
             result = await self.publish_item(item_id, config=config)
             result["item_id"] = item_id
             results.append(result)
@@ -448,7 +514,7 @@ class PublishQueue:
             })
             title = content.get("title", "")
             description = content.get("description", "")
-            if title and len(title) > 3:
+            if title and len(title) > 3 and "【转卖】" not in title:
                 return title, description
         except Exception as exc:
             logger.warning(f"AI content generation failed: {exc}")
@@ -492,5 +558,6 @@ class PublishQueue:
             action=d.get("action", "cold_start"),
             replace_product_id=d.get("replace_product_id"),
             published_product_id=d.get("published_product_id"),
+            scheduled_time=d.get("scheduled_time", ""),
             composition=d.get("composition", {}),
         )

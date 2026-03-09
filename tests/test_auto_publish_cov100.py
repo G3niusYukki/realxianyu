@@ -31,7 +31,7 @@ def mock_api_client():
     client = MagicMock()
     resp = MagicMock()
     resp.ok = True
-    resp.data = {"product_id": "prod_123"}
+    resp.data = {"product_id": 12345}
     resp.error_message = None
     client.create_product.return_value = resp
     client.list_authorized_users.return_value = MagicMock(
@@ -58,7 +58,10 @@ def auto_publish_service(mock_content_service, mock_oss_uploader, mock_api_clien
             api_client=mock_api_client,
             content_service=mock_content_service,
             oss_uploader=mock_oss_uploader,
-            config={"oss": {}},
+            config={
+                "oss": {},
+                "xianguanjia": {"default_channel_cat_id": "test_cat_123"},
+            },
         )
     return svc
 
@@ -220,8 +223,8 @@ class TestPublish:
             mock_gen.return_value = ["/tmp/img1.png"]
             result = await auto_publish_service.publish({"name": "test", "price": 50})
         assert result["ok"] is True
-        assert result["step"] == "done"
-        assert result["product_id"] == "prod_123"
+        assert result["step"] == "publishing"
+        assert result["product_id"] == 12345
 
 
 class TestPublishFromPreview:
@@ -270,7 +273,7 @@ class TestPublishFromPreview:
             "price": 50,
         })
         assert result["ok"] is True
-        assert result["step"] == "done"
+        assert result["step"] == "publishing"
 
 
 class TestGetUserName:
@@ -317,9 +320,9 @@ class TestBuildCreatePayload:
             title="T", description="D", price=10.5,
             image_urls=["url1"], user_name="user", extra=None,
         )
-        assert payload["title"] == "T"
+        assert payload["publish_shop"][0]["title"] == "T"
         assert payload["price"] == 1050
-        assert payload["user_name"] == "user"
+        assert payload["publish_shop"][0]["user_name"] == "user"
 
     def test_no_price_no_user(self):
         from src.modules.listing.auto_publish import AutoPublishService
@@ -327,8 +330,8 @@ class TestBuildCreatePayload:
             title="T", description="D", price=None,
             image_urls=["url1"],
         )
-        assert "price" not in payload
-        assert "user_name" not in payload
+        assert payload["price"] == 100
+        assert payload["publish_shop"][0]["user_name"] == ""
 
     def test_with_extra(self):
         from src.modules.listing.auto_publish import AutoPublishService
@@ -354,3 +357,278 @@ class TestListCategories:
             cats = AutoPublishService.list_categories()
             assert len(cats) == 1
             assert cats[0]["id"] == "exchange"
+
+
+class TestBuildCreatePayloadContentPadding:
+    """测试 content 不足 5 字符时自动补足。"""
+
+    def test_short_content_padded(self):
+        from src.modules.listing.auto_publish import AutoPublishService
+        payload = AutoPublishService._build_create_payload(
+            title="T", description="Hi", price=10,
+            image_urls=["url1"], user_name="user",
+        )
+        content = payload["publish_shop"][0]["content"]
+        assert len(content) >= 5
+        assert "详情请咨询卖家" in content
+
+    def test_exact_5_chars_not_padded(self):
+        from src.modules.listing.auto_publish import AutoPublishService
+        payload = AutoPublishService._build_create_payload(
+            title="T", description="12345", price=10,
+            image_urls=["url1"], user_name="user",
+        )
+        content = payload["publish_shop"][0]["content"]
+        assert content == "12345"
+
+    def test_long_content_not_padded(self):
+        from src.modules.listing.auto_publish import AutoPublishService
+        desc = "这是一个完整的商品描述信息"
+        payload = AutoPublishService._build_create_payload(
+            title="T", description=desc, price=10,
+            image_urls=["url1"], user_name="user",
+        )
+        content = payload["publish_shop"][0]["content"]
+        assert content == desc
+
+    def test_empty_content_padded(self):
+        from src.modules.listing.auto_publish import AutoPublishService
+        payload = AutoPublishService._build_create_payload(
+            title="T", description="", price=10,
+            image_urls=["url1"], user_name="user",
+        )
+        content = payload["publish_shop"][0]["content"]
+        assert len(content) >= 5
+
+
+class TestChineseErrorMessages:
+    """测试所有错误信息返回中文。"""
+
+    @pytest.mark.asyncio
+    async def test_publish_from_preview_no_api_client_chinese(self, auto_publish_service):
+        auto_publish_service.api_client = None
+        result = await auto_publish_service.publish_from_preview({"local_images": ["/img.png"]})
+        assert result["ok"] is False
+        assert "闲管家 API 客户端未初始化" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_publish_from_preview_no_user_name_chinese(self, auto_publish_service, mock_api_client):
+        mock_api_client.list_authorized_users.return_value = MagicMock(ok=True, data=[])
+        result = await auto_publish_service.publish_from_preview({"local_images": ["/img.png"]})
+        assert result["ok"] is False
+        assert "获取闲鱼账号失败" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_publish_from_preview_no_channel_cat_id_chinese(self, auto_publish_service):
+        auto_publish_service._publish_defaults["default_channel_cat_id"] = ""
+        result = await auto_publish_service.publish_from_preview({"local_images": ["/img.png"]})
+        assert result["ok"] is False
+        assert "闲鱼类目ID 未配置" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_publish_no_api_client_chinese(self, auto_publish_service):
+        auto_publish_service.api_client = None
+        result = await auto_publish_service.publish({})
+        assert result["ok"] is False
+        assert "闲管家 API 客户端未初始化" in result["error"]
+
+    def test_publish_product_no_api_client_chinese(self, auto_publish_service):
+        auto_publish_service.api_client = None
+        result = auto_publish_service._publish_product(product_id=123, user_name="user")
+        assert result["ok"] is False
+        assert "闲管家 API 客户端未初始化" in result["error"]
+
+
+class TestProductIdTypeConversion:
+    """测试 product_id 从 API 响应转为 int。"""
+
+    @pytest.mark.asyncio
+    async def test_publish_from_preview_converts_string_product_id(self, auto_publish_service, mock_api_client):
+        resp = MagicMock()
+        resp.ok = True
+        resp.data = {"product_id": "67890"}
+        resp.error_message = None
+        mock_api_client.create_product.return_value = resp
+        result = await auto_publish_service.publish_from_preview({
+            "local_images": ["/img.png"],
+            "title": "Test",
+            "description": "Test description text",
+            "price": 10,
+        })
+        assert result["ok"] is True
+        assert result["product_id"] == 67890
+        assert isinstance(result["product_id"], int)
+
+    @pytest.mark.asyncio
+    async def test_publish_from_preview_keeps_int_product_id(self, auto_publish_service):
+        result = await auto_publish_service.publish_from_preview({
+            "local_images": ["/img.png"],
+            "title": "Test",
+            "description": "Test description text",
+            "price": 10,
+        })
+        assert result["ok"] is True
+        assert result["product_id"] == 12345
+        assert isinstance(result["product_id"], int)
+
+
+class TestPublishProductScheduledTime:
+    """测试 _publish_product 的 scheduled_time 处理。"""
+
+    def test_datetime_string_passed_directly(self, auto_publish_service):
+        result = auto_publish_service._publish_product(
+            product_id=123, user_name="user",
+            scheduled_time="2026-03-10 14:30:00",
+        )
+        call_args = auto_publish_service.api_client.publish_product.call_args[0][0]
+        assert call_args["specify_publish_time"] == "2026-03-10 14:30:00"
+
+    def test_no_scheduled_time(self, auto_publish_service):
+        auto_publish_service._publish_product(
+            product_id=123, user_name="user",
+            scheduled_time=None,
+        )
+        call_args = auto_publish_service.api_client.publish_product.call_args[0][0]
+        assert "specify_publish_time" not in call_args
+
+    def test_unix_timestamp_converted(self, auto_publish_service):
+        import time as _time
+        ts = int(_time.time()) + 3600
+        auto_publish_service._publish_product(
+            product_id=123, user_name="user",
+            scheduled_time=ts,
+        )
+        call_args = auto_publish_service.api_client.publish_product.call_args[0][0]
+        assert "specify_publish_time" in call_args
+        assert "-" in call_args["specify_publish_time"]
+
+
+class TestDictToItemScheduledTime:
+    """测试 _dict_to_item 正确映射 scheduled_time。"""
+
+    def test_scheduled_time_mapped(self):
+        from src.modules.listing.publish_queue import PublishQueue
+        d = {
+            "id": "test-id",
+            "status": "draft",
+            "scheduled_date": "2026-03-10",
+            "category": "express",
+            "title": "Test",
+            "description": "Desc",
+            "scheduled_time": "14:30",
+        }
+        item = PublishQueue._dict_to_item(d)
+        assert item.scheduled_time == "14:30"
+
+    def test_scheduled_time_default_empty(self):
+        from src.modules.listing.publish_queue import PublishQueue
+        d = {
+            "id": "test-id",
+            "status": "draft",
+            "scheduled_date": "2026-03-10",
+            "category": "express",
+            "title": "Test",
+            "description": "Desc",
+        }
+        item = PublishQueue._dict_to_item(d)
+        assert item.scheduled_time == ""
+
+
+class TestPublishItemPreChecks:
+    """测试 publish_item 的前置配置检查。"""
+
+    @pytest.fixture
+    def publish_queue(self, tmp_path):
+        from src.modules.listing.publish_queue import PublishQueue
+        q = PublishQueue(project_root=str(tmp_path))
+        return q
+
+    @pytest.fixture
+    def base_config(self):
+        return {
+            "xianguanjia": {
+                "app_key": "test_key",
+                "app_secret": "test_secret",
+                "default_channel_cat_id": "cat_123",
+                "default_province": 440000,
+                "default_city": 440100,
+                "default_district": 440106,
+            },
+            "oss": {
+                "access_key_id": "ak",
+                "access_key_secret": "sk",
+                "bucket": "bkt",
+                "endpoint": "ep",
+            },
+        }
+
+    @pytest.mark.asyncio
+    async def test_missing_app_key(self, publish_queue, base_config):
+        from src.modules.listing.publish_queue import QueueItem
+        item = QueueItem(id="t1", status="draft", scheduled_date="2026-03-10",
+                         category="express", title="T", description="D")
+        publish_queue.add_item(item)
+        base_config["xianguanjia"]["app_key"] = ""
+        result = await publish_queue.publish_item("t1", config=base_config)
+        assert result["ok"] is False
+        assert "AppKey" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_missing_channel_cat_id(self, publish_queue, base_config):
+        from src.modules.listing.publish_queue import QueueItem
+        item = QueueItem(id="t2", status="draft", scheduled_date="2026-03-10",
+                         category="express", title="T", description="D")
+        publish_queue.add_item(item)
+        base_config["xianguanjia"]["default_channel_cat_id"] = ""
+        result = await publish_queue.publish_item("t2", config=base_config)
+        assert result["ok"] is False
+        assert "闲鱼类目ID" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_missing_oss(self, publish_queue, base_config):
+        from src.modules.listing.publish_queue import QueueItem
+        item = QueueItem(id="t3", status="draft", scheduled_date="2026-03-10",
+                         category="express", title="T", description="D")
+        publish_queue.add_item(item)
+        base_config["oss"]["bucket"] = ""
+        result = await publish_queue.publish_item("t3", config=base_config)
+        assert result["ok"] is False
+        assert "OSS" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_missing_province(self, publish_queue, base_config):
+        from src.modules.listing.publish_queue import QueueItem
+        item = QueueItem(id="t4", status="draft", scheduled_date="2026-03-10",
+                         category="express", title="T", description="D")
+        publish_queue.add_item(item)
+        base_config["xianguanjia"]["default_province"] = 0
+        result = await publish_queue.publish_item("t4", config=base_config)
+        assert result["ok"] is False
+        assert "发货地区" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_missing_city(self, publish_queue, base_config):
+        from src.modules.listing.publish_queue import QueueItem
+        item = QueueItem(id="t5", status="draft", scheduled_date="2026-03-10",
+                         category="express", title="T", description="D")
+        publish_queue.add_item(item)
+        base_config["xianguanjia"]["default_city"] = 0
+        result = await publish_queue.publish_item("t5", config=base_config)
+        assert result["ok"] is False
+        assert "发货地区" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_already_published(self, publish_queue):
+        from src.modules.listing.publish_queue import QueueItem
+        item = QueueItem(id="t6", status="published", scheduled_date="2026-03-10",
+                         category="express", title="T", description="D")
+        publish_queue.add_item(item)
+        result = await publish_queue.publish_item("t6")
+        assert result["ok"] is False
+        assert "已发布" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_item_not_found(self, publish_queue):
+        result = await publish_queue.publish_item("nonexistent")
+        assert result["ok"] is False
+        assert "不存在" in result["error"]

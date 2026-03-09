@@ -77,29 +77,30 @@ class Logger:
             compression="gz",
         )
 
-    def info(self, message: str, **kwargs) -> None:
+    def info(self, message: str, *args, **kwargs) -> None:
         """
         Info级别日志
         """
-        logger.info(message, **kwargs)
+        logger.info(message, *args, **kwargs)
 
-    def debug(self, message: str, **kwargs) -> None:
+    def debug(self, message: str, *args, **kwargs) -> None:
         """
         Debug级别日志
         """
-        logger.debug(message, **kwargs)
+        logger.debug(message, *args, **kwargs)
 
-    def warning(self, message: str, **kwargs) -> None:
+    def warning(self, message: str, *args, **kwargs) -> None:
         """
         Warning级别日志
+        支持 %s 风格: warning("msg: %s", var)
         """
-        logger.warning(message, **kwargs)
+        logger.warning(message, *args, **kwargs)
 
-    def error(self, message: str, **kwargs) -> None:
+    def error(self, message: str, *args, **kwargs) -> None:
         """
         Error级别日志
         """
-        logger.error(message, **kwargs)
+        logger.error(message, *args, **kwargs)
 
     def success(self, message: str, **kwargs) -> None:
         """
