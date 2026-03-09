@@ -7,10 +7,9 @@ import tempfile
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock, Mock, patch, PropertyMock
+from unittest.mock import MagicMock, Mock, PropertyMock, patch
 
 import pytest
-
 
 # ---------------------------------------------------------------------------
 # helpers
@@ -80,7 +79,10 @@ class TestRetryXianguanjiaDelivery:
         }
         with (
             patch.object(ops, "_get_xianguanjia_settings", return_value=settings),
-            patch.object(ops, "_xianguanjia_service_config", return_value={}),
+            patch(
+                "src.dashboard_server._read_system_config",
+                return_value={"xianguanjia": {"enabled": True, "app_key": "k", "app_secret": "s"}},
+            ),
         ):
             result = ops.retry_xianguanjia_delivery({})
         assert result["error_code"] == "MISSING_ORDER_ID"
@@ -98,7 +100,10 @@ class TestRetryXianguanjiaDelivery:
         }
         with (
             patch.object(ops, "_get_xianguanjia_settings", return_value=settings),
-            patch.object(ops, "_xianguanjia_service_config", return_value={}),
+            patch(
+                "src.dashboard_server._read_system_config",
+                return_value={"xianguanjia": {"enabled": True, "app_key": "k", "app_secret": "s"}},
+            ),
             patch("src.dashboard_server.MimicOps.retry_xianguanjia_delivery.__wrapped__", create=True),
             patch("src.modules.orders.service.OrderFulfillmentService") as MockSvc,
         ):
@@ -128,7 +133,10 @@ class TestRetryXianguanjiaDelivery:
         }
         with (
             patch.object(ops, "_get_xianguanjia_settings", return_value=settings),
-            patch.object(ops, "_xianguanjia_service_config", return_value={}),
+            patch(
+                "src.dashboard_server._read_system_config",
+                return_value={"xianguanjia": {"enabled": True, "app_key": "k", "app_secret": "s"}},
+            ),
             patch("src.modules.orders.service.OrderFulfillmentService") as MockSvc,
         ):
             MockSvc.return_value.deliver.side_effect = RuntimeError("ship err")
@@ -148,7 +156,10 @@ class TestRetryXianguanjiaDelivery:
         }
         with (
             patch.object(ops, "_get_xianguanjia_settings", return_value=settings),
-            patch.object(ops, "_xianguanjia_service_config", return_value={}),
+            patch(
+                "src.dashboard_server._read_system_config",
+                return_value={"xianguanjia": {"enabled": True, "app_key": "k", "app_secret": "s"}},
+            ),
             patch("src.modules.orders.service.OrderFulfillmentService") as MockSvc,
         ):
             MockSvc.return_value.deliver.return_value = {"ok": True}
@@ -206,7 +217,7 @@ class TestRetryXianguanjiaPrice:
         settings = {"configured": True, "app_key": "k", "app_secret": "s", "merchant_id": "", "base_url": "u"}
         with (
             patch.object(ops, "_get_xianguanjia_settings", return_value=settings),
-            patch.object(ops, "_xianguanjia_service_config", return_value={}),
+            patch("src.dashboard_server._read_system_config", return_value={}),
             patch("src.modules.operations.service.get_compliance_guard"),
             patch("src.modules.operations.service.get_config") as mcfg,
             patch("src.dashboard_server._run_async") as mock_run,
@@ -227,7 +238,7 @@ class TestRetryXianguanjiaPrice:
         settings = {"configured": True, "app_key": "k", "app_secret": "s", "merchant_id": "", "base_url": "u"}
         with (
             patch.object(ops, "_get_xianguanjia_settings", return_value=settings),
-            patch.object(ops, "_xianguanjia_service_config", return_value={}),
+            patch("src.dashboard_server._read_system_config", return_value={}),
             patch("src.modules.operations.service.get_compliance_guard"),
             patch("src.modules.operations.service.get_config") as mcfg,
             patch("src.dashboard_server._run_async", side_effect=RuntimeError("price err")),
@@ -913,7 +924,7 @@ class TestHandleListingPreview:
         handler = _make_handler()
         from src.dashboard_server import DashboardHandler
 
-        with patch.object(handler, "_xianguanjia_service_config", create=True, side_effect=RuntimeError("fail")):
+        with patch.object(handler.mimic_ops, "_xianguanjia_service_config", side_effect=RuntimeError("fail")):
             result = DashboardHandler._handle_listing_preview(handler, {})
         assert result["ok"] is False
         assert result["step"] == "error"
@@ -979,7 +990,7 @@ class TestHandleListingPublish:
                     "xianguanjia": {"app_key": "k", "app_secret": "s", "base_url": "u"},
                 },
             ),
-            patch("src.integrations.xianguanjia.open_platform_client.OpenPlatformClient") as MockClient,
+            patch("src.integrations.xianguanjia.open_platform_client.OpenPlatformClient"),
             patch("src.modules.listing.auto_publish.get_compliance_guard"),
             patch("src.modules.listing.auto_publish.ContentService") as MockCS,
             patch("src.modules.listing.auto_publish.OSSUploader") as MockOSS,
