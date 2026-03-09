@@ -200,3 +200,35 @@ async def generate_brand_images(
 def get_available_categories() -> list[dict[str, str]]:
     """返回可用的模板品类列表。"""
     return list_templates()
+
+
+async def generate_frame_images(
+    frame_id: str,
+    category: str,
+    params: dict[str, Any],
+) -> list[str]:
+    """Generate frame-based product images (stub - falls back to product images)."""
+    headline = params.get("headline", "")
+    desc = params.get("sub_headline", "")
+    badge = params.get("labels", "")
+    brand_items = params.get("brand_items", [])
+
+    features = []
+    for item in brand_items:
+        if isinstance(item, dict):
+            name = item.get("name", "")
+            if name:
+                features.append(name)
+
+    price = params.get("price")
+    image_params = [
+        {
+            "title": headline,
+            "desc": desc[:80] if desc else "",
+            "badge": badge,
+            "features": features[:6],
+            "price": price,
+            "footer": params.get("tagline", ""),
+        }
+    ]
+    return await generate_product_images(category=category, params_list=image_params)

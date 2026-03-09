@@ -377,3 +377,13 @@ class ReplyStrategyEngine:
     @staticmethod
     def _normalize_text(text: str) -> str:
         return (text or "").strip().lower()
+
+    def find_matching_rule(self, message_text: str, item_title: str = "") -> IntentRule | None:
+        """Find a matching keyword rule for the given message."""
+        if not message_text:
+            return None
+        normalized = self._normalize_text(message_text)
+        for rule in self.keyword_rules:
+            if rule.matches(normalized):
+                return rule
+        return None
