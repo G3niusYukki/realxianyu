@@ -413,7 +413,7 @@ class MimicOps:
 
     def _xianguanjia_service_config(self) -> dict[str, Any]:
         settings = self._get_xianguanjia_settings()
-        return {
+        result: dict[str, Any] = {
             "xianguanjia": {
                 "enabled": bool(settings["configured"]),
                 "app_key": settings["app_key"],
@@ -422,6 +422,13 @@ class MimicOps:
                 "base_url": settings["base_url"],
             }
         }
+        sys_cfg = _read_system_config()
+        oss_cfg = sys_cfg.get("oss")
+        if isinstance(oss_cfg, dict) and oss_cfg:
+            clean_oss = {k: v for k, v in oss_cfg.items() if v and not str(v).endswith("****")}
+            if clean_oss:
+                result["oss"] = clean_oss
+        return result
 
     def retry_xianguanjia_delivery(self, payload: dict[str, Any]) -> dict[str, Any]:
         from src.modules.orders.service import OrderFulfillmentService
