@@ -24,6 +24,7 @@ from src.core.logger import get_logger
 from src.modules.compliance.center import ComplianceCenter
 from src.modules.messages.reply_engine import ReplyStrategyEngine
 from src.modules.quote.engine import AutoQuoteEngine
+from src.modules.quote.ledger import get_quote_ledger
 from src.modules.quote.models import QuoteRequest, QuoteResult
 from src.modules.quote.providers import QuoteProviderError
 
@@ -1005,9 +1006,26 @@ class MessagesService:
                 "selected_courier": selected_courier,
             }
 
+        pre_matched = self.reply_engine.find_matching_rule(message_text, item_title)
+        if pre_matched and not is_quote_intent:
+            reply = pre_matched.reply
+            if item_title and not pre_matched.categories:
+                reply = f"关于「{item_title}」，{reply}"
+            if self.reply_engine.compliance_enabled:
+                reply = self.reply_engine._check_compliance(reply)
+            return self._sanitize_reply(reply), {
+                "is_quote": False,
+                "rule_matched": pre_matched.name,
+                "needs_human": pre_matched.needs_human,
+                "human_reason": pre_matched.human_reason,
+                "phase": pre_matched.phase,
+            }
+
         is_virtual = self.reply_engine._is_virtual_context(
             self.reply_engine._normalize_text(message_text), item_title
         )
+        if self.reply_engine.category == "express":
+            is_virtual = False
 
         request, missing, extracted_fields, memory_hit = self._build_quote_request_with_context(
             message_text,
@@ -1156,6 +1174,49 @@ class MessagesService:
                 "quote_fallback": True,
                 "quote_context_hit": bool(memory_hit),
             }
+
+    def _persist_quote_to_ledger(
+        self,
+        *,
+        session_id: str,
+        peer_name: str,
+        sender_user_id: str,
+        item_id: str,
+        quote_meta: dict[str, Any],
+    ) -> None:
+        """Write successful quote to persistent QuoteLedger for cross-process lookup."""
+        try:
+            context = self._get_quote_context(session_id)
+            quote_rows = context.get("last_quote_rows") or []
+            if not quote_rows:
+                all_couriers = quote_meta.get("quote_all_couriers")
+                if isinstance(all_couriers, list):
+                    quote_rows = [
+                        {"courier": c.get("courier", ""), "total_fee": c.get("total_fee", 0)}
+                        for c in all_couriers
+                    ]
+                else:
+                    qr = quote_meta.get("quote_result", {})
+                    if qr:
+                        quote_rows = [{"courier": qr.get("selected_courier", ""), "total_fee": qr.get("total_fee", 0)}]
+
+            if not quote_rows:
+                return
+
+            ledger = get_quote_ledger()
+            ledger.record_quote(
+                session_id=session_id,
+                peer_name=peer_name,
+                sender_user_id=sender_user_id,
+                item_id=item_id,
+                origin=context.get("origin", ""),
+                destination=context.get("destination", ""),
+                weight=context.get("weight"),
+                courier_choice=context.get("courier_choice", ""),
+                quote_rows=quote_rows,
+            )
+        except Exception:
+            logger.debug("Failed to persist quote to ledger", exc_info=True)
 
     def generate_reply(self, message_text: str, item_title: str = "") -> str:
         """按策略引擎生成回复（兼容旧调用）。"""
@@ -1322,12 +1383,23 @@ class MessagesService:
         session_id = str(session.get("session_id", ""))
         msg = str(session.get("last_message", ""))
         item_title = str(session.get("item_title", ""))
+        peer_name = str(session.get("peer_name", ""))
+        sender_user_id = str(session.get("sender_user_id", ""))
 
         reply_text, quote_meta = await self._generate_reply_with_quote(
             msg,
             item_title=item_title,
             session_id=session_id,
         )
+
+        if quote_meta.get("quote_success") and session_id:
+            self._persist_quote_to_ledger(
+                session_id=session_id,
+                peer_name=peer_name,
+                sender_user_id=sender_user_id,
+                item_id=item_title,
+                quote_meta=quote_meta,
+            )
         decision = self.compliance_center.evaluate_before_send(
             reply_text,
             actor=actor,

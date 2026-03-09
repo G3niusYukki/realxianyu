@@ -14,6 +14,7 @@ _SYS_CONFIG_FILE = Path(__file__).resolve().parents[2] / "server" / "data" / "sy
 _ALLOWED_CONFIG_SECTIONS = {
     "xianguanjia", "ai", "oss", "auto_reply", "auto_publish",
     "order_reminder", "pricing", "delivery", "notifications", "store",
+    "auto_price_modify",
 }
 
 _SENSITIVE_CONFIG_KEYS = ["app_secret", "api_key", "access_key_secret", "mch_secret", "webhook"]
@@ -45,6 +46,16 @@ CONFIG_SECTIONS: list[dict[str, Any]] = [
             {"key": "app_secret", "label": "AppSecret", "type": "password", "required": True, "hint": "应用密钥，请妥善保管不要泄露"},
             {"key": "seller_id", "label": "商家 ID (Seller ID)", "type": "text", "required_when": {"mode": "business"}, "hint": "商务对接模式下的商家标识，自研模式无需填写"},
             {"key": "base_url", "label": "API 网关", "type": "text", "default": "https://open.goofish.pro", "hint": "默认无需修改，仅在私有化部署时更改"},
+            {"key": "default_channel_cat_id", "label": "默认闲鱼类目ID", "type": "text", "hint": "通过查询类目接口获取，上架商品时必填"},
+            {"key": "default_item_biz_type", "label": "商品类型", "type": "number", "default": 2, "hint": "2=普通商品（默认）"},
+            {"key": "default_sp_biz_type", "label": "发布类型", "type": "number", "default": 2, "hint": "2=全新（默认）"},
+            {"key": "default_stuff_status", "label": "成色", "type": "select", "options": ["1", "2", "3", "4", "5", "6"], "default": "1", "labels": {"1": "全新", "2": "几乎全新", "3": "轻微使用痕迹", "4": "明显使用痕迹", "5": "大部分功能正常", "6": "无法正常使用"}, "hint": "商品成色，默认全新"},
+            {"key": "default_express_fee", "label": "默认运费(分)", "type": "number", "default": 0, "hint": "0=包邮"},
+            {"key": "default_stock", "label": "默认库存", "type": "number", "default": 1},
+            {"key": "default_province", "label": "发货省份", "type": "text", "hint": "例：广东省"},
+            {"key": "default_city", "label": "发货城市", "type": "text", "hint": "例：深圳市"},
+            {"key": "default_district", "label": "发货地区", "type": "text", "hint": "例：南山区"},
+            {"key": "product_callback_url", "label": "商品回调地址", "type": "text", "hint": "填入闲管家开放平台后台，用于接收上架结果通知"},
         ],
     },
     {
@@ -93,6 +104,11 @@ CONFIG_SECTIONS: list[dict[str, Any]] = [
             {"key": "enabled", "label": "启用", "type": "toggle", "default": False, "hint": "开启后系统按策略自动上架新商品"},
             {"key": "default_category", "label": "默认品类", "type": "select", "options": ["express", "recharge", "exchange", "account", "movie_ticket", "game"], "default": "exchange", "hint": "新上架商品的默认品类归属"},
             {"key": "auto_compliance", "label": "自动合规检查", "type": "toggle", "default": True, "hint": "上架前自动检测违规关键词和敏感内容"},
+            {"key": "cold_start_days", "label": "冷启动天数", "type": "number", "default": 2, "hint": "新店前 N 天为冷启动期，每天批量上架新链接"},
+            {"key": "cold_start_daily_count", "label": "每日新建链接数", "type": "number", "default": 5, "hint": "冷启动期每天自动上架的链接数量"},
+            {"key": "steady_replace_count", "label": "每日替换链接数", "type": "number", "default": 1, "hint": "稳定期每天替换流量最差的链接数量"},
+            {"key": "max_active_listings", "label": "最大活跃链接数", "type": "number", "default": 10, "hint": "店铺同时存在的最大商品链接数上限"},
+            {"key": "steady_replace_metric", "label": "替换依据", "type": "select", "options": ["views", "sales"], "default": "views", "hint": "按什么指标判断需要替换的最差链接（浏览量/销量）"},
         ],
     },
     {
@@ -123,6 +139,17 @@ CONFIG_SECTIONS: list[dict[str, Any]] = [
             {"key": "auto_delivery", "label": "自动发货", "type": "toggle", "default": True, "hint": "开启后，订单支付成功自动触发闲管家发货"},
             {"key": "delivery_timeout_minutes", "label": "发货超时(分钟)", "type": "number", "default": 30, "hint": "超过设定时长未发货将触发告警通知（需配置告警 Webhook）"},
             {"key": "notify_on_delivery", "label": "发货通知", "type": "toggle", "default": True, "hint": "（规划中）发货成功后通知买家，需配合闲管家消息通道"},
+        ],
+    },
+    {
+        "key": "auto_price_modify",
+        "name": "自动改价",
+        "fields": [
+            {"key": "enabled", "label": "启用", "type": "toggle", "default": False, "hint": "买家下单未付款时，自动匹配聊天中的报价并修改订单价格"},
+            {"key": "max_quote_age_seconds", "label": "报价有效期(秒)", "type": "number", "default": 7200, "hint": "超过此时间的报价不再用于自动改价"},
+            {"key": "fallback_action", "label": "无匹配报价时", "type": "select", "options": ["skip", "use_listing_price"], "default": "skip", "labels": {"skip": "跳过不改价", "use_listing_price": "使用上架价格"}, "hint": "找不到聊天报价时的处理策略"},
+            {"key": "default_express_fee", "label": "默认运费(分)", "type": "number", "default": 0, "hint": "改价时的运费，0=包邮"},
+            {"key": "notify_on_modify", "label": "改价通知", "type": "toggle", "default": True, "hint": "改价成功后发送通知"},
         ],
     },
     {

@@ -7,10 +7,9 @@
 4. 上传图片到 OSS (OSSUploader)
 5. 获取 user_name (OpenPlatformClient.list_authorized_users)
 6. 调用闲管家 API 创建商品 (OpenPlatformClient.create_product)
+7. 调用闲管家 API 上架商品 (OpenPlatformClient.publish_product)
 
-支持两种模式:
-- full_auto: 直接发布
-- review: 生成预览数据，等待人工确认后再发布
+上架为异步操作，最终结果通过商品回调通知确认。
 """
 
 from __future__ import annotations
@@ -23,10 +22,13 @@ from src.core.logger import get_logger
 from src.integrations.xianguanjia.open_platform_client import OpenPlatformClient
 from src.modules.content.service import ContentService
 
-from .image_generator import generate_product_images, get_available_categories
+from .brand_assets import BrandAssetManager
+from .image_generator import generate_frame_images, generate_product_images, get_available_categories
 from .oss_uploader import OSSUploader
 
 logger = get_logger()
+
+_XGJ_CLIENT_FIELDS = {"base_url", "app_key", "app_secret", "timeout", "mode", "seller_id"}
 
 
 class AutoPublishService:
@@ -41,18 +43,37 @@ class AutoPublishService:
         config: dict[str, Any] | None = None,
     ) -> None:
         self.config = config or {}
-        self.api_client = api_client
+        if api_client is not None:
+            self.api_client = api_client
+        elif self.config.get("xianguanjia"):
+            try:
+                xgj_raw = self.config["xianguanjia"]
+                client_kwargs = {k: v for k, v in xgj_raw.items() if k in _XGJ_CLIENT_FIELDS and v}
+                self.api_client = OpenPlatformClient(**client_kwargs)
+                logger.info("AutoPublishService: auto-constructed OpenPlatformClient from config")
+            except Exception as exc:
+                logger.warning("AutoPublishService: failed to construct OpenPlatformClient: %s", exc)
+                self.api_client = None
+        else:
+            self.api_client = None
         self.content_service = content_service or ContentService()
         self.oss_uploader = oss_uploader or OSSUploader(self.config.get("oss"))
         self.compliance = get_compliance_guard()
+        self._publish_defaults = self.config.get("xianguanjia", {}) if self.config else {}
 
     async def generate_preview(self, product_config: dict[str, Any]) -> dict[str, Any]:
-        """生成上架预览（不实际发布），返回预览数据供前端展示或人工确认。"""
+        """生成上架预览（不实际发布），返回预览数据供前端展示或人工确认。
+
+        支持 frame_id + brand_asset_ids 使用新 Frame 模板系统，
+        也兼容旧模板系统（无 frame_id 时 fallback）。
+        """
         category = str(product_config.get("category", "exchange")).strip()
         product_name = str(product_config.get("name", "")).strip()
         features = product_config.get("features") or []
         price = product_config.get("price")
         extra_params = product_config.get("template_params") or {}
+        frame_id = product_config.get("frame_id")
+        brand_asset_ids = product_config.get("brand_asset_ids") or []
 
         content = self.content_service.generate_listing_content({
             "name": product_name or category,
@@ -76,23 +97,36 @@ class AutoPublishService:
                 "compliance": compliance_result,
             }
 
-        image_params = [{
-            "title": title,
-            "desc": description[:80] if description else "",
-            "badge": extra_params.get("badge", ""),
-            "features": features[:6],
-            "price": price,
-            "footer": extra_params.get("footer", ""),
-            **extra_params,
-        }]
-        extra_images = product_config.get("extra_images") or []
-        for ep in extra_images:
-            image_params.append(ep if isinstance(ep, dict) else {"title": str(ep)})
+        local_images: list[str] = []
 
-        local_images = await generate_product_images(
-            category=category,
-            params_list=image_params,
-        )
+        if frame_id:
+            brand_items = self._load_brand_items(brand_asset_ids, category)
+            frame_params = {
+                "headline": extra_params.get("headline", title),
+                "sub_headline": extra_params.get("sub_headline", ""),
+                "labels": extra_params.get("labels", ""),
+                "tagline": extra_params.get("tagline", ""),
+                "brand_items": brand_items,
+            }
+            local_images = await generate_frame_images(
+                frame_id=frame_id,
+                category=category,
+                params=frame_params,
+            )
+        else:
+            image_params = [{
+                "title": title,
+                "desc": description[:80] if description else "",
+                "badge": extra_params.get("badge", ""),
+                "features": features[:6],
+                "price": price,
+                "footer": extra_params.get("footer", ""),
+                **extra_params,
+            }]
+            local_images = await generate_product_images(
+                category=category,
+                params_list=image_params,
+            )
 
         return {
             "ok": True,
@@ -101,13 +135,46 @@ class AutoPublishService:
             "description": description,
             "category": category,
             "price": price,
+            "frame_id": frame_id,
+            "brand_asset_ids": brand_asset_ids,
             "local_images": local_images,
             "compliance": compliance_result,
             "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
         }
 
+    def _load_brand_items(
+        self, brand_asset_ids: list[str], category: str
+    ) -> list[dict[str, str]]:
+        """加载品牌图片为模板可用的 brand_items 列表。"""
+        mgr = BrandAssetManager()
+
+        if brand_asset_ids:
+            ids_to_load = brand_asset_ids
+        else:
+            assets = mgr.list_assets(category=category)
+            ids_to_load = [a["id"] for a in assets]
+
+        items: list[dict[str, str]] = []
+        for aid in ids_to_load:
+            entry = None
+            for a in mgr.list_assets():
+                if a["id"] == aid:
+                    entry = a
+                    break
+            if entry is None:
+                continue
+            path = mgr.get_asset_path(aid)
+            if path is None:
+                continue
+            from .brand_assets import file_to_data_uri
+            items.append({
+                "name": entry["name"],
+                "src": file_to_data_uri(path),
+            })
+        return items
+
     async def publish(self, product_config: dict[str, Any]) -> dict[str, Any]:
-        """执行完整自动上架流程。"""
+        """执行完整自动上架流程：创建商品 -> 上架商品。"""
         if not self.api_client:
             return {"ok": False, "step": "init", "error": "api_client_not_configured"}
 
@@ -144,27 +211,39 @@ class AutoPublishService:
             price=preview.get("price"),
             image_urls=image_urls,
             user_name=user_name,
+            defaults=self._publish_defaults,
             extra=product_config.get("api_payload"),
         )
 
-        response = self.api_client.create_product(payload)
-        if not response.ok:
+        create_resp = self.api_client.create_product(payload)
+        if not create_resp.ok:
             return {
                 "ok": False,
                 "step": "api_create",
-                "error": response.error_message or "商品创建失败",
-                "api_response": response.to_dict() if hasattr(response, "to_dict") else str(response),
+                "error": create_resp.error_message or "商品创建失败",
+                "api_response": create_resp.to_dict() if hasattr(create_resp, "to_dict") else str(create_resp),
             }
 
-        product_data = response.data or {}
-        product_id = product_data.get("product_id") or product_data.get("xianyu_product_id")
+        product_data = create_resp.data or {}
+        product_id = product_data.get("product_id")
+        if not product_id:
+            return {"ok": False, "step": "api_create", "error": "创建成功但未返回 product_id"}
+
+        publish_result = self._publish_product(
+            product_id=product_id,
+            user_name=user_name,
+            scheduled_time=product_config.get("scheduled_time"),
+        )
+        if not publish_result["ok"]:
+            return publish_result
 
         return {
             "ok": True,
-            "step": "done",
+            "step": "publishing",
             "product_id": product_id,
             "title": preview["title"],
             "image_urls": image_urls,
+            "publish_async": True,
             "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
         }
 
@@ -192,26 +271,68 @@ class AutoPublishService:
             price=preview_data.get("price"),
             image_urls=image_urls,
             user_name=user_name,
+            defaults=self._publish_defaults,
             extra=preview_data.get("api_payload"),
         )
 
-        response = self.api_client.create_product(payload)
-        if not response.ok:
+        create_resp = self.api_client.create_product(payload)
+        if not create_resp.ok:
             return {
                 "ok": False,
                 "step": "api_create",
-                "error": response.error_message or "商品创建失败",
+                "error": create_resp.error_message or "商品创建失败",
             }
 
-        product_data = response.data or {}
+        product_data = create_resp.data or {}
+        product_id = product_data.get("product_id")
+        if not product_id:
+            return {"ok": False, "step": "api_create", "error": "创建成功但未返回 product_id"}
+
+        publish_result = self._publish_product(
+            product_id=product_id,
+            user_name=user_name,
+            scheduled_time=preview_data.get("scheduled_time"),
+        )
+        if not publish_result["ok"]:
+            return publish_result
+
         return {
             "ok": True,
-            "step": "done",
-            "product_id": product_data.get("product_id"),
+            "step": "publishing",
+            "product_id": product_id,
             "title": preview_data.get("title"),
             "image_urls": image_urls,
+            "publish_async": True,
             "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
         }
+
+    def _publish_product(
+        self,
+        *,
+        product_id: int,
+        user_name: str,
+        scheduled_time: int | None = None,
+    ) -> dict[str, Any]:
+        """调用 publish_product API 将草稿商品上架（异步操作）。"""
+        if not self.api_client:
+            return {"ok": False, "step": "api_publish", "error": "api_client_not_configured"}
+
+        publish_payload: dict[str, Any] = {
+            "product_id": product_id,
+            "user_name": user_name,
+        }
+        if scheduled_time:
+            publish_payload["specify_publish_time"] = int(scheduled_time)
+
+        resp = self.api_client.publish_product(publish_payload)
+        if not resp.ok:
+            return {
+                "ok": False,
+                "step": "api_publish",
+                "error": resp.error_message or "商品上架请求失败",
+                "product_id": product_id,
+            }
+        return {"ok": True, "step": "api_publish", "product_id": product_id}
 
     def _get_user_name(self) -> str:
         """从闲管家获取授权用户名。"""
@@ -235,19 +356,41 @@ class AutoPublishService:
         price: float | int | None,
         image_urls: list[str],
         user_name: str = "",
+        defaults: dict[str, Any] | None = None,
         extra: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        """构建符合闲管家 create_product API 规范的请求体。
+
+        必填字段：title, content, images, item_biz_type, sp_biz_type,
+        channel_cat_id, express_fee, stock, stuff_status, province, city, district。
+        user_name 通过 publish_shop 数组传入。
+        """
+        d = defaults or {}
+
         payload: dict[str, Any] = {
             "title": title,
-            "desc": description,
-            "images": image_urls,
+            "content": description,
+            "images": image_urls[:9],
+            "item_biz_type": int(d.get("default_item_biz_type", 2)),
+            "sp_biz_type": int(d.get("default_sp_biz_type", 2)),
+            "channel_cat_id": str(d.get("default_channel_cat_id", "")),
+            "stuff_status": str(d.get("default_stuff_status", "1")),
+            "stock": int(d.get("default_stock", 1)),
+            "express_fee": int(d.get("default_express_fee", 0)),
+            "province": str(d.get("default_province", "")),
+            "city": str(d.get("default_city", "")),
+            "district": str(d.get("default_district", "")),
         }
+
         if price is not None:
             payload["price"] = int(float(price) * 100)
+
         if user_name:
-            payload["user_name"] = user_name
+            payload["publish_shop"] = [{"user_name": user_name}]
+
         if extra and isinstance(extra, dict):
             payload.update(extra)
+
         return payload
 
     @staticmethod
