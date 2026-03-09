@@ -43,9 +43,7 @@ class OSSUploader:
         try:
             import oss2
         except ImportError as exc:
-            raise RuntimeError(
-                "oss2 package is required for OSS upload. Install: pip install oss2"
-            ) from exc
+            raise RuntimeError("oss2 package is required for OSS upload. Install: pip install oss2") from exc
 
         auth = oss2.Auth(self.access_key_id, self.access_key_secret)
         self._bucket = oss2.Bucket(auth, self.endpoint, self.bucket_name)

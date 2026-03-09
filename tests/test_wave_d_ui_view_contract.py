@@ -1,4 +1,4 @@
-from src.dashboard_server import DASHBOARD_HTML
+from src.dashboard.embedded_html import DASHBOARD_HTML
 
 
 def test_wave_d_ui_product_ops_only_uses_stable_fields() -> None:

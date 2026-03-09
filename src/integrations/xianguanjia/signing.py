@@ -13,11 +13,11 @@ import hashlib
 import hmac
 
 __all__ = [
-    "sign_open_platform_request",
     "sign_business_request",
+    "sign_open_platform_request",
     "sign_virtual_supply_request",
-    "verify_open_platform_callback_signature",
     "verify_business_callback_signature",
+    "verify_open_platform_callback_signature",
     "verify_virtual_supply_callback_signature",
 ]
 

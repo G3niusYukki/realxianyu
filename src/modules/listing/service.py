@@ -15,10 +15,10 @@ from typing import Any
 from urllib.parse import urlparse
 
 from src.core.compliance import get_compliance_guard
-from src.integrations.xianguanjia.open_platform_client import OpenPlatformClient
 from src.core.config import get_config
 from src.core.error_handler import BrowserError
 from src.core.logger import get_logger
+from src.integrations.xianguanjia.open_platform_client import OpenPlatformClient
 from src.modules.listing.models import Listing, PublishResult, generate_internal_listing_id
 from src.modules.virtual_goods.store import VirtualGoodsStore
 
@@ -218,7 +218,9 @@ class ListingService:
             return "inactive", False
         return self._to_contract_mapping_status(mapping.get("mapping_status")), True
 
-    def _persist_listing_mapping(self, *, internal_listing_id: str | None, product_id: str | None) -> dict[str, Any] | None:
+    def _persist_listing_mapping(
+        self, *, internal_listing_id: str | None, product_id: str | None
+    ) -> dict[str, Any] | None:
         if not internal_listing_id or not product_id or not self.mapping_store:
             return None
         try:
@@ -302,19 +304,24 @@ class ListingService:
                     "code": "API_CLIENT_NOT_CONFIGURED",
                     "message": "xianguanjia open platform client is not configured",
                 },
-                errors=[{"code": "API_CLIENT_NOT_CONFIGURED", "message": "xianguanjia open platform client is not configured"}],
+                errors=[
+                    {
+                        "code": "API_CLIENT_NOT_CONFIGURED",
+                        "message": "xianguanjia open platform client is not configured",
+                    }
+                ],
             )
 
         response = getattr(client, method_name)(request_payload)
         if response.ok:
             resp_data = response.data if isinstance(response.data, dict) else {}
             product_id = (
-                resp_data.get("xianyu_product_id")
-                or resp_data.get("product_id")
-                or request_payload.get("product_id")
+                resp_data.get("xianyu_product_id") or resp_data.get("product_id") or request_payload.get("product_id")
             )
             if action_key == "create":
-                persisted = self._persist_listing_mapping(internal_listing_id=internal_listing_id, product_id=product_id)
+                persisted = self._persist_listing_mapping(
+                    internal_listing_id=internal_listing_id, product_id=product_id
+                )
                 mapping_status = self._to_contract_mapping_status((persisted or {}).get("mapping_status"))
                 has_mapping = bool(persisted)
             else:
@@ -866,9 +873,7 @@ class ListingService:
             return []
 
         try:
-            response = await asyncio.to_thread(
-                client.list_products, {"page_no": page, "page_size": page_size}
-            )
+            response = await asyncio.to_thread(client.list_products, {"page_no": page, "page_size": page_size})
             if not response.ok:
                 self.logger.error(f"Failed to fetch listings: {response.error_message}")
                 return []

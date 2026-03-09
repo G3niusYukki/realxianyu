@@ -41,6 +41,7 @@ def _load_notify_config() -> dict[str, Any]:
 async def _do_send(cfg: dict[str, Any], text: str) -> None:
     if cfg.get("feishu_enabled") and cfg.get("feishu_webhook"):
         from src.modules.messages.notifications import FeishuNotifier
+
         ok = await FeishuNotifier(cfg["feishu_webhook"]).send_text(text)
         if ok:
             logger.info("告警通知已发送至飞书")
@@ -49,6 +50,7 @@ async def _do_send(cfg: dict[str, Any], text: str) -> None:
 
     if cfg.get("wechat_enabled") and cfg.get("wechat_webhook"):
         from src.modules.messages.notifications import WeChatNotifier
+
         ok = await WeChatNotifier(cfg["wechat_webhook"]).send_text(text)
         if ok:
             logger.info("告警通知已发送至企业微信")

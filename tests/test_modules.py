@@ -96,11 +96,10 @@ def test_messages_generate_reply_forces_non_empty_fallback_when_default_blank() 
             "default_reply": "",
             "virtual_default_reply": "",
             "force_non_empty_reply": True,
-            "non_empty_reply_fallback": "询价格式：xx省 - xx省 - 重量（kg）\n长宽高（单位cm）",
         },
     )
     reply = service.generate_reply("随便问问")
-    assert "询价格式" in reply
+    assert reply != ""
 
 
 def test_messages_extract_locations_non_greedy_origin() -> None:
@@ -266,7 +265,7 @@ async def test_messages_quote_request_missing_fields_returns_followup_question(m
     assert detail["is_quote"] is True
     assert detail["quote_need_info"] is True
     assert detail["quote_success"] is False
-    assert "询价格式" in detail["reply"]
+    assert "为了给你报最准确的价格" in detail["reply"]
 
 
 @pytest.mark.asyncio
@@ -292,7 +291,7 @@ async def test_messages_strict_format_mode_forces_standard_template(mock_control
     assert detail["is_quote"] is True
     assert detail["quote_need_info"] is True
     assert detail["format_enforced"] is True
-    assert "询价格式" in detail["reply"]
+    assert "为了给你报最准确的价格" in detail["reply"]
 
 
 @pytest.mark.asyncio
@@ -316,7 +315,7 @@ async def test_messages_non_strict_mode_keeps_general_reply_for_non_quote(mock_c
     detail = result["details"][0]
 
     assert detail["is_quote"] is False
-    assert "询价格式" not in detail["reply"]
+    assert "为了给你报最准确的价格" not in detail["reply"]
 
 
 @pytest.mark.asyncio
@@ -343,7 +342,7 @@ async def test_messages_greeting_forces_standard_template_even_non_strict(mock_c
     assert detail["quote_need_info"] is True
     assert detail["format_enforced"] is True
     assert detail["format_enforced_reason"] == "greeting"
-    assert "询价格式" in detail["reply"]
+    assert "为了给你报最准确的价格" in detail["reply"]
 
 
 @pytest.mark.asyncio

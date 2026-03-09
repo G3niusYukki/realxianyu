@@ -15,7 +15,8 @@ from pathlib import Path
 from typing import Any
 
 from src.core.logger import get_logger
-from .templates import render_template, list_templates
+
+from .templates import list_templates, render_template
 
 logger = get_logger()
 
@@ -135,10 +136,12 @@ async def generate_brand_images(
         path = mgr.get_asset_path(aid)
         if path is None:
             continue
-        brand_items.append({
-            "name": entry["name"],
-            "src": path.resolve().as_uri(),
-        })
+        brand_items.append(
+            {
+                "name": entry["name"],
+                "src": path.resolve().as_uri(),
+            }
+        )
 
     if not brand_items:
         logger.warning("No valid brand assets found for IDs: %s", brand_asset_ids)

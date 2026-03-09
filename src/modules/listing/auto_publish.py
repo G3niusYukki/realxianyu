@@ -75,15 +75,17 @@ class AutoPublishService:
         frame_id = product_config.get("frame_id")
         brand_asset_ids = product_config.get("brand_asset_ids") or []
 
-        content = self.content_service.generate_listing_content({
-            "name": product_name or category,
-            "features": features,
-            "category": category,
-            "condition": product_config.get("condition", "全新"),
-            "reason": product_config.get("reason", "闲置出"),
-            "tags": product_config.get("tags", []),
-            "extra_info": product_config.get("extra_info"),
-        })
+        content = self.content_service.generate_listing_content(
+            {
+                "name": product_name or category,
+                "features": features,
+                "category": category,
+                "condition": product_config.get("condition", "全新"),
+                "reason": product_config.get("reason", "闲置出"),
+                "tags": product_config.get("tags", []),
+                "extra_info": product_config.get("extra_info"),
+            }
+        )
 
         title = product_config.get("title") or content.get("title", product_name)
         description = product_config.get("description") or content.get("description", "")
@@ -98,6 +100,20 @@ class AutoPublishService:
             }
 
         local_images: list[str] = []
+        image_params = [
+            {
+                "title": title,
+                "desc": description[:80] if description else "",
+                "badge": extra_params.get("badge", ""),
+                "features": features[:6],
+                "price": price,
+                "footer": extra_params.get("footer", ""),
+                **extra_params,
+            }
+        ]
+        extra_images = product_config.get("extra_images") or []
+        for ep in extra_images:
+            image_params.append(ep if isinstance(ep, dict) else {"title": str(ep)})
 
         if frame_id:
             brand_items = self._load_brand_items(brand_asset_ids, category)
@@ -114,15 +130,17 @@ class AutoPublishService:
                 params=frame_params,
             )
         else:
-            image_params = [{
-                "title": title,
-                "desc": description[:80] if description else "",
-                "badge": extra_params.get("badge", ""),
-                "features": features[:6],
-                "price": price,
-                "footer": extra_params.get("footer", ""),
-                **extra_params,
-            }]
+            image_params = [
+                {
+                    "title": title,
+                    "desc": description[:80] if description else "",
+                    "badge": extra_params.get("badge", ""),
+                    "features": features[:6],
+                    "price": price,
+                    "footer": extra_params.get("footer", ""),
+                    **extra_params,
+                }
+            ]
             local_images = await generate_product_images(
                 category=category,
                 params_list=image_params,
@@ -142,9 +160,7 @@ class AutoPublishService:
             "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
         }
 
-    def _load_brand_items(
-        self, brand_asset_ids: list[str], category: str
-    ) -> list[dict[str, str]]:
+    def _load_brand_items(self, brand_asset_ids: list[str], category: str) -> list[dict[str, str]]:
         """加载品牌图片为模板可用的 brand_items 列表。"""
         mgr = BrandAssetManager()
 
@@ -167,10 +183,13 @@ class AutoPublishService:
             if path is None:
                 continue
             from .brand_assets import file_to_data_uri
-            items.append({
-                "name": entry["name"],
-                "src": file_to_data_uri(path),
-            })
+
+            items.append(
+                {
+                    "name": entry["name"],
+                    "src": file_to_data_uri(path),
+                }
+            )
         return items
 
     async def publish(self, product_config: dict[str, Any]) -> dict[str, Any]:

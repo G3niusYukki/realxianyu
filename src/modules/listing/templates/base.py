@@ -124,7 +124,8 @@ def _tpl_express(p: dict[str, Any]) -> str:
         title=p.get("title", "快递代发 · 全国包邮"),
         desc=p.get("desc", "专业快递代发，全国各大快递覆盖，一件代发无忧"),
         badge=p.get("badge", "快递代发"),
-        features=p.get("features") or [
+        features=p.get("features")
+        or [
             "全国主流快递覆盖",
             "当天揽收，时效稳定",
             "支持退换补发",
@@ -132,7 +133,9 @@ def _tpl_express(p: dict[str, Any]) -> str:
         ],
         price=p.get("price"),
         footer=p.get("footer", "下单后请提供收件信息"),
-        bg_from="#e0f2fe", bg_to="#dbeafe", accent="#0284c7",
+        bg_from="#e0f2fe",
+        bg_to="#dbeafe",
+        accent="#0284c7",
     )
 
 
@@ -141,7 +144,8 @@ def _tpl_recharge(p: dict[str, Any]) -> str:
         title=p.get("title", "话费 / 流量充值"),
         desc=p.get("desc", "三网通充，官方渠道，到账快速安全"),
         badge=p.get("badge", "充值卡"),
-        features=p.get("features") or [
+        features=p.get("features")
+        or [
             "移动/联通/电信三网覆盖",
             "充值到账快，通常几分钟",
             "官方正规渠道",
@@ -149,7 +153,9 @@ def _tpl_recharge(p: dict[str, Any]) -> str:
         ],
         price=p.get("price"),
         footer=p.get("footer", "请确认手机号后下单"),
-        bg_from="#fef3c7", bg_to="#fde68a", accent="#d97706",
+        bg_from="#fef3c7",
+        bg_to="#fde68a",
+        accent="#d97706",
     )
 
 
@@ -158,7 +164,8 @@ def _tpl_exchange(p: dict[str, Any]) -> str:
         title=p.get("title", "兑换码 · 即买即发"),
         desc=p.get("desc", "正版授权兑换码，付款后自动发送，安全可靠"),
         badge=p.get("badge", "兑换码"),
-        features=p.get("features") or [
+        features=p.get("features")
+        or [
             "正版授权，安全保障",
             "付款后秒发卡密",
             "支持多平台兑换",
@@ -166,7 +173,9 @@ def _tpl_exchange(p: dict[str, Any]) -> str:
         ],
         price=p.get("price"),
         footer=p.get("footer", "付款后自动发送兑换码"),
-        bg_from="#ede9fe", bg_to="#e0e7ff", accent="#7c3aed",
+        bg_from="#ede9fe",
+        bg_to="#e0e7ff",
+        accent="#7c3aed",
     )
 
 
@@ -175,7 +184,8 @@ def _tpl_account(p: dict[str, Any]) -> str:
         title=p.get("title", "优质账号出售"),
         desc=p.get("desc", "账号安全可靠，资料齐全，支持验号"),
         badge=p.get("badge", "账号"),
-        features=p.get("features") or [
+        features=p.get("features")
+        or [
             "账号资料完整",
             "支持买家验号",
             "提供售后保障",
@@ -183,7 +193,9 @@ def _tpl_account(p: dict[str, Any]) -> str:
         ],
         price=p.get("price"),
         footer=p.get("footer", "请先咨询再下单"),
-        bg_from="#dcfce7", bg_to="#d1fae5", accent="#16a34a",
+        bg_from="#dcfce7",
+        bg_to="#d1fae5",
+        accent="#16a34a",
     )
 
 
@@ -192,7 +204,8 @@ def _tpl_movie_ticket(p: dict[str, Any]) -> str:
         title=p.get("title", "电影票代购 · 全国影院"),
         desc=p.get("desc", "低价观影，全国主流影院覆盖，在线选座"),
         badge=p.get("badge", "电影票"),
-        features=p.get("features") or [
+        features=p.get("features")
+        or [
             "低于平台价",
             "全国主流影院覆盖",
             "支持在线选座",
@@ -200,7 +213,9 @@ def _tpl_movie_ticket(p: dict[str, Any]) -> str:
         ],
         price=p.get("price"),
         footer=p.get("footer", "请提供影院、场次、座位信息"),
-        bg_from="#fce7f3", bg_to="#fce4ec", accent="#db2777",
+        bg_from="#fce7f3",
+        bg_to="#fce4ec",
+        accent="#db2777",
     )
 
 
@@ -209,7 +224,8 @@ def _tpl_game(p: dict[str, Any]) -> str:
         title=p.get("title", "游戏充值 / 道具代购"),
         desc=p.get("desc", "正规渠道充值，快速到账，安全稳定"),
         badge=p.get("badge", "游戏"),
-        features=p.get("features") or [
+        features=p.get("features")
+        or [
             "支持主流手游/端游",
             "正规渠道充值",
             "到账速度快",
@@ -217,7 +233,9 @@ def _tpl_game(p: dict[str, Any]) -> str:
         ],
         price=p.get("price"),
         footer=p.get("footer", "请提供游戏ID和区服信息"),
-        bg_from="#fee2e2", bg_to="#fecaca", accent="#dc2626",
+        bg_from="#fee2e2",
+        bg_to="#fecaca",
+        accent="#dc2626",
     )
 
 

@@ -378,6 +378,7 @@ class VirtualGoodsCallbackService:
 
             if next_status == "delivery_failed":
                 from src.core.notify import send_system_notification
+
                 product_id = self._pick(claimed_payload, "xianyu_product_id", "product_id", "item_id") or ""
                 send_system_notification(
                     f"【闲鱼自动化】⚠️ 虚拟商品发码失败\n"

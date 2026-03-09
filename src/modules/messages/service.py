@@ -57,9 +57,7 @@ DEFAULT_VOLUME_REPLY_TEMPLATE = (
 )
 
 DEFAULT_NON_EMPTY_REPLY_FALLBACK = (
-    "您好！如需快递报价，请提供以下信息：\n"
-    "寄件城市 - 收件城市 - 重量（kg）\n"
-    "格式示例：广东省 - 浙江省 - 3kg"
+    "您好！如需快递报价，请提供以下信息：\n寄件城市 - 收件城市 - 重量（kg）\n格式示例：广东省 - 浙江省 - 3kg"
 )
 DEFAULT_COURIER_LOCK_TEMPLATE = (
     "已为你锁定 {courier}（{price}，预计{eta_days}）。\n"
@@ -109,7 +107,9 @@ class MessagesService:
         self.send_confirm_delay_seconds = tuple(self.config.get("send_confirm_delay_seconds", [0.15, 0.35]))
 
         self.reply_prefix = self.config.get("reply_prefix", "")
-        self.default_reply = self.config.get("default_reply", "你好，请问需要寄什么快递？请发送 寄件城市-收件城市-重量（kg），我帮你查最优价格。")
+        self.default_reply = self.config.get(
+            "default_reply", "你好，请问需要寄什么快递？请发送 寄件城市-收件城市-重量（kg），我帮你查最优价格。"
+        )
         self.virtual_default_reply = self.config.get(
             "virtual_default_reply",
             "在的，虚拟商品拍下后系统会自动处理。如需改价请先联系我。",
@@ -134,6 +134,7 @@ class MessagesService:
         active_category = ""
         try:
             from src.core.config import get_active_category
+
             active_category = get_active_category()
         except Exception:
             pass
@@ -181,8 +182,7 @@ class MessagesService:
         )
         self.force_non_empty_reply = bool(self.config.get("force_non_empty_reply", True))
         self.non_empty_reply_fallback = (
-            str(self.config.get("non_empty_reply_fallback", "")).strip()
-            or DEFAULT_NON_EMPTY_REPLY_FALLBACK
+            str(self.config.get("non_empty_reply_fallback", "")).strip() or DEFAULT_NON_EMPTY_REPLY_FALLBACK
         )
         self.strict_format_reply_enabled = bool(self.config.get("strict_format_reply_enabled", True))
         self.quote_reply_all_couriers = bool(self.config.get("quote_reply_all_couriers", True))
@@ -1021,9 +1021,7 @@ class MessagesService:
                 "phase": pre_matched.phase,
             }
 
-        is_virtual = self.reply_engine._is_virtual_context(
-            self.reply_engine._normalize_text(message_text), item_title
-        )
+        is_virtual = self.reply_engine._is_virtual_context(self.reply_engine._normalize_text(message_text), item_title)
         if self.reply_engine.category == "express":
             is_virtual = False
 
@@ -1032,8 +1030,7 @@ class MessagesService:
             session_id=session_id,
         )
         if missing and (
-            is_quote_intent
-            or ((self.strict_format_reply_enabled or force_standard_format) and not is_virtual)
+            is_quote_intent or ((self.strict_format_reply_enabled or force_standard_format) and not is_virtual)
         ):
             fields = "、".join([self.quote_missing_prompts[field] for field in missing])
             prompt = self.quote_missing_template.format(fields=fields)
@@ -1192,8 +1189,7 @@ class MessagesService:
                 all_couriers = quote_meta.get("quote_all_couriers")
                 if isinstance(all_couriers, list):
                     quote_rows = [
-                        {"courier": c.get("courier", ""), "total_fee": c.get("total_fee", 0)}
-                        for c in all_couriers
+                        {"courier": c.get("courier", ""), "total_fee": c.get("total_fee", 0)} for c in all_couriers
                     ]
                 else:
                     qr = quote_meta.get("quote_result", {})

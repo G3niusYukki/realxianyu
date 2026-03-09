@@ -142,15 +142,17 @@ class AccountsService:
         accounts_file.parent.mkdir(parents=True, exist_ok=True)
         serializable = []
         for acc in self.accounts:
-            serializable.append({
-                "id": acc.get("id"),
-                "name": acc.get("name"),
-                "cookie_encrypted": acc.get("cookie_encrypted"),
-                "priority": acc.get("priority", 1),
-                "enabled": acc.get("enabled", True),
-                "status": acc.get("status", AccountStatus.ACTIVE),
-                "created_at": acc.get("created_at"),
-            })
+            serializable.append(
+                {
+                    "id": acc.get("id"),
+                    "name": acc.get("name"),
+                    "cookie_encrypted": acc.get("cookie_encrypted"),
+                    "priority": acc.get("priority", 1),
+                    "enabled": acc.get("enabled", True),
+                    "status": acc.get("status", AccountStatus.ACTIVE),
+                    "created_at": acc.get("created_at"),
+                }
+            )
         try:
             with open(accounts_file, "w", encoding="utf-8") as f:
                 json.dump(serializable, f, ensure_ascii=False, indent=2)

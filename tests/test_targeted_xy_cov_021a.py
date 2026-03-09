@@ -29,8 +29,7 @@ def test_parse_cookie_text_devtools_domain_filter_continue_branch() -> None:
 
 def test_cookie_domain_filter_stats_walks_nested_json_lists() -> None:
     text = (
-        '[{"domain":".example.com"}, '
-        '{"nested": [{"domain": "passport.goofish.com"}, {"domain": ".bad.example.org"}]}]'
+        '[{"domain":".example.com"}, {"nested": [{"domain": "passport.goofish.com"}, {"domain": ".bad.example.org"}]}]'
     )
 
     stats = MimicOps._cookie_domain_filter_stats(text)
@@ -120,7 +119,7 @@ def test_test_reply_includes_volume_weight_in_structured_prompt(monkeypatch, tem
         def __init__(self, controller, config):
             _ = (controller, config)
 
-        async def _generate_reply_with_quote(self, message, item_title=""):
+        async def _generate_reply_with_quote(self, message, item_title="", session_id=None):
             captured["message"] = message
             captured["item_title"] = item_title
             return "ok", {"is_quote": False}
