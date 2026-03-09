@@ -487,15 +487,17 @@ class TestAutoAdjustPrice:
 
     @pytest.mark.asyncio
     async def test_price_at_floor(self, mock_api_client):
-        svc = _make_ops_service(api_client=mock_api_client, config={"pricing": {"auto_adjust": True}})
-        result = await svc.auto_adjust_price("prod1", 100.0, step_amount=0, min_price=100.0)
+        svc = _make_ops_service(api_client=mock_api_client)
+        with patch.object(svc, "_load_pricing_config", return_value={"auto_adjust": True}):
+            result = await svc.auto_adjust_price("prod1", 100.0, step_amount=0, min_price=100.0)
         assert result["success"] is False
         assert result["error"] == "price_at_floor"
 
     @pytest.mark.asyncio
     async def test_step_down(self, mock_api_client):
-        svc = _make_ops_service(api_client=mock_api_client, config={"pricing": {"auto_adjust": True}})
-        result = await svc.auto_adjust_price("prod1", 100.0, step_amount=5.0, min_price=90.0)
+        svc = _make_ops_service(api_client=mock_api_client)
+        with patch.object(svc, "_load_pricing_config", return_value={"auto_adjust": True}):
+            result = await svc.auto_adjust_price("prod1", 100.0, step_amount=5.0, min_price=90.0)
         assert result.get("action") == "auto_adjust_price"
         assert result.get("strategy") == "step_down"
         assert result.get("price_change") == 5.0

@@ -1007,7 +1007,7 @@ class MessagesService:
             }
 
         pre_matched = self.reply_engine.find_matching_rule(message_text, item_title)
-        if pre_matched and not is_quote_intent:
+        if pre_matched and not is_quote_intent and not self.strict_format_reply_enabled and not force_standard_format:
             reply = pre_matched.reply
             if item_title and not pre_matched.categories:
                 reply = f"关于「{item_title}」，{reply}"
