@@ -206,7 +206,7 @@ class QuoteConfig(BaseModel):
     circuit_fail_threshold: int = Field(default=3, ge=1, le=20, description="熔断触发失败阈值")
     circuit_open_seconds: int = Field(default=30, ge=1, le=3600, description="熔断窗口秒数")
     safety_margin: float = Field(default=0.0, ge=0.0, le=1.0, description="报价安全系数")
-    volume_divisor_default: float = Field(default=6000, ge=0.0, description="体积重默认除数（cm^3/kg）")
+    volume_divisor_default: float = Field(default=8000, ge=0.0, description="体积重默认除数（快递8000/物流6000）")
     validity_minutes: int = Field(default=30, ge=1, le=1440, description="报价有效期（分钟）")
     analytics_log_enabled: bool = Field(default=True, description="是否写入报价审计日志")
     providers: dict[str, Any] = Field(default_factory=dict, description="报价 provider 配置")

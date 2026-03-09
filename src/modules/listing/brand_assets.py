@@ -8,7 +8,9 @@ Storage: data/brand_assets/{uuid}.{ext}, manifest.json
 
 from __future__ import annotations
 
+import base64
 import json
+import mimetypes
 import re
 import threading
 import uuid
@@ -18,6 +20,29 @@ from pathlib import Path
 
 # 允许的图片扩展名，防止任意文件上传
 ALLOWED_EXTENSIONS = frozenset({"png", "jpg", "jpeg", "gif", "webp", "svg"})
+
+_MIME_MAP = {
+    "png": "image/png",
+    "jpg": "image/jpeg",
+    "jpeg": "image/jpeg",
+    "gif": "image/gif",
+    "webp": "image/webp",
+    "svg": "image/svg+xml",
+}
+
+
+def file_to_data_uri(path: Path) -> str:
+    """将本地图片文件转为 base64 data URI。
+
+    Playwright ``page.set_content()`` 的文档来源是 ``about:blank``，
+    Chromium 安全策略禁止从该来源加载 ``file://`` 资源，
+    因此必须将图片内联为 data URI 才能正常渲染。
+    """
+    ext = path.suffix.lstrip(".").lower()
+    mime = _MIME_MAP.get(ext) or mimetypes.guess_type(str(path))[0] or "image/png"
+    with open(path, "rb") as f:
+        b64 = base64.b64encode(f.read()).decode()
+    return f"data:{mime};base64,{b64}"
 
 
 def _normalize_extension(ext: str) -> str:
@@ -157,6 +182,21 @@ class BrandAssetManager:
             except OSError:
                 pass
         return True
+
+    def get_brands_grouped(self, category: str | None = None) -> dict[str, list[dict]]:
+        """按品牌名分组返回素材。
+
+        Args:
+            category: 可选品类过滤。
+
+        Returns:
+            ``{"顺丰": [asset1, asset2], "中通": [asset3]}``
+        """
+        assets = self.list_assets(category=category)
+        grouped: dict[str, list[dict]] = {}
+        for a in assets:
+            grouped.setdefault(a.get("name", "unnamed"), []).append(a)
+        return grouped
 
     def get_asset_path(self, asset_id: str) -> Path | None:
         """

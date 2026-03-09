@@ -124,9 +124,9 @@ CONFIG_SECTIONS: list[dict[str, Any]] = [
             },
             {"key": "default_express_fee", "label": "默认运费(分)", "type": "number", "default": 0, "hint": "0=包邮"},
             {"key": "default_stock", "label": "默认库存", "type": "number", "default": 1},
-            {"key": "default_province", "label": "发货省份", "type": "text", "hint": "例：广东省"},
-            {"key": "default_city", "label": "发货城市", "type": "text", "hint": "例：深圳市"},
-            {"key": "default_district", "label": "发货地区", "type": "text", "hint": "例：南山区"},
+            {"key": "default_province", "label": "发货省份编码", "type": "number", "default": 0, "hint": "行政区划编码，如 440000(广东)、310000(上海)、110000(北京)"},
+            {"key": "default_city", "label": "发货城市编码", "type": "number", "default": 0, "hint": "行政区划编码，如 440300(深圳)、310100(上海)、110100(北京)"},
+            {"key": "default_district", "label": "发货地区编码", "type": "number", "default": 0, "hint": "行政区划编码，如 440305(南山)、310115(浦东)、110101(东城)"},
             {
                 "key": "product_callback_url",
                 "label": "商品回调地址",

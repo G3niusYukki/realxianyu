@@ -1,7 +1,7 @@
 """商品图片生成器 — HTML 模板渲染 + Playwright 截图。
 
 流程:
-1. 根据品类选择 HTML 模板
+1. 根据品类/框架选择 HTML 模板
 2. 填充商品参数生成完整 HTML
 3. 使用 Playwright 加载 HTML 并截图为 PNG
 4. 返回本地文件路径列表
@@ -16,12 +16,14 @@ from typing import Any
 
 from src.core.logger import get_logger
 
-from .templates import list_templates, render_template
+from .templates import render_template, list_templates
+from .templates.registry import render_by_frame, render_by_composition, list_frames_metadata
 
 logger = get_logger()
 
 DEFAULT_OUTPUT_DIR = Path("data/generated_images")
 VIEWPORT = {"width": 750, "height": 1000}
+VIEWPORT_SQUARE = {"width": 1080, "height": 1080}
 
 
 async def generate_product_images(
@@ -72,7 +74,11 @@ async def generate_product_images(
     return paths
 
 
-async def _render_html_to_png(html: str, output_path: Path) -> None:
+async def _render_html_to_png(
+    html: str,
+    output_path: Path,
+    viewport: dict[str, int] | None = None,
+) -> None:
     """使用 Playwright 将 HTML 字符串渲染为 PNG 截图。"""
     try:
         from playwright.async_api import async_playwright
@@ -82,10 +88,11 @@ async def _render_html_to_png(html: str, output_path: Path) -> None:
             "Install: pip install playwright && playwright install chromium"
         ) from exc
 
+    vp = viewport or VIEWPORT
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         try:
-            page = await browser.new_page(viewport=VIEWPORT)
+            page = await browser.new_page(viewport=vp)
             await page.set_content(html, wait_until="networkidle")
             await asyncio.sleep(0.3)
             output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -197,6 +204,83 @@ async def generate_brand_images(
     return paths
 
 
+async def generate_frame_images(
+    *,
+    frame_id: str,
+    category: str = "express",
+    params: dict[str, Any] | None = None,
+    output_dir: str | Path | None = None,
+) -> list[str]:
+    """使用新的框架模板系统生成商品图片（1080x1080 正方形）。
+
+    Args:
+        frame_id: 框架模板 ID（如 "grid_paper", "id_badge" 等）
+        category: 品类 key，决定配色主题
+        params: 模板参数（headline, sub_headline, brand_items 等）
+        output_dir: 输出目录
+
+    Returns:
+        本地 PNG 文件路径列表
+    """
+    html = render_by_frame(frame_id, category, params)
+    if html is None:
+        logger.error("Frame template not found: %s", frame_id)
+        return []
+
+    out = Path(output_dir or DEFAULT_OUTPUT_DIR)
+    out.mkdir(parents=True, exist_ok=True)
+
+    safe_id = frame_id.replace("/", "_").replace("\\", "_").replace("..", "")
+    filename = f"frame_{safe_id}_{category}_{uuid.uuid4().hex[:8]}.png"
+    filepath = out / filename
+
+    try:
+        await _render_html_to_png(html, filepath, viewport=VIEWPORT_SQUARE)
+        logger.info(f"Generated frame image: {filepath}")
+        return [str(filepath)]
+    except Exception as exc:
+        logger.error(f"Failed to render frame image {frame_id}: {exc}")
+        return []
+
+
+async def generate_composition_images(
+    *,
+    category: str = "express",
+    params: dict[str, Any] | None = None,
+    layers: dict[str, str] | None = None,
+    output_dir: str | Path | None = None,
+) -> tuple[list[str], dict[str, str]]:
+    """使用组合式模版引擎生成商品图片。
+
+    Returns:
+        (本地 PNG 文件路径列表, 实际使用的图层组合)
+    """
+    html, used_layers = render_by_composition(category, params, layers)
+    if html is None:
+        logger.error("Composition rendering failed")
+        return [], {}
+
+    out = Path(output_dir or DEFAULT_OUTPUT_DIR)
+    out.mkdir(parents=True, exist_ok=True)
+
+    layer_tag = "_".join(used_layers.get(k, "?")[:6] for k in ("layout", "color_scheme", "decoration", "title_style"))
+    filename = f"comp_{layer_tag}_{uuid.uuid4().hex[:8]}.png"
+    filepath = out / filename
+
+    try:
+        await _render_html_to_png(html, filepath, viewport=VIEWPORT_SQUARE)
+        logger.info(f"Generated composition image: {filepath}")
+        return [str(filepath)], used_layers
+    except Exception as exc:
+        logger.error(f"Failed to render composition image: {exc}")
+        return [], used_layers
+
+
 def get_available_categories() -> list[dict[str, str]]:
     """返回可用的模板品类列表。"""
     return list_templates()
+
+
+def get_available_frames() -> list[dict[str, Any]]:
+    """返回可用的框架模板列表。"""
+    return list_frames_metadata()

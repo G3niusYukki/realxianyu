@@ -559,6 +559,11 @@ class OrderFulfillmentService:
                 "express_name": express_name,
             }, None
 
+        _SHIP_FIELD_MAP = {
+            "ship_province": "ship_prov_name",
+            "ship_city": "ship_city_name",
+            "ship_area": "ship_area_name",
+        }
         payload: dict[str, Any] = {
             "order_no": str(shipping_info.get("order_no") or order_id),
             "waybill_no": waybill_no,
@@ -571,11 +576,13 @@ class OrderFulfillmentService:
             "ship_province",
             "ship_city",
             "ship_area",
+            "ship_district_id",
             "ship_address",
         ):
             val = str(shipping_info.get(key, "")).strip()
             if val:
-                payload[key] = val
+                api_key = _SHIP_FIELD_MAP.get(key, key)
+                payload[api_key] = val
         if express_name and "express_name" not in payload:
             payload["express_name"] = express_name
 

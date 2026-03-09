@@ -1,12 +1,44 @@
 import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { getDashboardSummary, getRecentOperations, getSystemStatus, getTrendData, getTopProducts } from '../api/dashboard'
-import { Store, ShoppingBag, MessageCircle, FileText, CheckCircle, AlertCircle, RefreshCw, Settings, Zap, Bot, BarChart3, Clock, Package, TrendingUp, Calendar } from 'lucide-react'
+import { Store, ShoppingBag, MessageCircle, FileText, CheckCircle, AlertCircle, RefreshCw, Settings, Zap, Bot, BarChart3, Clock, Package, TrendingUp, Calendar, Send } from 'lucide-react'
 import toast from 'react-hot-toast'
 import SetupGuide from '../components/SetupGuide'
 import ApiStatusPanel from '../components/ApiStatusPanel'
 import { useStoreCategory } from '../contexts/StoreCategoryContext'
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts'
+
+import { getPublishQueue } from '../api/listing';
+
+function PublishQueueCard() {
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    const today = new Date().toISOString().split('T')[0];
+    getPublishQueue(today)
+      .then(res => {
+        if (res.data?.ok) {
+          const pending = (res.data.items || []).filter(
+            (it: any) => it.status === 'draft' || it.status === 'ready'
+          );
+          setCount(pending.length);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  return (
+    <Link to="/products/auto-publish?tab=queue" className="flex items-center justify-between p-3 rounded-xl border border-xy-border hover:border-emerald-500 hover:bg-emerald-50 transition-colors group">
+      <div className="flex items-center gap-3">
+        <div className="bg-emerald-100 p-2 rounded-lg group-hover:bg-emerald-200 transition-colors"><Send className="w-5 h-5 text-emerald-600" /></div>
+        <div>
+          <span className="font-medium text-xy-text-primary">今日待发布</span>
+          {count > 0 && <span className="ml-2 px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[11px] font-medium">{count} 条</span>}
+        </div>
+      </div>
+      <span className="text-emerald-500">&rarr;</span>
+    </Link>
+  );
+}
 
 const TABS = [
   { key: 'overview', label: '概览' },
@@ -217,6 +249,7 @@ const Dashboard = () => {
               <div className="xy-card p-6">
                 <h3 className="text-base font-semibold text-xy-text-primary mb-4">快捷操作</h3>
                 <div className="space-y-3">
+                  <PublishQueueCard />
                   <Link to="/products/auto-publish" className="flex items-center justify-between p-3 rounded-xl border border-xy-border hover:border-xy-brand-500 hover:bg-xy-brand-50 transition-colors group">
                     <div className="flex items-center gap-3">
                       <div className="bg-orange-100 p-2 rounded-lg group-hover:bg-orange-200 transition-colors"><Store className="w-5 h-5 text-xy-brand-600" /></div>

@@ -149,7 +149,7 @@ class OperationsService:
             return None, "api_client_not_configured"
 
         payload: dict[str, Any] = {
-            "product_id": str(product_id),
+            "product_id": int(product_id),
             "price": self._price_to_minor_units(new_price),
         }
         if original_price is not None:
@@ -242,9 +242,8 @@ class OperationsService:
         payload: dict[str, Any] = {
             "order_no": str(order_no),
             "order_price": int(order_price),
+            "express_fee": int(express_fee) if express_fee is not None else 0,
         }
-        if express_fee is not None:
-            payload["express_fee"] = int(express_fee)
         try:
             response = await asyncio.to_thread(self.api_client.modify_order_price, payload)
             if not response.ok:
@@ -345,7 +344,7 @@ class OperationsService:
             return self._error_result("delist", product_id, "api_client_not_configured")
 
         try:
-            response = await asyncio.to_thread(self.api_client.unpublish_product, {"product_id": str(product_id)})
+            response = await asyncio.to_thread(self.api_client.unpublish_product, {"product_id": int(product_id)})
             success = response.ok
             result = {
                 "success": success,
@@ -365,15 +364,33 @@ class OperationsService:
             self.logger.error(f"Delist failed: {e}")
             return self._error_result("delist", product_id, str(e))
 
-    async def relist(self, product_id: str) -> dict[str, Any]:
-        """通过闲管家 API 重新上架商品。"""
+    async def relist(self, product_id: str, user_name: str | None = None) -> dict[str, Any]:
+        """通过闲管家 API 重新上架商品。
+
+        OpenAPI 规范: publish_product 的 user_name 为 required array[string]。
+        """
         self.logger.info(f"Relisting {product_id}")
 
         if not self.api_client:
             return self._error_result("relist", product_id, "api_client_not_configured")
 
+        if not user_name:
+            try:
+                resp = await asyncio.to_thread(self.api_client.list_authorized_users)
+                if resp.ok and isinstance(resp.data, list) and resp.data:
+                    first = resp.data[0]
+                    user_name = str(first.get("user_name") or first.get("nick_name") or "") if isinstance(first, dict) else ""
+            except Exception as e:
+                self.logger.warning(f"Failed to fetch authorized user for relist: {e}")
+
+        if not user_name:
+            return self._error_result("relist", product_id, "user_name_required_but_missing")
+
         try:
-            response = await asyncio.to_thread(self.api_client.publish_product, {"product_id": str(product_id)})
+            response = await asyncio.to_thread(
+                self.api_client.publish_product,
+                {"product_id": int(product_id), "user_name": [user_name]},
+            )
             success = response.ok
             result = {
                 "success": success,
