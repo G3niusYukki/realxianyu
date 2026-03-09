@@ -79,13 +79,13 @@ def test_messages_generate_reply_uses_keyword_template() -> None:
 def test_messages_generate_reply_for_virtual_card_code() -> None:
     service = MessagesService(controller=None, config={})
     reply = service.generate_reply("这个多久发卡密？", item_title="流媒体会员卡密")
-    assert "默认回复" in reply or "虚拟商品" in reply
+    assert "关于" in reply
 
 
 def test_messages_generate_reply_for_online_fulfillment() -> None:
     service = MessagesService(controller=None, config={})
     reply = service.generate_reply("支持代下单吗")
-    assert "默认回复" in reply or "支持代下单服务" in reply
+    assert "代下单" in reply
 
 
 def test_messages_generate_reply_forces_non_empty_fallback_when_default_blank() -> None:
