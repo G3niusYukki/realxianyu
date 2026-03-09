@@ -69,10 +69,10 @@ export const deleteQueueItem = (id: string): Promise<AxiosResponse<{ ok: boolean
   api.delete(`/publish-queue/${id}`);
 
 export const regenerateQueueImages = (id: string): Promise<AxiosResponse<{ ok: boolean; item: QueueItem }>> =>
-  api.post(`/publish-queue/${id}/regenerate`);
+  api.post(`/publish-queue/${id}/regenerate`, {}, { timeout: 60000 });
 
 export const publishQueueItem = (id: string): Promise<AxiosResponse> =>
-  api.post(`/publish-queue/${id}/publish`);
+  api.post(`/publish-queue/${id}/publish`, {}, { timeout: 60000 });
 
 export const publishQueueBatch = async (
   itemIds: string[],
@@ -87,7 +87,7 @@ export const publishQueueBatch = async (
       await publishQueueItem(id);
       successes.push(id);
     } catch (err: any) {
-      failures.push({ id, error: err?.message || String(err) });
+      failures.push({ id, error: err?.response?.data?.error || err?.message || String(err) });
     }
     onProgress?.(i + 1, itemIds.length, id);
     if (i < itemIds.length - 1) {

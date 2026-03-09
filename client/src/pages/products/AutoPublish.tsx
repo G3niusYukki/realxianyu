@@ -241,7 +241,7 @@ function QueueTab({ category }: { category: string }) {
   const [batchInterval, setBatchInterval] = useState(30);
   const [publishing, setPublishing] = useState(false);
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = new Date().toLocaleDateString('en-CA');
 
   const fetchQueue = useCallback(async () => {
     try {
@@ -279,7 +279,9 @@ function QueueTab({ category }: { category: string }) {
       }
       fetchQueue();
     } catch (err: any) {
-      toast.error('发布失败');
+      const serverError = err?.response?.data?.error || err?.message || '未知错误';
+      toast.error('发布失败: ' + serverError);
+      fetchQueue();
     }
   };
 
@@ -296,11 +298,13 @@ function QueueTab({ category }: { category: string }) {
       if (result.failures.length === 0) {
         toast.success(`全部 ${result.successes.length} 条发布成功`);
       } else {
-        toast.error(`${result.successes.length} 成功，${result.failures.length} 失败`);
+        const firstError = result.failures[0]?.error || '未知错误';
+        toast.error(`${result.successes.length} 成功，${result.failures.length} 失败: ${firstError}`);
       }
       fetchQueue();
-    } catch {
-      toast.error('批量发布失败');
+    } catch (err: any) {
+      const serverError = err?.response?.data?.error || err?.message || '未知错误';
+      toast.error('批量发布失败: ' + serverError);
     }
     setPublishing(false);
   };

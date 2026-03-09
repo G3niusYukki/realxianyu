@@ -441,16 +441,26 @@ class MimicOps:
     def _xianguanjia_service_config(self) -> dict[str, Any]:
         settings = self._get_xianguanjia_settings()
         sys_cfg = _read_system_config()
-        xgj_sys = sys_cfg.get("xianguanjia", {})
+        xgj_sys = sys_cfg.get("xianguanjia", {}) if isinstance(sys_cfg.get("xianguanjia"), dict) else {}
 
-        merged_xgj = dict(xgj_sys) if isinstance(xgj_sys, dict) else {}
+        # env 为空时从 system_config 回退；用于 SystemConfig 写入 system_config.json 但 .env 未同步的场景
+        app_key = (settings["app_key"] or "").strip() or str(xgj_sys.get("app_key", "")).strip()
+        app_secret = (settings["app_secret"] or "").strip() or str(xgj_sys.get("app_secret", "")).strip()
+        base_url = (
+            (settings["base_url"] or "").strip()
+            or str(xgj_sys.get("base_url", "")).strip()
+            or "https://open.goofish.pro"
+        )
+        merchant_id = (settings["merchant_id"] or "").strip() or str(xgj_sys.get("merchant_id", "")).strip() or None
+
+        merged_xgj = dict(xgj_sys)
         merged_xgj.update(
             {
-                "enabled": bool(settings["configured"]),
-                "app_key": settings["app_key"],
-                "app_secret": settings["app_secret"],
-                "merchant_id": settings["merchant_id"] or None,
-                "base_url": settings["base_url"],
+                "enabled": bool(app_key and app_secret),
+                "app_key": app_key,
+                "app_secret": app_secret,
+                "merchant_id": merchant_id or None,
+                "base_url": base_url,
             }
         )
 
@@ -465,8 +475,8 @@ class MimicOps:
     def retry_xianguanjia_delivery(self, payload: dict[str, Any]) -> dict[str, Any]:
         from src.modules.orders.service import OrderFulfillmentService
 
-        settings = self._get_xianguanjia_settings()
-        if not settings["configured"]:
+        svc_cfg = self._xianguanjia_service_config()
+        if not (svc_cfg.get("xianguanjia", {}).get("enabled", False)):
             return _error_payload("闲管家凭证未配置", code="XGJ_NOT_CONFIGURED")
 
         data = dict(payload or {})
@@ -510,8 +520,8 @@ class MimicOps:
     def retry_xianguanjia_price(self, payload: dict[str, Any]) -> dict[str, Any]:
         from src.modules.operations.service import OperationsService
 
-        settings = self._get_xianguanjia_settings()
-        if not settings["configured"]:
+        svc_cfg = self._xianguanjia_service_config()
+        if not (svc_cfg.get("xianguanjia", {}).get("enabled", False)):
             return _error_payload("闲管家凭证未配置", code="XGJ_NOT_CONFIGURED")
 
         data = dict(payload or {})
@@ -543,19 +553,21 @@ class MimicOps:
         from src.modules.orders.service import OrderFulfillmentService
 
         data = dict(payload or {})
-        settings = self._get_xianguanjia_settings()
+        svc_cfg = self._xianguanjia_service_config()
+        xgj_enabled = bool(svc_cfg.get("xianguanjia", {}).get("enabled", False))
         service = OrderFulfillmentService(
             db_path=str(self.project_root / "data" / "orders.db"),
-            config=self._xianguanjia_service_config(),
+            config=svc_cfg,
         )
 
         sys_cfg = _read_system_config()
         delivery_cfg = sys_cfg.get("delivery", {})
+        settings = self._get_xianguanjia_settings()
         auto_delivery_override = delivery_cfg.get("auto_delivery")
         if auto_delivery_override is not None:
-            use_auto = bool(auto_delivery_override) and settings["configured"]
+            use_auto = bool(auto_delivery_override) and xgj_enabled
         else:
-            use_auto = bool(settings["configured"] and settings["auto_ship_enabled"] and settings["auto_ship_on_paid"])
+            use_auto = bool(xgj_enabled and settings["auto_ship_enabled"] and settings["auto_ship_on_paid"])
 
         try:
             result = service.process_callback(
@@ -660,8 +672,8 @@ class MimicOps:
                 logger.info("Auto-price-modify: no valid fee in quote for order=%s", order_no)
                 return
 
-            target_price_cents = round(float(target_fee) * 100)
-            express_fee_cents = int(apm_cfg.get("default_express_fee", 0))
+            target_price_cents = int(round(float(target_fee) * 100))
+            express_fee_cents = int(float(apm_cfg.get("default_express_fee", 0)) * 100)
 
             if target_price_cents == total_amount:
                 logger.info("Auto-price-modify: price already correct for order=%s", order_no)
@@ -716,10 +728,10 @@ class MimicOps:
 
         if product_id and task_type in (10, 11):
             try:
-                from src.modules.listing.publish_queue import PublishQueueService
+                from src.modules.listing.publish_queue import PublishQueue
 
-                queue = PublishQueueService()
-                for item in queue.list_items():
+                queue = PublishQueue(project_root=self.project_root)
+                for item in queue.get_queue():
                     pid = (
                         item.get("published_product_id")
                         if isinstance(item, dict)
@@ -4322,7 +4334,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
             if path == "/api/publish-queue":
                 from src.modules.listing.publish_queue import PublishQueue
 
-                q = PublishQueue()
+                q = PublishQueue(project_root=self.mimic_ops.project_root)
                 date_filter = parse_qs(parsed.query).get("date", [None])[0]
                 items = q.get_queue(date=date_filter)
                 from dataclasses import asdict
@@ -4416,7 +4428,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     body = self._read_json_body()
                     from src.modules.listing.publish_queue import PublishQueue
 
-                    q = PublishQueue()
+                    q = PublishQueue(project_root=self.mimic_ops.project_root)
                     item = q.update_item(item_id, body)
                     if item is None:
                         self._send_json(_error_payload("Queue item not found"), status=404)
@@ -4462,7 +4474,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     return
                 from src.modules.listing.publish_queue import PublishQueue
 
-                q = PublishQueue()
+                q = PublishQueue(project_root=self.mimic_ops.project_root)
                 if q.delete_item(item_id):
                     self._send_json({"ok": True, "message": "Queue item deleted"})
                 else:
@@ -4866,7 +4878,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 from src.modules.listing.publish_queue import PublishQueue
 
                 body = self._read_json_body()
-                q = PublishQueue()
+                q = PublishQueue(project_root=self.mimic_ops.project_root)
                 category = body.get("category", "express")
                 ap_cfg = _read_system_config().get("auto_publish", {})
                 user_schedule = {}
@@ -4894,7 +4906,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 item_id = path.split("/api/publish-queue/")[1].replace("/regenerate", "")
                 from src.modules.listing.publish_queue import PublishQueue
 
-                q = PublishQueue()
+                q = PublishQueue(project_root=self.mimic_ops.project_root)
                 item = _run_async(q.regenerate_images(item_id))
                 if item is None:
                     self._send_json(_error_payload("Queue item not found"), status=404)
@@ -4908,7 +4920,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 item_id = path.split("/api/publish-queue/")[1].replace("/publish", "")
                 from src.modules.listing.publish_queue import PublishQueue
 
-                q = PublishQueue()
+                q = PublishQueue(project_root=self.mimic_ops.project_root)
                 publish_cfg = self._build_publish_config()
                 result = _run_async(q.publish_item(item_id, config=publish_cfg))
                 self._send_json(result, status=200 if result.get("ok") else 400)
@@ -4918,7 +4930,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 body = self._read_json_body()
                 from src.modules.listing.publish_queue import PublishQueue
 
-                q = PublishQueue()
+                q = PublishQueue(project_root=self.mimic_ops.project_root)
                 item_ids = body.get("item_ids", [])
                 interval = body.get("interval_seconds", 30)
                 publish_cfg = self._build_publish_config()

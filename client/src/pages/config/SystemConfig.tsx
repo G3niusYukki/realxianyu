@@ -641,6 +641,9 @@ export default function SystemConfig() {
   const [aiTestResult, setAiTestResult] = useState<any>(null);
   const [testingSend, setTestingSend] = useState<string | null>(null);
   const [setupProgress, setSetupProgress] = useState<Record<string, any> | null>(null);
+  const [categoryList, setCategoryList] = useState<any[]>([]);
+  const [categoryLoading, setCategoryLoading] = useState(false);
+  const [categorySearch, setCategorySearch] = useState('');
 
   useEffect(() => {
     if (searchParams.get('tab') === 'cookie') {
@@ -947,6 +950,159 @@ export default function SystemConfig() {
                     )}
                   </div>
                 );
+              })() : field.type === 'region_cascader' ? (() => {
+                const keys = field.keys || [];
+                const regions = field.regions || {};
+                const provinceCode = sectionData[keys[0]] || 0;
+                const cityCode = sectionData[keys[1]] || 0;
+                const districtCode = sectionData[keys[2]] || 0;
+                const provinceData = regions[provinceCode];
+                const cities = provinceData?.cities || {};
+                const cityData = cities[cityCode];
+                const districts = cityData?.districts || {};
+                return (
+                  <div className="flex gap-3">
+                    <select
+                      className="xy-input px-3 py-2 flex-1"
+                      value={provinceCode}
+                      onChange={e => {
+                        const pCode = Number(e.target.value);
+                        const pData = regions[pCode];
+                        const firstCity = pData?.cities ? Number(Object.keys(pData.cities)[0]) : 0;
+                        const firstCityData = pData?.cities?.[firstCity];
+                        const firstDistrict = firstCityData?.districts ? Number(Object.keys(firstCityData.districts)[0]) : 0;
+                        handleChange(sectionKey, keys[0], pCode);
+                        handleChange(sectionKey, keys[1], firstCity);
+                        handleChange(sectionKey, keys[2], firstDistrict);
+                      }}
+                    >
+                      <option value={0}>选择省份</option>
+                      {Object.entries(regions).map(([code, data]: [string, any]) => (
+                        <option key={code} value={code}>{data.name}</option>
+                      ))}
+                    </select>
+                    <select
+                      className="xy-input px-3 py-2 flex-1"
+                      value={cityCode}
+                      onChange={e => {
+                        const cCode = Number(e.target.value);
+                        const cData = cities[cCode];
+                        const firstDistrict = cData?.districts ? Number(Object.keys(cData.districts)[0]) : 0;
+                        handleChange(sectionKey, keys[1], cCode);
+                        handleChange(sectionKey, keys[2], firstDistrict);
+                      }}
+                    >
+                      <option value={0}>选择城市</option>
+                      {Object.entries(cities).map(([code, data]: [string, any]) => (
+                        <option key={code} value={code}>{data.name}</option>
+                      ))}
+                    </select>
+                    <select
+                      className="xy-input px-3 py-2 flex-1"
+                      value={districtCode}
+                      onChange={e => handleChange(sectionKey, keys[2], Number(e.target.value))}
+                    >
+                      <option value={0}>选择区县</option>
+                      {Object.entries(districts).map(([code, name]: [string, any]) => (
+                        <option key={code} value={code}>{name}</option>
+                      ))}
+                    </select>
+                  </div>
+                );
+              })() : field.type === 'category_picker' ? (() => {
+                const fetchCategories = async () => {
+                  setCategoryLoading(true);
+                  setCategoryList([]);
+                  setCategorySearch('');
+                  try {
+                    const itemBizType = Number(sectionData['default_item_biz_type'] || 2);
+                    const spBizType = Number(sectionData['default_sp_biz_type'] || 99);
+                    const res = await api.post('/xgj/proxy', {
+                      apiPath: '/api/open/product/category/list',
+                      payload: { item_biz_type: itemBizType, sp_biz_type: spBizType },
+                    });
+                    const list = res.data?.data?.data?.list || res.data?.data?.list || [];
+                    if (list.length === 0) {
+                      toast.error('未查询到类目，请检查闲管家配置和商品类型/行业类型');
+                    } else {
+                      setCategoryList(list);
+                      toast.success(`查询到 ${list.length} 个可用类目`);
+                    }
+                  } catch (err: any) {
+                    toast.error('查询类目失败: ' + (err?.response?.data?.error || err?.message || '请检查闲管家配置'));
+                  } finally {
+                    setCategoryLoading(false);
+                  }
+                };
+                const keyword = categorySearch.trim().toLowerCase();
+                const filtered = keyword
+                  ? categoryList.filter((c: any) =>
+                      (c.channel_cat_name || c.sp_biz_name || '').toLowerCase().includes(keyword)
+                      || (c.channel_cat_id || '').toLowerCase().includes(keyword))
+                  : categoryList;
+                const MAX_DISPLAY = 50;
+                const displayed = filtered.slice(0, MAX_DISPLAY);
+                return (
+                  <div className="space-y-2">
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        className="xy-input px-3 py-2 flex-1"
+                        value={value || ''}
+                        placeholder="点击右侧按钮查询可用类目"
+                        onChange={e => handleChange(sectionKey, field.key, e.target.value)}
+                      />
+                      <button
+                        type="button"
+                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg whitespace-nowrap disabled:opacity-50 transition-colors"
+                        onClick={fetchCategories}
+                        disabled={categoryLoading}
+                      >
+                        {categoryLoading ? '查询中...' : '查询类目'}
+                      </button>
+                    </div>
+                    {categoryList.length > 0 && (
+                      <div className="border border-gray-600 rounded-lg overflow-hidden">
+                        <div className="px-3 py-2 bg-gray-800/50 border-b border-gray-700">
+                          <input
+                            type="text"
+                            className="xy-input px-3 py-1.5 w-full text-sm"
+                            placeholder={`搜索类目名称（共 ${categoryList.length} 个类目）`}
+                            value={categorySearch}
+                            onChange={e => setCategorySearch(e.target.value)}
+                          />
+                        </div>
+                        <div className="max-h-56 overflow-y-auto">
+                          {displayed.length === 0 ? (
+                            <div className="px-3 py-4 text-sm text-gray-500 text-center">
+                              未找到匹配「{categorySearch}」的类目
+                            </div>
+                          ) : displayed.map((cat: any, idx: number) => (
+                            <button
+                              key={cat.channel_cat_id || idx}
+                              type="button"
+                              className={`w-full text-left px-3 py-2 text-sm hover:bg-blue-600/20 transition-colors flex justify-between items-center ${
+                                value === cat.channel_cat_id ? 'bg-blue-600/30 text-blue-300' : 'text-gray-300'
+                              }`}
+                              onClick={() => {
+                                handleChange(sectionKey, field.key, cat.channel_cat_id);
+                                toast.success(`已选择: ${cat.channel_cat_name || cat.sp_biz_name || cat.channel_cat_id}`);
+                              }}
+                            >
+                              <span>{cat.channel_cat_name || cat.sp_biz_name || '未知类目'}</span>
+                              <span className="text-xs text-gray-500 font-mono ml-2">{cat.channel_cat_id}</span>
+                            </button>
+                          ))}
+                        </div>
+                        {filtered.length > MAX_DISPLAY && (
+                          <div className="px-3 py-1.5 text-xs text-gray-500 bg-gray-800/50 border-t border-gray-700 text-center">
+                            已显示前 {MAX_DISPLAY} 条，共 {filtered.length} 条匹配 — 输入关键词缩小范围
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
               })() : field.type === 'toggle' ? (
                 <ToggleSwitch checked={!!value} onChange={() => handleChange(sectionKey, field.key, !value)} />
               ) : (
@@ -1211,6 +1367,7 @@ export default function SystemConfig() {
                     <li><strong>填入配置</strong> — 把上方字段填写完整后点击「保存设置」</li>
                     <li><strong>测试连接</strong> — 点击「测试连接」按钮，确认绿色「连接成功」</li>
                     <li><strong>配置消息推送</strong> — 将上方「消息推送 URL」区域中的地址复制到闲管家开放平台的「消息推送地址」配置中</li>
+                    <li><strong>配置商品默认参数</strong> — 设置商品类型、行业类型，然后点击「查询类目」搜索并选择对应类目。确认默认价格、运费、成色和发货地区无误</li>
                   </ol>
                   <div className="mt-4 pt-3 border-t border-orange-200/60">
                     <p className="text-xs text-orange-600">

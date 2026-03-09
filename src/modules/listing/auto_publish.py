@@ -52,7 +52,7 @@ class AutoPublishService:
                 self.api_client = OpenPlatformClient(**client_kwargs)
                 logger.info("AutoPublishService: auto-constructed OpenPlatformClient from config")
             except Exception as exc:
-                logger.warning("AutoPublishService: failed to construct OpenPlatformClient: %s", exc)
+                logger.warning(f"AutoPublishService: failed to construct OpenPlatformClient: {exc}")
                 self.api_client = None
         else:
             self.api_client = None
@@ -195,7 +195,7 @@ class AutoPublishService:
     async def publish(self, product_config: dict[str, Any]) -> dict[str, Any]:
         """执行完整自动上架流程：创建商品 -> 上架商品。"""
         if not self.api_client:
-            return {"ok": False, "step": "init", "error": "api_client_not_configured"}
+            return {"ok": False, "step": "init", "error": "闲管家 API 客户端未初始化，请检查 AppKey/AppSecret 配置"}
 
         preview = await self.generate_preview(product_config)
         if not preview.get("ok"):
@@ -218,11 +218,17 @@ class AutoPublishService:
         if not self.oss_uploader.configured:
             return {"ok": False, "step": "oss_upload", "error": "OSS 未配置"}
 
+        user_name = self._get_user_name()
+        if not user_name:
+            return {"ok": False, "step": "init", "error": "获取闲鱼账号失败，请检查闲管家授权状态"}
+
+        channel_cat_id = str(self._publish_defaults.get("default_channel_cat_id", "")).strip()
+        if not channel_cat_id:
+            return {"ok": False, "step": "init", "error": "闲鱼类目ID 未配置，请在系统配置中填写"}
+
         image_urls = self.oss_uploader.upload_batch(local_images)
         if not image_urls:
             return {"ok": False, "step": "oss_upload", "error": "图片上传失败"}
-
-        user_name = self._get_user_name()
 
         payload = self._build_create_payload(
             title=preview["title"],
@@ -244,9 +250,10 @@ class AutoPublishService:
             }
 
         product_data = create_resp.data or {}
-        product_id = product_data.get("product_id")
-        if not product_id:
+        raw_product_id = product_data.get("product_id")
+        if not raw_product_id:
             return {"ok": False, "step": "api_create", "error": "创建成功但未返回 product_id"}
+        product_id = int(raw_product_id)
 
         publish_result = self._publish_product(
             product_id=product_id,
@@ -269,7 +276,7 @@ class AutoPublishService:
     async def publish_from_preview(self, preview_data: dict[str, Any]) -> dict[str, Any]:
         """从预览数据直接发布（人工确认后调用）。"""
         if not self.api_client:
-            return {"ok": False, "step": "init", "error": "api_client_not_configured"}
+            return {"ok": False, "step": "init", "error": "闲管家 API 客户端未初始化，请检查 AppKey/AppSecret 配置"}
 
         local_images = preview_data.get("local_images", [])
         if not local_images:
@@ -278,11 +285,17 @@ class AutoPublishService:
         if not self.oss_uploader.configured:
             return {"ok": False, "step": "oss_upload", "error": "OSS 未配置"}
 
+        user_name = self._get_user_name()
+        if not user_name:
+            return {"ok": False, "step": "init", "error": "获取闲鱼账号失败，请检查闲管家授权状态"}
+
+        channel_cat_id = str(self._publish_defaults.get("default_channel_cat_id", "")).strip()
+        if not channel_cat_id:
+            return {"ok": False, "step": "init", "error": "闲鱼类目ID 未配置，请在系统配置中填写"}
+
         image_urls = self.oss_uploader.upload_batch(local_images)
         if not image_urls:
             return {"ok": False, "step": "oss_upload", "error": "图片上传失败"}
-
-        user_name = self._get_user_name()
 
         payload = self._build_create_payload(
             title=preview_data.get("title", ""),
@@ -303,9 +316,10 @@ class AutoPublishService:
             }
 
         product_data = create_resp.data or {}
-        product_id = product_data.get("product_id")
-        if not product_id:
+        raw_product_id = product_data.get("product_id")
+        if not raw_product_id:
             return {"ok": False, "step": "api_create", "error": "创建成功但未返回 product_id"}
+        product_id = int(raw_product_id)
 
         publish_result = self._publish_product(
             product_id=product_id,
@@ -330,26 +344,37 @@ class AutoPublishService:
         *,
         product_id: int,
         user_name: str,
-        scheduled_time: int | None = None,
+        scheduled_time: str | int | None = None,
     ) -> dict[str, Any]:
         """调用 publish_product API 将草稿商品上架（异步操作）。
 
         OpenAPI 规范: user_name 为 array[string]，specify_publish_time 为
         "yyyy-MM-dd HH:mm:ss" 格式字符串。
+        scheduled_time 支持: "YYYY-MM-DD HH:MM:SS" 字符串 或 int Unix 时间戳。
         """
         if not self.api_client:
-            return {"ok": False, "step": "api_publish", "error": "api_client_not_configured"}
+            return {
+                "ok": False,
+                "step": "api_publish",
+                "error": "闲管家 API 客户端未初始化，请检查 AppKey/AppSecret 配置",
+            }
 
         publish_payload: dict[str, Any] = {
             "product_id": product_id,
             "user_name": [user_name],
         }
         if scheduled_time:
-            from datetime import datetime as _dt
+            if isinstance(scheduled_time, str) and "-" in scheduled_time:
+                publish_payload["specify_publish_time"] = scheduled_time
+            else:
+                from datetime import datetime as _dt
 
-            publish_payload["specify_publish_time"] = _dt.fromtimestamp(int(scheduled_time)).strftime(
-                "%Y-%m-%d %H:%M:%S"
-            )
+                try:
+                    publish_payload["specify_publish_time"] = _dt.fromtimestamp(int(scheduled_time)).strftime(
+                        "%Y-%m-%d %H:%M:%S"
+                    )
+                except (ValueError, TypeError, OSError):
+                    logger.warning("Invalid scheduled_time value: %s, skipping", scheduled_time)
 
         resp = self.api_client.publish_product(publish_payload)
         if not resp.ok:
@@ -367,10 +392,14 @@ class AutoPublishService:
             return ""
         try:
             resp = self.api_client.list_authorized_users()
-            if resp.ok and isinstance(resp.data, list) and resp.data:
-                first_user = resp.data[0]
-                if isinstance(first_user, dict):
-                    return str(first_user.get("user_name") or first_user.get("nick_name") or "")
+            if resp.ok:
+                data = resp.data
+                if isinstance(data, dict):
+                    data = data.get("list", [])
+                if isinstance(data, list) and data:
+                    first_user = data[0]
+                    if isinstance(first_user, dict):
+                        return str(first_user.get("user_name") or first_user.get("nick_name") or "")
         except Exception as e:
             logger.warning(f"Failed to get authorized user name: {e}")
         return ""
@@ -401,27 +430,39 @@ class AutoPublishService:
             "item_biz_type": int(d.get("default_item_biz_type", 2)),
             "sp_biz_type": int(d.get("default_sp_biz_type", 2)),
             "channel_cat_id": str(d.get("default_channel_cat_id", "")),
-            "express_fee": int(d.get("default_express_fee", 0)),
+            "express_fee": int(float(d.get("default_express_fee", 0)) * 100),
             "stock": int(d.get("default_stock", 1)),
         }
 
         stuff_status = d.get("default_stuff_status")
-        if stuff_status is not None:
+        if stuff_status is not None and str(stuff_status) != "0":
             payload["stuff_status"] = str(stuff_status)
 
-        payload["price"] = int(float(price) * 100) if price is not None else 0
+        if price is not None:
+            payload["price"] = int(float(price) * 100)
+        else:
+            payload["price"] = int(float(d.get("default_price", 1)) * 100)
+
+        content = description
+        if len(content) < 5:
+            content = content + "\n详情请咨询卖家"
 
         shop_entry: dict[str, Any] = {
+            "user_name": user_name or "",
             "title": title,
-            "content": description,
+            "content": content,
             "images": image_urls[:9],
             "province": int(d.get("default_province", 0)),
             "city": int(d.get("default_city", 0)),
             "district": int(d.get("default_district", 0)),
-            "user_name": user_name or "",
         }
+        if d.get("service_support"):
+            shop_entry["service_support"] = str(d["service_support"]).strip()
 
         payload["publish_shop"] = [shop_entry]
+
+        if d.get("outer_id"):
+            payload["outer_id"] = str(d["outer_id"]).strip()[:64]
 
         if extra and isinstance(extra, dict):
             payload.update(extra)
