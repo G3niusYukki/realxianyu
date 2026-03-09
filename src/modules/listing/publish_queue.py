@@ -373,6 +373,10 @@ class PublishQueue:
             self.update_item(item_id, {"status": "failed", "error": "没有生成图片"})
             return {"ok": False, "error": "没有生成图片"}
 
+        if item.price is None:
+            self.update_item(item_id, {"status": "failed", "error": "价格未设置，请在编辑器中设置价格"})
+            return {"ok": False, "error": "价格未设置，请在编辑器中设置价格"}
+
         scheduled_time = getattr(item, "scheduled_time", None)
 
         preview_data = {

@@ -505,7 +505,6 @@ function QueueItemEditor({ item, onSave, category }: { item: QueueItem; onSave: 
       await updateQueueItem(item.id, updates);
       toast.success('已保存');
       setAssetsChanged(false);
-      onSave();
     } catch { toast.error('保存失败'); }
     setSaving(false);
   };
@@ -520,7 +519,6 @@ function QueueItemEditor({ item, onSave, category }: { item: QueueItem; onSave: 
       toast.success('模板已切换并重新生成');
       setComposition({});
       setAssetsChanged(false);
-      onSave();
     } catch { toast.error('切换失败'); }
   };
 
@@ -531,7 +529,6 @@ function QueueItemEditor({ item, onSave, category }: { item: QueueItem; onSave: 
       await regenerateQueueImages(item.id);
       toast.success('素材已更新并重新生成图片');
       setAssetsChanged(false);
-      onSave();
     } catch { toast.error('重新生成失败'); }
     setRegenerating(false);
   };
@@ -559,7 +556,6 @@ function QueueItemEditor({ item, onSave, category }: { item: QueueItem; onSave: 
       await regenerateQueueImages(item.id);
       toast.success('组合图片已重新生成');
       setAssetsChanged(false);
-      onSave();
     } catch { toast.error('重新生成失败'); }
     setRegenerating(false);
   };

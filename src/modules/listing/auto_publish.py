@@ -409,8 +409,7 @@ class AutoPublishService:
         if stuff_status is not None:
             payload["stuff_status"] = str(stuff_status)
 
-        if price is not None:
-            payload["price"] = int(float(price) * 100)
+        payload["price"] = int(float(price) * 100) if price is not None else 0
 
         shop_entry: dict[str, Any] = {
             "title": title,
@@ -419,9 +418,8 @@ class AutoPublishService:
             "province": int(d.get("default_province", 0)),
             "city": int(d.get("default_city", 0)),
             "district": int(d.get("default_district", 0)),
+            "user_name": user_name or "",
         }
-        if user_name:
-            shop_entry["user_name"] = user_name
 
         payload["publish_shop"] = [shop_entry]
 
