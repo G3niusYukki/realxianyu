@@ -4,6 +4,7 @@
 用于按分页条件拉取订单列表，支持按订单状态过滤，供订单同步、售后对账、履约状态看板使用。
 
 ## 2. 请求路径方法
+- **Base URL**: `https://open.goofish.pro`
 - **Path**: `/api/open/order/list`
 - **Method**: `POST`
 - **Content-Type**: `application/json`
@@ -13,7 +14,10 @@
 |---|---|---|---|---|
 | page_size | int | 是 | 每页条数 | 10 |
 | page_no | int | 是 | 页码（从1开始） | 1 |
-| order_status | int | 否 | 订单状态过滤 | 22 |
+| order_status | int | 否 | 订单状态过滤：11/12/21/22/23/24 | 22 |
+| time_range | array | 否 | 时间范围 [start_timestamp, end_timestamp] 秒级 | [1685087000,1685173400] |
+
+> **注意**：`page_no * page_size > 10000` 会报错，单次查询结果不得超过 10000 条。
 
 ## 4. 返回字段
 > 依据 raw 示例可确认的字段如下；未在 raw 中出现但业务可能存在的字段需补原文后再补充。
@@ -24,13 +28,14 @@
 | msg | string | 状态说明 | OK |
 | data.list | array<object> | 订单列表 | 见下 |
 | data.list[].order_no | string | 订单号 | `3364202298717566229` |
-| data.list[].order_status | int | 订单状态 | 22 |
+| data.list[].order_type | int | 订单类型：1-15, 24 | 1 |
+| data.list[].order_status | int | 订单状态：11/12/21/22/23/24 | 22 |
+| data.list[].refund_status | int | 退款状态：0-8 | 0 |
 | data.list[].order_time | int | 下单时间（时间戳秒） | 1685087039 |
 | data.list[].total_amount | int | 订单总金额（单位待补） | 8000 |
 | data.list[].pay_amount | int | 实付金额（单位待补） | 1 |
 | data.list[].pay_no | string | 支付流水号 | `2023052622001114731441899001` |
 | data.list[].pay_time | int | 支付时间（时间戳秒） | 1685087067 |
-| data.list[].refund_status | int | 退款状态 | 0 |
 | data.list[].refund_time | int | 退款时间（时间戳秒） | 0 |
 | data.list[].receiver_mobile | string | 收货手机号 | `15889106633` |
 | data.list[].receiver_name | string | 收货人 | 萧祁锐 |
@@ -50,13 +55,16 @@
 | data.list[].seller_eid/seller_name/seller_remark | string | 卖家信息 | - |
 | data.list[].goods | object | 商品快照 | 见下 |
 | data.list[].goods.quantity | int | 数量 | 1 |
-| data.list[].goods.price | int | 商品价格（单位待补） | 8000 |
-| data.list[].goods.product_id/item_id | int | 商品ID/闲鱼item_id | - |
+| data.list[].goods.price | int | 商品价格（单位：分） | 8000 |
+| data.list[].goods.product_id | int64 | 管家商品 ID | - |
+| data.list[].goods.item_id | int64 | 闲鱼 item_id | - |
 | data.list[].goods.outer_id | string | 外部商品ID | `1111` |
-| data.list[].goods.sku_id/sku_outer_id/sku_text | int/string | SKU信息 | - |
+| data.list[].goods.sku_id | int64 | SKU ID | - |
+| data.list[].goods.sku_outer_id | string | SKU 外部ID | - |
+| data.list[].goods.sku_text | string | SKU 文本描述 | - |
 | data.list[].goods.title | string | 商品标题 | - |
-| data.list[].goods.images | array<string> | 商品图 | URL数组 |
-| data.list[].goods.service_support | string | 服务支持描述 | `""` |
+| data.list[].goods.images | array\<string\> | 商品图片 URL 数组 | - |
+| data.list[].goods.service_support | string | 服务支持：SDR/NFR/VNR/FD_10MS/FD_24HS/FD_48HS/FD_GPA/NFGC/RISK_30D/RISK_90D | SDR |
 
 ## 5. 错误码
 | 错误码 | 含义 | 处理建议 |
@@ -77,6 +85,7 @@
   2. `sign = md5("appKey,bodyMd5,timestamp,appSecret")`
 - 无 body 时：文档注明可对 `{}` 或空串做 MD5，但请求体与签名所用 body 必须一致。
 - 商务对接附加规则（文档备注）：存在 `商家ID` 参与签名的变体，非商务对接可忽略。
+- Base URL：`https://open.goofish.pro`
 
 ## 7. 幂等建议
 - 读接口天然幂等，但建议按 `page_no + page_size + order_status + 同步窗口` 构造缓存键。

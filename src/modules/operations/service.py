@@ -447,6 +447,14 @@ class OperationsService:
             self.logger.error(f"Failed to fetch stats: {e}")
             return {"error": str(e)}
 
+    def _load_pricing_config(self) -> dict[str, Any]:
+        """Load pricing config from system_config.json."""
+        try:
+            from src.dashboard.config_service import read_system_config
+            return read_system_config().get("pricing", {})
+        except Exception:
+            return {}
+
     async def auto_adjust_price(
         self,
         product_id: str,
@@ -455,7 +463,7 @@ class OperationsService:
         strategy: str = "step_down",
         step_amount: float = 1.0,
         min_price: float | None = None,
-        max_discount_pct: float = 0.3,
+        max_discount_pct: float | None = None,
     ) -> dict[str, Any]:
         """自动改价 — 未支付订单场景下的策略性降价。
 
@@ -465,10 +473,20 @@ class OperationsService:
             strategy: 改价策略 (step_down=阶梯降价, restore=恢复原价)
             step_amount: 每次降价金额
             min_price: 最低价格保护
-            max_discount_pct: 最大折扣比例 (0.0~1.0)
+            max_discount_pct: 最大折扣比例 (0.0~1.0), None=从配置读取
         """
+        pricing_cfg = self._load_pricing_config()
+        if not pricing_cfg.get("auto_adjust", False):
+            return self._error_result("auto_adjust_price", product_id, "auto_adjust is disabled in system config")
+
+        if max_discount_pct is None:
+            max_discount_pct = pricing_cfg.get("max_discount_percent", 20) / 100.0
         if not 0.0 <= max_discount_pct <= 1.0:
             return self._error_result("auto_adjust_price", product_id, "max_discount_pct must be between 0.0 and 1.0")
+
+        if min_price is None:
+            margin_pct = pricing_cfg.get("min_margin_percent", 10) / 100.0
+            min_price = current_price * margin_pct
 
         if strategy == "restore":
             return await self.update_price(product_id, current_price)

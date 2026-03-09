@@ -102,6 +102,12 @@ _AUTO_REPLY_TO_YAML_KEYS = {
     "virtual_default_reply": "virtual_default_reply",
     "enabled": "enabled",
     "ai_intent_enabled": "ai_intent_enabled",
+    "quote_missing_template": "quote_missing_template",
+    "strict_format_reply_enabled": "strict_format_reply_enabled",
+    "force_non_empty_reply": "force_non_empty_reply",
+    "non_empty_reply_fallback": "non_empty_reply_fallback",
+    "quote_failed_template": "quote_failed_template",
+    "quote_reply_max_couriers": "quote_reply_max_couriers",
 }
 
 
@@ -125,6 +131,19 @@ def _sync_system_config_to_yaml(sys_config: dict[str, Any]) -> None:
             if src_key in ar:
                 msgs[dst_key] = ar[src_key]
                 changed = True
+        kw_text = ar.get("keyword_replies_text")
+        if isinstance(kw_text, str) and kw_text.strip():
+            kw_dict: dict[str, str] = {}
+            for line in kw_text.strip().splitlines():
+                line = line.strip()
+                if "=" in line:
+                    k, v = line.split("=", 1)
+                    k, v = k.strip(), v.strip()
+                    if k and v:
+                        kw_dict[k] = v
+            if kw_dict:
+                msgs["keyword_replies"] = kw_dict
+                changed = True
 
     for section_key in ("pricing", "delivery"):
         sec = sys_config.get(section_key)
@@ -146,6 +165,33 @@ def _sync_system_config_to_yaml(sys_config: dict[str, Any]) -> None:
             tmp.rename(yaml_path)
         except Exception as exc:
             logger.warning("Failed to sync config to YAML: %s", exc)
+
+
+def _test_xgj_connection(
+    *,
+    app_key: str,
+    app_secret: str,
+    base_url: str,
+    mode: str = "self_developed",
+    seller_id: str = "",
+) -> dict[str, Any]:
+    """Test connectivity to 闲管家 using OpenPlatformClient with proper query-param auth."""
+    from src.integrations.xianguanjia.open_platform_client import OpenPlatformClient
+
+    client = OpenPlatformClient(
+        base_url=base_url,
+        app_key=app_key,
+        app_secret=app_secret,
+        mode=mode,
+        seller_id=seller_id,
+        timeout=8.0,
+    )
+    t0 = time.time()
+    resp = client.list_authorized_users()
+    latency = int((time.time() - t0) * 1000)
+    if resp.ok:
+        return {"ok": True, "message": "连通", "latency_ms": latency}
+    return {"ok": False, "message": resp.error_message or "连接失败", "latency_ms": latency}
 
 
 DEFAULT_WEIGHT_TEMPLATE = (
@@ -394,7 +440,7 @@ class MimicOps:
 
     def _xianguanjia_service_config(self) -> dict[str, Any]:
         settings = self._get_xianguanjia_settings()
-        return {
+        result: dict[str, Any] = {
             "xianguanjia": {
                 "enabled": bool(settings["configured"]),
                 "app_key": settings["app_key"],
@@ -403,6 +449,13 @@ class MimicOps:
                 "base_url": settings["base_url"],
             }
         }
+        sys_cfg = _read_system_config()
+        oss_cfg = sys_cfg.get("oss")
+        if isinstance(oss_cfg, dict) and oss_cfg:
+            clean_oss = {k: v for k, v in oss_cfg.items() if v and not str(v).endswith("****")}
+            if clean_oss:
+                result["oss"] = clean_oss
+        return result
 
     def retry_xianguanjia_delivery(self, payload: dict[str, Any]) -> dict[str, Any]:
         from src.modules.orders.service import OrderFulfillmentService
@@ -515,6 +568,185 @@ class MimicOps:
             "auto_delivery_source": "system_config" if auto_delivery_override is not None else "env",
         }
         return result
+
+    def handle_order_push(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Handle order push notification from Xianyu.
+
+        Processes order callback AND triggers auto-price-modify for
+        status 11 (pending payment) orders asynchronously.
+        """
+        order_status = payload.get("order_status")
+        order_no = str(payload.get("order_no", ""))
+
+        callback_result = self.handle_order_callback(payload)
+
+        if order_status == 11 and order_no:
+            sys_cfg = _read_system_config()
+            apm_cfg = sys_cfg.get("auto_price_modify", {})
+            if apm_cfg.get("enabled"):
+                import threading
+
+                t = threading.Thread(
+                    target=self._auto_modify_price_sync,
+                    args=(order_no, payload, apm_cfg),
+                    daemon=True,
+                )
+                t.start()
+                callback_result["auto_price_modify_triggered"] = True
+
+        return callback_result
+
+    def _auto_modify_price_sync(self, order_no: str, push_payload: dict[str, Any], apm_cfg: dict[str, Any]) -> None:
+        """Background thread: look up quote and modify order price."""
+        try:
+            from src.modules.quote.ledger import get_quote_ledger
+            from src.integrations.xianguanjia.open_platform_client import OpenPlatformClient
+
+            settings = self._get_xianguanjia_settings()
+            if not settings["configured"]:
+                logger.warning("Auto-price-modify: xianguanjia not configured")
+                return
+
+            xgj_cfg = self._xianguanjia_service_config().get("xianguanjia", {})
+            client_fields = {"base_url", "app_key", "app_secret", "timeout", "mode", "seller_id"}
+            client_kwargs = {k: v for k, v in xgj_cfg.items() if k in client_fields and v}
+            client = OpenPlatformClient(**client_kwargs)
+
+            detail_resp = client.get_order_detail({"order_no": order_no})
+            if not detail_resp.ok:
+                logger.warning("Auto-price-modify: failed to get order detail for %s", order_no)
+                return
+
+            detail = detail_resp.data or {}
+            buyer_nick = str(detail.get("buyer_nick", ""))
+            goods = detail.get("goods") or {}
+            item_id = str(goods.get("item_id", ""))
+            total_amount = int(detail.get("total_amount", 0))
+
+            if not buyer_nick:
+                logger.info("Auto-price-modify: no buyer_nick in order %s", order_no)
+                return
+
+            max_age = int(apm_cfg.get("max_quote_age_seconds", 7200))
+            ledger = get_quote_ledger()
+            quote = ledger.find_by_buyer(buyer_nick, item_id=item_id, max_age_seconds=max_age)
+
+            if not quote:
+                fallback = apm_cfg.get("fallback_action", "skip")
+                if fallback == "skip":
+                    logger.info("Auto-price-modify: no matching quote for buyer=%s order=%s", buyer_nick, order_no)
+                    return
+                logger.info("Auto-price-modify: fallback=%s, no price change for order=%s", fallback, order_no)
+                return
+
+            quote_rows = quote.get("quote_rows", [])
+            courier_choice = quote.get("courier_choice", "")
+
+            target_fee = None
+            if courier_choice:
+                for row in quote_rows:
+                    if str(row.get("courier", "")).strip() == courier_choice.strip():
+                        target_fee = row.get("total_fee")
+                        break
+            if target_fee is None and quote_rows:
+                target_fee = min(r.get("total_fee", 0) for r in quote_rows if r.get("total_fee"))
+
+            if target_fee is None:
+                logger.info("Auto-price-modify: no valid fee in quote for order=%s", order_no)
+                return
+
+            target_price_cents = int(round(float(target_fee) * 100))
+            express_fee_cents = int(apm_cfg.get("default_express_fee", 0))
+
+            if target_price_cents == total_amount:
+                logger.info("Auto-price-modify: price already correct for order=%s", order_no)
+                return
+
+            modify_resp = client.modify_order_price(
+                {
+                    "order_no": order_no,
+                    "order_price": target_price_cents,
+                    "express_fee": express_fee_cents,
+                }
+            )
+
+            if modify_resp.ok:
+                logger.info(
+                    "Auto-price-modify: SUCCESS order=%s from=%d to=%d (express=%d)",
+                    order_no,
+                    total_amount,
+                    target_price_cents,
+                    express_fee_cents,
+                )
+            else:
+                logger.warning(
+                    "Auto-price-modify: FAILED order=%s error=%s",
+                    order_no,
+                    modify_resp.error_message,
+                )
+
+        except Exception:
+            logger.error("Auto-price-modify: unexpected error for order=%s", order_no, exc_info=True)
+
+    def handle_product_callback(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Handle product callback notification (async publish result)."""
+        product_id = payload.get("product_id")
+        task_type = payload.get("task_type")
+        task_result = payload.get("task_result")
+        item_id = payload.get("item_id")
+        err_code = payload.get("err_code", "")
+        err_msg = payload.get("err_msg", "")
+        product_status = payload.get("product_status")
+        publish_status = payload.get("publish_status")
+
+        logger.info(
+            "Product callback: product_id=%s task_type=%s result=%s status=%s/%s err=%s/%s",
+            product_id,
+            task_type,
+            task_result,
+            product_status,
+            publish_status,
+            err_code,
+            err_msg,
+        )
+
+        if product_id and task_type in (10, 11):
+            try:
+                from src.modules.listing.publish_queue import PublishQueueService
+
+                queue = PublishQueueService()
+                for item in queue.list_items():
+                    pid = (
+                        item.get("published_product_id")
+                        if isinstance(item, dict)
+                        else getattr(item, "published_product_id", None)
+                    )
+                    status = item.get("status") if isinstance(item, dict) else getattr(item, "status", None)
+                    item_id_val = item.get("id") if isinstance(item, dict) else getattr(item, "id", None)
+                    if pid == product_id and status == "publishing":
+                        if task_result == 1:
+                            queue.update_item(
+                                item_id_val,
+                                {
+                                    "status": "published",
+                                    "error": None,
+                                },
+                            )
+                            logger.info("Product callback: marked queue item %s as published", item_id_val)
+                        elif task_result == 2:
+                            queue.update_item(
+                                item_id_val,
+                                {
+                                    "status": "failed",
+                                    "error": f"上架失败: [{err_code}] {err_msg}",
+                                },
+                            )
+                            logger.warning("Product callback: marked queue item %s as failed: %s", item_id_val, err_msg)
+                        break
+            except Exception:
+                logger.error("Product callback: failed to update publish queue", exc_info=True)
+
+        return {"success": True, "product_id": product_id, "task_result": task_result}
 
     def _virtual_goods_service(self) -> VirtualGoodsService:
         return VirtualGoodsService(
@@ -3267,13 +3499,17 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    def _build_publish_config(self) -> dict[str, Any]:
+        """构建包含 xianguanjia + oss 的发布配置，供 publish_item/publish_batch 使用。"""
+        return self.mimic_ops._xianguanjia_service_config()
+
     def _handle_listing_preview(self, body: dict[str, Any]) -> dict[str, Any]:
         """生成自动上架预览。"""
         try:
             import asyncio
             from src.modules.listing.auto_publish import AutoPublishService
 
-            service = AutoPublishService(config=self._xianguanjia_service_config())
+            service = AutoPublishService(config=self.mimic_ops._xianguanjia_service_config())
             loop = asyncio.new_event_loop()
             try:
                 return loop.run_until_complete(service.generate_preview(body))
@@ -3285,11 +3521,16 @@ class DashboardHandler(BaseHTTPRequestHandler):
     def _handle_listing_publish(self, body: dict[str, Any]) -> dict[str, Any]:
         """执行自动上架。"""
         try:
+            sys_cfg = _read_system_config()
+            ap_cfg = sys_cfg.get("auto_publish", {})
+            if not ap_cfg.get("enabled", False):
+                return {"ok": False, "error": "自动上架未启用，请在设置中开启"}
+
             import asyncio
             from src.modules.listing.auto_publish import AutoPublishService
             from src.integrations.xianguanjia.open_platform_client import OpenPlatformClient
 
-            cfg = self._xianguanjia_service_config().get("xianguanjia", {})
+            cfg = self.mimic_ops._xianguanjia_service_config().get("xianguanjia", {})
             app_key = str(cfg.get("app_key", "")).strip()
             app_secret = str(cfg.get("app_secret", "")).strip()
             if not app_key or not app_secret:
@@ -3302,7 +3543,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
             )
             service = AutoPublishService(
                 api_client=api_client,
-                config=self._xianguanjia_service_config(),
+                config=self.mimic_ops._xianguanjia_service_config(),
             )
 
             preview_data = body.get("preview_data")
@@ -3515,7 +3756,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 self._send_json(payload, status=status)
                 return
 
-            if path == "/api/status":
+            if path in ("/api/status", "/api/service-status"):
                 self._send_json(self.mimic_ops.service_status())
                 return
 
@@ -3654,8 +3895,208 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
             if path == "/api/listing/templates":
                 from src.modules.listing.templates import list_templates
+                from src.modules.listing.templates.frames import list_frames
 
-                self._send_json({"ok": True, "templates": list_templates()})
+                self._send_json(
+                    {
+                        "ok": True,
+                        "templates": list_templates(),
+                        "frames": list_frames(),
+                    }
+                )
+                return
+
+            if path == "/api/listing/frames":
+                from src.modules.listing.templates.frames import list_frames
+
+                self._send_json({"ok": True, "frames": list_frames()})
+                return
+
+            if path == "/api/listing/thumbnails":
+                from src.modules.listing.templates.frames import list_frames as _lf
+                from pathlib import Path as _P
+
+                cat = (query.get("category") or ["express"])[0].strip()
+                thumb_map = {}
+                for f in _lf():
+                    p = _P(f"data/thumbnails/{f['id']}_{cat}.png")
+                    if p.is_file():
+                        thumb_map[f["id"]] = f"/api/generated-image?path={p}"
+                self._send_json({"ok": True, "thumbnails": thumb_map})
+                return
+
+            if path == "/api/generated-image":
+                img_path = (query.get("path") or [""])[0].strip()
+                if not img_path:
+                    self._send_json(_error_payload("Missing path"), status=400)
+                    return
+                from pathlib import Path as _P
+
+                resolved = _P(img_path).resolve()
+                allowed_dirs = [
+                    _P("data/generated_images").resolve(),
+                    _P("data/brand_assets").resolve(),
+                    _P("data/thumbnails").resolve(),
+                ]
+                if not any(str(resolved).startswith(str(d)) for d in allowed_dirs):
+                    self._send_json(_error_payload("Access denied"), status=403)
+                    return
+                if not resolved.is_file():
+                    self._send_json(_error_payload("File not found"), status=404)
+                    return
+                ext = resolved.suffix.lower()
+                mime_map = {
+                    ".png": "image/png",
+                    ".jpg": "image/jpeg",
+                    ".jpeg": "image/jpeg",
+                    ".gif": "image/gif",
+                    ".webp": "image/webp",
+                    ".svg": "image/svg+xml",
+                }
+                content_type = mime_map.get(ext, "application/octet-stream")
+                data = resolved.read_bytes()
+                self.send_response(200)
+                self.send_header("Content-Type", content_type)
+                self.send_header("Content-Length", str(len(data)))
+                self.send_header("Cache-Control", "public, max-age=3600")
+                self.end_headers()
+                self.wfile.write(data)
+                return
+
+            if path == "/api/listing/preview-frame":
+                frame_id = (query.get("frame_id") or [""])[0].strip()
+                category = (query.get("category") or ["express"])[0].strip()
+                brand_ids_raw = (query.get("brand_asset_ids") or [""])[0].strip()
+                if not frame_id:
+                    self._send_json(_error_payload("Missing frame_id"), status=400)
+                    return
+
+                brand_asset_ids = [x.strip() for x in brand_ids_raw.split(",") if x.strip()] if brand_ids_raw else []
+
+                if brand_asset_ids:
+                    from src.modules.listing.brand_assets import BrandAssetManager
+
+                    mgr = BrandAssetManager()
+                    brand_items = []
+                    for aid in brand_asset_ids:
+                        entry = next((a for a in mgr.list_assets() if a["id"] == aid), None)
+                        if entry is None:
+                            continue
+                        p = mgr.get_asset_path(aid)
+                        if p is None:
+                            continue
+                        from src.modules.listing.brand_assets import file_to_data_uri
+
+                        brand_items.append({"name": entry["name"], "src": file_to_data_uri(p)})
+                else:
+                    from pathlib import Path as _P
+
+                    thumb_path = _P(f"data/thumbnails/{frame_id}_{category}.png")
+                    if thumb_path.is_file():
+                        self._send_json(
+                            {
+                                "ok": True,
+                                "image_path": str(thumb_path),
+                                "image_url": f"/api/generated-image?path={thumb_path}",
+                            }
+                        )
+                        return
+                    from src.modules.listing.templates.frames._common import sample_brand_items
+
+                    brand_items = sample_brand_items()
+
+                from src.modules.listing.image_generator import generate_frame_images
+
+                params = {"brand_items": brand_items}
+                output_dir = "data/thumbnails" if not brand_asset_ids else "data/generated_images"
+                paths = _run_async(
+                    generate_frame_images(frame_id=frame_id, category=category, params=params, output_dir=output_dir)
+                )
+                if not paths:
+                    self._send_json(_error_payload("Failed to generate preview"), status=500)
+                    return
+                if not brand_asset_ids:
+                    import shutil
+
+                    stable_name = f"data/thumbnails/{frame_id}_{category}.png"
+                    try:
+                        shutil.copy2(paths[0], stable_name)
+                    except Exception:
+                        stable_name = paths[0]
+                else:
+                    stable_name = paths[0]
+                self._send_json(
+                    {"ok": True, "image_path": stable_name, "image_url": f"/api/generated-image?path={stable_name}"}
+                )
+                return
+
+            if path == "/api/composition/layers":
+                from src.modules.listing.templates.compositor import list_all_options
+
+                options = list_all_options()
+                self._send_json({"ok": True, **options})
+                return
+
+            if path == "/api/listing/preview-composition":
+                qs_params = parse_qs(parsed.query)
+                category = (qs_params.get("category") or ["express"])[0].strip()
+                layout_p = (qs_params.get("layout") or [None])[0]
+                cs_p = (qs_params.get("color_scheme") or [None])[0]
+                deco_p = (qs_params.get("decoration") or [None])[0]
+                ts_p = (qs_params.get("title_style") or [None])[0]
+                brand_ids_raw = (qs_params.get("brand_asset_ids") or [""])[0].strip()
+
+                brand_asset_ids = [x.strip() for x in brand_ids_raw.split(",") if x.strip()] if brand_ids_raw else []
+
+                if brand_asset_ids:
+                    from src.modules.listing.brand_assets import BrandAssetManager
+
+                    mgr = BrandAssetManager()
+                    brand_items = []
+                    for aid in brand_asset_ids:
+                        entry = next((a for a in mgr.list_assets() if a["id"] == aid), None)
+                        if entry is None:
+                            continue
+                        p = mgr.get_asset_path(aid)
+                        if p is None:
+                            continue
+                        from src.modules.listing.brand_assets import file_to_data_uri
+
+                        brand_items.append({"name": entry["name"], "src": file_to_data_uri(p)})
+                else:
+                    from src.modules.listing.templates.frames._common import sample_brand_items
+
+                    brand_items = sample_brand_items()
+
+                layers = {}
+                if layout_p:
+                    layers["layout"] = layout_p
+                if cs_p:
+                    layers["color_scheme"] = cs_p
+                if deco_p:
+                    layers["decoration"] = deco_p
+                if ts_p:
+                    layers["title_style"] = ts_p
+
+                from src.modules.listing.image_generator import generate_composition_images
+
+                params = {"brand_items": brand_items}
+                paths, used_layers = _run_async(
+                    generate_composition_images(
+                        category=category, params=params, layers=layers or None, output_dir="data/generated_images"
+                    )
+                )
+                if not paths:
+                    self._send_json(_error_payload("Failed to generate composition preview"), status=500)
+                    return
+                self._send_json(
+                    {
+                        "ok": True,
+                        "image_path": paths[0],
+                        "image_url": f"/api/generated-image?path={paths[0]}",
+                        "composition": used_layers,
+                    }
+                )
                 return
 
             if path == "/api/health/check":
@@ -3725,7 +4166,6 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     ai_info = {"ok": False, "message": f"检查异常: {type(exc).__name__}"}
                 result["ai"] = ai_info
 
-                # XGJ connectivity check (migrated from Node.js)
                 xgj_info: dict[str, Any] = {"ok": False, "message": "未检查"}
                 try:
                     sys_cfg = _read_system_config()
@@ -3738,36 +4178,13 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     if not xgj_app_key or not xgj_app_secret:
                         xgj_info = {"ok": False, "message": "AppKey 或 AppSecret 未配置"}
                     else:
-                        from src.integrations.xianguanjia.signing import sign_open_platform_request as _xgj_sign
-
-                        xgj_ts = str(int(time.time()))
-                        xgj_body = json.dumps({"method": "health.check"})
-                        xgj_sign_val = _xgj_sign(
-                            app_key=xgj_app_key, app_secret=xgj_app_secret, timestamp=xgj_ts, body=xgj_body
+                        xgj_info = _test_xgj_connection(
+                            app_key=xgj_app_key,
+                            app_secret=xgj_app_secret,
+                            base_url=xgj_base,
+                            mode=str(xgj_cfg.get("mode", "self_developed")),
+                            seller_id=str(xgj_cfg.get("seller_id", "")),
                         )
-                        xgj_t0 = _t.time()
-                        import httpx as _hx2
-
-                        xgj_resp = _hx2.post(
-                            f"{xgj_base}/api/open/proxy",
-                            content=xgj_body,
-                            headers={
-                                "Content-Type": "application/json",
-                                "x-app-key": xgj_app_key,
-                                "x-timestamp": xgj_ts,
-                                "x-sign": xgj_sign_val,
-                            },
-                            timeout=8.0,
-                        )
-                        xgj_latency = int((_t.time() - xgj_t0) * 1000)
-                        if xgj_resp.status_code < 500:
-                            xgj_info = {"ok": True, "message": "连通", "latency_ms": xgj_latency}
-                        else:
-                            xgj_info = {
-                                "ok": False,
-                                "message": f"HTTP {xgj_resp.status_code}",
-                                "latency_ms": xgj_latency,
-                            }
                 except Exception as exc:
                     xgj_info = {"ok": False, "message": f"检查异常: {type(exc).__name__}"}
                 result["xgj"] = xgj_info
@@ -3868,9 +4285,45 @@ class DashboardHandler(BaseHTTPRequestHandler):
             # ---------- Auto-Publish Scheduler ----------
             if path == "/api/auto-publish/status":
                 from src.modules.listing.scheduler import AutoPublishScheduler
+            # ---------- Auto-Publish Scheduler ----------
+            if path == "/api/auto-publish/status":
+                from src.modules.listing.scheduler import AutoPublishScheduler
 
-                sched = AutoPublishScheduler()
+                ap_cfg = _read_system_config().get("auto_publish", {})
+                user_schedule = {}
+                for k in (
+                    "cold_start_days",
+                    "cold_start_daily_count",
+                    "steady_replace_count",
+                    "max_active_listings",
+                    "steady_replace_metric",
+                ):
+                    if k in ap_cfg:
+                        user_schedule[k] = ap_cfg[k]
+                sched = AutoPublishScheduler(schedule=user_schedule if user_schedule else None)
                 self._send_json({"ok": True, **sched.get_status()})
+                return
+
+            # ---------- Brand Assets Grouped ----------
+            if path == "/api/brand-assets/grouped":
+                from src.modules.listing.brand_assets import BrandAssetManager
+
+                mgr = BrandAssetManager()
+                cat_filter = parse_qs(parsed.query).get("category", [None])[0]
+                grouped = mgr.get_brands_grouped(category=cat_filter)
+                self._send_json({"ok": True, "brands": grouped})
+                return
+
+            # ---------- Publish Queue ----------
+            if path == "/api/publish-queue":
+                from src.modules.listing.publish_queue import PublishQueue
+
+                q = PublishQueue()
+                date_filter = parse_qs(parsed.query).get("date", [None])[0]
+                items = q.get_queue(date=date_filter)
+                from dataclasses import asdict
+
+                self._send_json({"ok": True, "items": [asdict(it) for it in items]})
                 return
 
             # ---------- Brand Assets ----------
@@ -3953,6 +4406,22 @@ class DashboardHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
         try:
+            if path.startswith("/api/publish-queue/"):
+                item_id = path.split("/api/publish-queue/")[1].strip("/")
+                if item_id:
+                    body = self._read_json_body()
+                    from src.modules.listing.publish_queue import PublishQueue
+
+                    q = PublishQueue()
+                    item = q.update_item(item_id, body)
+                    if item is None:
+                        self._send_json(_error_payload("Queue item not found"), status=404)
+                        return
+                    from dataclasses import asdict
+
+                    self._send_json({"ok": True, "item": asdict(item)})
+                    return
+
             if path == "/api/config":
                 body = self._read_json_body()
                 current = _read_system_config()
@@ -3982,6 +4451,20 @@ class DashboardHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
         try:
+            if path.startswith("/api/publish-queue/"):
+                item_id = path.split("/api/publish-queue/")[1].strip("/")
+                if not item_id:
+                    self._send_json(_error_payload("Missing item id"), status=400)
+                    return
+                from src.modules.listing.publish_queue import PublishQueue
+
+                q = PublishQueue()
+                if q.delete_item(item_id):
+                    self._send_json({"ok": True, "message": "Queue item deleted"})
+                else:
+                    self._send_json(_error_payload("Queue item not found", code="NOT_FOUND"), status=404)
+                return
+
             if path.startswith("/api/brand-assets/"):
                 asset_id = path.split("/api/brand-assets/", 1)[1].strip("/")
                 if not asset_id:
@@ -4374,6 +4857,71 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 self._send_json(payload, status=200 if payload.get("ok") else 400)
                 return
 
+            # ---------- Publish Queue POST endpoints ----------
+            if path == "/api/publish-queue/generate":
+                from src.modules.listing.publish_queue import PublishQueue
+
+                body = self._read_json_body()
+                q = PublishQueue()
+                category = body.get("category", "express")
+                ap_cfg = _read_system_config().get("auto_publish", {})
+                user_schedule = {}
+                for k in (
+                    "cold_start_days",
+                    "cold_start_daily_count",
+                    "steady_replace_count",
+                    "max_active_listings",
+                    "steady_replace_metric",
+                ):
+                    if k in ap_cfg:
+                        user_schedule[k] = ap_cfg[k]
+                items = _run_async(
+                    q.generate_daily_queue(
+                        category=category,
+                        user_schedule=user_schedule if user_schedule else None,
+                    )
+                )
+                from dataclasses import asdict
+
+                self._send_json({"ok": True, "items": [asdict(it) for it in items]})
+                return
+
+            if path.startswith("/api/publish-queue/") and path.endswith("/regenerate"):
+                item_id = path.split("/api/publish-queue/")[1].replace("/regenerate", "")
+                from src.modules.listing.publish_queue import PublishQueue
+
+                q = PublishQueue()
+                item = _run_async(q.regenerate_images(item_id))
+                if item is None:
+                    self._send_json(_error_payload("Queue item not found"), status=404)
+                    return
+                from dataclasses import asdict
+
+                self._send_json({"ok": True, "item": asdict(item)})
+                return
+
+            if path.startswith("/api/publish-queue/") and path.endswith("/publish"):
+                item_id = path.split("/api/publish-queue/")[1].replace("/publish", "")
+                from src.modules.listing.publish_queue import PublishQueue
+
+                q = PublishQueue()
+                publish_cfg = self._build_publish_config()
+                result = _run_async(q.publish_item(item_id, config=publish_cfg))
+                self._send_json(result, status=200 if result.get("ok") else 400)
+                return
+
+            if path == "/api/publish-queue/publish-batch":
+                body = self._read_json_body()
+                from src.modules.listing.publish_queue import PublishQueue
+
+                q = PublishQueue()
+                item_ids = body.get("item_ids", [])
+                interval = body.get("interval_seconds", 30)
+                publish_cfg = self._build_publish_config()
+                results = _run_async(q.publish_batch(item_ids, interval_seconds=interval, config=publish_cfg))
+                self._send_json({"ok": True, "results": results})
+                return
+
             if path == "/api/cookie/auto-grab":
                 import threading
                 from src.core.cookie_grabber import CookieGrabber
@@ -4453,6 +5001,30 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     self._send_json({"ok": False, "error": "发送失败，请检查 Webhook URL 是否正确"}, status=400)
                 return
 
+            # ---------- XGJ test connection ----------
+            if path == "/api/xgj/test-connection":
+                body = self._read_json_body()
+                app_key = str(body.get("app_key", ""))
+                app_secret = str(body.get("app_secret", ""))
+                base_url = str(body.get("base_url", "") or "https://open.goofish.pro")
+                mode = str(body.get("mode", "self_developed"))
+                seller_id = str(body.get("seller_id", ""))
+                if not app_key or not app_secret:
+                    self._send_json({"ok": False, "message": "AppKey 或 AppSecret 未填写"})
+                    return
+                try:
+                    info = _test_xgj_connection(
+                        app_key=app_key,
+                        app_secret=app_secret,
+                        base_url=base_url,
+                        mode=mode,
+                        seller_id=seller_id,
+                    )
+                    self._send_json(info)
+                except Exception as exc:
+                    self._send_json({"ok": False, "message": f"检查异常: {type(exc).__name__}: {exc}"})
+                return
+
             # ---------- XGJ proxy (migrated from Node.js) ----------
             if path == "/api/xgj/proxy":
                 body = self._read_json_body()
@@ -4511,7 +5083,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 app_key = str(xgj.get("app_key", ""))
                 app_secret = str(xgj.get("app_secret", ""))
                 if not app_key or not app_secret:
-                    self._send_json({"code": 1, "msg": "Not configured"}, status=400)
+                    self._send_json({"result": "fail", "msg": "Not configured"}, status=400)
                     return
                 parsed_url = urlparse(self.path)
                 qs = parse_qs(parsed_url.query)
@@ -4524,20 +5096,25 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 now = int(time.time())
                 try:
                     if abs(now - int(ts_val)) > 300:
-                        self._send_json({"error": "Timestamp expired"}, status=400)
+                        self._send_json({"result": "fail", "msg": "Timestamp expired"}, status=400)
                         return
                 except (ValueError, TypeError):
-                    self._send_json({"error": "Invalid timestamp"}, status=400)
+                    self._send_json({"result": "fail", "msg": "Invalid timestamp"}, status=400)
                     return
+                from src.integrations.xianguanjia.signing import verify_open_platform_callback_signature
                 from src.integrations.xianguanjia.signing import verify_open_platform_callback_signature
 
                 if not verify_open_platform_callback_signature(
                     app_key=app_key, app_secret=app_secret, timestamp=ts_val, sign=sign_val, body=body_str
                 ):
-                    self._send_json({"code": 401, "msg": "Invalid signature"}, status=401)
+                    self._send_json({"result": "fail", "msg": "Invalid signature"}, status=401)
                     return
-                payload = self.mimic_ops.handle_order_callback(body_data)
-                self._send_json(payload, status=200 if payload.get("success") else 400)
+
+                if path == "/api/xgj/product/receive":
+                    result = self.mimic_ops.handle_product_callback(body_data)
+                else:
+                    result = self.mimic_ops.handle_order_push(body_data)
+                self._send_json({"result": "success", "msg": "接收成功"})
                 return
 
             self._send_json(_error_payload("Not Found", code="NOT_FOUND"), status=404)
