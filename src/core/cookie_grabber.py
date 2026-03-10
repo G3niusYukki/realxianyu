@@ -266,32 +266,37 @@ class CookieGrabber:
 
     @staticmethod
     def _decrypt_cookiecloud(encrypted: str, key: str) -> dict[str, Any]:
-        """Decrypt CookieCloud AES-CBC encrypted data."""
+        """Decrypt CookieCloud AES-CBC encrypted data.
+
+        Supports both legacy (CryptoJS passphrase mode with Salted__ header,
+        EVP_BytesToKey for key derivation) and aes-128-cbc-fixed (zero IV,
+        direct key) modes.
+        """
         try:
             import base64
             import json
-            from hashlib import md5
+            from hashlib import md5 as _md5
 
-            from cryptography.hazmat.primitives import padding as sym_padding
             from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+            from cryptography.hazmat.primitives import padding as sym_padding
 
             raw = base64.b64decode(encrypted)
+
             if raw[:8] == b"Salted__":
                 salt = raw[8:16]
                 ct = raw[16:]
+                passphrase = key.encode("utf-8")
+
+                d = b""
+                last = b""
+                while len(d) < 48:
+                    last = _md5(last + passphrase + salt).digest()
+                    d += last
+                derived_key, iv = d[:32], d[32:48]
             else:
-                salt = b""
                 ct = raw
-
-            key_bytes = key.encode("utf-8")
-            prev = b""
-            derived = b""
-            while len(derived) < 48:
-                prev = md5(prev + key_bytes + salt).digest()
-                derived += prev
-
-            derived_key = derived[:32]
-            iv = derived[32:48]
+                derived_key = key.encode("utf-8")[:16]
+                iv = b"\x00" * 16
 
             cipher = Cipher(algorithms.AES(derived_key), modes.CBC(iv))
             decryptor = cipher.decryptor()
