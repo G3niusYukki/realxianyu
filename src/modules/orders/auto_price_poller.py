@@ -196,7 +196,7 @@ class AutoPricePoller:
             logger.debug("AutoPricePoller: no valid fee in quote for order=%s", order_no)
             return
 
-        target_price_cents = int(round(float(target_fee) * 100))
+        target_price_cents = round(float(target_fee) * 100)
         express_fee_cents = int(float(apm_cfg.get("default_express_fee", 0)) * 100)
 
         if target_price_cents == total_amount and total_amount > 0:
@@ -205,21 +205,27 @@ class AutoPricePoller:
             return
 
         try:
-            modify_resp = client.modify_order_price({
-                "order_no": order_no,
-                "order_price": target_price_cents,
-                "express_fee": express_fee_cents,
-            })
+            modify_resp = client.modify_order_price(
+                {
+                    "order_no": order_no,
+                    "order_price": target_price_cents,
+                    "express_fee": express_fee_cents,
+                }
+            )
             if modify_resp.ok:
                 logger.info(
                     "AutoPricePoller: SUCCESS order=%s from=%d to=%d (express=%d)",
-                    order_no, total_amount, target_price_cents, express_fee_cents,
+                    order_no,
+                    total_amount,
+                    target_price_cents,
+                    express_fee_cents,
                 )
                 self._processed[order_no] = time.time()
             else:
                 logger.warning(
                     "AutoPricePoller: FAILED order=%s error=%s",
-                    order_no, modify_resp.error_message,
+                    order_no,
+                    modify_resp.error_message,
                 )
         except Exception:
             logger.error("AutoPricePoller: modify_order_price error for order=%s", order_no, exc_info=True)
