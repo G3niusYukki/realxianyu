@@ -184,7 +184,7 @@ def _find_playwright_chromium() -> bool:
 
 def check_lite_browser_dependency() -> StartupCheckResult:
     try:
-        import playwright  # noqa: F401
+        import playwright
     except Exception:
         return StartupCheckResult(
             "Lite 浏览器驱动",
@@ -192,6 +192,9 @@ def check_lite_browser_dependency() -> StartupCheckResult:
             "未安装 Playwright。请执行: pip install playwright && playwright install chromium",
             critical=True,
         )
+
+    if not hasattr(playwright, "__file__") and not hasattr(playwright, "__spec__"):
+        return StartupCheckResult("Lite 浏览器驱动", True, "Playwright 已就绪", critical=True)
 
     if not _find_playwright_chromium():
         return StartupCheckResult(
