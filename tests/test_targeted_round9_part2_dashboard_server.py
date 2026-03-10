@@ -257,6 +257,7 @@ def test_repo_and_cookie_low_level_branches(monkeypatch: pytest.MonkeyPatch, tem
 
     # recovery advice branches
     assert "重新登录" in ops._recovery_advice("waiting_cookie_update", "FAIL_SYS_USER_VALIDATE")
+    assert "RGV587" in ops._recovery_advice("waiting_cookie_update", "RGV587")
     assert "更新 Cookie" in ops._recovery_advice("waiting_cookie_update", "X")
     assert "一键恢复" in ops._recovery_advice("token_error", "WS_HTTP_400")
     assert "鉴权错误" in ops._recovery_advice("token_error", "X")

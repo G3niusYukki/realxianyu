@@ -270,10 +270,11 @@ class CookieGrabber:
         """Decrypt CookieCloud AES-CBC encrypted data."""
         try:
             import base64
+            import json
             from hashlib import md5
 
-            from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
             from cryptography.hazmat.primitives import padding as sym_padding
+            from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
             raw = base64.b64decode(encrypted)
             if raw[:8] == b"Salted__":
@@ -284,13 +285,14 @@ class CookieGrabber:
                 ct = raw
 
             key_bytes = key.encode("utf-8")
-            d = b""
-            while len(d) < 48:
-                d = md5(d + key_bytes + salt).digest() + d[len(d):]  # noqa: E501
-                d_full = d
-                d = d_full
-            derived_key = d_full[:32]
-            iv = d_full[32:48]
+            prev = b""
+            derived = b""
+            while len(derived) < 48:
+                prev = md5(prev + key_bytes + salt).digest()
+                derived += prev
+
+            derived_key = derived[:32]
+            iv = derived[32:48]
 
             cipher = Cipher(algorithms.AES(derived_key), modes.CBC(iv))
             decryptor = cipher.decryptor()
@@ -299,7 +301,6 @@ class CookieGrabber:
             unpadder = sym_padding.PKCS7(128).unpadder()
             plaintext = unpadder.update(padded) + unpadder.finalize()
 
-            import json
             return json.loads(plaintext.decode("utf-8"))
         except Exception as exc:
             logger.debug(f"CookieCloud 解密失败: {exc}")
@@ -945,12 +946,16 @@ class CookieAutoRefresher:
             pair = pair.strip()
             if pair.startswith("_m_h5_tk="):
                 val = pair[len("_m_h5_tk="):]
-                parts = val.split("_")
-                if len(parts) >= 2:
-                    try:
-                        return (int(parts[1]) / 1000.0) - time.time()
-                    except (ValueError, OverflowError):
-                        pass
+                if "_" not in val:
+                    continue
+                try:
+                    _, expire_ms_text = val.rsplit("_", 1)
+                    expire_ms = int(expire_ms_text)
+                    if expire_ms < 100_000_000_000:
+                        continue
+                    return (expire_ms / 1000.0) - time.time()
+                except (ValueError, OverflowError):
+                    pass
         return None
 
     def _tick(self) -> None:

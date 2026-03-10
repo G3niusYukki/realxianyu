@@ -26,7 +26,14 @@ _ALLOWED_CONFIG_SECTIONS = {
     "cookie_cloud",
 }
 
-_SENSITIVE_CONFIG_KEYS = ["app_secret", "api_key", "access_key_secret", "mch_secret", "webhook"]
+_SENSITIVE_CONFIG_KEYS = [
+    "app_secret",
+    "api_key",
+    "access_key_secret",
+    "mch_secret",
+    "webhook",
+    "cookie_cloud_password",
+]
 
 
 def read_system_config() -> dict[str, Any]:

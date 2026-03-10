@@ -634,11 +634,13 @@ class GoofishWsTransport:
         Returns seconds until expiry, or None if unparseable.
         """
         raw = str(self.cookies.get("_m_h5_tk", "") or "")
-        parts = raw.split("_")
-        if len(parts) < 2:
+        if "_" not in raw:
             return None
         try:
-            expire_ms = int(parts[1])
+            _, expire_ms_text = raw.rsplit("_", 1)
+            expire_ms = int(expire_ms_text)
+            if expire_ms < 100_000_000_000:
+                return None
             return (expire_ms / 1000.0) - time.time()
         except (ValueError, OverflowError):
             return None

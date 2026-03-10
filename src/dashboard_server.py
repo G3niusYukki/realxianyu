@@ -1389,7 +1389,6 @@ class MimicOps:
         if s == "waiting_cookie_update":
             if t == "FAIL_SYS_USER_VALIDATE":
                 return "请在闲鱼网页重新登录后导出最新 Cookie，再执行“售前一键恢复”。"
-            return "请更新 Cookie 后重试恢复。"
             if t == "RGV587":
                 return (
                     "触发平台风控（RGV587），系统无法自动恢复。请按以下步骤操作：\n"
@@ -1616,11 +1615,14 @@ class MimicOps:
     @staticmethod
     def _parse_m_h5_tk_ttl(raw: str) -> float | None:
         """Parse _m_h5_tk value ({hex}_{epoch_ms}) and return seconds until expiry."""
-        parts = str(raw or "").split("_")
-        if len(parts) < 2:
+        raw = str(raw or "")
+        if "_" not in raw:
             return None
         try:
-            expire_ms = int(parts[1])
+            _, expire_ms_text = raw.rsplit("_", 1)
+            expire_ms = int(expire_ms_text)
+            if expire_ms < 100_000_000_000:
+                return None
             return (expire_ms / 1000.0) - time.time()
         except (ValueError, OverflowError):
             return None

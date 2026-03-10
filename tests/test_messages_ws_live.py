@@ -5,6 +5,8 @@ import base64
 import json
 import sys
 
+import httpx
+
 from src.modules.messages.ws_live import GoofishWsTransport, decode_sync_payload, extract_chat_event, parse_cookie_header
 
 
@@ -114,3 +116,35 @@ def test_ws_transport_auth_hold_until_cookie_update_enabled_by_default() -> None
         config={"auth_hold_until_cookie_update": False},
     )
     assert transport_relaxed.auth_hold_until_cookie_update is False
+
+
+def test_ws_transport_absorb_set_cookie_from_response_updates_cookie_state() -> None:
+    _ensure_event_loop()
+    transport = GoofishWsTransport(
+        cookie_text="unb=10001; _m_h5_tk=token_a_123; cookie2=a; _tb_token_=t; sgcookie=s",
+        config={},
+    )
+    req = httpx.Request("POST", "https://h5api.m.goofish.com/")
+    resp = httpx.Response(
+        200,
+        headers={"set-cookie": "_m_h5_tk=token_b_456; Path=/; Domain=.goofish.com"},
+        request=req,
+    )
+
+    changed = transport._absorb_set_cookies_from_resp(resp, reason="unit_test")
+
+    assert changed is True
+    assert transport.cookies["_m_h5_tk"] == "token_b_456"
+
+
+def test_ws_transport_parse_m_h5_tk_ttl(monkeypatch) -> None:
+    _ensure_event_loop()
+    monkeypatch.setattr("src.modules.messages.ws_live.time.time", lambda: 1_700_000_000.0)
+    transport = GoofishWsTransport(
+        cookie_text="unb=10001; _m_h5_tk=token_a_1700001000000; cookie2=a; _tb_token_=t; sgcookie=s",
+        config={},
+    )
+
+    ttl = transport._m_h5_tk_seconds_until_expiry()
+
+    assert ttl == 1000.0
