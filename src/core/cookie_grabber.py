@@ -109,9 +109,7 @@ class CookieGrabber:
             valid = await self._validate(cookie)
             if valid:
                 self._save(cookie, source="cookiecloud")
-                self._update(
-                    GrabStage.SUCCESS, "Cookie 获取成功！", "从 CookieCloud 远程同步获取", 100
-                )
+                self._update(GrabStage.SUCCESS, "Cookie 获取成功！", "从 CookieCloud 远程同步获取", 100)
                 return GrabResult(ok=True, cookie_str=cookie, source="cookiecloud", message="从 CookieCloud 同步成功")
 
         # Level 1: rookiepy 直读浏览器 Cookie DB
@@ -193,6 +191,7 @@ class CookieGrabber:
         if not host or not uuid or not password:
             try:
                 import json
+
                 cfg_path = Path("server/data/system_config.json")
                 if cfg_path.exists():
                     cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
@@ -945,7 +944,7 @@ class CookieAutoRefresher:
         for pair in str(cookie_text or "").split(";"):
             pair = pair.strip()
             if pair.startswith("_m_h5_tk="):
-                val = pair[len("_m_h5_tk="):]
+                val = pair[len("_m_h5_tk=") :]
                 if "_" not in val:
                     continue
                 try:
@@ -975,7 +974,7 @@ class CookieAutoRefresher:
             if ttl is not None and ttl < 1200:
                 logger.info(f"Cookie 探测健康但 _m_h5_tk 仅剩 {ttl:.0f}s，提前触发刷新")
                 healthy = False
-                msg = f"_m_h5_tk 即将过期 (剩余 {int(ttl/60)} 分钟)"
+                msg = f"_m_h5_tk 即将过期 (剩余 {int(ttl / 60)} 分钟)"
                 self._last_check_ok = False
                 self._last_check_msg = msg
             else:

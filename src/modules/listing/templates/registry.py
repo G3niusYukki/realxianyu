@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .themes import get_theme, THEMES
+from .themes import THEMES, get_theme
 from .frames import list_frames, render_frame
 
 

@@ -703,7 +703,9 @@ class GoofishWsTransport:
             data = {"data": data_val}
             try:
                 async with httpx.AsyncClient(
-                    timeout=12.0, headers=headers, cookies=self.cookies,
+                    timeout=12.0,
+                    headers=headers,
+                    cookies=self.cookies,
                 ) as client:
                     resp = await client.post(
                         "https://h5api.m.goofish.com/h5/mtop.taobao.idlemessage.pc.login.token/1.0/",

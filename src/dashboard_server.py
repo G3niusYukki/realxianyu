@@ -5163,7 +5163,6 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 except (ValueError, TypeError):
                     self._send_json({"result": "fail", "msg": "Invalid timestamp"}, status=400)
                     return
-
                 from src.integrations.xianguanjia.signing import verify_open_platform_callback_signature
 
                 if not verify_open_platform_callback_signature(
