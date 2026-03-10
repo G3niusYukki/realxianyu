@@ -55,6 +55,8 @@ async def test_ws_live_fetch_token_preflight_and_retry_branches(ws_enabled, monk
             return {"ret": ["SUCCESS::调用成功"], "data": {}}
 
     class CM:
+        cookies = SimpleNamespace(jar=[])
+        
         async def __aenter__(self):
             return self
 

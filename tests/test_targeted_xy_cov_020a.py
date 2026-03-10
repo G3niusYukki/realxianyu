@@ -74,6 +74,8 @@ async def test_fetch_token_auth_fail_logs_preflight_retry_error(ws_enabled: None
             return {"ret": ["FAIL_SYS_USER_VALIDATE::risk"]}
 
     class _Client:
+        cookies = SimpleNamespace(jar=[])
+        
         async def __aenter__(self):
             return self
 

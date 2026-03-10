@@ -239,6 +239,8 @@ async def test_ws_live_run_preflight_and_fetch_retry(monkeypatch):
     class Ctx2:
         async def __aenter__(self):
             class Cli:
+                cookies = SimpleNamespace(jar=[])
+                
                 async def post(self, *_a, **_k):
                     calls["n"] += 1
                     class R:
