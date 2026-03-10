@@ -23,6 +23,7 @@ _ALLOWED_CONFIG_SECTIONS = {
     "notifications",
     "store",
     "auto_price_modify",
+    "cookie_cloud",
 }
 
 _SENSITIVE_CONFIG_KEYS = ["app_secret", "api_key", "access_key_secret", "mch_secret", "webhook"]
@@ -725,6 +726,36 @@ CONFIG_SECTIONS: list[dict[str, Any]] = [
             {"key": "notify_after_sales", "label": "售后介入告警", "type": "toggle", "default": True},
             {"key": "notify_ship_fail", "label": "发货失败告警", "type": "toggle", "default": True},
             {"key": "notify_manual_takeover", "label": "人工接管告警", "type": "toggle", "default": True},
+        ],
+    },
+    {
+        "key": "cookie_cloud",
+        "name": "CookieCloud 配置（可选）",
+        "fields": [
+            {
+                "key": "cookie_cloud_host",
+                "label": "CookieCloud 服务地址",
+                "type": "text",
+                "default": "",
+                "placeholder": "http://your-server:8088",
+                "hint": "部署 CookieCloud 后填写服务地址。Docker 部署: docker run -p=8088:8088 easychen/cookiecloud:latest",
+            },
+            {
+                "key": "cookie_cloud_uuid",
+                "label": "CookieCloud UUID",
+                "type": "text",
+                "default": "",
+                "placeholder": "在 CookieCloud 插件中生成",
+                "hint": "Chrome 安装 CookieCloud 插件后，在插件设置页面生成 KEY（即 UUID）",
+            },
+            {
+                "key": "cookie_cloud_password",
+                "label": "CookieCloud 密码",
+                "type": "password",
+                "default": "",
+                "placeholder": "在 CookieCloud 插件中设置",
+                "hint": "插件中对应的加密密码，用于端对端加密解密",
+            },
         ],
     },
 ]

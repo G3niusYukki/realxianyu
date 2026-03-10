@@ -1385,9 +1385,25 @@ class MimicOps:
             if t == "FAIL_SYS_USER_VALIDATE":
                 return "请在闲鱼网页重新登录后导出最新 Cookie，再执行“售前一键恢复”。"
             return "请更新 Cookie 后重试恢复。"
+            if t == "RGV587":
+                return (
+                    "触发平台风控（RGV587），系统无法自动恢复。请按以下步骤操作：\n"
+                    "1. 在浏览器打开闲鱼网页版 (goofish.com)\n"
+                    "2. 点击右上角「消息」\n"
+                    "3. 完成滑块验证\n"
+                    "4. 按 F12 → Network → 复制任意请求的 Cookie\n"
+                    "5. 粘贴到本页面的「手动粘贴 Cookie」区域并保存\n"
+                    "6. 点击“售前一键恢复”"
+                )
+            return "请更新 Cookie 后重试恢复。"
         if s == "token_error":
             if t == "WS_HTTP_400":
                 return "连接通道异常，请先点“售前一键恢复”；若持续失败再更新 Cookie。"
+            if t == "RGV587":
+                return (
+                    "触发平台风控，请在闲鱼网页版打开「消息」页面通过滑块验证后，"
+                    "重新导出 Cookie 并粘贴保存，然后执行“售前一键恢复”。"
+                )
             return "存在鉴权错误，建议更新 Cookie 后重连。"
         if s == "inactive":
             return "服务未运行，请先在首页启动服务。"
@@ -1538,10 +1554,18 @@ class MimicOps:
 
         length = int(parsed.get("length", 0) or 0)
         cookie_items = int(parsed.get("cookie_items", 0) or 0)
+        m_h5_tk_ttl = self._parse_m_h5_tk_ttl(cookie_map.get("_m_h5_tk", ""))
+        m_h5_tk_expired = m_h5_tk_ttl is not None and m_h5_tk_ttl <= 0
+        m_h5_tk_expiring_soon = m_h5_tk_ttl is not None and 0 < m_h5_tk_ttl < 900
+
         grade = "可用"
         if critical_missing or cookie_items < 4:
             grade = "不可用"
+        elif m_h5_tk_expired:
+            grade = "不可用"
         elif session_missing or length < 80:
+            grade = "高风险"
+        elif m_h5_tk_expiring_soon:
             grade = "高风险"
         elif len(recommended_missing) >= 2:
             grade = "高风险"
@@ -1549,6 +1573,11 @@ class MimicOps:
         actions: list[str] = []
         if critical_missing:
             actions.append(f"缺少关键字段：{', '.join(critical_missing)}，请重新登录后导出完整 Cookie。")
+        if m_h5_tk_expired:
+            actions.append("_m_h5_tk 已过期，请在闲鱼网页版刷新页面后重新导出 Cookie。")
+        elif m_h5_tk_expiring_soon:
+            ttl_min = int((m_h5_tk_ttl or 0) / 60)
+            actions.append(f"_m_h5_tk 将在 {ttl_min} 分钟内过期，建议尽快刷新页面重新导出 Cookie。")
         if session_missing:
             actions.append("缺少 _m_h5_tk/_m_h5_tk_enc，建议刷新页面后重新导出。")
         if domain_filter.get("rejected", 0):
@@ -1562,7 +1591,7 @@ class MimicOps:
         if grade == "可用":
             actions.append("可直接保存并在首页执行“售前一键恢复”。")
 
-        return {
+        result: dict[str, Any] = {
             "success": True,
             "grade": grade,
             "detected_format": str(parsed.get("detected_format") or "unknown"),
@@ -1575,6 +1604,21 @@ class MimicOps:
             "domain_filter": domain_filter,
             "actions": actions,
         }
+        if m_h5_tk_ttl is not None:
+            result["m_h5_tk_ttl_seconds"] = round(m_h5_tk_ttl)
+        return result
+
+    @staticmethod
+    def _parse_m_h5_tk_ttl(raw: str) -> float | None:
+        """Parse _m_h5_tk value ({hex}_{epoch_ms}) and return seconds until expiry."""
+        parts = str(raw or "").split("_")
+        if len(parts) < 2:
+            return None
+        try:
+            expire_ms = int(parts[1])
+            return (expire_ms / 1000.0) - time.time()
+        except (ValueError, OverflowError):
+            return None
 
     @classmethod
     def _is_cookie_import_file(cls, filename: str) -> bool:

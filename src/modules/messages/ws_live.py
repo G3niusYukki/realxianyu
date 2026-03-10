@@ -452,6 +452,64 @@ class GoofishWsTransport:
             await asyncio.sleep(interval)
         return False
 
+    async def _try_active_cookie_refresh(self) -> bool:
+        """主动调用 rookiepy 从浏览器 DB 读取最新 Cookie（含 _m_h5_tk）。
+
+        在 auth 失败时调用，避免因 _m_h5_tk 过期而永久挂起。
+        """
+        self.logger.info("WS auth failed, attempting active cookie refresh via rookiepy...")
+        try:
+            loop = asyncio.get_running_loop()
+            new_cookie = await loop.run_in_executor(None, self._sync_grab_from_browser_db)
+        except Exception as exc:
+            self.logger.info(f"Active cookie refresh failed: {exc}")
+            return False
+
+        if not new_cookie:
+            self.logger.info("Active cookie refresh: no cookie obtained from browser DB")
+            return False
+
+        new_fp = hashlib.sha1(new_cookie.encode("utf-8")).hexdigest()
+        if new_fp == self._cookie_fp:
+            self.logger.debug("Active cookie refresh: cookie unchanged (same fingerprint)")
+            return False
+
+        try:
+            changed = self._apply_cookie_text(new_cookie, reason="active_refresh")
+            if changed:
+                os.environ["XIANYU_COOKIE_1"] = new_cookie
+                self._session_peer.clear()
+                self._seen_event.clear()
+                self.logger.info("Active cookie refresh succeeded, new cookie applied")
+            return changed
+        except Exception as exc:
+            self.logger.warning(f"Active cookie refresh apply failed: {exc}")
+            return False
+
+    @staticmethod
+    def _sync_grab_from_browser_db() -> str | None:
+        """同步调用 rookiepy 读取浏览器 Cookie DB。"""
+        try:
+            from src.core.cookie_grabber import CookieGrabber
+        except ImportError:
+            return None
+
+        import asyncio as _asyncio
+
+        _loop = _asyncio.new_event_loop()
+        try:
+            grabber = CookieGrabber()
+            cookie = _loop.run_until_complete(grabber._grab_from_browser_db())
+            if cookie and not CookieGrabber._has_session_fields(cookie):
+                enriched = _loop.run_until_complete(grabber._enrich_with_session_cookies(cookie))
+                if enriched:
+                    cookie = enriched
+            return cookie
+        except Exception:
+            return None
+        finally:
+            _loop.close()
+
     def _base_headers(self) -> dict[str, str]:
         return {
             "accept": "application/json",
@@ -473,6 +531,44 @@ class GoofishWsTransport:
             ),
             "cookie": self.cookie_text,
         }
+
+    def _absorb_set_cookies(self, client: httpx.AsyncClient, reason: str = "") -> bool:
+        """Merge Set-Cookie values from an httpx client into self.cookies."""
+        merged = dict(self.cookies)
+        changed = False
+        for ck in client.cookies.jar:
+            name = str(getattr(ck, "name", "") or "").strip()
+            value = str(getattr(ck, "value", "") or "").strip()
+            if not name or not value:
+                continue
+            if merged.get(name) != value:
+                changed = True
+            merged[name] = value
+        if changed:
+            merged_text = "; ".join(f"{k}={v}" for k, v in merged.items() if str(k).strip() and str(v).strip())
+            self._apply_cookie_text(merged_text, reason=reason)
+            os.environ["XIANYU_COOKIE_1"] = self.cookie_text
+            self.logger.debug(f"Absorbed Set-Cookie from {reason}")
+        return changed
+
+    def _absorb_set_cookies_from_resp(self, resp: httpx.Response, reason: str = "") -> bool:
+        """Merge Set-Cookie values from a single httpx response."""
+        merged = dict(self.cookies)
+        changed = False
+        for name, value in resp.cookies.items():
+            n = str(name or "").strip()
+            v = str(value or "").strip()
+            if not n or not v:
+                continue
+            if merged.get(n) != v:
+                changed = True
+            merged[n] = v
+        if changed:
+            merged_text = "; ".join(f"{k}={v}" for k, v in merged.items() if str(k).strip() and str(v).strip())
+            self._apply_cookie_text(merged_text, reason=reason)
+            os.environ["XIANYU_COOKIE_1"] = self.cookie_text
+            self.logger.debug(f"Absorbed Set-Cookie from response ({reason})")
+        return changed
 
     async def _preflight_has_login(self) -> bool:
         """调用 hasLogin 预热会话，并吸收服务端补发的关键 cookie。"""
@@ -529,13 +625,36 @@ class GoofishWsTransport:
                 os.environ["XIANYU_COOKIE_1"] = self.cookie_text
             return True
 
-    async def _fetch_token(self) -> str:
-        # 每次取 token 前先尝试热更新 cookie（如果用户在面板里更新了）。
-        self._maybe_reload_cookie(reason="token_fetch")
+    def _m_h5_tk_seconds_until_expiry(self) -> float | None:
+        """Parse the expiry timestamp from _m_h5_tk (format: {hex}_{epoch_ms}).
+
+        Returns seconds until expiry, or None if unparseable.
+        """
+        raw = str(self.cookies.get("_m_h5_tk", "") or "")
+        parts = raw.split("_")
+        if len(parts) < 2:
+            return None
         try:
-            await self._preflight_has_login()
-        except Exception as exc:
-            self.logger.debug(f"WS hasLogin preflight failed: {exc}")
+            expire_ms = int(parts[1])
+            return (expire_ms / 1000.0) - time.time()
+        except (ValueError, OverflowError):
+            return None
+
+    async def _fetch_token(self) -> str:
+        self._maybe_reload_cookie(reason="token_fetch")
+
+        ttl = self._m_h5_tk_seconds_until_expiry()
+        if ttl is not None and ttl < 600:
+            self.logger.info(f"_m_h5_tk expires in {ttl:.0f}s, proactively refreshing via hasLogin")
+            try:
+                await self._preflight_has_login()
+            except Exception as exc:
+                self.logger.debug(f"Proactive hasLogin refresh failed: {exc}")
+        else:
+            try:
+                await self._preflight_has_login()
+            except Exception as exc:
+                self.logger.debug(f"WS hasLogin preflight failed: {exc}")
 
         now = time.time()
         if self._token and (now - self._token_ts) < self.token_refresh_interval_seconds:
@@ -578,13 +697,17 @@ class GoofishWsTransport:
             headers = self._base_headers()
             data = {"data": data_val}
             try:
-                async with httpx.AsyncClient(timeout=12.0, headers=headers) as client:
+                async with httpx.AsyncClient(
+                    timeout=12.0, headers=headers, cookies=self.cookies,
+                ) as client:
                     resp = await client.post(
                         "https://h5api.m.goofish.com/h5/mtop.taobao.idlemessage.pc.login.token/1.0/",
                         params=params,
                         data=data,
                     )
                     payload = resp.json()
+
+                    self._absorb_set_cookies(client, reason="token_api")
             except Exception as exc:
                 last_error = BrowserError(f"Token API request failed: {exc}")
                 await asyncio.sleep(min(2.0 * attempt, 6.0))
@@ -594,7 +717,9 @@ class GoofishWsTransport:
             if not any("SUCCESS::调用成功" in str(item) for item in ret):
                 ret_text = " | ".join(str(item) for item in ret)
                 last_error = BrowserError(f"Token API failed: {ret}")
-                # 认证类异常优先触发一次 cookie 热更新再重试
+
+                self._absorb_set_cookies_from_resp(resp, reason="token_api_fail")
+
                 if "FAIL_SYS_USER_VALIDATE" in ret_text or "RGV587" in ret_text:
                     self._maybe_reload_cookie(reason="token_ret_fail")
                     try:
@@ -829,14 +954,17 @@ class GoofishWsTransport:
                 self.logger.warning(f"Goofish WebSocket disconnected, retrying: {reason}")
 
                 if auth_error:
-                    # 认证失败时默认停在“等待 Cookie 更新”，避免周期性重试触发更高风险。
+                    if await self._try_active_cookie_refresh():
+                        self._connect_failures = 0
+                        self.logger.info("Active cookie refresh succeeded, retrying WS immediately")
+                        continue
+
                     if self.auth_hold_until_cookie_update:
                         self.logger.warning("Auth/risk failure detected, suspend reconnect until cookie is updated")
                         if await self._wait_for_cookie_update_forever():
                             self._connect_failures = 0
                             self.logger.info("Detected cookie update, retrying WS connection immediately")
                             continue
-                    # 兼容老模式：有限等待后再重试
                     elif await self._wait_for_cookie_update(self.auth_failure_backoff_seconds):
                         self._connect_failures = 0
                         self.logger.info("Detected cookie update, retrying WS connection immediately")
