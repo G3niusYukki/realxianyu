@@ -70,6 +70,8 @@ async def test_fetch_token_auth_fail_logs_preflight_retry_error(ws_enabled: None
         raise RuntimeError("preflight-broken")
 
     class _Resp:
+        cookies = {}
+        
         def json(self):
             return {"ret": ["FAIL_SYS_USER_VALIDATE::risk"]}
 
