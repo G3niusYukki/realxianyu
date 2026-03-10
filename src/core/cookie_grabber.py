@@ -98,8 +98,19 @@ class CookieGrabber:
     # ------------------------------------------------------------------
 
     async def auto_grab(self) -> GrabResult:
-        """组合 Level 1 → 1.5 → 2 的完整获取流程。"""
+        """组合 Level 0 (CookieCloud) → Level 1 → 1.5 → 2 的完整获取流程。"""
         self._cancel = False
+
+        # Level 0: CookieCloud 远程拉取（如果已配置）
+        cookie = await self._grab_from_cookiecloud()
+        if self._cancel:
+            return GrabResult(ok=False, error="已取消")
+        if cookie:
+            valid = await self._validate(cookie)
+            if valid:
+                self._save(cookie, source="cookiecloud")
+                self._update(GrabStage.SUCCESS, "Cookie 获取成功！", "从 CookieCloud 远程同步获取", 100)
+                return GrabResult(ok=True, cookie_str=cookie, source="cookiecloud", message="从 CookieCloud 同步成功")
 
         # Level 1: rookiepy 直读浏览器 Cookie DB
         cookie = await self._grab_from_browser_db()
@@ -168,6 +179,133 @@ class CookieGrabber:
         return GrabResult(ok=False, error="所有获取方式均失败")
 
     # ------------------------------------------------------------------
+    # Level 0: CookieCloud 远程拉取
+    # ------------------------------------------------------------------
+
+    async def _grab_from_cookiecloud(self) -> str | None:
+        """从 CookieCloud 服务拉取 Cookie（需配置环境变量或 system_config）。"""
+        host = os.environ.get("COOKIE_CLOUD_HOST", "").strip()
+        uuid = os.environ.get("COOKIE_CLOUD_UUID", "").strip()
+        password = os.environ.get("COOKIE_CLOUD_PASSWORD", "").strip()
+
+        if not host or not uuid or not password:
+            try:
+                import json
+
+                cfg_path = Path("server/data/system_config.json")
+                if cfg_path.exists():
+                    cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+                    host = host or str(cfg.get("cookie_cloud_host", "")).strip()
+                    uuid = uuid or str(cfg.get("cookie_cloud_uuid", "")).strip()
+                    password = password or str(cfg.get("cookie_cloud_password", "")).strip()
+            except Exception:
+                pass
+
+        if not host or not uuid or not password:
+            return None
+
+        logger.info("Level 0: 正在从 CookieCloud 拉取 Cookie...")
+        try:
+            import hashlib
+            import json
+            import httpx
+
+            url = f"{host.rstrip('/')}/get/{uuid}"
+
+            key_raw = f"{uuid}-{password}"
+            key_hash = hashlib.md5(key_raw.encode("utf-8")).hexdigest()[:16]
+
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.post(url, json={"password": password})
+                if resp.status_code != 200:
+                    logger.info(f"CookieCloud 请求失败: HTTP {resp.status_code}")
+                    return None
+
+                data = resp.json()
+
+            encrypted = data.get("encrypted")
+            if encrypted:
+                cookie_data = self._decrypt_cookiecloud(encrypted, key_hash)
+            else:
+                cookie_data = data.get("cookie_data", {})
+
+            if not cookie_data:
+                logger.info("CookieCloud 返回空数据")
+                return None
+
+            parts: list[str] = []
+            target_domains = {".goofish.com", ".taobao.com", ".tmall.com", "goofish.com", "taobao.com"}
+            for domain, cookies_list in cookie_data.items():
+                domain_lower = domain.lower().strip(".")
+                if not any(domain_lower.endswith(d.strip(".")) for d in target_domains):
+                    continue
+                if isinstance(cookies_list, list):
+                    for ck in cookies_list:
+                        name = str(ck.get("name", "")).strip()
+                        value = str(ck.get("value", "")).strip()
+                        if name and value:
+                            parts.append(f"{name}={value}")
+                elif isinstance(cookies_list, dict):
+                    for name, value in cookies_list.items():
+                        n = str(name).strip()
+                        v = str(value).strip()
+                        if n and v:
+                            parts.append(f"{n}={v}")
+
+            if not parts:
+                logger.info("CookieCloud 未找到闲鱼相关 Cookie")
+                return None
+
+            cookie_str = "; ".join(parts)
+            logger.info(f"CookieCloud 获取到 {len(parts)} 个 Cookie 条目")
+            return cookie_str
+
+        except Exception as exc:
+            logger.info(f"CookieCloud 拉取失败: {exc}")
+            return None
+
+    @staticmethod
+    def _decrypt_cookiecloud(encrypted: str, key: str) -> dict[str, Any]:
+        """Decrypt CookieCloud AES-CBC encrypted data."""
+        try:
+            import base64
+            import json
+            from hashlib import md5
+
+            from cryptography.hazmat.primitives import padding as sym_padding
+            from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+
+            raw = base64.b64decode(encrypted)
+            if raw[:8] == b"Salted__":
+                salt = raw[8:16]
+                ct = raw[16:]
+            else:
+                salt = b""
+                ct = raw
+
+            key_bytes = key.encode("utf-8")
+            prev = b""
+            derived = b""
+            while len(derived) < 48:
+                prev = md5(prev + key_bytes + salt).digest()
+                derived += prev
+
+            derived_key = derived[:32]
+            iv = derived[32:48]
+
+            cipher = Cipher(algorithms.AES(derived_key), modes.CBC(iv))
+            decryptor = cipher.decryptor()
+            padded = decryptor.update(ct) + decryptor.finalize()
+
+            unpadder = sym_padding.PKCS7(128).unpadder()
+            plaintext = unpadder.update(padded) + unpadder.finalize()
+
+            return json.loads(plaintext.decode("utf-8"))
+        except Exception as exc:
+            logger.debug(f"CookieCloud 解密失败: {exc}")
+            return {}
+
+    # ------------------------------------------------------------------
     # Level 1: rookiepy 直读浏览器 Cookie DB
     # ------------------------------------------------------------------
 
@@ -201,7 +339,7 @@ class CookieGrabber:
         try:
             import rookiepy
 
-            cookies = rookiepy.chrome(domains=[".goofish.com"])
+            cookies = rookiepy.chrome(domains=[".goofish.com", ".taobao.com", ".tmall.com"])
             return self._format_cookies(cookies)
         except Exception as exc:
             logger.debug(f"Chrome rookiepy: {exc}")
@@ -211,7 +349,7 @@ class CookieGrabber:
         try:
             import rookiepy
 
-            cookies = rookiepy.edge(domains=[".goofish.com"])
+            cookies = rookiepy.edge(domains=[".goofish.com", ".taobao.com", ".tmall.com"])
             return self._format_cookies(cookies)
         except Exception as exc:
             logger.debug(f"Edge rookiepy: {exc}")
@@ -221,7 +359,7 @@ class CookieGrabber:
         try:
             import rookiepy
 
-            cookies = rookiepy.firefox(domains=[".goofish.com"])
+            cookies = rookiepy.firefox(domains=[".goofish.com", ".taobao.com", ".tmall.com"])
             return self._format_cookies(cookies)
         except Exception as exc:
             logger.debug(f"Firefox rookiepy: {exc}")
@@ -355,12 +493,15 @@ class CookieGrabber:
                 r = subprocess.run(["pgrep", "-x", "Microsoft Edge"], capture_output=True)
                 return r.returncode == 0
             elif system == "Windows":
-                r = subprocess.run(
-                    ["tasklist", "/FI", "IMAGENAME eq chrome.exe"],
-                    capture_output=True,
-                    text=True,
-                )
-                return "chrome.exe" in (r.stdout or "").lower()
+                for proc_name in ("chrome.exe", "msedge.exe"):
+                    r = subprocess.run(
+                        ["tasklist", "/FI", f"IMAGENAME eq {proc_name}"],
+                        capture_output=True,
+                        text=True,
+                    )
+                    if proc_name in (r.stdout or "").lower():
+                        return True
+                return False
             else:
                 r = subprocess.run(["pgrep", "-f", "chrome|chromium"], capture_output=True)
                 return r.returncode == 0
@@ -797,6 +938,25 @@ class CookieAutoRefresher:
                 logger.error(f"Cookie 自动刷新异常: {exc}")
             self._stop_event.wait(self._interval)
 
+    @staticmethod
+    def _m_h5_tk_seconds_until_expiry(cookie_text: str) -> float | None:
+        """Parse _m_h5_tk expiry from cookie text. Returns seconds left or None."""
+        for pair in str(cookie_text or "").split(";"):
+            pair = pair.strip()
+            if pair.startswith("_m_h5_tk="):
+                val = pair[len("_m_h5_tk=") :]
+                if "_" not in val:
+                    continue
+                try:
+                    _, expire_ms_text = val.rsplit("_", 1)
+                    expire_ms = int(expire_ms_text)
+                    if expire_ms < 100_000_000_000:
+                        continue
+                    return (expire_ms / 1000.0) - time.time()
+                except (ValueError, OverflowError):
+                    pass
+        return None
+
     def _tick(self) -> None:
         self._total_checks += 1
         self._last_check_at = time.time()
@@ -808,9 +968,18 @@ class CookieAutoRefresher:
         self._last_check_ok = healthy
         self._last_check_msg = msg
 
+        # 即使 HTTP 探测健康，也检查 _m_h5_tk 是否即将过期
         if healthy:
-            logger.debug(f"Cookie 自动检查: 健康 ({msg})")
-            return
+            ttl = self._m_h5_tk_seconds_until_expiry(cookie_text)
+            if ttl is not None and ttl < 1200:
+                logger.info(f"Cookie 探测健康但 _m_h5_tk 仅剩 {ttl:.0f}s，提前触发刷新")
+                healthy = False
+                msg = f"_m_h5_tk 即将过期 (剩余 {int(ttl / 60)} 分钟)"
+                self._last_check_ok = False
+                self._last_check_msg = msg
+            else:
+                logger.debug(f"Cookie 自动检查: 健康 ({msg})")
+                return
 
         logger.info(f"Cookie 自动检查: 不健康 ({msg})，尝试静默刷新...")
 

@@ -32,10 +32,7 @@ def compose(
 
     各参数为 None 时随机选择。
     """
-    from .layers import (  # noqa: F401
-        LAYOUT_REGISTRY as _lr,
-        MODIFIER_REGISTRY as _mr,
-    )
+    from . import layers as _layers  # noqa: F401
 
     params = params or {}
     theme = theme or {}

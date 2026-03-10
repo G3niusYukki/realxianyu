@@ -55,8 +55,11 @@ async def test_fetch_token_non_success_break_and_default_fail(monkeypatch):
     class _CM:
         async def __aenter__(self):
             class _C:
+                cookies = SimpleNamespace(jar=[])
+                
                 async def post(self, *_a, **_k):
                     class _R:
+                        cookies = {}
                         def json(self):
                             return {"ret": ["FAIL_BIZ::plain"]}
 

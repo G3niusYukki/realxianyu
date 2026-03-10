@@ -287,6 +287,22 @@ def test_cookie_diagnose_reports_high_risk_when_recommended_keys_missing(temp_di
     assert any("Export All Cookies" in action for action in result["actions"])
 
 
+def test_cookie_diagnose_reports_expired_m_h5_tk_as_unavailable(monkeypatch, temp_dir) -> None:
+    ops = MimicOps(project_root=temp_dir, module_console=ModuleConsole(project_root=temp_dir))
+    monkeypatch.setattr("src.dashboard_server.time.time", lambda: 1_700_000_000.0)
+    raw = (
+        "cookie2=abc123; _tb_token_=token_xyz; sgcookie=sgv; unb=4057; "
+        "_m_h5_tk=tk_val_1699999000000; _m_h5_tk_enc=tk_enc; XSRF-TOKEN=xsrf"
+    )
+
+    result = ops.diagnose_cookie(raw)
+
+    assert result["success"] is True
+    assert result["grade"] == "不可用"
+    assert result["m_h5_tk_ttl_seconds"] <= 0
+    assert any("_m_h5_tk 已过期" in action for action in result["actions"])
+
+
 def test_import_cookie_plugin_files_supports_zip_export(temp_dir) -> None:
     ops = MimicOps(project_root=temp_dir, module_console=ModuleConsole(project_root=temp_dir))
 
