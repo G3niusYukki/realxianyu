@@ -3899,13 +3899,6 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 return
 
             if path in {"/api/summary", "/api/trend", "/api/recent-operations", "/api/top-products"}:
-                # Wave D legacy dashboard endpoints are backed by virtual_goods_service.get_dashboard_metrics.
-                payload = self._aggregate_dashboard_payload(path)
-                if isinstance(payload, dict):
-                    status = 200 if payload.get("success") else 400
-                    self._send_json(payload, status=status)
-                    return
-
                 self._send_json(self._legacy_dashboard_payload(path, query))
                 return
 

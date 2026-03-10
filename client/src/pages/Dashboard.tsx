@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { getDashboardSummary, getRecentOperations, getSystemStatus, getTrendData, getTopProducts } from '../api/dashboard'
 import { Store, ShoppingBag, MessageCircle, FileText, AlertCircle, RefreshCw, Settings, Zap, Bot, BarChart3, Clock, Package, TrendingUp, Calendar, Send } from 'lucide-react'
@@ -9,6 +9,18 @@ import { useStoreCategory } from '../contexts/StoreCategoryContext'
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts'
 
 import { getPublishQueue } from '../api/listing';
+
+const POLL_INTERVAL = 60_000;
+const AGO_TICK = 10_000;
+
+function formatTimeAgo(ts: number): string {
+  const diff = Math.max(0, Math.floor((Date.now() - ts) / 1000));
+  if (diff < 5) return '刚刚';
+  if (diff < 60) return `${diff} 秒前`;
+  const mins = Math.floor(diff / 60);
+  if (mins < 60) return `${mins} 分钟前`;
+  return `${Math.floor(mins / 60)} 小时前`;
+}
 
 function PublishQueueCard() {
   const [count, setCount] = useState(0);
@@ -53,6 +65,9 @@ const Dashboard = () => {
   const [recentOps, setRecentOps] = useState([]);
   const [sysStatus, setSysStatus] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<number>(0);
+  const [agoText, setAgoText] = useState('');
 
   const [metric, setMetric] = useState('orders');
   const [days, setDays] = useState(30);
@@ -60,64 +75,124 @@ const Dashboard = () => {
   const [topProducts, setTopProducts] = useState([]);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
 
-  useEffect(() => { fetchDashboardData() }, []);
+  const activeTabRef = useRef(activeTab);
+  activeTabRef.current = activeTab;
+  const metricRef = useRef(metric);
+  metricRef.current = metric;
+  const daysRef = useRef(days);
+  daysRef.current = days;
 
-  useEffect(() => {
-    if (activeTab === 'analytics') fetchAnalyticsData();
-  }, [activeTab, metric, days]);
+  const applyDashboardResults = useCallback((results: PromiseSettledResult<any>[]) => {
+    const [summaryRes, opsRes, statusRes] = results.map(r => r.status === 'fulfilled' ? r.value : null);
 
-  const fetchDashboardData = async () => {
+    if (summaryRes?.data) {
+      const raw = summaryRes.data.data || summaryRes.data;
+      setDataSource(raw.source || 'local_db');
+      setStats({
+        products: raw.active_products ?? 0,
+        orders: raw.pending_orders ?? raw.today_operations ?? 0,
+        sales: raw.total_sales ?? 0,
+        totalOrders: raw.total_orders ?? raw.total_operations ?? 0,
+      });
+    }
+    if (opsRes?.data) {
+      const ops = Array.isArray(opsRes.data) ? opsRes.data : (opsRes.data.operations || []);
+      setRecentOps(ops.map((op: any) => ({
+        action: op.operation_type || op.action || '未知操作',
+        success: op.status === 'success' || op.status === 'completed',
+        timestamp: op.timestamp || '',
+        message: op.message || `商品 ${op.product_id || ''}`
+      })));
+    }
+    if (statusRes?.data) setSysStatus(statusRes.data);
+    setLastUpdated(Date.now());
+  }, []);
+
+  const fetchDashboardData = useCallback(async () => {
     try {
       setLoading(true);
       const results = await Promise.allSettled([
         getDashboardSummary(), getRecentOperations(10), getSystemStatus()
       ]);
-      const [summaryRes, opsRes, statusRes] = results.map(r => r.status === 'fulfilled' ? r.value : null);
       if (results.every(r => r.status === 'rejected')) throw new Error('所有接口均请求失败');
-
-      if (summaryRes?.data) {
-        const raw = summaryRes.data.data || summaryRes.data;
-        setDataSource(raw.source || 'local_db');
-        setStats({
-          products: raw.active_products ?? 0,
-          orders: raw.pending_orders ?? raw.today_operations ?? 0,
-          sales: raw.total_sales ?? 0,
-          totalOrders: raw.total_orders ?? raw.total_operations ?? 0,
-        });
-      }
-      if (opsRes?.data) {
-        const ops = Array.isArray(opsRes.data) ? opsRes.data : (opsRes.data.operations || []);
-        setRecentOps(ops.map(op => ({
-          action: op.operation_type || op.action || '未知操作',
-          success: op.status === 'success' || op.status === 'completed',
-          timestamp: op.timestamp || '',
-          message: op.message || `商品 ${op.product_id || ''}`
-        })));
-      }
-      if (statusRes?.data) setSysStatus(statusRes.data);
+      applyDashboardResults(results);
     } catch (error) {
       console.error('Dashboard fetch failed:', error);
       toast.error('获取仪表盘数据失败');
     } finally {
       setLoading(false);
     }
-  };
+  }, [applyDashboardResults]);
 
-  const fetchAnalyticsData = async () => {
-    setAnalyticsLoading(true);
+  const silentRefreshDashboard = useCallback(async () => {
+    if (refreshing) return;
+    setRefreshing(true);
     try {
-      const [trendRes, topRes] = await Promise.all([getTrendData(metric, days), getTopProducts(10)]);
-      if (trendRes.data) {
-        const td = trendRes.data.data || trendRes.data;
-        setTrendData(Array.isArray(td) ? td : (td.trend || []));
+      const results = await Promise.allSettled([
+        getDashboardSummary(), getRecentOperations(10), getSystemStatus()
+      ]);
+      if (!results.every(r => r.status === 'rejected')) {
+        applyDashboardResults(results);
       }
-      if (topRes.data) {
-        const tp = topRes.data.data || topRes.data;
-        setTopProducts(Array.isArray(tp) ? tp : (tp.products || []));
-      }
-    } catch { toast.error('加载分析数据失败'); }
-    finally { setAnalyticsLoading(false); }
-  };
+    } catch { /* silent */ }
+    finally { setRefreshing(false); }
+  }, [refreshing, applyDashboardResults]);
+
+  const applyAnalyticsResults = useCallback((trendRes: any, topRes: any) => {
+    if (trendRes?.data) {
+      const td = trendRes.data.data || trendRes.data;
+      setTrendData(Array.isArray(td) ? td : (td.trend || []));
+    }
+    if (topRes?.data) {
+      const tp = topRes.data.data || topRes.data;
+      setTopProducts(Array.isArray(tp) ? tp : (tp.products || []));
+    }
+  }, []);
+
+  const fetchAnalyticsData = useCallback(async (silent = false) => {
+    if (!silent) setAnalyticsLoading(true);
+    try {
+      const [trendRes, topRes] = await Promise.all([
+        getTrendData(silent ? metricRef.current : metric, silent ? daysRef.current : days),
+        getTopProducts(10),
+      ]);
+      applyAnalyticsResults(trendRes, topRes);
+      if (silent) setLastUpdated(Date.now());
+    } catch { if (!silent) toast.error('加载分析数据失败'); }
+    finally { if (!silent) setAnalyticsLoading(false); }
+  }, [metric, days, applyAnalyticsResults]);
+
+  // Initial load
+  useEffect(() => { fetchDashboardData() }, []);
+
+  // Analytics tab data fetch on metric/days change
+  useEffect(() => {
+    if (activeTab === 'analytics') fetchAnalyticsData();
+  }, [activeTab, metric, days]);
+
+  // 60s auto-polling with visibility check
+  useEffect(() => {
+    const poll = () => {
+      if (document.visibilityState !== 'visible') return;
+      silentRefreshDashboard();
+      if (activeTabRef.current === 'analytics') fetchAnalyticsData(true);
+    };
+    const id = setInterval(poll, POLL_INTERVAL);
+    return () => clearInterval(id);
+  }, [silentRefreshDashboard, fetchAnalyticsData]);
+
+  // "X seconds ago" ticker
+  useEffect(() => {
+    if (!lastUpdated) return;
+    setAgoText(formatTimeAgo(lastUpdated));
+    const id = setInterval(() => setAgoText(formatTimeAgo(lastUpdated)), AGO_TICK);
+    return () => clearInterval(id);
+  }, [lastUpdated]);
+
+  const handleManualRefresh = useCallback(() => {
+    silentRefreshDashboard();
+    if (activeTabRef.current === 'analytics') fetchAnalyticsData(true);
+  }, [silentRefreshDashboard, fetchAnalyticsData]);
 
   if (loading) {
     return (
@@ -171,8 +246,13 @@ const Dashboard = () => {
             <div className={`w-2 h-2 rounded-full ${cookieHealth.status === 'good' ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
             <span className="text-sm font-medium">Cookie: {cookieHealth.health_score ?? 100}分</span>
           </div>
-          <button onClick={() => { fetchDashboardData(); if (activeTab === 'analytics') fetchAnalyticsData(); }} className="p-2 bg-xy-surface border border-xy-border rounded-xl shadow-sm hover:bg-xy-gray-50 transition-colors" aria-label="刷新数据">
-            <RefreshCw className="w-5 h-5 text-xy-text-secondary" />
+          <button
+            onClick={handleManualRefresh}
+            disabled={refreshing}
+            className="p-2 bg-xy-surface border border-xy-border rounded-xl shadow-sm hover:bg-xy-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            aria-label="刷新数据"
+          >
+            <RefreshCw className={`w-5 h-5 text-xy-text-secondary transition-transform ${refreshing ? 'animate-spin' : ''}`} />
           </button>
         </div>
       </div>
@@ -217,6 +297,7 @@ const Dashboard = () => {
           {dataSource && (
             <p className="text-xs text-xy-text-muted mb-4 -mt-4">
               数据来源：{dataSource === 'xianguanjia_api' ? '闲管家 API（实时）' : '本地数据库（离线）'}
+              {agoText && <span className="ml-1">· {agoText}更新</span>}
             </p>
           )}
 
