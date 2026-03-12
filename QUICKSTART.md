@@ -1,224 +1,189 @@
 # 快速开始
 
-5 分钟内启动闲鱼管家。
+这份文档面向希望 **尽快把项目跑起来** 的用户，默认以当前仓库结构为准。
 
 ---
 
-## 前提条件
+## 1. 环境要求
 
-| 依赖 | 版本要求 | 说明 |
-|------|---------|------|
-| Python | 3.10+ | Python 后端运行时 |
-| Node.js | 18+ | Node.js 后端和 React 前端 |
-| npm | 随 Node.js 安装 | 包管理器 |
-| Chrome / Edge | 任意版本 | Cookie 自动获取需要本机浏览器 |
-| 闲鱼 Cookie | - | 从浏览器获取的登录凭证（可通过 Dashboard 自动获取） |
-| AI API Key | - | DeepSeek / 阿里百炼 / OpenAI 等，任选一个 |
+- Python 3.10+
+- Node.js 18+
+- npm
+- Chrome / Edge
+- 一个可用的闲鱼 Cookie
+- 一个可用的 AI API Key（如需自动回复）
 
 ---
 
-## 方式一：本地开发模式（推荐）
-
-### 第 1 步：克隆项目
+## 2. 克隆仓库
 
 ```bash
 git clone https://github.com/G3niusYukki/xianyu-openclaw.git
 cd xianyu-openclaw
 ```
 
-### 第 2 步：安装依赖
+---
 
-```bash
-# Python 依赖
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-
-# 安装 Playwright Chromium 浏览器（Cookie 自动获取和消息服务需要，首次约 150MB）
-playwright install chromium
-
-# Node.js 依赖
-cd server && npm install && cd ..
-cd client && npm install && cd ..
-```
-
-> Windows 用户激活虚拟环境用 `.venv\Scripts\activate` 替代 `source .venv/bin/activate`。
-
-### 第 3 步：配置环境变量
+## 3. 配置 `.env`
 
 ```bash
 cp .env.example .env
 ```
 
-用编辑器打开 `.env`，填入以下必需信息：
+最少建议填写：
 
 ```bash
-# 闲鱼 Cookie（从浏览器获取）
 XIANYU_COOKIE_1=your_cookie_here
 
-# AI 服务配置（以 DeepSeek 为例）
 AI_PROVIDER=deepseek
-AI_API_KEY=sk-your-deepseek-key
+AI_API_KEY=your_api_key
 AI_BASE_URL=https://api.deepseek.com/v1
 AI_MODEL=deepseek-chat
 
+XGJ_APP_KEY=
+XGJ_APP_SECRET=
 ```
 
-### 第 4 步：启动服务
+---
 
-使用一键启动脚本（推荐）：
+## 4. 一键启动（推荐）
+
+### macOS / Linux
 
 ```bash
-# macOS / Linux
 ./start.sh
+```
 
-# Windows
+### Windows
+
+```bat
 start.bat
 ```
 
-一键启动脚本会自动完成所有依赖安装（包括 Playwright Chromium 浏览器下载），然后启动 Node.js 后端、React 前端和 Python 后端。如需 Lite 直连模式（WebSocket 消息监听 + AI 自动回复），可另开终端执行 `python -m src.lite`。
+脚本会自动完成：
 
-### 第 5 步：验证启动
-
-打开浏览器，依次访问：
-
-| 服务 | 地址 | 预期结果 |
-|------|------|---------|
-| React 前端 | http://localhost:5173 | 管理面板首页 |
-| Python Dashboard | http://localhost:8091 | Dashboard 页面 |
-| Node.js 后端 | http://localhost:3001/health | 返回健康状态 JSON |
+- 创建 Python 虚拟环境
+- 安装 Python 依赖
+- 安装 Playwright Chromium
+- 安装 Node.js 依赖
+- 启动 Python / Node.js / React 三个服务
 
 ---
 
-## 方式二：Docker 模式
+## 5. 访问地址
 
-### 第 1 步：配置
+启动成功后访问：
+
+| 服务 | 地址 |
+|------|------|
+| React 前端 | http://localhost:5173 |
+| Python Dashboard | http://localhost:8091 |
+| Node.js 健康检查 | http://localhost:3001/health |
+| Python 健康检查 | http://localhost:8091/healthz |
+
+---
+
+## 6. 手动安装与启动（可选）
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+playwright install chromium
+
+cd server && npm install && cd ..
+cd client && npm install && cd ..
+
+python -m src.dashboard_server --port 8091
+npm run dev:server
+npm run dev:client
+```
+
+---
+
+## 7. Docker 启动（可选）
 
 ```bash
 cp .env.example .env
-```
-
-编辑 `.env`，填入闲鱼 Cookie、AI 服务等配置（同本地模式）。
-
-### 第 2 步：启动
-
-```bash
 docker compose up -d
 ```
 
-Docker Compose 会启动以下容器：
-
-| 容器 | 端口 | 说明 |
-|------|------|------|
-| xianyu-node-backend | 3001 | Node.js 后端 |
-| xianyu-python-backend | 8091 | Python 后端 |
-| xianyu-react-frontend | 5173 | React 前端 |
-
-### 第 3 步：验证
+查看状态：
 
 ```bash
 docker compose ps
+docker compose logs -f
 ```
 
-所有容器应处于 `Up (healthy)` 状态。
-
-访问 http://localhost:5173 打开管理面板。
-
 ---
 
-## 获取闲鱼 Cookie
+## 8. 启动后建议先做什么
 
-1. 用 Chrome 打开 https://www.goofish.com 并登录
-2. 按 **F12** 打开开发者工具
-3. 切换到 **Network** 标签
-4. 按 **F5** 刷新页面
-5. 点击任意一个请求
-6. 在右侧 **Request Headers** 中找到 `Cookie:` 一行
-7. 全部复制，粘贴到 `.env` 文件中
-
-Cookie 有效期通常 7-30 天。过期后可通过管理面板或 Dashboard（http://localhost:8091/cookie）在线更新，或重新从浏览器获取。
-
----
-
-## 常见问题
-
-### 端口被占用
-
-**症状**：启动时报 `port already in use` 或 `address already in use`。
-
-**解决**：检查哪个进程占用了端口，停掉后重试：
+1. 打开前端工作台，确认配置页面可访问
+2. 检查 Cookie 是否有效
+3. 配置 AI 服务
+4. 如需用到闲管家，填写 AppKey / AppSecret
+5. 运行一次系统诊断：
 
 ```bash
-# macOS/Linux
+python -m src.cli doctor --strict
+```
+
+---
+
+## 9. 常用排查命令
+
+```bash
+# 全局体检
+python -m src.cli doctor --strict
+
+# 模块状态
+python -m src.cli module --action status --target all
+
+# 查看日志
+python -m src.cli module --action logs --target all --tail-lines 100
+
+# Cookie 健康
+python -m src.cli module --action cookie-health --target presales
+```
+
+---
+
+## 10. 常见问题
+
+### 端口占用
+
+```bash
 lsof -i :5173
 lsof -i :3001
 lsof -i :8091
-
-# 或修改端口
-# .env 中设置 FRONTEND_PORT、NODE_PORT、PYTHON_PORT
 ```
 
-### Cookie 自动获取失败 / 无法打开浏览器窗口
+### Playwright 安装失败
 
-**症状**：Dashboard 点击"自动获取 Cookie"显示"无法启动浏览器"或"所有获取方式均失败"。
-
-**解决**：
-1. 确认已安装 Playwright 浏览器：`playwright install chromium`
-2. 确认本机已安装 Chrome 或 Edge 浏览器
-3. 如使用一键启动脚本 `./start.sh` 或 `start.bat`，Playwright 会自动安装
-4. 如需静默自动刷新，需在本机 Chrome/Edge 中至少登录一次闲鱼
-
-### Cookie 失效 / WebSocket 断连
-
-**症状**：WebSocket 连接失败，或消息监听无响应，日志出现 `FAIL_SYS_USER_VALIDATE`。
-
-**解决**：
-1. 保持本机 Chrome/Edge 浏览器开启且闲鱼已登录，系统会自动从浏览器读取最新 Cookie
-2. 确认 `.env` 中设置了 `COOKIE_AUTO_REFRESH=true`
-3. 也可通过 Dashboard 在线更新 Cookie，或手动更新到 `.env` 后重启 Python 后端
-
-### AI 服务报错
-
-**症状**：自动回复无输出，或日志中出现 API 错误。
-
-**解决**：
-1. 检查 `.env` 中的 `AI_API_KEY` 是否正确
-2. 确认 API Key 余额充足
-3. 检查 `AI_BASE_URL` 是否可访问
-
-### npm install 失败
-
-**症状**：Node.js 依赖安装报错。
-
-**解决**：
-1. 确认 Node.js 版本 >= 18：`node -v`
-2. 清除缓存重试：`npm cache clean --force && npm install`
-
-### Python 依赖安装失败
-
-**症状**：`pip install` 报错。
-
-**解决**：
-1. 确认 Python 版本 >= 3.10：`python3 --version`
-2. 确认已激活虚拟环境
-3. 国内用户可使用镜像源：`pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple`
-
----
-
-## 停止服务
+重新执行：
 
 ```bash
-# 本地模式：Ctrl+C 终止各终端进程
-
-# Docker 模式
-docker compose down          # 停止（保留数据）
-docker compose down -v       # 停止并删除数据卷（谨慎）
+playwright install chromium
 ```
+
+### Cookie 失效
+
+重新登录闲鱼后更新 `XIANYU_COOKIE_1`，然后重启服务。
+
+### Node / Python 依赖异常
+
+```bash
+rm -rf server/node_modules client/node_modules
+rm -rf .venv
+```
+
+然后重新执行一键启动。
 
 ---
 
-## 下一步
+## 11. 下一步
 
-- 详细使用指南：[USER_GUIDE.md](USER_GUIDE.md)
-- 完整功能说明：[README.md](README.md)
-- CLI 命令参考：`python -m src.cli --help`
-- 参与开发：[CONTRIBUTING.md](CONTRIBUTING.md)
+- 完整说明：[README.md](README.md)
+- 用户指南：[USER_GUIDE.md](USER_GUIDE.md)
+- 部署文档：[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
+- 更新日志：[CHANGELOG.md](CHANGELOG.md)

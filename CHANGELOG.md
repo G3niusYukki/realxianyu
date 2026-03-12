@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.2.5] - 2026-03-12
+
 ### Added
 - **闲管家订单回调闭环**：
   - Dashboard 新增 `/api/orders/callback`，支持接收订单推送并在支付后自动同步订单状态
@@ -17,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - 实物订单在未真正提交物流单、仅降级为人工发货任务时，状态保持为 `processing`，避免误标记为 `shipping`
+- 文档全面更新，统一到当前仓库结构、启动方式、模块能力、健康检查端点与闲管家集成现状
+- README / QUICKSTART / USER_GUIDE / DEPLOYMENT 同步为 6.2.5 文档线
 
 ## [6.1.0] - 2026-03-03
 

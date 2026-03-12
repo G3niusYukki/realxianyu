@@ -1,7 +1,7 @@
 {
   "name": "xianyu-openclaw",
-  "version": "7.0.0",
-  "description": "闲鱼管家 v2.0 - 虚拟商品卖家全自动化平台",
+  "version": "6.2.5",
+  "description": "闲鱼卖家自动化工作台：消息、报价、订单、虚拟商品与闲管家一体化平台",
   "private": true,
   "scripts": {
     "install:all": "cd server && npm install && cd ../client && npm install",

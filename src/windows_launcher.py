@@ -170,7 +170,7 @@ class WindowsLauncherApp(ctk.CTk):
         ctk.CTkLabel(frame, text="闲鱼 API-first 一键部署向导", font=ctk.CTkFont(size=30, weight="bold")).grid(
             row=0, column=0, padx=30, pady=(30, 8), sticky="w"
         )
-        ctk.CTkLabel(frame, text="v6.1.0", text_color="gray70").grid(row=1, column=0, padx=30, pady=(0, 20), sticky="w")
+        ctk.CTkLabel(frame, text="v6.2.5", text_color="gray70").grid(row=1, column=0, padx=30, pady=(0, 20), sticky="w")
 
         ctk.CTkLabel(
             frame,
