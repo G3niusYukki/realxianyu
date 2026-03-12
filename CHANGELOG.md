@@ -7,20 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [6.2.5] - 2026-03-12
+## [7.2.0] - 2026-03-12
 
 ### Added
-- **闲管家订单回调闭环**：
-  - Dashboard 新增 `/api/orders/callback`，支持接收订单推送并在支付后自动同步订单状态
-  - 当已配置闲管家且开启自动履约时，实物订单可在支付后自动触发物流发货
-- **Dashboard 闲管家控制面板**：
-  - 首页新增闲管家可视化配置区，可保存 AppKey/AppSecret、自动改价、自动发货与“支付后自动触发”开关
-  - 新增 Dashboard 手动重试入口：API 改价、API 发货
+- **Cookie 自动续期根因修复**：彻底解决 Cookie 过期导致的 WebSocket 断连问题
+- **CookieCloud 集成**：支持从 CookieCloud 服务同步 Cookie，多设备场景自动保持 Cookie 新鲜
+- **_m_h5_tk 过期预测**：智能预测令牌过期时间，提前自动刷新避免服务中断
+- **工作台刷新体验优化**：闲管家工作台智能刷新策略，提升 API 调用效率
+
+### Fixed
+- **Aggregate 拦截问题修复**：修复聚合接口拦截导致的订单状态同步异常
+- 实物订单在未真正提交物流单、仅降级为人工发货任务时，状态保持为 `processing`，避免误标记为 `shipping`
 
 ### Changed
-- 实物订单在未真正提交物流单、仅降级为人工发货任务时，状态保持为 `processing`，避免误标记为 `shipping`
-- 文档全面更新，统一到当前仓库结构、启动方式、模块能力、健康检查端点与闲管家集成现状
-- README / QUICKSTART / USER_GUIDE / DEPLOYMENT 同步为 6.2.5 文档线
+- 版本统一升级到 v7.2.0（pyproject.toml、package.json、src/__init__.py）
+- 文档全面更新，同步 v7.2.0 功能特性与架构现状
+- README / QUICKSTART / USER_GUIDE / DEPLOYMENT 同步为 7.2.0 文档线
 
 ## [6.1.0] - 2026-03-03
 

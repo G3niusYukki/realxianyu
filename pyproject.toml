@@ -1,6 +1,6 @@
 [project]
 name = "xianyu-openclaw"
-version = "6.2.5"
+version = "7.2.0"
 
 [tool.black]
 line-length = 100

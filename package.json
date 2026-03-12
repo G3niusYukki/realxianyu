@@ -1,6 +1,6 @@
 {
   "name": "xianyu-openclaw",
-  "version": "6.2.5",
+  "version": "7.2.0",
   "description": "闲鱼卖家自动化工作台：消息、报价、订单、虚拟商品与闲管家一体化平台",
   "private": true,
   "scripts": {

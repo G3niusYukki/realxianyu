@@ -1,6 +1,6 @@
 {
   "name": "xianyu-openclaw-server",
-  "version": "1.0.0",
+  "version": "7.2.0",
   "description": "闲鱼自动化工作台 Node.js 后端",
   "main": "src/app.js",
   "scripts": {
