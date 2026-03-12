@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import csv
+import gzip as _gzip_mod
 import hashlib
 import io
 import json
@@ -44,6 +45,9 @@ from src.modules.quote.setup import DEFAULT_MARKUP_RULES, QuoteSetupService
 from src.modules.virtual_goods.service import VirtualGoodsService
 
 logger = logging.getLogger(__name__)
+
+_product_image_cache: dict[str, tuple[str, float]] = {}
+_PRODUCT_IMAGE_CACHE_TTL = 1800  # 30 minutes
 
 
 def _safe_int(value: str | None, default: int, min_value: int, max_value: int) -> int:
@@ -205,14 +209,14 @@ def _test_xgj_connection(
 
 
 DEFAULT_WEIGHT_TEMPLATE = (
-    "{origin_province}到{dest_province} {billing_weight}kg 首单价格\n"
+    "{origin_province}到{dest_province} {billing_weight}kg 参考价格\n"
     "{courier}: {price} 元\n"
     "预计时效：{eta_days}\n"
     "重要提示：\n"
     "体积重大于实际重量时按体积计费！"
 )
 DEFAULT_VOLUME_TEMPLATE = (
-    "{origin_province}到{dest_province} {billing_weight}kg 首单价格\n"
+    "{origin_province}到{dest_province} {billing_weight}kg 参考价格\n"
     "体积重规则：{volume_formula}\n"
     "{courier}: {price} 元\n"
     "预计时效：{eta_days}\n"
@@ -311,6 +315,7 @@ class MimicOps:
         "验证码",
         "校验失败",
     )
+    _RISK_SIGNAL_WINDOW_MINUTES = 120
 
     def __init__(self, project_root: str | Path, module_console: ModuleConsole):
         self.project_root = Path(project_root).resolve()
@@ -1440,34 +1445,72 @@ class MimicOps:
         key = str(stage or "").strip().lower()
         return mapping.get(key, "状态未知")
 
+    def _is_cookie_cloud_configured(self) -> bool:
+        sys_cfg = _read_system_config()
+        cc_cfg = sys_cfg.get("cookie_cloud", {}) if isinstance(sys_cfg.get("cookie_cloud"), dict) else {}
+        return bool(cc_cfg.get("cookie_cloud_uuid") and cc_cfg.get("cookie_cloud_password"))
+
     def _recovery_advice(self, stage: str, token_error: str | None = None) -> str:
         s = str(stage or "").strip().lower()
         t = str(token_error or "").strip().upper()
+        cc = self._is_cookie_cloud_configured()
+        slider_cfg = get_config().get_section("messages", {}).get("ws", {}).get("slider_auto_solve", {})
+        slider_auto = bool(slider_cfg.get("enabled", False)) if isinstance(slider_cfg, dict) else False
         if s == "recover_triggered":
             return "已触发售前恢复，建议等待 5-20 秒后刷新状态。"
         if s == "waiting_reconnect":
             return "Cookie 已更新但尚未连通，可点击“售前一键恢复”立即重试。"
         if s == "waiting_cookie_update":
             if t == "FAIL_SYS_USER_VALIDATE":
+                if cc:
+                    return "请在闲鱼网页重新登录，CookieCloud 会自动同步新 Cookie，系统将秒级自动恢复。"
                 return "请在闲鱼网页重新登录后导出最新 Cookie，再执行“售前一键恢复”。"
-            if t == "RGV587":
+            if t in ("RGV587", "RGV587_SERVER_BUSY"):
+                if slider_auto:
+                    return (
+                        "触发平台风控（RGV587），系统正在自动尝试滑块验证...\n"
+                        "如自动验证失败，会弹出浏览器窗口，请手动完成滑块拖动。\n"
+                        + ("CookieCloud 即时同步已启用，验证后秒级恢复。" if cc else "验证后请手动复制 Cookie 粘贴保存。")
+                    )
+                if cc:
+                    return (
+                        "触发平台风控（RGV587），请按以下步骤操作：\n"
+                        "1. 在浏览器打开 goofish.com/im（闲鱼消息页）\n"
+                        "2. 完成滑块验证\n"
+                        "3. 在 CookieCloud 扩展中点「手动同步」立即生效\n"
+                        "系统将秒级自动恢复（CookieCloud 即时同步已启用）。\n"
+                        "提示：在「系统设置 → 集成服务」中开启自动滑块验证可实现全自动恢复。"
+                    )
                 return (
-                    "触发平台风控（RGV587），系统无法自动恢复。请按以下步骤操作：\n"
-                    "1. 在浏览器打开闲鱼网页版 (goofish.com)\n"
-                    "2. 点击右上角「消息」\n"
-                    "3. 完成滑块验证\n"
-                    "4. 按 F12 → Network → 复制任意请求的 Cookie\n"
-                    "5. 粘贴到本页面的「手动粘贴 Cookie」区域并保存\n"
-                    "6. 点击“售前一键恢复”"
+                    "触发平台风控（RGV587），请按以下步骤操作：\n"
+                    "1. 在浏览器打开 goofish.com/im（闲鱼消息页）\n"
+                    "2. 完成滑块验证\n"
+                    "3. 按 F12 → Network → 复制任意请求的 Cookie\n"
+                    "4. 粘贴到本页面的「手动粘贴 Cookie」区域并保存\n"
+                    "5. 点击“售前一键恢复”\n"
+                    "提示：配置 CookieCloud 可实现滑块验证后秒级自动恢复，无需手动复制。"
                 )
+            if cc:
+                return "请更新 Cookie 后等待 CookieCloud 自动同步，系统将秒级自动恢复。"
             return "请更新 Cookie 后重试恢复。"
         if s == "token_error":
             if t == "WS_HTTP_400":
                 return "连接通道异常，请先点“售前一键恢复”；若持续失败再更新 Cookie。"
-            if t == "RGV587":
+            if t in ("RGV587", "RGV587_SERVER_BUSY"):
+                if slider_auto:
+                    return (
+                        "触发平台风控，系统正在自动尝试滑块验证。"
+                        + (" CookieCloud 即时同步已启用，验证后秒级恢复。" if cc else "")
+                    )
+                if cc:
+                    return (
+                        "触发平台风控，请在浏览器打开 goofish.com/im 完成滑块验证，"
+                        "在 CookieCloud 扩展中点「手动同步」，系统将秒级自动恢复。"
+                    )
                 return (
                     "触发平台风控，请在闲鱼网页版打开「消息」页面通过滑块验证后，"
-                    "重新导出 Cookie 并粘贴保存，然后执行“售前一键恢复”。"
+                    "手动复制 Cookie 并粘贴保存（F12 → Network → Cookie），然后执行“售前一键恢复”。\n"
+                    "提示：配置 CookieCloud 可实现验证后秒级自动恢复。"
                 )
             return "存在鉴权错误，建议更新 Cookie 后重连。"
         if s == "inactive":
@@ -1516,6 +1559,12 @@ class MimicOps:
             "cookie_actions": diagnosis.get("actions", []),
             "cookie_diagnosis": diagnosis,
         }
+        try:
+            from src.modules.messages.ws_live import notify_ws_cookie_changed
+            notify_ws_cookie_changed()
+        except Exception:
+            pass
+
         should_recover = auto_recover and str(diagnosis.get("grade") or "") != "不可用"
         if should_recover:
             recover = self._trigger_presales_recover_after_cookie_update(cookie_text)
@@ -1847,6 +1896,11 @@ class MimicOps:
             }
 
         self._set_env_value("XIANYU_COOKIE_1", cookie_text)
+        try:
+            from src.modules.messages.ws_live import notify_ws_cookie_changed
+            notify_ws_cookie_changed()
+        except Exception:
+            pass
         diagnosis = self.diagnose_cookie(cookie_text)
         payload: dict[str, Any] = {
             "success": True,
@@ -3055,91 +3109,119 @@ class MimicOps:
         m = cls._LOG_TIME_RE.search(cleaned)
         return str(m.group(1)) if m else ""
 
+    @classmethod
+    def _parse_log_datetime(cls, text: str) -> datetime | None:
+        ts_str = cls._extract_log_time(text)
+        if not ts_str:
+            return None
+        try:
+            return datetime.strptime(ts_str, "%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            return None
+
     def _risk_control_status_from_logs(self, target: str = "presales", tail_lines: int = 300) -> dict[str, Any]:
         fp = self._module_runtime_log(target)
+        _empty = {
+            "last_event": "",
+            "last_event_at": "",
+            "checked_lines": 0,
+            "source_log": str(fp),
+            "updated_at": _now_iso(),
+        }
         if not fp.exists():
-            return {
-                "level": "unknown",
-                "label": "未检测（无日志）",
-                "score": 0,
-                "signals": ["日志文件不存在"],
-                "last_event": "",
-                "last_event_at": "",
-                "checked_lines": 0,
-                "source_log": str(fp),
-                "updated_at": _now_iso(),
-            }
+            return {"level": "unknown", "label": "未检测（无日志）", "score": 0, "signals": ["日志文件不存在"], **_empty}
 
         try:
             lines = fp.read_text(encoding="utf-8", errors="ignore").splitlines()
         except Exception as e:
-            return {
-                "level": "unknown",
-                "label": "未检测（读取失败）",
-                "score": 0,
-                "signals": [f"日志读取失败: {e}"],
-                "last_event": "",
-                "last_event_at": "",
-                "checked_lines": 0,
-                "source_log": str(fp),
-                "updated_at": _now_iso(),
-            }
+            return {"level": "unknown", "label": "未检测（读取失败）", "score": 0, "signals": [f"日志读取失败: {e}"], **_empty}
 
         tail_n = max(50, min(int(tail_lines or 300), 2000))
         recent = [self._strip_ansi(line) for line in lines[-tail_n:] if str(line or "").strip()]
         if not recent:
-            return {
-                "level": "unknown",
-                "label": "未检测（空日志）",
-                "score": 0,
-                "signals": ["日志内容为空"],
-                "last_event": "",
-                "last_event_at": "",
-                "checked_lines": 0,
-                "source_log": str(fp),
-                "updated_at": _now_iso(),
-            }
+            return {"level": "unknown", "label": "未检测（空日志）", "score": 0, "signals": ["日志内容为空"], **_empty}
 
         block_hits: list[tuple[int, str]] = []
         warn_hits: list[tuple[int, str]] = []
         ws_400_lines: list[tuple[int, str]] = []
         connected_hits: list[tuple[int, str]] = []
 
+        _RECOVERY_SKIP = ("succeeded", "成功", "已恢复", "已过期")
+
         for idx, line in enumerate(recent):
             lowered = line.lower()
             if "connected to goofish websocket transport" in lowered:
                 connected_hits.append((idx, line))
             if any(token in lowered for token in self._RISK_BLOCK_PATTERNS):
-                block_hits.append((idx, line))
+                if not any(skip in lowered for skip in _RECOVERY_SKIP):
+                    block_hits.append((idx, line))
                 continue
             if any(token in lowered for token in self._RISK_WARN_PATTERNS):
                 warn_hits.append((idx, line))
             if "websocket" in lowered and "http 400" in lowered:
                 ws_400_lines.append((idx, line))
 
+        now = datetime.now()
+        window = timedelta(minutes=self._RISK_SIGNAL_WINDOW_MINUTES)
+
+        def _split_by_freshness(
+            hits: list[tuple[int, str]],
+        ) -> tuple[list[tuple[int, str]], list[tuple[int, str]]]:
+            active, stale = [], []
+            for idx, line in hits:
+                ts = self._parse_log_datetime(line)
+                if ts is None:
+                    stale.append((idx, line))
+                elif (now - ts) > window:
+                    stale.append((idx, line))
+                else:
+                    active.append((idx, line))
+            return active, stale
+
+        active_blocks, stale_blocks = _split_by_freshness(block_hits)
+        active_warns, stale_warns = _split_by_freshness(warn_hits)
+        active_ws400, stale_ws400 = _split_by_freshness(ws_400_lines)
+
         level = "normal"
         label = "正常"
         score = 0
         signals: list[str] = ["未发现封控信号"]
         last_event = recent[-1]
-        if block_hits:
+
+        if active_blocks:
             level = "blocked"
             label = "疑似封控"
-            score = min(100, 75 + len(block_hits) * 4)
-            signals = [f"高风险信号 x{len(block_hits)}"]
-            if ws_400_lines:
-                signals.append(f"WebSocket HTTP 400 x{len(ws_400_lines)}")
-            last_event = block_hits[-1][1]
-        elif len(ws_400_lines) >= 5 or warn_hits:
+            score = min(100, 75 + len(active_blocks) * 4)
+            signals = [f"高风险信号 x{len(active_blocks)}"]
+            if active_ws400:
+                signals.append(f"WebSocket HTTP 400 x{len(active_ws400)}")
+            last_event = active_blocks[-1][1]
+        elif stale_blocks and not active_blocks:
+            last_block_time = self._extract_log_time(stale_blocks[-1][1])
+            level = "stale"
+            label = "历史风控（已过期）"
+            score = 0
+            signals = [f"历史高风险信号 x{len(stale_blocks)}（最后于 {last_block_time}，已超过 {self._RISK_SIGNAL_WINDOW_MINUTES} 分钟）"]
+            last_event = stale_blocks[-1][1]
+        elif len(active_ws400) >= 10 or active_warns:
             level = "warning"
             label = "风险预警"
-            score = min(85, 30 + len(warn_hits) * 4 + len(ws_400_lines) * 2)
+            score = min(85, 30 + len(active_warns) * 4 + len(active_ws400) * 2)
             signals = []
-            if ws_400_lines:
-                signals.append(f"WebSocket HTTP 400 x{len(ws_400_lines)}")
-            if warn_hits:
-                signals.append(f"异常告警 x{len(warn_hits)}")
-            last_event = (warn_hits or ws_400_lines)[-1][1]
+            if active_ws400:
+                signals.append(f"WebSocket HTTP 400 x{len(active_ws400)}")
+            if active_warns:
+                signals.append(f"异常告警 x{len(active_warns)}")
+            last_event = (active_warns or active_ws400)[-1][1]
+        elif stale_warns or stale_ws400:
+            stale_total = len(stale_warns) + len(stale_ws400)
+            last_stale = stale_warns[-1] if stale_warns else stale_ws400[-1]
+            last_stale_time = self._extract_log_time(last_stale[1])
+            level = "stale"
+            label = "历史风控（已过期）"
+            score = 0
+            signals = [f"历史异常信号 x{stale_total}（最后于 {last_stale_time}，已超过 {self._RISK_SIGNAL_WINDOW_MINUTES} 分钟）"]
+            last_event = last_stale[1]
 
         last_connected_at = ""
         if connected_hits:
@@ -3147,18 +3229,31 @@ class MimicOps:
             last_connected_idx = connected_hits[-1][0]
             last_connected_at = self._extract_log_time(last_connected_line)
             last_risk_idx = -1
-            if block_hits:
-                last_risk_idx = max(last_risk_idx, block_hits[-1][0])
-            if warn_hits:
-                last_risk_idx = max(last_risk_idx, warn_hits[-1][0])
-            if ws_400_lines:
-                last_risk_idx = max(last_risk_idx, ws_400_lines[-1][0])
+            if active_blocks:
+                last_risk_idx = max(last_risk_idx, active_blocks[-1][0])
+            if active_warns:
+                last_risk_idx = max(last_risk_idx, active_warns[-1][0])
+            if active_ws400:
+                last_risk_idx = max(last_risk_idx, active_ws400[-1][0])
             if last_connected_idx > last_risk_idx >= 0:
                 level = "normal"
                 label = "已恢复连接"
                 score = 0
                 signals = ["最近已恢复连接"]
                 last_event = last_connected_line
+
+        if level in ("blocked", "warning") and self._last_auto_recover_at:
+            try:
+                recover_dt = datetime.fromisoformat(self._last_auto_recover_at.replace("Z", "+00:00")).replace(tzinfo=None)
+                last_risk_line = (active_blocks or active_warns or active_ws400 or [(-1, "")])[-1][1]
+                last_risk_dt = self._parse_log_datetime(last_risk_line)
+                if last_risk_dt and recover_dt > last_risk_dt:
+                    level = "recovering"
+                    label = "Cookie 已刷新，等待恢复"
+                    score = max(0, score // 4)
+                    signals = [f"Cookie 于 {self._last_auto_recover_at[:19]} 刷新，晚于最后风控信号"]
+            except (ValueError, TypeError):
+                pass
 
         return {
             "level": level,
@@ -3371,14 +3466,15 @@ class MimicOps:
         }
 
         token_error: str | None = None
-        if "fail_sys_user_validate" in risk_text:
-            token_error = "FAIL_SYS_USER_VALIDATE"
-        elif "rgv587" in risk_text or "被挤爆" in risk_text:
-            token_error = "RGV587_SERVER_BUSY"
-        elif "token api failed" in risk_text:
-            token_error = "TOKEN_API_FAILED"
-        elif "websocket" in risk_text and "http 400" in risk_text:
-            token_error = "WS_HTTP_400"
+        if risk_level not in ("stale", "normal"):
+            if "fail_sys_user_validate" in risk_text:
+                token_error = "FAIL_SYS_USER_VALIDATE"
+            elif "rgv587" in risk_text or "被挤爆" in risk_text:
+                token_error = "RGV587_SERVER_BUSY"
+            elif "token api failed" in risk_text:
+                token_error = "TOKEN_API_FAILED"
+            elif "websocket" in risk_text and "http 400" in risk_text:
+                token_error = "WS_HTTP_400"
 
         cookie_update_required = bool(token_error == "FAIL_SYS_USER_VALIDATE")
         token_available = bool(cookie.get("success", False)) and token_error is None
@@ -3426,6 +3522,8 @@ class MimicOps:
         except Exception:
             pass
 
+        cc_configured = self._is_cookie_cloud_configured()
+
         return {
             "success": True,
             "service": dict(self._service_state),
@@ -3438,6 +3536,10 @@ class MimicOps:
             "token_available": token_available,
             "token_error": token_error,
             "cookie_update_required": cookie_update_required,
+            "cookie_cloud_configured": cc_configured,
+            "slider_auto_solve_enabled": bool(
+                get_config().get_section("messages", {}).get("ws", {}).get("slider_auto_solve", {}).get("enabled", False)
+            ),
             "user_id": user_id,
             "last_token_refresh": risk_control.get("last_event_at") if token_error is None else None,
             "service_start_time": self._service_started_at,
@@ -3594,10 +3696,22 @@ class DashboardHandler(BaseHTTPRequestHandler):
     module_console: ModuleConsole
     mimic_ops: MimicOps
 
+    def _send_cors_headers(self) -> None:
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+
+    def do_OPTIONS(self) -> None:
+        self.send_response(204)
+        self._send_cors_headers()
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
     def _send_json(self, payload: Any, status: int = 200) -> None:
         data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
+        self._send_cors_headers()
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)
@@ -3618,6 +3732,102 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.send_header("Content-Disposition", f'attachment; filename="{download_name}"')
         self.end_headers()
         self.wfile.write(data)
+
+    @staticmethod
+    def _enrich_product_images(
+        resp_data: dict[str, Any],
+        base_url: str,
+        app_key: str,
+        app_secret: str,
+        mode: str,
+        seller_id: str,
+    ) -> None:
+        """Inject pic_url into product list response by fetching detail API with caching."""
+        try:
+            products = resp_data.get("data", {}).get("list", [])
+            if not products:
+                return
+        except (AttributeError, TypeError):
+            return
+
+        now = time.time()
+        to_fetch: list[str] = []
+
+        for p in products:
+            pid = str(p.get("product_id", ""))
+            if not pid:
+                continue
+            cached = _product_image_cache.get(pid)
+            if cached and (now - cached[1]) < _PRODUCT_IMAGE_CACHE_TTL:
+                p["pic_url"] = cached[0]
+            else:
+                to_fetch.append(pid)
+
+        if not to_fetch:
+            return
+
+        import httpx
+        from src.integrations.xianguanjia.signing import (
+            sign_open_platform_request,
+            sign_business_request,
+        )
+
+        try:
+            with httpx.Client(timeout=10.0) as hc:
+                for pid in to_fetch:
+                    try:
+                        try:
+                            pid_val: int | str = int(pid)
+                        except (ValueError, TypeError):
+                            pid_val = pid
+                        detail_body = json.dumps({"product_id": pid_val}, ensure_ascii=False)
+                        ts = str(int(time.time()))
+                        if mode == "business" and seller_id:
+                            sig = sign_business_request(
+                                app_key=app_key, app_secret=app_secret,
+                                seller_id=seller_id, timestamp=ts, body=detail_body,
+                            )
+                        else:
+                            sig = sign_open_platform_request(
+                                app_key=app_key, app_secret=app_secret,
+                                timestamp=ts, body=detail_body,
+                            )
+                        detail_resp = hc.post(
+                            f"{base_url}/api/open/product/detail",
+                            params={"appid": app_key, "timestamp": ts, "sign": sig},
+                            content=detail_body,
+                            headers={"Content-Type": "application/json"},
+                        )
+                        detail = detail_resp.json()
+                        pic_url = ""
+                        detail_data = detail.get("data", {}) or {}
+                        shops = detail_data.get("publish_shop")
+                        shop_iter: list[dict[str, Any]] = []
+                        if isinstance(shops, list):
+                            shop_iter = shops
+                        elif isinstance(shops, dict):
+                            shop_iter = [v for v in shops.values() if isinstance(v, dict)]
+                        for shop in shop_iter:
+                            imgs = shop.get("images", [])
+                            if isinstance(imgs, list) and imgs:
+                                pic_url = str(imgs[0])
+                                break
+                        if not pic_url:
+                            imgs_top = detail_data.get("images", [])
+                            if isinstance(imgs_top, list) and imgs_top:
+                                pic_url = str(imgs_top[0])
+                        _product_image_cache[pid] = (pic_url, time.time())
+                    except Exception:
+                        logger.debug("Failed to fetch product detail for %s", pid)
+                        _product_image_cache[pid] = ("", time.time())
+        except Exception:
+            logger.debug("httpx client error during image enrichment", exc_info=True)
+
+        for p in products:
+            pid = str(p.get("product_id", ""))
+            cached = _product_image_cache.get(pid)
+            if cached and not p.get("pic_url"):
+                p["pic_url"] = cached[0]
 
     def _build_publish_config(self) -> dict[str, Any]:
         """构建包含 xianguanjia + oss 的发布配置，供 publish_item/publish_batch 使用。"""
@@ -3690,6 +3900,35 @@ class DashboardHandler(BaseHTTPRequestHandler):
         try:
             data = json.loads(raw.decode("utf-8"))
             return data if isinstance(data, dict) else {}
+        except Exception:
+            return {}
+
+    def _read_form_or_json_body(self) -> dict[str, Any]:
+        content_type = str(self.headers.get("Content-Type", "")).lower()
+        content_encoding = str(self.headers.get("Content-Encoding", "")).lower()
+        try:
+            content_len = int(self.headers.get("Content-Length", "0"))
+        except ValueError:
+            content_len = 0
+        if content_len <= 0:
+            return {}
+        raw = self.rfile.read(content_len)
+        if not raw:
+            return {}
+        if "gzip" in content_encoding:
+            try:
+                raw = _gzip_mod.decompress(raw)
+            except Exception:
+                return {}
+        if "application/json" in content_type:
+            try:
+                data = json.loads(raw.decode("utf-8", errors="ignore"))
+                return data if isinstance(data, dict) else {}
+            except Exception:
+                return {}
+        try:
+            parsed = parse_qs(raw.decode("utf-8", errors="ignore"))
+            return {k: v[0] if len(v) == 1 else v for k, v in parsed.items()}
         except Exception:
             return {}
 
@@ -3846,12 +4085,132 @@ class DashboardHandler(BaseHTTPRequestHandler):
             "data": panel_payload,
         }
 
+    _CC_UUID_RE = re.compile(r'^[a-zA-Z0-9_-]+$')
+
+    def _handle_cookie_cloud(self, sub_path: str, method: str) -> None:
+        cc_dir = Path(__file__).resolve().parents[1] / "server" / "data" / "cookie_cloud"
+        cc_dir.mkdir(parents=True, exist_ok=True)
+
+        if sub_path == "/update" and method == "POST":
+            body = self._read_form_or_json_body()
+            encrypted = str(body.get("encrypted", "")).strip()
+            uuid_val = str(body.get("uuid", "")).strip()
+            crypto_type = str(body.get("crypto_type", "legacy")).strip()
+            if not encrypted or not uuid_val or not self._CC_UUID_RE.match(uuid_val):
+                self._send_json({"action": "error"}, status=400)
+                return
+            fp = cc_dir / f"{uuid_val}.json"
+            fp.write_text(
+                json.dumps({"encrypted": encrypted, "crypto_type": crypto_type}),
+                encoding="utf-8",
+            )
+            cookie_applied = self._try_instant_cookie_apply(encrypted, uuid_val)
+            self._send_json({"action": "done", "cookie_applied": cookie_applied})
+            return
+
+        m = re.match(r'^/get/([a-zA-Z0-9_-]+)$', sub_path)
+        if m:
+            uuid_val = m.group(1)
+            fp = cc_dir / f"{uuid_val}.json"
+            if not fp.exists():
+                self._send_json({"error": "Not Found"}, status=404)
+                return
+            try:
+                data = json.loads(fp.read_text(encoding="utf-8"))
+            except Exception:
+                self._send_json({"error": "Data corrupt"}, status=500)
+                return
+            body = self._read_form_or_json_body() if method == "POST" else {}
+            pwd = str(body.get("password", "")).strip() if body else ""
+            if pwd and data.get("encrypted"):
+                try:
+                    from src.core.cookie_grabber import CookieGrabber
+                    key_hash = hashlib.md5(f"{uuid_val}-{pwd}".encode()).hexdigest()[:16]
+                    decrypted = CookieGrabber._decrypt_cookiecloud(data["encrypted"], key_hash)
+                    if decrypted:
+                        self._send_json(decrypted)
+                        return
+                except Exception:
+                    pass
+            self._send_json(data)
+            return
+
+        if sub_path in ("", "/", "/health"):
+            self._send_json({"status": "ok", "service": "cookiecloud-embedded"})
+            return
+
+        self._send_json({"error": "Not Found"}, status=404)
+
+    @staticmethod
+    def _read_cc_credentials() -> tuple[str, str]:
+        """Read CookieCloud uuid and password from env or system_config.json."""
+        uuid_val = os.environ.get("COOKIE_CLOUD_UUID", "").strip()
+        password = os.environ.get("COOKIE_CLOUD_PASSWORD", "").strip()
+        if not uuid_val or not password:
+            try:
+                cfg_path = Path(__file__).resolve().parents[1] / "server" / "data" / "system_config.json"
+                if cfg_path.exists():
+                    cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+                    cc = cfg.get("cookie_cloud", {}) if isinstance(cfg.get("cookie_cloud"), dict) else {}
+                    uuid_val = uuid_val or str(cc.get("cookie_cloud_uuid") or cfg.get("cookie_cloud_uuid", "")).strip()
+                    password = password or str(cc.get("cookie_cloud_password") or cfg.get("cookie_cloud_password", "")).strip()
+            except Exception:
+                pass
+        return uuid_val, password
+
+    def _try_instant_cookie_apply(self, encrypted: str, uuid_val: str) -> bool:
+        """After /cookie-cloud/update writes data, immediately decrypt and apply if UUID matches."""
+        cfg_uuid, cfg_pwd = self._read_cc_credentials()
+        if not cfg_pwd or not cfg_uuid or uuid_val != cfg_uuid:
+            return False
+        try:
+            from src.core.cookie_grabber import CookieGrabber
+
+            key_hash = hashlib.md5(f"{uuid_val}-{cfg_pwd}".encode()).hexdigest()[:16]
+            cookie_data = CookieGrabber._decrypt_cookiecloud(encrypted, key_hash)
+            if not cookie_data:
+                return False
+
+            target_domains = {".goofish.com", ".taobao.com", ".tmall.com", "goofish.com", "taobao.com"}
+            parts: list[str] = []
+            for domain, cookies_list in cookie_data.items():
+                domain_lower = domain.lower().strip(".")
+                if not any(domain_lower.endswith(d.strip(".")) for d in target_domains):
+                    continue
+                if isinstance(cookies_list, list):
+                    for ck in cookies_list:
+                        name = str(ck.get("name", "")).strip()
+                        value = str(ck.get("value", "")).strip()
+                        if name and value:
+                            parts.append(f"{name}={value}")
+                elif isinstance(cookies_list, dict):
+                    for name, value in cookies_list.items():
+                        if str(name).strip() and str(value).strip():
+                            parts.append(f"{str(name).strip()}={str(value).strip()}")
+
+            if not parts:
+                return False
+
+            cookie_str = "; ".join(parts)
+            result = self.mimic_ops.update_cookie(cookie_str, auto_recover=True)
+            applied = bool(result.get("success"))
+            if applied:
+                logger.info(f"CookieCloud instant apply: {len(parts)} cookies applied")
+            return applied
+        except Exception as exc:
+            logger.debug(f"CookieCloud instant apply failed: {exc}")
+            return False
+
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
         path = parsed.path
         query = parse_qs(parsed.query)
 
         try:
+            if path.startswith("/cookie-cloud/") or path == "/cookie-cloud":
+                self._handle_cookie_cloud(path[len("/cookie-cloud"):].rstrip("/") or "/", method="GET")
+                return
+
             if path == "/healthz":
                 db_ok = False
                 try:
@@ -4657,6 +5016,10 @@ class DashboardHandler(BaseHTTPRequestHandler):
         path = parsed.path
 
         try:
+            if path.startswith("/cookie-cloud/") or path == "/cookie-cloud":
+                self._handle_cookie_cloud(path[len("/cookie-cloud"):].rstrip("/") or "/", method="POST")
+                return
+
             if path == "/api/orders/remind":
                 body = self._read_json_body()
                 order_id = str(body.get("order_no") or body.get("order_id") or "").strip()
@@ -4665,22 +5028,30 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     self._send_json(_error_payload("Missing order_no"), status=400)
                     return
 
-                from src.modules.followup.service import FollowUpEngine
-
-                engine = FollowUpEngine.from_system_config()
+                try:
+                    from src.modules.followup.service import FollowUpEngine
+                    engine = FollowUpEngine.from_system_config()
+                except Exception as init_err:
+                    self._send_json({"ok": False, "error": f"催单引擎初始化失败: {init_err}", "reason": "engine_init_error"})
+                    return
 
                 if not getattr(engine, "_reminder_enabled", True):
                     self._send_json({"ok": False, "error": "催单功能未启用", "reason": "disabled"})
                     return
 
                 if not session_id:
-                    session_id = self._resolve_session_id_for_order(order_id)
+                    session_id = self.mimic_ops._resolve_session_id_for_order(order_id)
 
                 use_session = session_id or order_id
-                result = engine.process_unpaid_order(
-                    session_id=use_session,
-                    order_id=order_id,
-                )
+                try:
+                    result = engine.process_unpaid_order(
+                        session_id=use_session,
+                        order_id=order_id,
+                        force=True,
+                    )
+                except Exception as proc_err:
+                    self._send_json({"ok": False, "error": f"催单处理失败: {proc_err}", "reason": "process_error"})
+                    return
 
                 if result.get("eligible") and session_id:
                     template_text = result.get("template_text", "")
@@ -5241,7 +5612,14 @@ class DashboardHandler(BaseHTTPRequestHandler):
                             content=payload_str,
                             headers={"Content-Type": "application/json"},
                         )
-                    self._send_json({"ok": True, "data": resp.json()})
+                    resp_data = resp.json()
+
+                    if api_path == "/api/open/product/list":
+                        self._enrich_product_images(
+                            resp_data, base_url, app_key, app_secret, mode, seller_id
+                        )
+
+                    self._send_json({"ok": True, "data": resp_data})
                 except Exception as exc:
                     logger.error("XGJ proxy error: %s", exc)
                     self._send_json({"ok": False, "error": str(exc)}, status=500)
@@ -5347,8 +5725,11 @@ def run_server(host: str = "127.0.0.1", port: int = 8091, db_path: str | None = 
 
     server = ThreadingHTTPServer((host, port), DashboardHandler)
 
+    shutdown_event = threading.Event()
+
     def _shutdown(signum, frame):
         logger.info("收到信号 %s，正在关闭...", signum)
+        shutdown_event.set()
         if refresher:
             refresher.stop()
         if price_poller:
@@ -5357,6 +5738,70 @@ def run_server(host: str = "127.0.0.1", port: int = 8091, db_path: str | None = 
 
     signal.signal(signal.SIGTERM, _shutdown)
     signal.signal(signal.SIGINT, _shutdown)
+
+    # -- 看门狗守护线程 --
+    module_console = DashboardHandler.module_console
+    _wd_restart_count = 0
+    _wd_last_restart_at = 0.0
+    _WD_COOLDOWN = 1800
+    _WD_MAX_RESTARTS = 3
+    _WD_INTERVAL = 120
+
+    def _watchdog_loop() -> None:
+        nonlocal _wd_restart_count, _wd_last_restart_at
+        shutdown_event.wait(60)
+        while not shutdown_event.is_set():
+            shutdown_event.wait(_WD_INTERVAL)
+            if shutdown_event.is_set():
+                break
+            now_ts = time.time()
+            if _wd_restart_count >= _WD_MAX_RESTARTS and (now_ts - _wd_last_restart_at) < _WD_COOLDOWN:
+                continue
+            if (now_ts - _wd_last_restart_at) >= _WD_COOLDOWN:
+                _wd_restart_count = 0
+
+            try:
+                status_result = module_console.status(window_minutes=5, limit=5)
+                modules = status_result.get("items") or status_result.get("modules") or []
+                presales_running = False
+                for m in (modules if isinstance(modules, list) else []):
+                    if isinstance(m, dict) and m.get("name") == "presales" and m.get("status") == "running":
+                        presales_running = True
+                        break
+
+                if not presales_running:
+                    logger.warning("Watchdog: presales 模块未运行，尝试自动启动...")
+                    try:
+                        module_console._run_module_cli(action="start", target="presales", timeout_seconds=30)
+                        _wd_restart_count += 1
+                        _wd_last_restart_at = time.time()
+                        logger.info("Watchdog: presales 模块已自动启动 (count=%d)", _wd_restart_count)
+                    except Exception as start_exc:
+                        logger.error("Watchdog: presales 自动启动失败: %s", start_exc)
+
+                    if _wd_restart_count >= _WD_MAX_RESTARTS:
+                        try:
+                            from src.core.notify import send_system_notification
+                            send_system_notification(
+                                f"【闲鱼自动化】⚠️ presales 模块连续 {_WD_MAX_RESTARTS} 次异常重启，"
+                                f"进入 {_WD_COOLDOWN // 60} 分钟静默期。请检查日志排查问题。",
+                                event="watchdog_alert",
+                            )
+                        except Exception:
+                            pass
+
+                if refresher and not refresher.running:
+                    logger.warning("Watchdog: CookieAutoRefresher 已停止，尝试重启...")
+                    try:
+                        refresher.start()
+                        logger.info("Watchdog: CookieAutoRefresher 已重启")
+                    except Exception as r_exc:
+                        logger.error("Watchdog: CookieAutoRefresher 重启失败: %s", r_exc)
+            except Exception as wd_exc:
+                logger.debug("Watchdog tick error: %s", wd_exc)
+
+    wd_thread = threading.Thread(target=_watchdog_loop, daemon=True, name="watchdog")
+    wd_thread.start()
 
     logger.info("Dashboard running: http://%s:%s", host, port)
     logger.info("Using database: %s", resolved_db)

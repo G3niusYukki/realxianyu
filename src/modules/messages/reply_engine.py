@@ -47,8 +47,8 @@ DEFAULT_VIRTUAL_PRODUCT_KEYWORDS = [
 ]
 
 XIANYU_FORBIDDEN_REPLACEMENTS = {
-    "微信小程序": "小城旭",
-    "小程序": "小城旭",
+    "微信小程序": "小橙序",
+    "小程序": "小橙序",
 }
 
 DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
@@ -58,22 +58,22 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     {
         "name": "platform_safety",
         "keywords": ["靠谱吗", "安全", "担保", "骗子", "走平台"],
-        "reply": "建议全程走闲鱼平台流程交易，按平台规则下单和确认，双方都更有保障。",
+        "reply": "放心哦，全程走闲鱼平台交易，按平台规则下单确认，双方都有保障~",
     },
     {
         "name": "price_bargain",
         "keywords": ["最低", "便宜", "优惠", "少点", "能便宜"],
-        "reply": "这个价格已经是最低了哈，量大可以再商量。",
+        "reply": "亲，这个价格已经很实惠了呢~ 量大的话可以再商量哦~",
     },
 
     # ============================================================
     # 快递售前 — 需人工介入（priority=45，先于普通售前匹配）
-    # AI 回复引导客户去小城旭联系客服
+    # AI 回复引导客户去小橙序联系客服
     # ============================================================
     {
         "name": "express_remote_area",
         "keywords": ["新疆", "西藏", "乌鲁木齐", "拉萨"],
-        "reply": "新疆/西藏属于超偏远地区续重较贵，您的包裹体积大吗？长宽高多少？我帮您精确核算",
+        "reply": "亲，新疆/西藏属于偏远地区续重会贵一些~ 方便告诉我包裹的长宽高吗？我帮您精确核算~",
         "priority": 45,
         "categories": ["express"],
         "needs_human": True,
@@ -83,7 +83,7 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     {
         "name": "express_volume",
         "keywords": ["体积大", "长宽高", "棉被", "懒人沙发", "玩偶", "空箱子"],
-        "reply": "体积较大的物品会按体积重计费（长x宽x高除以8000），您方便告诉我具体长宽高吗？",
+        "reply": "体积较大的物品会按体积重计费（长x宽x高/8000），方便告诉我具体长宽高吗？我帮您算~",
         "priority": 45,
         "categories": ["express"],
         "needs_human": True,
@@ -93,7 +93,7 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     {
         "name": "express_large",
         "keywords": ["搬家", "毕业寄", "大件"],
-        "reply": "大件/搬家可以走德邦，我帮您确认一下具体方案",
+        "reply": "大件/搬家可以走德邦哦~ 我帮您确认一下具体方案~",
         "priority": 45,
         "categories": ["express"],
         "needs_human": True,
@@ -102,16 +102,42 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     },
 
     # ============================================================
-    # 快递售后 — 引导小城旭客服（priority=48）
+    # 快递售后 — 引导小橙序客服（priority=48）
     # needs_human=True 仅做日志统计，不触发闲鱼转人工
     # 更具体的规则排在前面
     # ============================================================
     {
+        "name": "order_paid_pending_ship",
+        "keywords": ["已付款", "已支付", "待发货", "等待你发货", "等待发货"],
+        "reply": "已收到您的付款，兑换码会自动发送给您，请留意消息哦~",
+        "priority": 49,
+        "categories": [],
+        "phase": "aftersale",
+    },
+    {
+        "name": "order_shipped",
+        "keywords": ["已发货", "你已发货", "已签收", "已完成"],
+        "reply": "",
+        "priority": 49,
+        "categories": [],
+        "phase": "aftersale",
+        "skip_reply": True,
+    },
+    {
+        "name": "order_cancelled",
+        "keywords": ["已取消", "已关闭", "交易关闭"],
+        "reply": "",
+        "priority": 49,
+        "categories": [],
+        "phase": "aftersale",
+        "skip_reply": True,
+    },
+    {
         "name": "express_refund_apply",
-        "keywords": ["申请退款", "走退款", "退款流程"],
-        "reply": "退款理由请选\"已收到货-与卖家协商一致\"哈。如有问题请在小城旭首页点击「联系客服」",
+        "keywords": ["申请退款", "走退款", "退款流程", "发起了退款"],
+        "reply": "收到您的退款申请，我会尽快帮您处理~ 如有问题随时联系我哦~",
         "priority": 48,
-        "categories": ["express"],
+        "categories": [],
         "needs_human": True,
         "human_reason": "退款需人工核销余额/优惠券",
         "phase": "aftersale",
@@ -119,9 +145,9 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     {
         "name": "express_refund",
         "keywords": ["退款", "不想要了", "退钱"],
-        "reply": "收到，请在小城旭首页点击「联系客服」，客服会帮您处理退款哈",
+        "reply": "好的亲，我会尽快帮您处理退款，请稍等一下哦~",
         "priority": 48,
-        "categories": ["express"],
+        "categories": [],
         "needs_human": True,
         "human_reason": "退款需人工核销+决定走转账还是申请",
         "phase": "aftersale",
@@ -129,17 +155,80 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     {
         "name": "express_complaint",
         "keywords": ["丢件", "破损", "坏了", "投诉"],
-        "reply": "很抱歉给您带来不便，请把快递单号发我。同时建议您在小城旭首页点击「联系客服」，会优先帮您处理",
+        "reply": "非常抱歉给您带来不便~ 请把快递单号发我，我会尽快帮您处理！",
         "priority": 48,
-        "categories": ["express"],
+        "categories": [],
         "needs_human": True,
         "human_reason": "售后投诉需人工处理",
         "phase": "aftersale",
     },
     {
+        "name": "system_notification_ignore",
+        "keywords": [
+            "蚂蚁森林", "能量可领", "去兑换", "去发货", "去处理",
+            "请双方沟通", "请确认价格", "修改价格", "我已拍下",
+            "等待你付款", "请包装好商品", "按我在闲鱼上提供的地址发货",
+        ],
+        "reply": "",
+        "priority": 47,
+        "categories": [],
+        "phase": "system",
+        "skip_reply": True,
+    },
+    {
+        "name": "express_discount_complaint",
+        "keywords": ["只换了", "换少了", "余额少", "金额不对", "金额少了", "优惠没了", "没有优惠", "首单优惠"],
+        "reply": "亲，小橙序对每个手机号仅限一次首单优惠~ 如果之前用过（包括在其他店铺），这次就按正常价格了哦。如有疑问可以在小橙序点击「联系客服」详细咨询~",
+        "priority": 48,
+        "categories": ["express"],
+        "needs_human": True,
+        "human_reason": "首单优惠相关售后需人工确认",
+        "phase": "aftersale",
+    },
+    {
+        "name": "express_cant_order",
+        "keywords": ["下不了单", "没法下单", "发不了", "没法发", "寄不出", "用不了", "没法发一单"],
+        "reply": "亲，遇到什么问题了呢？截图给我看一下~ 也可以在小橙序点击「联系客服」获取帮助哦~",
+        "priority": 48,
+        "categories": ["express"],
+        "needs_human": True,
+        "human_reason": "下单异常需人工排查",
+        "phase": "aftersale",
+    },
+    {
+        "name": "express_code_not_received",
+        "keywords": ["没收到码", "码呢", "兑换码没发", "没有兑换码", "码没收到", "码没发"],
+        "reply": "亲，付款后兑换码会自动发送到聊天消息里哦~ 请往上翻看一下消息~ 如果确实没收到，截图给我，我帮您查~",
+        "priority": 48,
+        "categories": ["express"],
+        "needs_human": True,
+        "human_reason": "兑换码发送异常需人工核查",
+        "phase": "aftersale",
+    },
+    {
+        "name": "express_change_address",
+        "keywords": ["改地址", "地址错了", "收件人写错", "地址写错", "改收件"],
+        "reply": "亲，地址是在小橙序下单时填写的~ 如果还没下单可以直接填正确地址，已下单的话请在小橙序点击「联系客服」修改哦~",
+        "priority": 48,
+        "categories": ["express"],
+        "needs_human": True,
+        "human_reason": "地址修改需确认订单状态",
+        "phase": "aftersale",
+    },
+    {
+        "name": "express_cancel_order",
+        "keywords": ["不想买了", "取消订单", "别发了", "不要了"],
+        "reply": "好的亲，如果还没在小橙序下单直接不用管就行~ 已下单的话请在小橙序点击「联系客服」取消，闲鱼这边我帮您退款~",
+        "priority": 48,
+        "categories": ["express"],
+        "needs_human": True,
+        "human_reason": "取消订单需人工核实退款",
+        "phase": "aftersale",
+    },
+    {
         "name": "express_balance_issue",
         "keywords": ["余额不够", "抵扣不了", "不够支付"],
-        "reply": "您是不是选错快递公司了？截图给我看一下。如需帮助请在小城旭点击「联系客服」",
+        "reply": "亲，是不是选错快递公司了呢？截图给我看一下~ 如需帮助可以在小橙序点击「联系客服」哦~",
         "priority": 48,
         "categories": ["express"],
         "needs_human": True,
@@ -149,7 +238,7 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     {
         "name": "express_blacklist",
         "keywords": ["黑名单", "寄不了", "被限制"],
-        "reply": "您换一个寄件人手机号试试。如还是不行请在小城旭点击「联系客服」",
+        "reply": "亲，换一个寄件人手机号试试~ 如还是不行可以在小橙序点击「联系客服」哦~",
         "priority": 48,
         "categories": ["express"],
         "needs_human": True,
@@ -159,7 +248,7 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     {
         "name": "express_bad_review",
         "keywords": ["差评", "评价差", "体验差"],
-        "reply": "很抱歉给您不好的体验，请在小城旭首页点击「联系客服」，客服会第一时间帮您处理",
+        "reply": "非常抱歉给您不好的体验~ 请在小橙序首页点击「联系客服」，客服会第一时间帮您处理的~",
         "priority": 48,
         "categories": ["express"],
         "needs_human": True,
@@ -169,7 +258,7 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     {
         "name": "express_overdue",
         "keywords": ["好几天了", "还没解决", "催"],
-        "reply": "非常抱歉，建议您在小城旭首页点击「联系客服」催促处理，会更快哈",
+        "reply": "非常抱歉~ 建议您在小橙序首页点击「联系客服」催促处理，会更快哦~",
         "priority": 48,
         "categories": ["express"],
         "needs_human": True,
@@ -179,7 +268,7 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     {
         "name": "express_slow_pickup",
         "keywords": ["没来取", "不来取", "揽收慢", "不取件"],
-        "reply": "如果急件可以先换快递公司下单。揽收问题请在小城旭点击「联系客服」反馈",
+        "reply": "如果急件可以先换快递公司下单~ 揽收问题可以在小橙序点击「联系客服」反馈哦~",
         "priority": 48,
         "categories": ["express"],
         "needs_human": True,
@@ -193,7 +282,7 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     {
         "name": "express_availability",
         "keywords": ["在吗", "还在", "有货吗", "有吗"],
-        "reply": "在的亲，你是哪里到哪里的呢？报一下寄件城市-收件城市-重量(kg)帮你查最优价",
+        "reply": "在的亲~ 您是从哪里寄到哪里呢？告诉我城市和重量帮您查最优价~",
         "priority": 50,
         "categories": ["express"],
         "phase": "presale",
@@ -201,7 +290,7 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     {
         "name": "express_buying_process",
         "keywords": ["怎么买", "怎么拍", "怎么下单", "怎么操作"],
-        "reply": "拍下不付款，我改价，付款后自动给您兑换码",
+        "reply": "先拍下不付款，我帮您改价，付款后系统自动发兑换码给您~",
         "priority": 50,
         "categories": ["express"],
         "phase": "presale",
@@ -209,7 +298,7 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     {
         "name": "express_code_usage",
         "keywords": ["怎么用", "怎么使用", "兑换码", "怎么兑换", "余额怎么"],
-        "reply": "兑换码是兑换余额的，点下单使用余额支付即可",
+        "reply": "兑换码是兑换余额用的~ 下单时选择使用余额支付就好啦~",
         "priority": 50,
         "categories": ["express"],
         "phase": "presale",
@@ -217,7 +306,7 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     {
         "name": "express_no_proxy",
         "keywords": ["代下单", "帮我下单", "你帮下"],
-        "reply": "我们不做代下单了，拍完给你兑换码，然后直接在小城旭下单即可",
+        "reply": "亲，我们不做代下单了~ 拍下付款后系统会发兑换码给您，用兑换码到小橙序下单就好~",
         "priority": 50,
         "categories": ["express"],
         "phase": "presale",
@@ -225,7 +314,7 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     {
         "name": "express_route",
         "keywords": ["哪里到哪里", "寄到哪", "从哪寄", "到哪里"],
-        "reply": "你是哪里到哪里的呢",
+        "reply": "亲，您是从哪里寄到哪里呢？告诉我城市和重量帮您查价~",
         "priority": 50,
         "categories": ["express"],
         "phase": "presale",
@@ -233,7 +322,15 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     {
         "name": "express_pickup",
         "keywords": ["上门取件", "取件时间", "快递员来"],
-        "reply": "下单后联系快递员沟通好上门取件时间哈",
+        "reply": "下单后联系快递员沟通好上门取件时间就行啦~ 也可以搜索「商达人」小橙序预约上门取件哦~",
+        "priority": 50,
+        "categories": ["express"],
+        "phase": "presale",
+    },
+    {
+        "name": "express_shangdaren",
+        "keywords": ["商达人", "商达人取件", "商达人上门"],
+        "reply": "在小橙序搜索「商达人」点击进入 → 右下角「我的」→「兑换优惠」兑换余额 → 返回首页填写寄件和收件地址、选快递公司 → 用余额支付下单即可~",
         "priority": 50,
         "categories": ["express"],
         "phase": "presale",
@@ -241,7 +338,7 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     {
         "name": "express_packaging",
         "keywords": ["包装费", "耗材费", "额外收费"],
-        "reply": "包装费需要问下快递员，这个是他这边收费的哈",
+        "reply": "包装费需要跟快递员确认，这个是快递员那边的收费哦~",
         "priority": 50,
         "categories": ["express"],
         "phase": "presale",
@@ -249,7 +346,7 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     {
         "name": "express_sf_jd",
         "keywords": ["有顺丰吗", "顺丰还有", "有京东吗", "京东还有"],
-        "reply": "顺丰京东没有了哈",
+        "reply": "不好意思，暂时没有顺丰和京东的渠道呢~",
         "priority": 50,
         "categories": ["express"],
         "phase": "presale",
@@ -257,7 +354,15 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     {
         "name": "express_first_order",
         "keywords": ["第二次", "再买", "续费", "还能用"],
-        "reply": "这边仅限首单哈，后续直接在小城旭里下单就行，价格已经是官方5折了",
+        "reply": "亲，闲鱼链接仅限首单哦~ 后续直接在小橙序下单就行，价格已经是官方5折了~ 如果该手机号之前已用过首单，也可以直接去小橙序下单~",
+        "priority": 50,
+        "categories": ["express"],
+        "phase": "presale",
+    },
+    {
+        "name": "express_first_weight",
+        "keywords": ["首重", "首重多少", "首重价格", "续重", "续重多少"],
+        "reply": "首重价格因路线和快递不同哦~ 发我 寄件城市-收件城市-重量 帮你查最优价~\n示例：北京 - 浙江 - 1kg",
         "priority": 50,
         "categories": ["express"],
         "phase": "presale",
@@ -265,7 +370,7 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     {
         "name": "express_old_user",
         "keywords": ["老用户", "老客户", "更优惠"],
-        "reply": "小城旭的价格已经是官方5折了，首重续重都有折扣哦",
+        "reply": "小橙序的价格已经是官方5折了，首重续重都有折扣哦~",
         "priority": 50,
         "categories": ["express"],
         "phase": "presale",
@@ -273,7 +378,7 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     {
         "name": "express_coupon_expiry",
         "keywords": ["过期", "有效期"],
-        "reply": "不会过期的，未兑换就一直有效，兑换好了余额之后一直在账户",
+        "reply": "不会过期的~ 未兑换就一直有效，兑换成余额后也一直在账户里哦~",
         "priority": 50,
         "categories": ["express"],
         "phase": "presale",
@@ -281,7 +386,7 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     {
         "name": "express_restricted",
         "keywords": ["能发吗", "可以寄吗", "能寄吗"],
-        "reply": "刀具/易燃品/易碎品/电池/生鲜/数码产品不支持哈，具体可以问我",
+        "reply": "刀具、易燃品、电池、生鲜、数码产品暂时不支持寄送呢~ 具体可以问我帮您确认~",
         "priority": 50,
         "categories": ["express"],
         "phase": "presale",
@@ -289,7 +394,7 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     {
         "name": "express_cigarette",
         "keywords": ["香烟", "寄烟", "能寄烟", "发烟"],
-        "reply": "可以的，但一次不能超过两条",
+        "reply": "抱歉亲，烟草类物品暂不支持寄送哦~",
         "priority": 50,
         "categories": ["express"],
         "phase": "presale",
@@ -297,7 +402,7 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     {
         "name": "express_no_code",
         "keywords": ["取件码", "没有码"],
-        "reply": "部分地区没有的哈，没显示就是没有，快递员来了直接给他就行",
+        "reply": "部分地区是没有取件码的~ 没显示就是没有，快递员来了直接交给他就行~",
         "priority": 50,
         "categories": ["express"],
         "phase": "presale",
@@ -305,7 +410,7 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     {
         "name": "express_network",
         "keywords": ["不接单", "运力不足", "被取消"],
-        "reply": "您那边的快递网点暂时不接单了，换别的快递重新下单试试哈",
+        "reply": "亲，您那边的快递网点暂时不接单了~ 换别的快递重新下单试试哦~",
         "priority": 50,
         "categories": ["express"],
         "phase": "presale",
@@ -313,7 +418,7 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     {
         "name": "express_insurance",
         "keywords": ["保价", "保价费"],
-        "reply": "圆通可以保价，保价费1元。韵达不支持保价，选保价后韵达不显示，取消保价选韵达就好",
+        "reply": "圆通可以保价，保价费1元~ 韵达不支持保价，选保价后韵达不显示，取消保价韵达就出来了哦~",
         "priority": 50,
         "categories": ["express"],
         "phase": "presale",
@@ -321,7 +426,7 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     {
         "name": "express_no_yunda",
         "keywords": ["没有韵达", "韵达不见", "韵达消失"],
-        "reply": "是不是选了保价？韵达不支持保价，取消保价韵达就出来了",
+        "reply": "亲，是不是选了保价呢？韵达不支持保价，取消保价韵达就出来了~",
         "priority": 50,
         "categories": ["express"],
         "phase": "presale",
@@ -329,7 +434,7 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     {
         "name": "express_tracking",
         "keywords": ["上传单号", "填单号"],
-        "reply": "可以的，不管是抖音还是闲鱼、淘宝、拼多多都可以，选自行寄回填写快递单号就行",
+        "reply": "可以的~ 不管是抖音还是闲鱼、淘宝、拼多多都可以，选自行寄回填写快递单号就行~",
         "priority": 50,
         "categories": ["express"],
         "phase": "presale",
@@ -337,7 +442,7 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     {
         "name": "express_order_find",
         "keywords": ["找不到订单", "订单在哪"],
-        "reply": "在小城旭下方第二个按钮\"订单\"里查看就可以了",
+        "reply": "在小橙序下方第二个按钮\"订单\"里查看就可以了~",
         "priority": 50,
         "categories": ["express"],
         "phase": "presale",
@@ -345,7 +450,7 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     {
         "name": "express_fee_paid",
         "keywords": ["未支付费用", "要交钱", "交费"],
-        "reply": "费用我们这边已经支付过了，跟快递公司走月结的，线下无需支付任何快递费",
+        "reply": "放心~ 费用我们这边已经支付过了，跟快递公司走月结的，线下不需要再支付任何快递费哦~",
         "priority": 50,
         "categories": ["express"],
         "phase": "presale",
@@ -353,7 +458,7 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     {
         "name": "express_real_name",
         "keywords": ["实名", "身份证", "认证"],
-        "reply": "去圆通/韵达官方小城旭，点我的，有个实名认证，认证一下就好了，是互通的",
+        "reply": "去圆通/韵达官方小橙序，点我的，有个实名认证，认证一下就好了，是互通的~",
         "priority": 50,
         "categories": ["express"],
         "phase": "presale",
@@ -361,7 +466,7 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     {
         "name": "express_multi_pkg",
         "keywords": ["两个包裹", "多个包裹", "子母件"],
-        "reply": "一个快递订单只能一个包裹，多个包裹需要发多个订单哈",
+        "reply": "一个快递订单只能一个包裹~ 多个包裹需要分开下单哦~",
         "priority": 50,
         "categories": ["express"],
         "phase": "presale",
@@ -369,15 +474,20 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     {
         "name": "express_merchant",
         "keywords": ["商家单", "打印面单", "网点单"],
-        "reply": "不行的亲，我们这边是散单，不支持商家单哈",
+        "reply": "不好意思亲，我们这边是散单，暂不支持商家单呢~",
         "priority": 50,
         "categories": ["express"],
         "phase": "presale",
     },
     {
         "name": "express_anonymous",
-        "keywords": ["隐藏信息", "匿名寄"],
-        "reply": "不行的亲，快递要实名制寄件",
+        "keywords": [
+            "隐藏信息", "匿名寄", "匿名发货",
+            "个人信息", "隐私面单", "面单隐私",
+            "不显示信息", "隐藏个人", "面单不显示",
+            "隐私发货", "隐私寄", "保护隐私",
+        ],
+        "reply": "亲，现在主流快递都默认使用隐私面单啦~ 手机号自动脱敏（隐藏6位以上），地址也会隐藏详细门牌号，个人信息会受到保护的哦~",
         "priority": 50,
         "categories": ["express"],
         "phase": "presale",
@@ -385,7 +495,7 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     {
         "name": "express_eta",
         "keywords": ["多久到", "几天到"],
-        "reply": "正常地区一般1-3天到，偏远地区会慢一些",
+        "reply": "正常地区一般1-3天到~ 偏远地区会稍慢一些哦~",
         "priority": 50,
         "categories": ["express"],
         "phase": "presale",
@@ -393,9 +503,16 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     {
         "name": "express_order_failed",
         "keywords": ["下单失败", "失败了"],
-        "reply": "可能是当地快递网点暂时不接单了，建议更换其他快递公司下单试试",
+        "reply": "可能是当地快递网点暂时不接单了~ 建议换其他快递公司试试哦~",
         "priority": 50,
         "categories": ["express"],
+        "phase": "presale",
+    },
+    {
+        "name": "buyer_decline",
+        "keywords": ["算了", "不用了", "不要了", "不需要", "不寄了", "不发了", "再说吧", "考虑一下", "先不"],
+        "reply": "好的亲，有需要随时找我哦~ 祝您生活愉快！",
+        "priority": 100,
         "phase": "presale",
     },
 ]
@@ -414,6 +531,7 @@ class IntentRule:
     needs_human: bool = False
     human_reason: str = ""
     phase: str = ""
+    skip_reply: bool = False
 
     def matches(self, text: str, category: str = "") -> bool:
         if self.categories and category not in self.categories:
@@ -469,7 +587,14 @@ class ReplyStrategyEngine:
         self.ai_system_role = self.category_config.get("ai_prompts", {}).get("system_role", "")
         self.category_forbidden_keywords = self.category_config.get("compliance", {}).get("forbidden_keywords", [])
 
-        rules_data = intent_rules if isinstance(intent_rules, list) and intent_rules else DEFAULT_INTENT_RULES
+        default_rules = list(DEFAULT_INTENT_RULES)
+        if isinstance(intent_rules, list) and intent_rules:
+            user_names = {r.get("name") for r in intent_rules if isinstance(r, dict)}
+            merged = [r for r in default_rules if r.get("name") not in user_names]
+            merged.extend(intent_rules)
+            rules_data = merged
+        else:
+            rules_data = default_rules
         parsed_rules = [self._parse_rule(rule) for rule in rules_data]
 
         legacy_rules = self._build_legacy_keyword_rules(keyword_replies or {})
@@ -566,14 +691,16 @@ class ReplyStrategyEngine:
             logger.debug(f"AI intent classification failed: {e}")
         return "unknown"
 
-    def generate_reply(self, message_text: str, item_title: str = "") -> str:
-        """按规则生成回复，支持合规检查。"""
+    def generate_reply(self, message_text: str, item_title: str = "") -> tuple[str, bool]:
+        """按规则生成回复，支持合规检查。返回 (reply, skip_reply)。"""
         normalized = self._normalize_text(message_text)
 
         reply = ""
         matched_rule: IntentRule | None = None
         for rule in self.rules:
             if rule.matches(normalized, category=self.category):
+                if rule.skip_reply:
+                    return "", True
                 reply = rule.reply
                 matched_rule = rule
                 break
@@ -587,7 +714,7 @@ class ReplyStrategyEngine:
             else:
                 reply = self.default_reply
 
-        if item_title and (matched_rule is None or not matched_rule.categories):
+        if item_title and not item_title.isdigit() and (matched_rule is None or not matched_rule.categories):
             reply = f"关于「{item_title}」，{reply}"
 
         if self.reply_prefix:
@@ -596,16 +723,17 @@ class ReplyStrategyEngine:
         if self.compliance_enabled:
             reply = self._check_compliance(reply)
 
-        return reply
+        return reply, False
 
     def generate_reply_with_intent(self, message_text: str, item_title: str = "") -> dict[str, Any]:
         intent = self.classify_intent(message_text, item_title)
-        reply = self.generate_reply(message_text, item_title)
+        reply, skip = self.generate_reply(message_text, item_title)
         return {
             "reply": reply,
             "intent": intent,
             "intent_label": INTENT_LABELS.get(intent, "未知"),
             "should_quote": intent == "price_bargain" or intent == "price_inquiry",
+            "skip_reply": skip,
         }
 
     def process_message(
@@ -636,6 +764,16 @@ class ReplyStrategyEngine:
             bargain_hint = tracker.get_context_hint(chat_id)
 
         result = self.generate_reply_with_intent(message_text, item_title)
+
+        if result.get("skip_reply"):
+            return {
+                "reply": "",
+                "intent": result.get("intent", "system_notification"),
+                "skipped": True,
+                "skip_reason": "system_notification",
+                "bargain_count": 0,
+                "bargain_hint": None,
+            }
 
         if dedup:
             dedup.mark_replied(chat_id, create_time, message_text, result["reply"])
@@ -676,11 +814,13 @@ class ReplyStrategyEngine:
         needs_human = bool(raw_rule.get("needs_human", False))
         human_reason = str(raw_rule.get("human_reason", ""))
         phase = str(raw_rule.get("phase", ""))
+        skip_reply = bool(raw_rule.get("skip_reply", False))
 
         return IntentRule(
             name=name, reply=reply, keywords=keywords,
             patterns=patterns, priority=priority, categories=categories,
             needs_human=needs_human, human_reason=human_reason, phase=phase,
+            skip_reply=skip_reply,
         )
 
     def _build_legacy_keyword_rules(self, keyword_replies: dict[str, str]) -> list[IntentRule]:
