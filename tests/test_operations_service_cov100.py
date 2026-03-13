@@ -304,8 +304,8 @@ class TestGetListingStats:
     async def test_success(self, mock_api_client, mock_api_response_ok):
         mock_api_response_ok.data = {
             "list": [
-                {"status": 1, "view_count": 10, "want_count": 2},
-                {"status": "on_sale", "view_count": 5, "want_count": 3},
+                {"product_status": 22, "view_count": 10, "want_count": 2},
+                {"product_status": "22", "view_count": 5, "want_count": 3},
             ]
         }
         svc = _make_ops_service(api_client=mock_api_client)
