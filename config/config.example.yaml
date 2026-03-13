@@ -35,6 +35,8 @@ ai:
     description: false
     optimize_title: false
     seo_keywords: false
+    quote_extract: false    # AI 提取报价字段（当正则失败时 fallback）
+    express_reply: false    # AI 生成快递回复（当规则无法匹配时 fallback）
 
 # 数据库配置
 database:
@@ -141,7 +143,7 @@ messages:
   reply_prefix: ""
   default_reply: "直接拍就行拍完给您兑换码"
   virtual_default_reply: "兑换码是兑换余额的，点下单使用余额支付即可"
-  quote_intent_keywords: ["报价", "多少钱", "价格", "运费", "邮费", "快递费", "寄到", "发到", "送到", "怎么寄"]
+  quote_intent_keywords: ["报价", "多少钱", "价格", "运费", "邮费", "快递费", "寄到", "发到", "送到", "怎么寄", "怎么收费", "多钱", "啥价", "咋卖", "怎么卖", "什么价", "几块钱"]
   standard_format_trigger_keywords: ["你好", "您好", "在吗", "在不", "hi", "hello", "哈喽", "有人吗"]
   quote_missing_template: "为了给你报最准确的价格，麻烦提供一下：{fields}\n格式示例：广东省 - 浙江省 - 3kg 30x20x15cm"
   force_non_empty_reply: true

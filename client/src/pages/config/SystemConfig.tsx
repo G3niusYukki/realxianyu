@@ -5,6 +5,7 @@ import { getSystemConfig, getConfigSections, saveSystemConfig } from '../../api/
 import { api } from '../../api/index';
 import { useStoreCategory, CATEGORY_META } from '../../contexts/StoreCategoryContext';
 import toast from 'react-hot-toast';
+import IntentRulesManager from '../../components/IntentRulesManager';
 import {
   Settings, Save, RefreshCw, Send, Bell, CheckCircle2, XCircle,
   ExternalLink, Info, Plug, ChevronDown, ChevronUp, FileText, Zap,
@@ -1684,13 +1685,14 @@ export default function SystemConfig() {
                 </div>
               </CollapsibleSection>
 
-              {/* ═══ 内置规则一览 ═══ */}
+              {/* ═══ 话术库管理 ═══ */}
               <CollapsibleSection
-                title="系统内置意图规则"
+                title="话术库管理"
                 icon={<Shield className="w-4 h-4 text-indigo-500" />}
-                summary={<span className="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600 text-[11px]">7 条规则始终生效</span>}
+                summary={<span className="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600 text-[11px]">意图规则 · 支持动态管理</span>}
+                defaultOpen
               >
-                <BuiltinRulesTable />
+                <IntentRulesManager config={config} onConfigChange={handleChange} onSave={handleSave} />
               </CollapsibleSection>
             </div>
           )}

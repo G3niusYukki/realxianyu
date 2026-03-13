@@ -22,6 +22,7 @@ PROVIDER_KEY_MAP = {
     "openai": "OPENAI_API_KEY",
     "deepseek": "DEEPSEEK_API_KEY",
     "aliyun_bailian": "DASHSCOPE_API_KEY",
+    "qwen": "DASHSCOPE_API_KEY",
     "volcengine_ark": "ARK_API_KEY",
     "minimax": "MINIMAX_API_KEY",
     "zhipu": "ZHIPU_API_KEY",
@@ -31,6 +32,7 @@ PROVIDER_BASE_URL_MAP = {
     "openai": "https://api.openai.com/v1",
     "deepseek": "https://api.deepseek.com/v1",
     "aliyun_bailian": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    "qwen": "https://dashscope.aliyuncs.com/compatible-mode/v1",
     "volcengine_ark": "https://ark.cn-beijing.volces.com/api/v3",
     "minimax": "https://api.minimaxi.com/v1",
     "zhipu": "https://open.bigmodel.cn/api/paas/v4",
@@ -40,6 +42,7 @@ PROVIDER_MODEL_MAP = {
     "openai": "gpt-4o-mini",
     "deepseek": "deepseek-chat",
     "aliyun_bailian": "qwen-plus-latest",
+    "qwen": "qwen-plus-latest",
     "volcengine_ark": "doubao-1.5-pro-32k-250115",
     "minimax": "MiniMax-Text-01",
     "zhipu": "glm-4-plus",
@@ -87,6 +90,28 @@ class ContentService:
         self.api_key = configured_api_key or resolved_api_key
         self.base_url = configured_base_url or resolved_base_url
         self.model = configured_model or resolved_model or "deepseek-chat"
+
+        if not self.api_key:
+            try:
+                from pathlib import Path
+                import json as _json
+                _sys_path = Path("server/data/system_config.json")
+                if _sys_path.exists():
+                    _sys_data = _json.loads(_sys_path.read_text("utf-8"))
+                    _sys_ai = _sys_data.get("ai", {})
+                    if isinstance(_sys_ai, dict):
+                        self.api_key = self._normalize_config_value(_sys_ai.get("api_key")) or self.api_key
+                        self.base_url = self._normalize_config_value(_sys_ai.get("base_url")) or self.base_url
+                        _model_val = self._normalize_config_value(_sys_ai.get("model"))
+                        if _model_val:
+                            self.model = _model_val
+                        elif not _model_val:
+                            _provider = str(_sys_ai.get("provider", "")).lower()
+                            if _provider in PROVIDER_MODEL_MAP:
+                                self.model = PROVIDER_MODEL_MAP[_provider]
+            except Exception:
+                pass
+
         self.temperature = self.config.get("temperature", 0.7)
         self.max_tokens = self.config.get("max_tokens", 1000)
         self.timeout = self.config.get("timeout", 30)
@@ -187,10 +212,14 @@ class ContentService:
             self.logger.error(f"Unexpected AI call error: {e}")
             return None
 
+    _AI_FALLBACK_TASKS = {"quote_extract", "express_reply"}
+
     def _should_call_ai(self, task: str, prompt: str) -> bool:
         if self.usage_mode == "always":
             return True
         enabled = bool(self.task_switches.get(task, False))
+        if not enabled and task in self._AI_FALLBACK_TASKS and self.client:
+            enabled = True
         if self.usage_mode == "minimal":
             return enabled
         if self.usage_mode == "auto":

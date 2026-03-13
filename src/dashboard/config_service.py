@@ -43,7 +43,7 @@ def write_system_config(data: dict[str, Any]) -> None:
     _SYS_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
     tmp = _SYS_CONFIG_FILE.with_suffix(".tmp")
     tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
-    tmp.rename(_SYS_CONFIG_FILE)
+    tmp.replace(_SYS_CONFIG_FILE)
 
 
 SHIPPING_REGIONS: dict[int, Any] = {
