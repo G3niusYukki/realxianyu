@@ -336,11 +336,9 @@ async def test_messages_greeting_forces_standard_template_even_non_strict(mock_c
     result = await service.auto_reply_unread(limit=5, dry_run=True)
     detail = result["details"][0]
 
-    assert detail["is_quote"] is True
-    assert detail["quote_need_info"] is True
-    assert detail["format_enforced"] is True
-    assert detail["format_enforced_reason"] == "greeting"
-    assert "为了给你报最准确的价格" in detail["reply"]
+    # PR #60: "你好" 现在匹配 express_availability 规则，返回友好问候而非强制标准格式
+    assert detail.get("is_quote") is False
+    assert detail.get("rule_matched") == "express_availability"
 
 
 @pytest.mark.asyncio
