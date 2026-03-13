@@ -97,9 +97,9 @@ def test_risk_control_status_handles_read_error_and_recovery_signals(monkeypatch
     runtime_log.write_text(
         "\n".join(
             [
-                "2026-01-01 10:00:00 websocket http 400 temporary",
-                "2026-01-01 10:00:01 FAIL_SYS_USER_VALIDATE",
-                "2026-01-01 10:00:02 Connected to Goofish WebSocket transport",
+                "2026-03-13 08:00:00 websocket http 400 temporary",
+                "2026-03-13 08:00:01 FAIL_SYS_USER_VALIDATE",
+                "2026-03-13 08:00:02 Connected to Goofish WebSocket transport",
             ]
         ),
         encoding="utf-8",
@@ -109,7 +109,7 @@ def test_risk_control_status_handles_read_error_and_recovery_signals(monkeypatch
     recovered = ops._risk_control_status_from_logs()
     assert recovered["level"] == "normal"
     assert recovered["label"] == "已恢复连接"
-    assert recovered["last_connected_at"] == "2026-01-01 10:00:02"
+    assert recovered["last_connected_at"] == "2026-03-13 08:00:02"
 
 
 def test_test_reply_includes_volume_weight_in_structured_prompt(monkeypatch, temp_dir) -> None:

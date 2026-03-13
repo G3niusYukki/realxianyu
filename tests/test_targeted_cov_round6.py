@@ -149,7 +149,7 @@ def test_messages_misc_local_branches(svc_cfg):
     assert s._find_quote_row_by_courier({"last_quote_rows": [{"courier": "顺丰"}]}, "圆通") is None
 
     assert "可选渠道：顺丰" in s._build_available_couriers_hint({"last_quote_rows": [{"courier": "顺丰"}]})
-    assert "请先按格式发送" in s._build_available_couriers_hint({"last_quote_rows": [{"courier": ""}]})
+    assert "麻烦先发一下路线和重量" in s._build_available_couriers_hint({"last_quote_rows": [{"courier": ""}]})
 
     req, missing = s._build_quote_request("你好")
     assert req is None and set(missing) == {"origin", "destination", "weight"}

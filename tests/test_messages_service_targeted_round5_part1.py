@@ -84,10 +84,12 @@ def test_quote_candidate_couriers_and_compose(cfg):
     couriers = s._resolve_quote_candidate_couriers(req)
     assert couriers[:3] == ["A", "B", "C"]
 
-    q1 = SimpleNamespace(total_fee=10.0, eta_minutes=1440, explain={"matched_origin": "杭州", "matched_destination": "上海"})
+    q1 = SimpleNamespace(
+        total_fee=10.0, eta_minutes=1440, explain={"matched_origin": "杭州", "matched_destination": "上海"}
+    )
     q2 = SimpleNamespace(total_fee=12.0, eta_minutes=2880, explain={})
     text = s._compose_multi_courier_quote_reply([("圆通", q1), ("中通", q2)])
-    assert "可选快递报价" in text and "圆通" in text
+    assert "报价已为您查好" in text and "圆通" in text
 
 
 @pytest.mark.asyncio

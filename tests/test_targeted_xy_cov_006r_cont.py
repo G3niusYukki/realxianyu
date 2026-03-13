@@ -160,7 +160,8 @@ async def test_listing_verify_update_delete_raise_without_controller() -> None:
 
 def test_reply_engine_virtual_default_fallback_branch() -> None:
     engine = ReplyStrategyEngine(default_reply="默认", virtual_default_reply="虚拟回复")
-    assert engine.generate_reply("你好", item_title="超值会员卡").endswith("虚拟回复")
+    reply, blocked = engine.generate_reply("你好", item_title="超值会员卡")
+    assert reply.endswith("虚拟回复")
 
 
 def test_info_extractor_extract_fast_empty_message_returns_default() -> None:

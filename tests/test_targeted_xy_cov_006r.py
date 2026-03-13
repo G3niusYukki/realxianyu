@@ -77,12 +77,14 @@ def test_messages_context_and_exception_fallback_paths(msg_service: MessagesServ
             "last_quote_rows": [{"courier": "圆通", "total_fee": "oops", "eta_days": "2天"}],
         }
     )
-    assert "已为你锁定 圆通" in reply
+    assert "已为您锁定 圆通" in reply
     assert matched is True
 
 
 def test_messages_empty_and_compliance(msg_service: MessagesService, monkeypatch):
-    assert "请先按格式发送" in msg_service._build_available_couriers_hint({"last_quote_rows": [{"courier": ""}]})
+    assert "麻烦先发一下路线和重量" in msg_service._build_available_couriers_hint(
+        {"last_quote_rows": [{"courier": ""}]}
+    )
     assert msg_service._detect_courier_choice("  圆通  ") == "圆通"
 
     assert msg_service._sanitize_reply("加微信聊") == msg_service.safe_fallback_reply
@@ -116,10 +118,14 @@ def test_cost_table_xlsx_xml_edge_paths(tmp_path: Path):
         assert repo._read_sheet_paths(zf) == []
         assert repo._read_shared_strings(zf) == []
 
-    cell_s_bad = ET.fromstring('<c xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" t="s"><v>not-int</v></c>')
+    cell_s_bad = ET.fromstring(
+        '<c xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" t="s"><v>not-int</v></c>'
+    )
     assert repo._read_cell_value(cell_s_bad, ["x"]) == ""
 
-    cell_s_idx = ET.fromstring('<c xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" t="s"><v>5</v></c>')
+    cell_s_idx = ET.fromstring(
+        '<c xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" t="s"><v>5</v></c>'
+    )
     assert repo._read_cell_value(cell_s_idx, ["x"]) == ""
 
     cell_v = ET.fromstring('<c xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><v>42</v></c>')

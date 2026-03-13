@@ -189,22 +189,22 @@ class TestGenerateReply:
 
     def test_default_reply(self):
         engine = _make_engine(compliance_enabled=False)
-        reply = engine.generate_reply("完全不匹配的消息")
+        reply, blocked = engine.generate_reply("完全不匹配的消息")
         assert "默认回复" in reply
 
     def test_virtual_context_reply(self):
         engine = _make_engine(compliance_enabled=False)
-        reply = engine.generate_reply("想咨询一下", item_title="卡密商品")
+        reply, blocked = engine.generate_reply("想咨询一下", item_title="卡密商品")
         assert "虚拟商品默认回复" in reply or "默认回复" in reply
 
     def test_with_item_title(self):
         engine = _make_engine(compliance_enabled=False)
-        reply = engine.generate_reply("在吗？", item_title="测试商品")
+        reply, blocked = engine.generate_reply("在吗？", item_title="测试商品")
         assert "测试商品" in reply
 
     def test_with_prefix(self):
         engine = _make_engine(reply_prefix="[BOT] ", compliance_enabled=False)
-        reply = engine.generate_reply("在吗？")
+        reply, blocked = engine.generate_reply("在吗？")
         assert reply.startswith("[BOT] ")
 
     def test_compliance_blocks(self):
@@ -212,7 +212,7 @@ class TestGenerateReply:
         mock_guard = MagicMock()
         mock_guard.evaluate_content.return_value = {"blocked": True, "hits": ["bad"]}
         engine._compliance_guard = mock_guard
-        reply = engine.generate_reply("在吗？")
+        reply, blocked = engine.generate_reply("在吗？")
         assert reply == "默认回复"
 
     def test_compliance_passes(self):

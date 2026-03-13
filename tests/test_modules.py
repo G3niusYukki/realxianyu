@@ -211,7 +211,7 @@ async def test_messages_quote_request_generates_quote(mock_controller) -> None:
 
     assert detail["is_quote"] is True
     assert detail["quote_success"] is True
-    assert "首单价格" in detail["reply"] or "可选快递报价" in detail["reply"]
+    assert ("参考价格" in detail["reply"]) or ("报价已为您查好" in detail["reply"])
     assert "预计" in detail["reply"]
     assert result["quote_success_rate"] == 1.0
 
@@ -239,7 +239,7 @@ async def test_messages_quote_request_single_courier_mode(mock_controller) -> No
 
     assert detail["is_quote"] is True
     assert detail["quote_success"] is True
-    assert "首单价格" in detail["reply"]
+    assert "参考价格" in detail["reply"]
     assert "quote_all_couriers" not in detail
 
 
@@ -287,10 +287,9 @@ async def test_messages_strict_format_mode_forces_standard_template(mock_control
     result = await service.auto_reply_unread(limit=5, dry_run=True)
     detail = result["details"][0]
 
-    assert detail["is_quote"] is True
-    assert detail["quote_need_info"] is True
-    assert detail["format_enforced"] is True
-    assert "为了给你报最准确的价格" in detail["reply"]
+    # PR #58 变更：匹配到规则时优先返回规则回复，不再强制格式
+    assert detail.get("is_quote") is False
+    assert detail.get("rule_matched") is not None
 
 
 @pytest.mark.asyncio
@@ -383,7 +382,7 @@ async def test_messages_quote_context_completes_on_followup_weight(mock_controll
     )
     assert second["is_quote"] is True
     assert second["quote_success"] is True
-    assert ("可选快递报价" in second["reply"]) or ("首单价格" in second["reply"])
+    assert ("报价已为您查好" in second["reply"]) or ("参考价格" in second["reply"])
 
 
 @pytest.mark.asyncio
@@ -425,7 +424,7 @@ async def test_messages_courier_choice_returns_checkout_guide(mock_controller) -
     assert choose["is_quote"] is False
     assert choose["courier_locked"] is True
     assert "先拍下链接" in choose["reply"]
-    assert "无需提供" in choose["reply"]
+    assert "不需要提供" in choose["reply"]
 
 
 @pytest.mark.asyncio
