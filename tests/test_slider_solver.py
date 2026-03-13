@@ -224,3 +224,65 @@ class TestHelperFunctions:
         config = _get_slider_config({"slider_auto_solve": {}})
         assert config["enabled"] is False
         assert config["max_attempts"] == 2
+
+
+class TestCookieExtraction:
+    """Test cookie extraction functions."""
+
+    def test_extract_goofish_cookies_with_valid_cookies(self):
+        """Should extract goofish cookies."""
+        from src.core.slider_solver import _extract_goofish_cookies
+
+        cookies = [
+            {"name": "unb", "value": "12345" + "x" * 50, "domain": ".goofish.com"},
+            {"name": "cookie2", "value": "abcde" + "y" * 50, "domain": ".taobao.com"},
+        ]
+        result = _extract_goofish_cookies(cookies)
+        assert result is not None
+        assert "unb=" in result
+        assert "cookie2=" in result
+
+    def test_extract_goofish_cookies_with_no_goofish_cookies(self):
+        """Should return None if no goofish cookies."""
+        from src.core.slider_solver import _extract_goofish_cookies
+
+        cookies = [
+            {"name": "session", "value": "xyz", "domain": ".example.com"},
+        ]
+        result = _extract_goofish_cookies(cookies)
+        assert result is None
+
+    def test_extract_goofish_cookies_too_short(self):
+        """Should return None if cookie string too short."""
+        from src.core.slider_solver import _extract_goofish_cookies
+
+        cookies = [{"name": "x", "value": "y", "domain": ".goofish.com"}]
+        result = _extract_goofish_cookies(cookies)
+        assert result is None
+
+    def test_has_login_cookies_with_auth_cookie(self):
+        """Should detect login cookies."""
+        from src.core.slider_solver import _has_login_cookies
+
+        cookies = [{"name": "unb", "value": "12345"}]
+        assert _has_login_cookies(cookies) is True
+
+    def test_has_login_cookies_with_cookie2(self):
+        """Should detect cookie2."""
+        from src.core.slider_solver import _has_login_cookies
+
+        cookies = [{"name": "cookie2", "value": "abcde"}]
+        assert _has_login_cookies(cookies) is True
+
+    def test_has_login_cookies_no_auth(self):
+        """Should return False if no auth cookies."""
+        from src.core.slider_solver import _has_login_cookies
+
+        cookies = [{"name": "random", "value": "value"}]
+        assert _has_login_cookies(cookies) is False
+
+    def test_has_login_cookies_empty(self):
+        """Should handle empty cookies."""
+        from src.core.slider_solver import _has_login_cookies
+
+        assert _has_login_cookies([]) is False
