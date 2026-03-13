@@ -1475,7 +1475,11 @@ class MimicOps:
                     return (
                         "触发平台风控（RGV587），系统正在自动尝试滑块验证...\n"
                         "如自动验证失败，会弹出浏览器窗口，请手动完成滑块拖动。\n"
-                        + ("CookieCloud 即时同步已启用，验证后秒级恢复。" if cc else "验证后请手动复制 Cookie 粘贴保存。")
+                        + (
+                            "CookieCloud 即时同步已启用，验证后秒级恢复。"
+                            if cc
+                            else "验证后请手动复制 Cookie 粘贴保存。"
+                        )
                     )
                 if cc:
                     return (
@@ -1503,9 +1507,8 @@ class MimicOps:
                 return "连接通道异常，请先点“售前一键恢复”；若持续失败再更新 Cookie。"
             if t in ("RGV587", "RGV587_SERVER_BUSY"):
                 if slider_auto:
-                    return (
-                        "触发平台风控，系统正在自动尝试滑块验证。"
-                        + (" CookieCloud 即时同步已启用，验证后秒级恢复。" if cc else "")
+                    return "触发平台风控，系统正在自动尝试滑块验证。" + (
+                        " CookieCloud 即时同步已启用，验证后秒级恢复。" if cc else ""
                     )
                 if cc:
                     return (
@@ -1566,6 +1569,7 @@ class MimicOps:
         }
         try:
             from src.modules.messages.ws_live import notify_ws_cookie_changed
+
             notify_ws_cookie_changed()
         except Exception:
             pass
@@ -1906,6 +1910,7 @@ class MimicOps:
         self._set_env_value("XIANYU_COOKIE_1", cookie_text)
         try:
             from src.modules.messages.ws_live import notify_ws_cookie_changed
+
             notify_ws_cookie_changed()
         except Exception:
             pass
@@ -3137,12 +3142,24 @@ class MimicOps:
             "updated_at": _now_iso(),
         }
         if not fp.exists():
-            return {"level": "unknown", "label": "未检测（无日志）", "score": 0, "signals": ["日志文件不存在"], **_empty}
+            return {
+                "level": "unknown",
+                "label": "未检测（无日志）",
+                "score": 0,
+                "signals": ["日志文件不存在"],
+                **_empty,
+            }
 
         try:
             lines = fp.read_text(encoding="utf-8", errors="ignore").splitlines()
         except Exception as e:
-            return {"level": "unknown", "label": "未检测（读取失败）", "score": 0, "signals": [f"日志读取失败: {e}"], **_empty}
+            return {
+                "level": "unknown",
+                "label": "未检测（读取失败）",
+                "score": 0,
+                "signals": [f"日志读取失败: {e}"],
+                **_empty,
+            }
 
         tail_n = max(50, min(int(tail_lines or 300), 2000))
         recent = [self._strip_ansi(line) for line in lines[-tail_n:] if str(line or "").strip()]
@@ -3209,7 +3226,9 @@ class MimicOps:
             level = "stale"
             label = "历史风控（已过期）"
             score = 0
-            signals = [f"历史高风险信号 x{len(stale_blocks)}（最后于 {last_block_time}，已超过 {self._RISK_SIGNAL_WINDOW_MINUTES} 分钟）"]
+            signals = [
+                f"历史高风险信号 x{len(stale_blocks)}（最后于 {last_block_time}，已超过 {self._RISK_SIGNAL_WINDOW_MINUTES} 分钟）"
+            ]
             last_event = stale_blocks[-1][1]
         elif len(active_ws400) >= 10 or active_warns:
             level = "warning"
@@ -3228,7 +3247,9 @@ class MimicOps:
             level = "stale"
             label = "历史风控（已过期）"
             score = 0
-            signals = [f"历史异常信号 x{stale_total}（最后于 {last_stale_time}，已超过 {self._RISK_SIGNAL_WINDOW_MINUTES} 分钟）"]
+            signals = [
+                f"历史异常信号 x{stale_total}（最后于 {last_stale_time}，已超过 {self._RISK_SIGNAL_WINDOW_MINUTES} 分钟）"
+            ]
             last_event = last_stale[1]
 
         last_connected_at = ""
@@ -3252,7 +3273,9 @@ class MimicOps:
 
         if level in ("blocked", "warning") and self._last_auto_recover_at:
             try:
-                recover_dt = datetime.fromisoformat(self._last_auto_recover_at.replace("Z", "+00:00")).replace(tzinfo=None)
+                recover_dt = datetime.fromisoformat(self._last_auto_recover_at.replace("Z", "+00:00")).replace(
+                    tzinfo=None
+                )
                 last_risk_line = (active_blocks or active_warns or active_ws400 or [(-1, "")])[-1][1]
                 last_risk_dt = self._parse_log_datetime(last_risk_line)
                 if last_risk_dt and recover_dt > last_risk_dt:
@@ -3546,7 +3569,11 @@ class MimicOps:
             "cookie_update_required": cookie_update_required,
             "cookie_cloud_configured": cc_configured,
             "slider_auto_solve_enabled": bool(
-                get_config().get_section("messages", {}).get("ws", {}).get("slider_auto_solve", {}).get("enabled", False)
+                get_config()
+                .get_section("messages", {})
+                .get("ws", {})
+                .get("slider_auto_solve", {})
+                .get("enabled", False)
             ),
             "user_id": user_id,
             "last_token_refresh": risk_control.get("last_event_at") if token_error is None else None,
@@ -3792,13 +3819,18 @@ class DashboardHandler(BaseHTTPRequestHandler):
                         ts = str(int(time.time()))
                         if mode == "business" and seller_id:
                             sig = sign_business_request(
-                                app_key=app_key, app_secret=app_secret,
-                                seller_id=seller_id, timestamp=ts, body=detail_body,
+                                app_key=app_key,
+                                app_secret=app_secret,
+                                seller_id=seller_id,
+                                timestamp=ts,
+                                body=detail_body,
                             )
                         else:
                             sig = sign_open_platform_request(
-                                app_key=app_key, app_secret=app_secret,
-                                timestamp=ts, body=detail_body,
+                                app_key=app_key,
+                                app_secret=app_secret,
+                                timestamp=ts,
+                                body=detail_body,
                             )
                         detail_resp = hc.post(
                             f"{base_url}/api/open/product/detail",
@@ -4093,7 +4125,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
             "data": panel_payload,
         }
 
-    _CC_UUID_RE = re.compile(r'^[a-zA-Z0-9_-]+$')
+    _CC_UUID_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
 
     def _handle_cookie_cloud(self, sub_path: str, method: str) -> None:
         cc_dir = Path(__file__).resolve().parents[1] / "server" / "data" / "cookie_cloud"
@@ -4116,7 +4148,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self._send_json({"action": "done", "cookie_applied": cookie_applied})
             return
 
-        m = re.match(r'^/get/([a-zA-Z0-9_-]+)$', sub_path)
+        m = re.match(r"^/get/([a-zA-Z0-9_-]+)$", sub_path)
         if m:
             uuid_val = m.group(1)
             fp = cc_dir / f"{uuid_val}.json"
@@ -4133,6 +4165,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
             if pwd and data.get("encrypted"):
                 try:
                     from src.core.cookie_grabber import CookieGrabber
+
                     key_hash = hashlib.md5(f"{uuid_val}-{pwd}".encode()).hexdigest()[:16]
                     decrypted = CookieGrabber._decrypt_cookiecloud(data["encrypted"], key_hash)
                     if decrypted:
@@ -4161,7 +4194,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
                     cc = cfg.get("cookie_cloud", {}) if isinstance(cfg.get("cookie_cloud"), dict) else {}
                     uuid_val = uuid_val or str(cc.get("cookie_cloud_uuid") or cfg.get("cookie_cloud_uuid", "")).strip()
-                    password = password or str(cc.get("cookie_cloud_password") or cfg.get("cookie_cloud_password", "")).strip()
+                    password = (
+                        password or str(cc.get("cookie_cloud_password") or cfg.get("cookie_cloud_password", "")).strip()
+                    )
             except Exception:
                 pass
         return uuid_val, password
@@ -4216,7 +4251,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
         try:
             if path.startswith("/cookie-cloud/") or path == "/cookie-cloud":
-                self._handle_cookie_cloud(path[len("/cookie-cloud"):].rstrip("/") or "/", method="GET")
+                self._handle_cookie_cloud(path[len("/cookie-cloud") :].rstrip("/") or "/", method="GET")
                 return
 
             if path == "/healthz":
@@ -5030,7 +5065,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
         try:
             if path.startswith("/cookie-cloud/") or path == "/cookie-cloud":
-                self._handle_cookie_cloud(path[len("/cookie-cloud"):].rstrip("/") or "/", method="POST")
+                self._handle_cookie_cloud(path[len("/cookie-cloud") :].rstrip("/") or "/", method="POST")
                 return
 
             if path == "/api/orders/remind":
@@ -5043,9 +5078,12 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
                 try:
                     from src.modules.followup.service import FollowUpEngine
+
                     engine = FollowUpEngine.from_system_config()
                 except Exception as init_err:
-                    self._send_json({"ok": False, "error": f"催单引擎初始化失败: {init_err}", "reason": "engine_init_error"})
+                    self._send_json(
+                        {"ok": False, "error": f"催单引擎初始化失败: {init_err}", "reason": "engine_init_error"}
+                    )
                     return
 
                 if not getattr(engine, "_reminder_enabled", True):
@@ -5628,9 +5666,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     resp_data = resp.json()
 
                     if api_path == "/api/open/product/list":
-                        self._enrich_product_images(
-                            resp_data, base_url, app_key, app_secret, mode, seller_id
-                        )
+                        self._enrich_product_images(resp_data, base_url, app_key, app_secret, mode, seller_id)
 
                     self._send_json({"ok": True, "data": resp_data})
                 except Exception as exc:
@@ -5776,7 +5812,7 @@ def run_server(host: str = "127.0.0.1", port: int = 8091, db_path: str | None = 
                 status_result = module_console.status(window_minutes=5, limit=5)
                 modules = status_result.get("items") or status_result.get("modules") or []
                 presales_running = False
-                for m in (modules if isinstance(modules, list) else []):
+                for m in modules if isinstance(modules, list) else []:
                     if isinstance(m, dict) and m.get("name") == "presales" and m.get("status") == "running":
                         presales_running = True
                         break
@@ -5794,6 +5830,7 @@ def run_server(host: str = "127.0.0.1", port: int = 8091, db_path: str | None = 
                     if _wd_restart_count >= _WD_MAX_RESTARTS:
                         try:
                             from src.core.notify import send_system_notification
+
                             send_system_notification(
                                 f"【闲鱼自动化】⚠️ presales 模块连续 {_WD_MAX_RESTARTS} 次异常重启，"
                                 f"进入 {_WD_COOLDOWN // 60} 分钟静默期。请检查日志排查问题。",
