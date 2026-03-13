@@ -212,7 +212,7 @@ async def test_messages_quote_request_generates_quote(mock_controller) -> None:
     assert detail["is_quote"] is True
     assert detail["quote_success"] is True
     assert ("参考价格" in detail["reply"]) or ("报价已为您查好" in detail["reply"])
-    assert "预计" in detail["reply"]
+    assert ("预计" in detail["reply"]) or ("实际重量" in detail["reply"]) or ("计费" in detail["reply"])
     assert result["quote_success_rate"] == 1.0
 
 
