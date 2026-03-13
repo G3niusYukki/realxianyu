@@ -158,6 +158,16 @@ def _sync_system_config_to_yaml(sys_config: dict[str, Any]) -> None:
             if kw_dict:
                 msgs["keyword_replies"] = kw_dict
                 changed = True
+        custom_rules = ar.get("custom_intent_rules")
+        if isinstance(custom_rules, list):
+            msgs["intent_rules"] = [
+                {k: v for k, v in r.items() if k in (
+                    "name", "keywords", "reply", "patterns", "priority",
+                    "categories", "needs_human", "human_reason", "phase", "skip_reply",
+                )}
+                for r in custom_rules if isinstance(r, dict) and r.get("name")
+            ]
+            changed = True
 
     for section_key in ("pricing", "delivery"):
         sec = sys_config.get(section_key)
@@ -4948,11 +4958,69 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     yaml_slider = get_config().get_section("messages", {}).get("ws", {}).get("slider_auto_solve", {})
                     if isinstance(yaml_slider, dict) and yaml_slider:
                         cfg["slider_auto_solve"] = yaml_slider
+                ar = cfg.get("auto_reply")
+                if isinstance(ar, dict) and "custom_intent_rules" not in ar:
+                    yaml_rules = get_config().get_section("messages", {}).get("intent_rules", [])
+                    if isinstance(yaml_rules, list) and yaml_rules:
+                        ar["custom_intent_rules"] = yaml_rules
                 self._send_json({"ok": True, "config": cfg})
                 return
 
             if path == "/api/config/sections":
                 self._send_json({"ok": True, "sections": _CONFIG_SECTIONS})
+                return
+
+            if path == "/api/intent-rules":
+                from src.modules.messages.reply_engine import DEFAULT_INTENT_RULES, ReplyStrategyEngine
+                sys_cfg = _read_system_config()
+                ar = sys_cfg.get("auto_reply", {})
+                custom_rules = ar.get("custom_intent_rules", [])
+                if not isinstance(custom_rules, list):
+                    custom_rules = []
+                yaml_rules = get_config().get_section("messages", {}).get("intent_rules", [])
+                if isinstance(yaml_rules, list) and yaml_rules and not custom_rules:
+                    custom_rules = yaml_rules
+                custom_names = {r.get("name") for r in custom_rules if isinstance(r, dict)}
+
+                kw_text = ar.get("keyword_replies_text", "")
+                kw_replies: dict[str, str] = {}
+                if isinstance(kw_text, str) and kw_text.strip():
+                    for line in kw_text.strip().splitlines():
+                        line = line.strip()
+                        if "=" in line:
+                            k, v = line.split("=", 1)
+                            k, v = k.strip(), v.strip()
+                            if k and v:
+                                kw_replies[k] = v
+
+                result: list[dict[str, Any]] = []
+                for r in DEFAULT_INTENT_RULES:
+                    entry = dict(r)
+                    if entry.get("name") in custom_names:
+                        entry["source"] = "overridden"
+                    else:
+                        entry["source"] = "builtin"
+                    result.append(entry)
+                for r in custom_rules:
+                    if not isinstance(r, dict) or not r.get("name"):
+                        continue
+                    entry = dict(r)
+                    if entry["name"] not in {d.get("name") for d in DEFAULT_INTENT_RULES}:
+                        entry["source"] = "custom"
+                    else:
+                        entry["source"] = "custom"
+                    result.append(entry)
+                for keyword, reply in kw_replies.items():
+                    result.append({
+                        "name": f"legacy_{keyword}",
+                        "keywords": [keyword],
+                        "reply": reply,
+                        "priority": 30,
+                        "categories": [],
+                        "phase": "",
+                        "source": "keyword",
+                    })
+                self._send_json({"ok": True, "rules": result})
                 return
 
             # ---------- SPA static file serving ----------
@@ -5032,7 +5100,14 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     current[section] = {**(current.get(section) or {}), **clean}
                 _write_system_config(current)
                 _sync_system_config_to_yaml(current)
-                get_config.cache_clear()
+                get_config().reload()
+                try:
+                    from src.modules.messages.service import _active_service
+                    if _active_service is not None:
+                        _active_service.reload_rules()
+                        logger.info("Hot-reloaded reply rules after config save")
+                except Exception as exc:
+                    logger.warning("Failed to hot-reload rules: %s", exc)
                 self._send_json({"ok": True, "message": "Configuration updated", "config": current})
                 return
 

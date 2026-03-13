@@ -162,13 +162,26 @@ xianyu-openclaw/
 - 闲鱼 Cookie
 - AI API Key（如需自动回复 / 内容生成）
 
-### 方式一：本地一键启动
+### 方式一：交互式快速启动（推荐新用户）
 
 ```bash
 git clone https://github.com/G3niusYukki/xianyu-openclaw.git
 cd xianyu-openclaw
 cp .env.example .env
 
+# 2. 交互式启动（含引导 + 状态检查）
+# macOS / Linux
+bash quick-start.sh
+
+# Windows
+quick-start.bat
+```
+
+带交互引导的启动脚本，自动完成：环境检查 → 依赖安装 → 配置校验 → 服务启动 → 首次使用引导。
+
+### 方式二：精简一键启动
+
+```bash
 # macOS / Linux
 ./start.sh
 
@@ -176,17 +189,9 @@ cp .env.example .env
 start.bat
 ```
 
-启动脚本会自动：
+功能同上但无交互引导，适合已配置好的环境直接启动。
 
-1. 创建 Python 虚拟环境
-2. 安装 Python / Node.js 依赖
-3. 安装 Playwright Chromium
-4. 启动：
-   - React 前端：`http://localhost:5173`
-   - Node 后端：`http://localhost:3001`
-   - Python Dashboard：`http://localhost:8091`
-
-### 方式二：手动启动
+### 方式三：手动安装
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
@@ -532,4 +537,51 @@ git push origin feature/your-change
 
 ## 📄 License
 
-MIT
+### Introduction
+
+**Xianyu OpenClaw** is an API-first full-automation workbench designed for virtual goods sellers on Xianyu (Goofish), China's largest second-hand trading platform.
+
+By connecting directly to Xianyu's message channel via WebSocket and combining AI for intelligent replies, automatic quoting, product management, and order fulfillment, it helps sellers achieve 7×24 hour unattended operation.
+
+### Key Features
+
+- **Message Automation** — WebSocket direct connection, AI intent recognition, double-layer deduplication
+- **Product Automation** — AI content generation, automatic listing, price monitoring
+- **Order Automation** — Automatic delivery for virtual goods, logistics sync, after-sales handling
+- **Monitoring & Alerting** — Cookie health monitoring, multi-channel alerts (Lark/WeCom), real-time dashboard
+
+### Quick Start
+
+```bash
+git clone https://github.com/G3niusYukki/xianyu-openclaw.git
+cd xianyu-openclaw
+
+# Interactive quick start (recommended for new users)
+# macOS / Linux
+bash quick-start.sh
+# Windows: quick-start.bat
+
+# Or one-click start (no guide):
+# ./start.sh  or  start.bat
+
+# Or manual install:
+python3 -m venv .venv && source .venv/bin/activate  # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+playwright install chromium    # Required for cookie auto-grab
+cd server && npm install && cd ../client && npm install && cd ..
+cp .env.example .env
+# Edit .env with your Cookie and AI Key
+```
+
+Access:
+- Frontend: http://localhost:5173
+- Python API: http://localhost:8091
+- Node API: http://localhost:3001
+
+---
+
+<div align="center">
+
+Made with ❤️ by G3niusYukki
+
+</div>
