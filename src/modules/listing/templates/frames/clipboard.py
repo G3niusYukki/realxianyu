@@ -83,6 +83,6 @@ def render(params: dict[str, Any], theme: dict[str, str]) -> str:
             ▪▪▪ {tagline} ▪▪▪
         </div>
     </div>
-</div>"""
+'''
 
     return wrap_page(body, bg="#e9f5ed")

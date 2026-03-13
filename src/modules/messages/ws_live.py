@@ -464,10 +464,9 @@ class GoofishWsTransport:
         """Poll CookieCloud for fresh cookies. Returns True=applied, False=no change, None=not configured."""
         try:
             from src.core.cookie_grabber import CookieGrabber
-            loop = asyncio.get_running_loop()
+
             grabber = CookieGrabber()
 
-            host = os.environ.get("COOKIE_CLOUD_HOST", "").strip()
             uuid_val = os.environ.get("COOKIE_CLOUD_UUID", "").strip()
             pwd = os.environ.get("COOKIE_CLOUD_PASSWORD", "").strip()
             if not uuid_val or not pwd:
@@ -562,6 +561,7 @@ class GoofishWsTransport:
             if not cc_uuid or not cc_pwd:
                 try:
                     from src.dashboard.config_service import read_system_config
+
                     cc_cfg = read_system_config().get("cookie_cloud", {})
                     if isinstance(cc_cfg, dict):
                         cc_uuid = cc_uuid or str(cc_cfg.get("cookie_cloud_uuid", "")).strip()
@@ -616,6 +616,7 @@ class GoofishWsTransport:
                         self._seen_event.clear()
                         try:
                             from src.core.notify import send_system_notification
+
                             send_system_notification(
                                 "【闲鱼自动化】✅ 风控滑块验证已通过\nCookie 已自动恢复，WS 即将重连",
                                 event="risk_control",
@@ -627,6 +628,7 @@ class GoofishWsTransport:
                 self.logger.info("Slider solved but cookie incomplete, waiting for CookieCloud sync...")
                 try:
                     from src.core.notify import send_system_notification
+
                     send_system_notification(
                         "【闲鱼自动化】✅ 滑块验证已通过\n"
                         "但自动提取的 Cookie 不完整，请在 CookieCloud 扩展中点「手动同步」完成恢复",
@@ -672,7 +674,7 @@ class GoofishWsTransport:
 
     def _dedup_cookies(self) -> None:
         """去除 self.cookies 中的重复项并重建 cookie_text。
-        
+
         对齐 XianyuAutoAgent 的 clear_duplicate_cookies() 逻辑。
         """
         deduped: dict[str, str] = {}

@@ -21,7 +21,11 @@ def render(params: dict[str, Any], theme: dict[str, str]) -> str:
     primary = theme.get("primary", "#4b75c4")
 
     grid = brand_grid_html(
-        brand_items, shape="circle", size=140, gap=20, max_cols=4,
+        brand_items,
+        shape="circle",
+        size=140,
+        gap=20,
+        max_cols=4,
     )
 
     spirals = ""
@@ -29,17 +33,17 @@ def render(params: dict[str, Any], theme: dict[str, str]) -> str:
         top = 40 + i * 60
         spirals += (
             f'<div style="position:absolute;left:-20px;top:{top}px;'
-            'width:40px;height:12px;background-color:#a0aec0;border-radius:6px;'
+            "width:40px;height:12px;background-color:#a0aec0;border-radius:6px;"
             'box-shadow:inset 0 3px 6px rgba(0,0,0,0.3);z-index:5;">'
             '<div style="position:absolute;right:-10px;top:-4px;width:20px;height:20px;'
-            'background-color:#dce5f5;border-radius:50%;'
+            "background-color:#dce5f5;border-radius:50%;"
             'border-left:1px solid #b0c4de;"></div></div>\n'
         )
 
     tagline_parts = tagline.split(" ")
     tagline_display = " | ".join(tagline_parts) if len(tagline_parts) > 1 else tagline
 
-    body = f'''
+    body = f"""
 <div style="width:1080px;height:1080px;background-color:#dce5f5;
     display:flex;padding:40px;position:relative;">
 
