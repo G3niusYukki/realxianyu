@@ -40,32 +40,29 @@ class MessageSelectors:
 
 
 DEFAULT_WEIGHT_REPLY_TEMPLATE = (
-    "{origin_province}到{dest_province} {billing_weight}kg 首单价格\n"
+    "{origin_province}到{dest_province} {billing_weight}kg 参考价格\n"
     "{courier}: {price} 元\n"
-    "预计时效：{eta_days}\n"
-    "重要提示：\n"
-    "体积重大于实际重量时按体积计费！"
+    "温馨提示：如包裹体积较大，快递会按体积重计费（长x宽x高/8000），届时可能需要补差价哦~"
 )
 
 DEFAULT_VOLUME_REPLY_TEMPLATE = (
-    "{origin_province}到{dest_province} {billing_weight}kg 首单价格\n"
+    "{origin_province}到{dest_province} {billing_weight}kg 参考价格\n"
     "体积重规则：{volume_formula}\n"
     "{courier}: {price} 元\n"
-    "预计时效：{eta_days}\n"
-    "重要提示：\n"
-    "体积重大于实际重量时按体积计费！"
+    "温馨提示：本次已按体积重计费，如实际体积有出入可能需要补差价哦~"
 )
 
 DEFAULT_NON_EMPTY_REPLY_FALLBACK = (
-    "您好！如需快递报价，请提供以下信息：\n寄件城市 - 收件城市 - 重量（kg）\n格式示例：广东省 - 浙江省 - 3kg"
+    "您好！发送 寄件城市 - 收件城市 - 重量 就能帮您查最优价格哦~\n示例：广东省 - 浙江省 - 3kg"
 )
 DEFAULT_COURIER_LOCK_TEMPLATE = (
-    "已为你锁定 {courier}（{price}，预计{eta_days}）。\n"
+    "好的，已为您锁定 {courier}（{price}）~\n"
     "下单流程：\n"
     "1. 先拍下链接，先不要付款；\n"
-    "2. 我改价后你再付款；\n"
-    "3. 付款后系统自动发放兑换码，用兑换码到小橙序下单即可。\n"
-    "付款后的地址和手机号在小橙序填写，这里无需提供。"
+    "2. 我改价后您再付款；\n"
+    "3. 付款后系统自动发兑换码，到小橙序下单即可。\n"
+    "地址和手机号在小橙序填写就好，这边不需要提供哦~\n"
+    "提醒：以上为参考价，首次使用小橙序的手机号可享额外优惠哦~"
 )
 
 
@@ -412,12 +409,15 @@ class MessagesService:
             first_explain.get("matched_destination") or first_explain.get("normalized_destination") or "收件地"
         )
 
-        lines = [f"{origin} -> {destination} 可选快递报价（可自行挑选）："]
+        lines = [f"亲，{origin} -> {destination} 的报价已为您查好~"]
         for index, (courier_name, result) in enumerate(quote_rows, start=1):
-            eta = self._format_eta_days(result.eta_minutes)
-            lines.append(f"{index}. {courier_name}：{float(result.total_fee):.2f}元（预计{eta}）")
-        lines.append("回复“选XX快递”即可按对应渠道安排。")
-        lines.append("下单流程：先拍下链接不付款→我改价后再付款→系统自动发兑换码，用兑换码到小橙序下单。")
+            lines.append(f"{index}. {courier_name}：{float(result.total_fee):.2f}元")
+        lines.append("回复“选XX快递”帮您锁定价格哦~")
+        lines.append("下单流程：先拍下链接不付款 → 我改价 → 付款后自动发兑换码，到小橙序下单即可~")
+        lines.append(
+            "温馨提示：以上按实际重量计算，如包裹体积较大（体积重=长x宽x高/8000），快递按较大值计费，届时可能需补差价哦~"
+        )
+        lines.append("提醒：以上为参考价，首次使用小橙序的手机号可享额外优惠~")
         return "\n".join(lines)
 
     def _should_use_ws_transport(self) -> bool:
@@ -598,6 +598,46 @@ class MessagesService:
         compact_text = re.sub(r"\s+", "", text)
         return any(keyword in compact_text for keyword in self.standard_format_trigger_keywords)
 
+    _SHIPPING_SIGNAL_STRONG = frozenset(
+        {
+            "快递",
+            "物流",
+            "包裹",
+            "运费",
+            "邮费",
+            "重量",
+            "公斤",
+            "寄到",
+            "发到",
+            "送到",
+            "寄件",
+            "发件",
+            "收件",
+            "报价",
+            "多少钱",
+            "价格",
+        }
+    )
+
+    _SHIPPING_SIGNAL_RE = re.compile(
+        r"\d+\s*(?:kg|公斤|斤|g|克)\b"
+        r"|[\u4e00-\u9fa5]{2,6}(?:省|市|区|县|镇)"
+        r"|[\u4e00-\u9fa5]{2,10}\s*(?:到|寄到|发到)\s*[\u4e00-\u9fa5]{2,10}"
+        r"|[\u4e00-\u9fa5]{2,10}\s*[~～\-—]\s*[\u4e00-\u9fa5]{2,10}",
+        flags=re.IGNORECASE,
+    )
+
+    def _has_shipping_signal(self, message_text: str) -> bool:
+        """判断消息是否包含足够的快递/物流意图信号，避免无关消息被 strict_format 强制走报价模板。"""
+        text = (message_text or "").strip()
+        if not text:
+            return False
+        if any(w in text for w in self._SHIPPING_SIGNAL_STRONG):
+            return True
+        if self._SHIPPING_SIGNAL_RE.search(text):
+            return True
+        return False
+
     @staticmethod
     def _extract_weight_kg(message_text: str) -> float | None:
         text = message_text or ""
@@ -653,6 +693,26 @@ class MessagesService:
             return "express"
         return "standard"
 
+    _NON_LOCATION_WORDS = frozenset(
+        {
+            "帮我",
+            "可以",
+            "快递",
+            "怎么",
+            "能不能",
+            "不能",
+            "什么",
+            "这个",
+            "那个",
+            "已经",
+            "需要",
+            "想要",
+            "能否",
+            "请问",
+            "如何",
+        }
+    )
+
     @staticmethod
     def _extract_locations(message_text: str) -> tuple[str | None, str | None]:
         text = message_text or ""
@@ -673,15 +733,19 @@ class MessagesService:
                 r"([\u4e00-\u9fa5]{2,20}(?:省|市|区|县|自治区|特别行政区|自治州|地区)?)"
             ),
             r"([\u4e00-\u9fa5]{2,20}?)\s*(?:寄到|发到|送到|到)\s*([\u4e00-\u9fa5]{2,20})",
+            r"([\u4e00-\u9fa5]{2,4})\s*(?:发(?![了的个件给过货到着])|寄(?![了的个件给过到着]))\s*([\u4e00-\u9fa5]{2,4})",
         ]
         for pattern in patterns:
             m = re.search(pattern, text)
             if m:
-                return m.group(1), m.group(2)
+                origin, dest = m.group(1), m.group(2)
+                if origin in MessagesService._NON_LOCATION_WORDS:
+                    continue
+                return origin, dest
 
         dest = None
         dm = re.search(
-            r"(?:寄到|发到|送到|到)\s*([\u4e00-\u9fa5]{2,20}(?:省|市|区|县|自治区|特别行政区|自治州|地区)?)",
+            r"(?:寄到|发到|送到|发往|寄往|到)\s*([\u4e00-\u9fa5]{2,20}(?:省|市|区|县|自治区|特别行政区|自治州|地区)?)",
             text,
         )
         if dm:
@@ -745,13 +809,68 @@ class MessagesService:
             or context.get("courier_choice")
         )
 
+    _NON_LOCATION_TERMS = frozenset(
+        {
+            "韵达",
+            "圆通",
+            "中通",
+            "申通",
+            "顺丰",
+            "极兔",
+            "德邦",
+            "京东",
+            "邮政",
+            "菜鸟裹裹",
+            "首重",
+            "续重",
+            "快递",
+            "退款",
+            "退货",
+            "报价",
+            "包邮",
+            "发货",
+            "收货",
+            "签收",
+            "下单",
+            "拍下",
+            "改价",
+            "你好",
+            "可以",
+            "不行",
+            "算了",
+            "好的",
+            "谢谢",
+            "没有",
+            "什么",
+            "怎么",
+            "为什么",
+            "不了",
+            "多少",
+            "已经",
+            "帮忙",
+            "能不",
+            "不够",
+            "太贵",
+            "便宜",
+            "优惠",
+            "金额",
+            "余额",
+        }
+    )
+
     @staticmethod
     def _extract_single_location(message_text: str) -> str | None:
         text = (message_text or "").strip()
         if not text:
             return None
         compact = re.sub(r"\s+", "", text)
-        if re.fullmatch(r"[\u4e00-\u9fa5]{2,20}(?:省|市|区|县|自治区|特别行政区|自治州|地区)?", compact):
+        if compact in MessagesService._NON_LOCATION_TERMS:
+            return None
+        # 有行政后缀: 允许 2-10 汉字
+        if re.fullmatch(r"[\u4e00-\u9fa5]{2,10}(?:省|市|区|县|自治区|特别行政区|自治州|地区)", compact):
+            return compact
+        # 无后缀: 仅匹配 2-3 个汉字的短地名（北京、上海、杭州等）
+        if re.fullmatch(r"[\u4e00-\u9fa5]{2,3}", compact):
             return compact
         return None
 
@@ -833,9 +952,17 @@ class MessagesService:
         )
         return request, [], fields, bool(memory_hit_fields)
 
+    _POST_ORDER_EXCLUSIONS = re.compile(
+        r"已付款|已支付|待付款|待发货|等待.*发货|退款|退货|已发货|已签收|已完成|已取消|已关闭"
+        r"|蚂蚁森林|修改价格|已拍下|我已拍下|请双方沟通|请确认价格|你已发货"
+        r"|等待你付款|请包装好|按.*地址发货|交易关闭"
+    )
+
     def _is_quote_followup_candidate(self, message_text: str) -> bool:
         text = (message_text or "").strip()
         if not text:
+            return False
+        if self._POST_ORDER_EXCLUSIONS.search(text):
             return False
         if self._extract_weight_kg(text) is not None:
             return True
@@ -849,7 +976,8 @@ class MessagesService:
         if self._detect_courier_choice(text):
             return True
         if any(k in text for k in ["下单", "拍下", "改价", "付款"]):
-            return True
+            if not any(exclude in text for exclude in ["代下单", "帮我下单", "你帮下"]):
+                return True
         return False
 
     def _detect_courier_choice(self, message_text: str) -> str | None:
@@ -879,10 +1007,14 @@ class MessagesService:
                 return courier
         return None
 
-    @staticmethod
-    def _is_checkout_followup(message_text: str) -> bool:
+    @classmethod
+    def _is_checkout_followup(cls, message_text: str) -> bool:
         text = (message_text or "").strip()
         if not text:
+            return False
+        if cls._POST_ORDER_EXCLUSIONS.search(text):
+            return False
+        if len(text) > 30:
             return False
         keywords = [
             "下单",
@@ -919,15 +1051,15 @@ class MessagesService:
     def _build_available_couriers_hint(self, context: dict[str, Any]) -> str:
         rows = context.get("last_quote_rows")
         if not isinstance(rows, list) or not rows:
-            return "请先按格式发送：xx省 - xx省 - 重量（kg），我先给你出可选渠道报价。"
+            return "麻烦先发一下路线和重量（如：xx省 - xx省 - 重量kg），我帮您查最优渠道~"
         couriers: list[str] = []
         for row in rows:
             name = str(row.get("courier") or "").strip()
             if name and name not in couriers:
                 couriers.append(name)
         if not couriers:
-            return "请先按格式发送：xx省 - xx省 - 重量（kg），我先给你出可选渠道报价。"
-        return f"可选渠道：{'、'.join(couriers)}。回复“选XX快递”即可锁定。"
+            return "麻烦先发一下路线和重量（如：xx省 - xx省 - 重量kg），我帮您查最优渠道~"
+        return f"可选渠道：{'、'.join(couriers)}，回复“选XX快递”帮您锁定哦~"
 
     def _build_courier_lock_reply(self, context: dict[str, Any]) -> tuple[str, bool]:
         courier = str(context.get("courier_choice") or "已选渠道").strip() or "已选渠道"
@@ -945,8 +1077,7 @@ class MessagesService:
             reply = self.courier_lock_template.format(courier=courier, price=price_label, eta_days=eta_days)
         except Exception:
             reply = (
-                f"已为你锁定 {courier}（{price_label}，预计{eta_days}）。\n"
-                "请先拍下链接不要付款，我改价后你再付款。付款后系统会自动发兑换码。"
+                f"好的，已为您锁定 {courier}（{price_label}）~\n先拍下链接不付款，我帮您改价，付款后系统自动发兑换码哦~"
             )
         return reply, bool(row)
 
@@ -1015,22 +1146,15 @@ class MessagesService:
 
         context_after = self._get_quote_context(session_id) if session_id else {}
         has_checkout_context = bool(session_id and context_after.get("courier_choice"))
-        if has_checkout_context and (courier_choice is not None or self._is_checkout_followup(message_text)):
+        has_quote_rows = isinstance(context_after.get("last_quote_rows"), list) and bool(
+            context_after.get("last_quote_rows")
+        )
+        if (
+            has_checkout_context
+            and has_quote_rows
+            and (courier_choice is not None or self._is_checkout_followup(message_text))
+        ):
             selected_courier = str(context_after.get("courier_choice") or "已选渠道")
-            has_quote_rows = isinstance(context_after.get("last_quote_rows"), list) and bool(
-                context_after.get("last_quote_rows")
-            )
-            if not has_quote_rows:
-                prompt = self.quote_missing_template.format(fields="寄件城市、收件城市、包裹重量（kg）")
-                return self._sanitize_reply(prompt), {
-                    "is_quote": True,
-                    "quote_need_info": True,
-                    "quote_missing_fields": ["origin", "destination", "weight"],
-                    "quote_success": False,
-                    "quote_fallback": False,
-                    "quote_context_hit": bool(context_before),
-                }
-
             lock_reply, matched = self._build_courier_lock_reply(context_after)
             if courier_choice and not matched:
                 lock_reply = (
@@ -1043,9 +1167,16 @@ class MessagesService:
             }
 
         pre_matched = self.reply_engine.find_matching_rule(message_text, item_title)
-        if pre_matched and not is_quote_intent and not self.strict_format_reply_enabled and not force_standard_format:
+        if pre_matched:
+            if pre_matched.skip_reply:
+                return "", {
+                    "is_quote": False,
+                    "skipped": True,
+                    "reason": "system_notification",
+                    "rule_matched": pre_matched.name,
+                }
             reply = pre_matched.reply
-            if item_title and not pre_matched.categories:
+            if item_title and not item_title.isdigit() and not pre_matched.categories:
                 reply = f"关于「{item_title}」，{reply}"
             if self.reply_engine.compliance_enabled:
                 reply = self.reply_engine._check_compliance(reply)
@@ -1057,6 +1188,14 @@ class MessagesService:
                 "phase": pre_matched.phase,
             }
 
+        # 复购：courier 已锁定后收到新报价请求，引导去小橙序（复购无首单优惠）
+        if has_checkout_context and is_quote_intent and courier_choice is None:
+            return self._sanitize_reply(
+                "亲，可以直接在小橙序重新下单~ 首次使用的手机号享首单优惠，老用户也能享官方5折价格哦~ 打开小橙序→填写寄件收件信息→选快递→用余额支付即可~"
+            ), {"is_quote": False, "phase": "repeat_purchase"}
+
+        is_post_order = bool(self._POST_ORDER_EXCLUSIONS.search(message_text or ""))
+
         is_virtual = self.reply_engine._is_virtual_context(self.reply_engine._normalize_text(message_text), item_title)
         if self.reply_engine.category == "express":
             is_virtual = False
@@ -1065,8 +1204,14 @@ class MessagesService:
             message_text,
             session_id=session_id,
         )
-        if missing and (
-            is_quote_intent or ((self.strict_format_reply_enabled or force_standard_format) and not is_virtual)
+        if (
+            missing
+            and not is_post_order
+            and (
+                is_quote_intent
+                or force_standard_format
+                or (self.strict_format_reply_enabled and not is_virtual and self._has_shipping_signal(message_text))
+            )
         ):
             fields = "、".join([self.quote_missing_prompts[field] for field in missing])
             prompt = self.quote_missing_template.format(fields=fields)
@@ -1086,7 +1231,19 @@ class MessagesService:
             }
 
         if not is_quote_intent:
-            reply = self.reply_engine.generate_reply(message_text=message_text, item_title=item_title)
+            if is_post_order:
+                return "", {
+                    "is_quote": False,
+                    "skipped": True,
+                    "reason": "post_order_notification",
+                }
+            reply, skip = self.reply_engine.generate_reply(message_text=message_text, item_title=item_title)
+            if skip:
+                return "", {
+                    "is_quote": False,
+                    "skipped": True,
+                    "reason": "system_notification",
+                }
             return self._sanitize_reply(reply), {
                 "is_quote": False,
                 "quote_context_enabled": bool(self.context_memory_enabled),
@@ -1268,7 +1425,7 @@ class MessagesService:
 
     def generate_reply(self, message_text: str, item_title: str = "") -> str:
         """按策略引擎生成回复（兼容旧调用）。"""
-        reply = self.reply_engine.generate_reply(message_text=message_text, item_title=item_title)
+        reply, _skip = self.reply_engine.generate_reply(message_text=message_text, item_title=item_title)
         return self._sanitize_reply(reply)
 
     async def _send_reply_on_page(self, page_id: str, session_id: str, reply_text: str) -> bool:
@@ -1441,7 +1598,8 @@ class MessagesService:
             session_id=session_id,
         )
 
-        if quote_meta.get("quote_success") and session_id:
+        should_persist = session_id and (quote_meta.get("quote_success") or quote_meta.get("courier_locked"))
+        if should_persist:
             self._persist_quote_to_ledger(
                 session_id=session_id,
                 peer_name=peer_name,
@@ -1467,6 +1625,8 @@ class MessagesService:
                 quote_meta["quote_blocked_by_policy"] = True
         elif dry_run:
             sent = True
+        elif quote_meta.get("skipped") or not (reply_text or "").strip():
+            sent = False
         elif session_id:
             if self.simulate_human_typing and reply_text:
                 base_delay = random.uniform(0, 1)

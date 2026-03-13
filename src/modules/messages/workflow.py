@@ -365,6 +365,8 @@ class WorkflowStore:
 
             return True
 
+    _DEDUPE_STALE_SECONDS = 300
+
     def enqueue_job(self, session: dict[str, Any], stage: str = "reply") -> bool:
         session_id = str(session.get("session_id", ""))
         if not session_id:
@@ -375,8 +377,17 @@ class WorkflowStore:
         dedupe_key = f"{session_id}:{last_hash}:{stage}"
         payload_json = json.dumps(session, ensure_ascii=False)
         now = self._now()
+        stale_cutoff = (
+            datetime.now(timezone.utc) - timedelta(seconds=self._DEDUPE_STALE_SECONDS)
+        ).strftime("%Y-%m-%dT%H:%M:%SZ")
 
         with self._connect() as conn:
+            conn.execute(
+                """DELETE FROM workflow_jobs
+                   WHERE dedupe_key = ? AND status IN ('done', 'dead')
+                   AND created_at < ?""",
+                (dedupe_key, stale_cutoff),
+            )
             cur = conn.execute(
                 """
                 INSERT OR IGNORE INTO workflow_jobs(
@@ -385,6 +396,33 @@ class WorkflowStore:
                 ) VALUES (?, ?, ?, ?, 'pending', 0, ?, NULL, NULL, ?, ?)
                 """,
                 (dedupe_key, session_id, stage, payload_json, now, now, now),
+            )
+            return cur.rowcount > 0
+
+    def enqueue_delayed_job(
+        self, session_id: str, stage: str, delay_seconds: int, payload: dict[str, Any] | None = None,
+    ) -> bool:
+        if not session_id:
+            return False
+        dedupe_key = f"{session_id}:delayed:{stage}"
+        payload_json = json.dumps(payload or {"session_id": session_id}, ensure_ascii=False)
+        now = self._now()
+        run_at = (datetime.now(timezone.utc) + timedelta(seconds=delay_seconds)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+        with self._connect() as conn:
+            conn.execute(
+                """DELETE FROM workflow_jobs
+                   WHERE dedupe_key = ? AND status IN ('done', 'dead', 'pending')""",
+                (dedupe_key,),
+            )
+            cur = conn.execute(
+                """
+                INSERT OR IGNORE INTO workflow_jobs(
+                    dedupe_key, session_id, stage, payload_json, status, attempts,
+                    next_run_at, lease_until, last_error, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, 'pending', 0, ?, NULL, NULL, ?, ?)
+                """,
+                (dedupe_key, session_id, stage, payload_json, run_at, now, now),
             )
             return cur.rowcount > 0
 
@@ -662,6 +700,13 @@ class WorkflowStore:
             return [dict(r) for r in rows]
 
 
+QUOTE_NUDGE_TEMPLATES = [
+    "亲，刚给您报的价格目前是最优价了~ 有什么疑问随时问我哦~",
+    "亲，价格已为您查好，当前非常实惠哦~ 如需下单直接拍就行，有问题也随时问~",
+    "亲，报价已发您~ 需要帮您安排吗？有任何问题都可以继续问我哦~",
+]
+
+
 class WorkflowWorker:
     """常驻工作流 Worker（轮询、去重、重试、崩溃恢复）。"""
 
@@ -705,6 +750,11 @@ class WorkflowWorker:
         self.notify_recovery = bool(feishu_cfg.get("notify_recovery", True))
         self.heartbeat_minutes = max(0, int(feishu_cfg.get("heartbeat_minutes", 30)))
 
+        msg_cfg = app_config.get_section("messages", {})
+        self.quote_nudge_enabled = bool(msg_cfg.get("quote_nudge_enabled", True))
+        self.quote_nudge_delay_seconds = max(10, int(msg_cfg.get("quote_nudge_delay_seconds", 60)))
+        self.quote_nudge_max_per_session = max(1, int(msg_cfg.get("quote_nudge_max_per_session", 1)))
+
         if self._notifier is None and bool(feishu_cfg.get("enabled", False)):
             webhook = str(feishu_cfg.get("webhook", "")).strip()
             if webhook:
@@ -713,6 +763,57 @@ class WorkflowWorker:
                     bot_name=str(feishu_cfg.get("bot_name", "闲鱼自动化助手")),
                     timeout_seconds=float(feishu_cfg.get("timeout_seconds", 5.0)),
                 )
+
+    async def _handle_quote_nudge(
+        self,
+        job: WorkflowJob,
+        current_unread: list[dict[str, Any]],
+        dry_run: bool = False,
+    ) -> None:
+        """Handle a delayed quote_nudge job: send follow-up if buyer hasn't replied."""
+        import random
+
+        unread_session_ids = {str(s.get("session_id", "")) for s in current_unread}
+        if job.session_id in unread_session_ids:
+            self.logger.info(
+                f"quote_nudge skipped (buyer replied): session_id={job.session_id}"
+            )
+            return
+
+        session_data = self.store.get_session(job.session_id)
+        if session_data:
+            state_val = str(session_data.get("state", "") or "")
+            if state_val in (
+                WorkflowState.ORDERED.value,
+                WorkflowState.FOLLOWED.value,
+                WorkflowState.CLOSED.value,
+                WorkflowState.MANUAL.value,
+            ):
+                self.logger.info(
+                    f"quote_nudge skipped (state={state_val}): session_id={job.session_id}"
+                )
+                return
+
+        nudge_text = random.choice(QUOTE_NUDGE_TEMPLATES)
+        if dry_run:
+            self.logger.info(
+                f"quote_nudge dry_run: session_id={job.session_id}, text={nudge_text[:30]}"
+            )
+            return
+
+        try:
+            sent = await self.message_service.reply_to_session(job.session_id, nudge_text)
+            self.logger.info(
+                f"quote_nudge sent={'ok' if sent else 'fail'}: session_id={job.session_id}"
+            )
+            if sent:
+                self.store.transition_state(
+                    session_id=job.session_id,
+                    to_state=WorkflowState.FOLLOWED,
+                    reason="quote_nudge",
+                )
+        except Exception as exc:
+            self.logger.warning(f"quote_nudge send error: session_id={job.session_id}, error={exc}")
 
     async def _send_notification(self, text: str) -> bool:
         if self._notifier is None:
@@ -743,6 +844,11 @@ class WorkflowWorker:
 
         claimed = self.store.claim_jobs(limit=self.claim_limit, lease_seconds=self.lease_seconds)
 
+        if unread or enqueued or claimed:
+            self.logger.info(
+                f"run_once: unread={len(unread)} enqueued={enqueued} claimed={len(claimed)}"
+            )
+
         success = 0
         failed = 0
         skipped_manual = 0
@@ -755,6 +861,16 @@ class WorkflowWorker:
                     self.store.complete_job(job.id, expected_lease_until=job.lease_until)
                     continue
 
+                if job.stage == "quote_nudge":
+                    await self._handle_quote_nudge(job, unread, dry_run)
+                    self.store.complete_job(job.id, expected_lease_until=job.lease_until)
+                    success += 1
+                    continue
+
+                msg_preview = str(job.payload.get("last_message", ""))[:40]
+                self.logger.info(
+                    f"process_session start: session_id={job.session_id}, msg={msg_preview}"
+                )
                 start = time.perf_counter()
                 detail = await self.message_service.process_session(
                     job.payload,
@@ -763,8 +879,16 @@ class WorkflowWorker:
                 )
                 latency_ms = int((time.perf_counter() - start) * 1000)
 
-                if not detail.get("sent", False):
-                    raise RuntimeError("reply_not_sent")
+                sent = detail.get("sent", False)
+                skipped = detail.get("skipped", False)
+                reason = detail.get("reason", "")
+                self.logger.info(
+                    f"process_session done: session_id={job.session_id}, "
+                    f"sent={sent}, skipped={skipped}, reason={reason}, latency={latency_ms}ms"
+                )
+
+                if not sent:
+                    raise RuntimeError(f"reply_not_sent:{reason}")
 
                 is_quote = bool(detail.get("is_quote", False))
                 quote_need_info = bool(detail.get("quote_need_info", False))
@@ -776,6 +900,19 @@ class WorkflowWorker:
                     reason="workflow_worker",
                     metadata={"quote": is_quote, "quote_success": quote_success},
                 )
+
+                if is_quote and quote_success and self.quote_nudge_enabled:
+                    scheduled = self.store.enqueue_delayed_job(
+                        session_id=job.session_id,
+                        stage="quote_nudge",
+                        delay_seconds=self.quote_nudge_delay_seconds,
+                        payload={"session_id": job.session_id},
+                    )
+                    if scheduled:
+                        self.logger.info(
+                            f"quote_nudge scheduled: session_id={job.session_id}, "
+                            f"delay={self.quote_nudge_delay_seconds}s"
+                        )
 
                 stage = "reply"
                 outcome = "success"
@@ -801,6 +938,9 @@ class WorkflowWorker:
                     self.logger.warning(f"workflow complete skipped due to lease mismatch: job_id={job.id}")
             except Exception as exc:
                 failed += 1
+                self.logger.warning(
+                    f"process_session failed: session_id={job.session_id}, error={exc}"
+                )
                 failed_ok = self.store.fail_job(
                     job_id=job.id,
                     error=str(exc),
