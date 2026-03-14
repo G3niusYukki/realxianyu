@@ -35,7 +35,7 @@ class ManualModeStore:
     ) -> None:
         self.db_path = Path(db_path)
         self.toggle_keyword = toggle_keyword
-        self.timeout_seconds = max(1, int(timeout_seconds))
+        self.timeout_seconds = max(0, int(timeout_seconds))
         self._ensure_schema()
 
     def _connect(self) -> sqlite3.Connection:
@@ -64,7 +64,7 @@ class ManualModeStore:
         return float(now if now is not None else time.time())
 
     def _upsert(self, session_id: str, enabled: bool, now_ts: float) -> ManualModeState:
-        expires_at = now_ts + self.timeout_seconds if enabled else None
+        expires_at = (now_ts + self.timeout_seconds) if (enabled and self.timeout_seconds > 0) else None
         with self._connect() as conn:
             conn.execute(
                 """
@@ -117,6 +117,29 @@ class ManualModeStore:
     def toggle(self, session_id: str, *, now: float | None = None) -> ManualModeState:
         current = self.get_state(session_id, now=now).state
         return self.set_state(session_id, not current.enabled, now=now)
+
+    def disable(self, session_id: str, *, now: float | None = None) -> ManualModeState:
+        return self.set_state(session_id, False, now=now)
+
+    def list_active(self, *, now: float | None = None) -> list[ManualModeState]:
+        now_ts = self._now(now)
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT session_id, enabled, updated_at, expires_at FROM message_manual_mode WHERE enabled = 1"
+            ).fetchall()
+        result: list[ManualModeState] = []
+        for row in rows:
+            expires_at = row["expires_at"]
+            if expires_at is not None and float(expires_at) <= now_ts:
+                self._upsert(row["session_id"], False, now_ts)
+                continue
+            result.append(ManualModeState(
+                session_id=row["session_id"],
+                enabled=True,
+                updated_at=float(row["updated_at"]),
+                expires_at=float(expires_at) if expires_at is not None else None,
+            ))
+        return result
 
     def process_message(self, session_id: str, message: str, *, now: float | None = None) -> ManualModeResult:
         now_ts = self._now(now)

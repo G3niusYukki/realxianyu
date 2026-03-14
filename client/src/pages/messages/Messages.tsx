@@ -4,6 +4,7 @@ import {
   MessageCircle, Send, Bot, User,
   RefreshCw, BarChart3, MessagesSquare, Zap,
   AlertCircle, Activity, Beaker, RotateCcw, Sparkles,
+  HandMetal, Power, Clock, Info,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -19,9 +20,17 @@ interface ChatMessage {
   timestamp: number;
 }
 
+interface ManualSession {
+  session_id: string;
+  enabled: boolean;
+  updated_at: number;
+  expires_at: number | null;
+}
+
 const MSG_TABS = [
   { key: 'logs', label: '回复日志' },
   { key: 'sandbox', label: '对话沙盒' },
+  { key: 'manual', label: '人工模式' },
 ];
 
 const QUICK_MESSAGES = [
@@ -52,6 +61,10 @@ export default function Messages() {
   const [sessionId, setSessionId] = useState(generateSessionId);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  const [manualSessions, setManualSessions] = useState<ManualSession[]>([]);
+  const [manualTimeout, setManualTimeout] = useState(3600);
+  const [manualLoading, setManualLoading] = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -121,6 +134,33 @@ export default function Messages() {
     setSessionId(generateSessionId());
     setSandboxInput('');
     inputRef.current?.focus();
+  };
+
+  const fetchManualMode = useCallback(async () => {
+    setManualLoading(true);
+    try {
+      const res = await api.get('/manual-mode');
+      setManualSessions(res.data.sessions || []);
+      setManualTimeout(res.data.timeout_seconds ?? 3600);
+    } catch {
+      // silently fail
+    } finally {
+      setManualLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'manual') fetchManualMode();
+  }, [activeTab, fetchManualMode]);
+
+  const handleToggleManual = async (sid: string, enabled: boolean) => {
+    try {
+      await api.post('/manual-mode', { session_id: sid, enabled });
+      toast.success(enabled ? '已开启人工模式' : '已恢复自动回复');
+      fetchManualMode();
+    } catch (e: any) {
+      toast.error(e.message || '操作失败');
+    }
   };
 
   const statCards = stats ? [
@@ -382,6 +422,85 @@ export default function Messages() {
                 className="xy-btn-primary p-2.5 rounded-xl disabled:opacity-50 flex-shrink-0">
                 {sandboxTesting ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'manual' && (
+        <div className="space-y-4 animate-in fade-in slide-in-from-right-4">
+          <div className="xy-card p-5 bg-gradient-to-r from-amber-50 to-orange-50 border-amber-200">
+            <div className="flex items-start gap-3">
+              <Info className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+              <div className="text-sm text-amber-900 space-y-1">
+                <p className="font-medium">人工介入模式说明</p>
+                <ul className="list-disc list-inside text-amber-800 space-y-0.5">
+                  <li>当卖家在闲鱼手动发送消息后，该会话自动暂停自动回复</li>
+                  <li>超时自动恢复：{manualTimeout > 0 ? `${Math.round(manualTimeout / 60)} 分钟后自动恢复` : '不会自动恢复，需手动关闭'}</li>
+                  <li>也可在下方手动关闭人工模式，恢复自动回复</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <div className="xy-card overflow-hidden">
+            <div className="px-5 py-3 border-b border-xy-border flex items-center justify-between bg-white">
+              <div className="flex items-center gap-2">
+                <HandMetal className="w-5 h-5 text-amber-500" />
+                <h2 className="font-bold text-xy-text-primary">人工模式会话</h2>
+                <span className="text-xs text-xy-text-muted bg-xy-gray-100 px-2 py-0.5 rounded-full">
+                  {manualSessions.length} 个活跃
+                </span>
+              </div>
+              <button onClick={fetchManualMode} disabled={manualLoading}
+                className="p-1.5 rounded-lg hover:bg-xy-gray-100 text-xy-text-muted transition-colors" title="刷新">
+                <RefreshCw className={`w-4 h-4 ${manualLoading ? 'animate-spin' : ''}`} />
+              </button>
+            </div>
+
+            <div className="divide-y divide-xy-border">
+              {manualSessions.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 text-center">
+                  <div className="w-16 h-16 bg-green-50 rounded-full flex items-center justify-center mb-4 border border-green-200">
+                    <Bot className="w-8 h-8 text-green-400" />
+                  </div>
+                  <p className="text-base font-medium text-xy-text-primary mb-1">全部会话均为自动回复模式</p>
+                  <p className="text-sm text-xy-text-secondary max-w-sm">当您在闲鱼手动发送消息时，该会话会自动切换为人工模式并暂停自动回复</p>
+                </div>
+              ) : (
+                manualSessions.map(s => {
+                  const updatedAt = new Date(s.updated_at * 1000);
+                  const expiresAt = s.expires_at ? new Date(s.expires_at * 1000) : null;
+                  const remaining = expiresAt ? Math.max(0, Math.round((s.expires_at! - Date.now() / 1000) / 60)) : null;
+                  return (
+                    <div key={s.session_id} className="px-5 py-4 flex items-center justify-between hover:bg-xy-gray-50 transition-colors">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center flex-shrink-0">
+                          <HandMetal className="w-5 h-5" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-xy-text-primary truncate" title={s.session_id}>
+                            会话 {s.session_id.length > 20 ? `${s.session_id.slice(0, 10)}...${s.session_id.slice(-8)}` : s.session_id}
+                          </p>
+                          <div className="flex items-center gap-3 text-xs text-xy-text-muted mt-0.5">
+                            <span className="flex items-center gap-1">
+                              <Clock className="w-3 h-3" />
+                              介入于 {updatedAt.toLocaleString()}
+                            </span>
+                            {remaining !== null && (
+                              <span className="text-amber-600">{remaining > 0 ? `${remaining} 分钟后自动恢复` : '即将恢复'}</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <button onClick={() => handleToggleManual(s.session_id, false)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-green-700 bg-green-50 hover:bg-green-100 border border-green-200 rounded-lg transition-colors flex-shrink-0">
+                        <Power className="w-3.5 h-3.5" /> 恢复自动回复
+                      </button>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
         </div>

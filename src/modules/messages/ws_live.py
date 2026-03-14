@@ -19,6 +19,7 @@ import httpx
 
 from src.core.error_handler import BrowserError
 from src.core.logger import get_logger
+from src.modules.messages.manual_mode import ManualModeStore
 
 _MTOP_APP_KEY = "34839810"
 _MTOP_APP_SECRET = "444e9908a51d1cb236a27862abc769c9"
@@ -321,6 +322,15 @@ class GoofishWsTransport:
         self.device_id = ""
         self._cookie_fp = ""
         self._apply_cookie_text(cookie_text, reason="init")
+
+        manual_timeout = int(self.config.get("manual_mode_timeout", 3600))
+        db_path = os.path.join("data", "manual_mode.db")
+        self._manual_mode_store = ManualModeStore(db_path, timeout_seconds=manual_timeout)
+
+        self._bot_sent_sigs: dict[str, float] = {}
+        self._BOT_SIG_TTL = 7200.0
+        self._recent_msgs_cache: dict[str, tuple[float, list[dict[str, Any]]]] = {}
+        self._RECENT_MSGS_CACHE_TTL = 30.0
 
         self._token: str = ""
         self._token_ts: float = 0.0
@@ -980,6 +990,10 @@ class GoofishWsTransport:
         dead = [k for k, ts in self._seen_event.items() if (now - ts) > expire]
         for k in dead:
             self._seen_event.pop(k, None)
+        self._cleanup_bot_sigs()
+        stale_cache = [k for k, (ts, _) in self._recent_msgs_cache.items() if (now - ts) > self._RECENT_MSGS_CACHE_TTL * 4]
+        for k in stale_cache:
+            self._recent_msgs_cache.pop(k, None)
 
     async def _push_event(self, event: dict[str, Any]) -> None:
         chat_id = str(event.get("chat_id", "") or "")
@@ -990,6 +1004,14 @@ class GoofishWsTransport:
             return
 
         if sender_id == self.my_user_id:
+            if not self.is_bot_sent(chat_id, text):
+                try:
+                    self._manual_mode_store.set_state(chat_id, True)
+                    self.logger.info(
+                        f"[人工介入] 检测到卖家手动消息: session={chat_id}, text={text[:30]}"
+                    )
+                except Exception as exc:
+                    self.logger.warning(f"[人工介入] set_state failed: session={chat_id}, err={exc}")
             return
 
         if int(time.time() * 1000) - create_time > self.event_expire_ms:
@@ -1330,10 +1352,22 @@ class GoofishWsTransport:
         }
         try:
             await self._ws.send(json.dumps(msg, ensure_ascii=False))
+            sig = hashlib.sha1(f"{chat_id}:{str(text or '')[:100]}".encode()).hexdigest()[:16]
+            self._bot_sent_sigs[sig] = time.time()
             return True
         except Exception as exc:
             self.logger.warning(f"WS send failed: {exc}")
             return False
+
+    def is_bot_sent(self, chat_id: str, text: str) -> bool:
+        sig = hashlib.sha1(f"{chat_id}:{str(text or '')[:100]}".encode()).hexdigest()[:16]
+        return sig in self._bot_sent_sigs
+
+    def _cleanup_bot_sigs(self) -> None:
+        now = time.time()
+        stale = [k for k, ts in self._bot_sent_sigs.items() if now - ts > self._BOT_SIG_TTL]
+        for k in stale:
+            del self._bot_sent_sigs[k]
 
     def find_session_by_peer(self, user_id: str) -> str:
         """Reverse lookup: sender_user_id -> chat_id."""
@@ -1342,6 +1376,94 @@ class GoofishWsTransport:
     def find_session_by_nick(self, nick: str) -> str:
         """Reverse lookup: buyer nick -> chat_id."""
         return self._nick_to_session.get(str(nick or "").strip(), "")
+
+    async def _mtop_call(self, api: str, version: str, data_dict: dict[str, Any]) -> dict[str, Any]:
+        """Make a signed mtop API call using current cookies."""
+        self._maybe_reload_cookie(reason="mtop_call")
+        token_cookie = str(self.cookies.get("_m_h5_tk", "") or "")
+        token_seed = token_cookie.split("_")[0].strip()
+        if not token_seed:
+            return {}
+
+        t = str(int(time.time() * 1000))
+        data_val = json.dumps(data_dict, ensure_ascii=False, separators=(",", ":"))
+        params = {
+            "jsv": "2.7.2",
+            "appKey": _MTOP_APP_KEY,
+            "t": t,
+            "sign": generate_sign(t, token_seed, data_val),
+            "v": version,
+            "type": "originaljson",
+            "accountSite": "xianyu",
+            "dataType": "json",
+            "timeout": "10000",
+            "api": api,
+        }
+        headers = self._base_headers()
+        try:
+            async with httpx.AsyncClient(
+                timeout=8.0, headers=headers, cookies=self.cookies,
+            ) as client:
+                resp = await client.post(
+                    f"https://h5api.m.goofish.com/h5/{api}/{version}/",
+                    params=params,
+                    data={"data": data_val},
+                )
+                self._absorb_set_cookies(client, reason="mtop_call")
+                return resp.json() if resp.status_code == 200 else {}
+        except Exception as exc:
+            self.logger.debug(f"mtop call {api} failed: {exc}")
+            return {}
+
+    async def fetch_recent_messages(self, chat_id: str, limit: int = 10) -> list[dict[str, Any]]:
+        """Fetch recent messages for a conversation via mtop API, with caching."""
+        if not chat_id:
+            return []
+
+        now = time.time()
+        cached = self._recent_msgs_cache.get(chat_id)
+        if cached and (now - cached[0]) < self._RECENT_MSGS_CACHE_TTL:
+            return cached[1]
+
+        cid = f"{chat_id}@goofish" if "@" not in chat_id else chat_id
+        payload = await self._mtop_call(
+            "mtop.taobao.idle.pc.im.conversation.message.list",
+            "1.0",
+            {"cid": cid, "pageSize": limit, "order": "desc"},
+        )
+
+        result: list[dict[str, Any]] = []
+        data = payload.get("data", {})
+        if not isinstance(data, dict):
+            self._recent_msgs_cache[chat_id] = (now, result)
+            return result
+
+        messages = data.get("messageList") or data.get("messages") or data.get("data") or []
+        if not isinstance(messages, list):
+            self._recent_msgs_cache[chat_id] = (now, result)
+            return result
+
+        for msg in messages:
+            if not isinstance(msg, dict):
+                continue
+            sender = str(msg.get("senderUserId") or msg.get("fromUserId") or msg.get("senderId") or "")
+            content = msg.get("content", {})
+            if isinstance(content, dict):
+                text = str(content.get("text") or content.get("reminderContent") or "")
+            elif isinstance(content, str):
+                text = content
+            else:
+                text = ""
+            ts = 0
+            try:
+                ts = int(msg.get("createTime") or msg.get("gmtCreate") or msg.get("timestamp") or 0)
+            except (ValueError, TypeError):
+                pass
+            if sender and text:
+                result.append({"sender_id": sender, "text": text, "timestamp": ts})
+
+        self._recent_msgs_cache[chat_id] = (now, result)
+        return result
 
 
 _ws_transport_instance: GoofishWsTransport | None = None

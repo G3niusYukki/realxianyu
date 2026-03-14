@@ -898,7 +898,14 @@ class WorkflowWorker:
                     session_id=job.session_id,
                     to_state=next_state,
                     reason="workflow_worker",
-                    metadata={"quote": is_quote, "quote_success": quote_success},
+                    metadata={
+                        "quote": is_quote,
+                        "quote_success": quote_success,
+                        "buyer_message": str(detail.get("last_message", ""))[:200],
+                        "reply_text": str(detail.get("reply", ""))[:500],
+                        "peer_name": str(detail.get("peer_name", "")),
+                        "intent": str(detail.get("policy_reason", "")),
+                    },
                 )
 
                 if is_quote and quote_success and self.quote_nudge_enabled:

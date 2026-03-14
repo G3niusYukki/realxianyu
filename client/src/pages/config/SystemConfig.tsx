@@ -195,6 +195,7 @@ const TAB_COMPAT: Record<string, string> = {
   pricing: 'orders',
   delivery: 'orders',
   automation: 'orders',
+  auto_price_modify: 'orders',
 };
 
 const NOTIFICATION_EVENTS = [
@@ -1796,6 +1797,25 @@ export default function SystemConfig() {
                     onChange={e => handleChange('order_reminder', 'templates', e.target.value)}
                   />
                 </div>
+              </CollapsibleSection>
+
+              {/* 自动改价 */}
+              <CollapsibleSection
+                title="自动改价"
+                icon={<TrendingUp className="w-4 h-4 text-teal-500" />}
+                summary={<>
+                  <span className={`px-1.5 py-0.5 rounded text-[11px] ${config.auto_price_modify?.enabled ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{config.auto_price_modify?.enabled ? '已启用' : '已关闭'}</span>
+                  <span className="px-1.5 py-0.5 rounded bg-teal-50 text-teal-600 text-[11px]">每 {config.auto_price_modify?.poll_interval_seconds ?? 45}秒</span>
+                  <span className="px-1.5 py-0.5 rounded bg-gray-50 text-gray-600 text-[11px]">{config.auto_price_modify?.fallback_action === 'use_listing_price' ? '用上架价兜底' : '无报价跳过'}</span>
+                </>}
+              >
+                <GuideCard summary={
+                  category === 'express' ? '快递品类：买家下单后自动匹配聊天中的报价金额并改价，无需人工操作' :
+                  '买家下单未付款时，系统自动匹配报价记录并修改订单价格'
+                }>
+                  <p>改价流程：买家下单 → 轮询待付款订单 → 匹配 QuoteLedger 报价 → 调用闲管家 API 改价。需先配置闲管家 API。</p>
+                </GuideCard>
+                <div className="mt-4">{renderSectionFields('auto_price_modify')}</div>
               </CollapsibleSection>
 
               {/* 发货规则 */}
