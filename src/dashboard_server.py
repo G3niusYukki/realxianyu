@@ -4314,9 +4314,6 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 self._serve_spa_file(path)
                 return
 
-            if path in {"/api/summary", "/api/trend", "/api/recent-operations", "/api/top-products"}:
-                self._send_json(self._legacy_dashboard_payload(path, query))
-                return
 
 
 
@@ -4356,64 +4353,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 self._send_json(self.mimic_ops.get_markup_rules())
                 return
 
-            if path == "/api/logs/files":
-                self._send_json(self.mimic_ops.list_log_files())
-                return
 
-            if path == "/api/logs/content":
-                file_name = str((query.get("file") or [""])[0]).strip()
-                tail = _safe_int((query.get("tail") or ["200"])[0], default=200, min_value=1, max_value=5000)
-                page_raw = (query.get("page") or [None])[0]
-                size_raw = (query.get("size") or [None])[0]
-                search = str((query.get("search") or [""])[0]).strip()
-                if page_raw is not None or size_raw is not None or search:
-                    page = _safe_int(
-                        str(page_raw) if page_raw is not None else None, default=1, min_value=1, max_value=100000
-                    )
-                    size = _safe_int(
-                        str(size_raw) if size_raw is not None else None, default=100, min_value=10, max_value=2000
-                    )
-                    payload = self.mimic_ops.read_log_content(
-                        file_name=file_name,
-                        page=page,
-                        size=size,
-                        search=search,
-                    )
-                else:
-                    payload = self.mimic_ops.read_log_content(file_name=file_name, tail=tail)
-                self._send_json(payload, status=200 if payload.get("success") else 404)
-                return
 
-            if path == "/api/logs/realtime/stream":
-                file_name = str((query.get("file") or ["presales"])[0]).strip()
-                tail = _safe_int((query.get("tail") or ["200"])[0], default=200, min_value=1, max_value=1000)
-                self.send_response(200)
-                self.send_header("Content-Type", "text/event-stream; charset=utf-8")
-                self.send_header("Cache-Control", "no-cache")
-                self.send_header("Connection", "keep-alive")
-                self.end_headers()
-
-                last = ""
-                try:
-                    for _ in range(180):
-                        payload = self.mimic_ops.read_log_content(file_name=file_name, tail=tail)
-                        lines = (
-                            payload.get("lines", [])
-                            if payload.get("success")
-                            else [payload.get("error", "log not found")]
-                        )
-                        text = "\n".join(lines)
-                        if text != last:
-                            event = json.dumps(
-                                {"success": True, "lines": lines, "updated_at": _now_iso()}, ensure_ascii=False
-                            )
-                            self.wfile.write(f"data: {event}\n\n".encode())
-                            self.wfile.flush()
-                            last = text
-                        time.sleep(1)
-                except (BrokenPipeError, ConnectionResetError):
-                    return
-                return
 
             if path == "/api/virtual-goods/metrics":
                 payload: dict[str, Any]
@@ -4444,10 +4385,6 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 self._send_json(payload, status=200 if payload.get("success") else 400)
                 return
 
-            if path == "/api/dashboard":
-                aggregate = self.mimic_ops.get_dashboard_readonly_aggregate()
-                self._send_json(aggregate, status=200 if aggregate.get("success") else 400)
-                return
 
             if path == "/api/virtual-goods/inspect-order":
                 order_id = str((query.get("order_id") or query.get("xianyu_order_id") or [""])[0]).strip()
