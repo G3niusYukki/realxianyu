@@ -6,6 +6,7 @@ import pytest
 
 import src.dashboard_server as ds
 from src.dashboard_server import DashboardHandler
+import src.dashboard.routes  # ensure routes are registered for tests
 
 
 def _handler(path: str = "/") -> DashboardHandler:
