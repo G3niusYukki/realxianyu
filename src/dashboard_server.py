@@ -32,6 +32,8 @@ import yaml
 from src.core.config import get_config
 from src.dashboard.repository import DashboardRepository, LiveDashboardDataSource
 from src.dashboard.module_console import ModuleConsole, MODULE_TARGETS
+from src.dashboard.router import RouteContext, dispatch_get, dispatch_post, dispatch_put, dispatch_delete
+import src.dashboard.routes  # noqa: F401 — trigger route registration
 from src.dashboard.config_service import (
     read_system_config as _read_system_config,
     write_system_config as _write_system_config,
@@ -4298,47 +4300,15 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 self._handle_cookie_cloud(path[len("/cookie-cloud"):].rstrip("/") or "/", method="GET")
                 return
 
-            if path == "/healthz":
-                db_ok = False
-                try:
-                    with self.repo._connect() as conn:
-                        conn.execute("SELECT 1")
-                    db_ok = True
-                except Exception:
-                    pass
-
-                # Module liveness via quick status check
-                modules_summary: dict[str, str] = {}
-                try:
-                    status_payload = self.mimic_ops.service_status()
-                    if isinstance(status_payload, dict):
-                        modules_summary = {
-                            "system_running": "alive" if status_payload.get("system_running") else "dead",
-                            "alive_count": str(status_payload.get("alive_count", 0)),
-                            "total_modules": str(status_payload.get("total_modules", 0)),
-                        }
-                except Exception:
-                    modules_summary = {"error": "status_check_failed"}
-
-                started = getattr(self.mimic_ops, "_service_started_at", "")
-                uptime_seconds = 0
-                if started:
-                    try:
-                        start_dt = datetime.strptime(started, "%Y-%m-%dT%H:%M:%S")
-                        uptime_seconds = int((datetime.now() - start_dt).total_seconds())
-                    except Exception:
-                        pass
-
-                self._send_json(
-                    {
-                        "status": "ok" if db_ok else "degraded",
-                        "timestamp": _now_iso(),
-                        "database": "writable" if db_ok else "error",
-                        "modules": modules_summary,
-                        "uptime_seconds": uptime_seconds,
-                    }
-                )
+            # --- Route dispatch (decorator-registered routes) ---
+            _ctx = RouteContext(
+                _handler=self, path=path,
+                query=query,
+            )
+            if dispatch_get(path, _ctx):
                 return
+
+
 
             if path in {"/", "/cookie", "/test", "/logs", "/logs/realtime"}:
                 self._serve_spa_file(path)
@@ -4348,32 +4318,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 self._send_json(self._legacy_dashboard_payload(path, query))
                 return
 
-            if path == "/api/module/status":
-                window = _safe_int((query.get("window") or ["60"])[0], default=60, min_value=1, max_value=10080)
-                limit = _safe_int((query.get("limit") or ["20"])[0], default=20, min_value=1, max_value=200)
-                payload = self.module_console.status(window_minutes=window, limit=limit)
-                status = 200 if not payload.get("error") else 500
-                self._send_json(payload, status=status)
-                return
 
-            if path == "/api/module/check":
-                skip_gateway = (query.get("skip_gateway") or ["0"])[0] in {"1", "true", "yes"}
-                payload = self.module_console.check(skip_gateway=skip_gateway)
-                status = 200 if not payload.get("error") else 500
-                self._send_json(payload, status=status)
-                return
 
-            if path == "/api/module/logs":
-                target = str((query.get("target") or ["all"])[0]).strip().lower()
-                tail = _safe_int((query.get("tail") or ["120"])[0], default=120, min_value=10, max_value=500)
-                payload = self.module_console.logs(target=target, tail_lines=tail)
-                status = 200 if not payload.get("error") else 500
-                self._send_json(payload, status=status)
-                return
 
-            if path in ("/api/status", "/api/service-status"):
-                self._send_json(self.mimic_ops.service_status())
-                return
 
             if path == "/api/get-cookie":
                 self._send_json(self.mimic_ops.get_cookie())
@@ -4714,99 +4661,6 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 )
                 return
 
-            if path == "/api/health/check":
-                import time as _t
-
-                result: dict[str, Any] = {"timestamp": _now_iso()}
-
-                cookie_info: dict[str, Any] = {"ok": False, "message": "未检查"}
-                try:
-                    from src.core.cookie_health import CookieHealthChecker
-
-                    cookie_text = os.environ.get("XIANYU_COOKIE_1", "")
-                    if not cookie_text:
-                        ck = self.mimic_ops.get_cookie()
-                        cookie_text = str(ck.get("cookie", "") or "")
-                    checker = CookieHealthChecker(cookie_text, timeout_seconds=8.0)
-                    ck_result = checker.check_sync(force=True)
-                    cookie_info = {"ok": bool(ck_result.get("healthy")), "message": ck_result.get("message", "")}
-                except Exception as exc:
-                    cookie_info = {"ok": False, "message": f"检查异常: {exc}"}
-                result["cookie"] = cookie_info
-
-                ai_info: dict[str, Any] = {"ok": False, "message": "未配置"}
-                try:
-                    ai_key = os.environ.get("AI_API_KEY", "")
-                    ai_base = os.environ.get("AI_BASE_URL", "")
-                    ai_model = os.environ.get("AI_MODEL", "")
-                    if not ai_key or not ai_base:
-                        try:
-                            _sys_cfg_path = (
-                                Path(__file__).resolve().parents[1] / "data" / "system_config.json"
-                            )
-                            if _sys_cfg_path.exists():
-                                _sys_cfg = json.loads(_sys_cfg_path.read_text(encoding="utf-8"))
-                                ai_cfg = _sys_cfg.get("ai", {})
-                                ai_key = ai_key or str(ai_cfg.get("api_key", "") or "")
-                                ai_base = ai_base or str(ai_cfg.get("base_url", "") or "")
-                                ai_model = ai_model or str(ai_cfg.get("model", "") or "")
-                        except Exception:
-                            pass
-                    ai_model = ai_model or "qwen-plus"
-                    if ai_key and ai_base:
-                        t0 = _t.time()
-                        import httpx
-
-                        chat_url = ai_base.rstrip("/") + "/chat/completions"
-                        with httpx.Client(timeout=8.0) as hc:
-                            resp = hc.post(
-                                chat_url,
-                                headers={"Authorization": f"Bearer {ai_key}", "Content-Type": "application/json"},
-                                json={
-                                    "model": ai_model,
-                                    "max_tokens": 1,
-                                    "messages": [{"role": "user", "content": "hi"}],
-                                },
-                            )
-                        latency = int((_t.time() - t0) * 1000)
-                        if resp.status_code == 200:
-                            ai_info = {"ok": True, "message": "连通", "latency_ms": latency}
-                        else:
-                            _status_msgs = {401: "API Key 无效", 403: "无权访问", 429: "请求过频"}
-                            _msg = _status_msgs.get(resp.status_code, f"HTTP {resp.status_code}")
-                            ai_info = {"ok": False, "message": _msg, "latency_ms": latency}
-                    else:
-                        ai_info = {"ok": False, "message": "API Key 或 Base URL 未配置"}
-                except Exception as exc:
-                    ai_info = {"ok": False, "message": f"检查异常: {type(exc).__name__}"}
-                result["ai"] = ai_info
-
-                xgj_info: dict[str, Any] = {"ok": False, "message": "未检查"}
-                try:
-                    sys_cfg = _read_system_config()
-                    xgj_cfg = sys_cfg.get("xianguanjia", {})
-                    xgj_app_key = str(xgj_cfg.get("app_key", "") or os.environ.get("XGJ_APP_KEY", ""))
-                    xgj_app_secret = str(xgj_cfg.get("app_secret", "") or os.environ.get("XGJ_APP_SECRET", ""))
-                    xgj_base = str(
-                        xgj_cfg.get("base_url", "") or os.environ.get("XGJ_BASE_URL", "https://open.goofish.pro")
-                    )
-                    if not xgj_app_key or not xgj_app_secret:
-                        xgj_info = {"ok": False, "message": "AppKey 或 AppSecret 未配置"}
-                    else:
-                        xgj_info = _test_xgj_connection(
-                            app_key=xgj_app_key,
-                            app_secret=xgj_app_secret,
-                            base_url=xgj_base,
-                            mode=str(xgj_cfg.get("mode", "self_developed")),
-                            seller_id=str(xgj_cfg.get("seller_id", "")),
-                        )
-                except Exception as exc:
-                    xgj_info = {"ok": False, "message": f"检查异常: {type(exc).__name__}"}
-                result["xgj"] = xgj_info
-
-                result["services"] = {"python": {"ok": True, "message": "运行中"}}
-                self._send_json(result)
-                return
 
             if path == "/api/cookie/auto-grab/status":
                 self.send_response(200)
@@ -5222,6 +5076,14 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 self._handle_cookie_cloud(path[len("/cookie-cloud"):].rstrip("/") or "/", method="POST")
                 return
 
+
+            # --- Route dispatch (decorator-registered routes) ---
+            _ctx = RouteContext(
+                _handler=self, path=path,
+                query=parse_qs(urlparse(self.path).query),
+            )
+            if dispatch_post(path, _ctx):
+                return
             if path == "/api/orders/remind":
                 body = self._read_json_body()
                 order_id = str(body.get("order_no") or body.get("order_id") or "").strip()
@@ -5370,33 +5232,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     self._send_json({"ok": False, "message": f"连接异常: {type(exc).__name__}: {exc}"})
                 return
 
-            if path == "/api/module/control":
-                body = self._read_json_body()
-                action = str(body.get("action") or "").strip().lower()
-                target = str(body.get("target") or "all").strip().lower()
-                payload = self.module_console.control(action=action, target=target)
-                status = 200 if not payload.get("error") else 400
-                self._send_json(payload, status=status)
-                return
 
-            if path == "/api/service/control":
-                body = self._read_json_body()
-                action = str(body.get("action") or "").strip().lower()
-                payload = self.mimic_ops.service_control(action=action)
-                self._send_json(payload, status=200 if payload.get("success") else 400)
-                return
 
-            if path == "/api/service/recover":
-                body = self._read_json_body()
-                target = str(body.get("target") or "presales").strip().lower()
-                payload = self.mimic_ops.service_recover(target=target)
-                self._send_json(payload, status=200 if payload.get("success") else 400)
-                return
 
-            if path == "/api/service/auto-fix":
-                payload = self.mimic_ops.service_auto_fix()
-                self._send_json(payload, status=200 if payload.get("success") else 400)
-                return
 
             if path == "/api/update-cookie":
                 body = self._read_json_body()
@@ -5532,12 +5370,6 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 self._send_json(payload, status=200 if payload.get("success") else 400)
                 return
 
-            if path == "/api/reset-database":
-                body = self._read_json_body()
-                db_type = str(body.get("type") or "all")
-                payload = self.mimic_ops.reset_database(db_type=db_type)
-                self._send_json(payload, status=200 if payload.get("success") else 400)
-                return
 
             if path == "/api/save-template":
                 body = self._read_json_body()

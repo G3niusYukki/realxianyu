@@ -1,0 +1,267 @@
+"""System routes: health checks, module management, service control, database reset."""
+
+from __future__ import annotations
+
+import json
+import os
+import time as _time_mod
+from datetime import datetime
+from pathlib import Path
+from typing import Any
+
+from src.dashboard.router import RouteContext, get, post
+
+from src.dashboard.config_service import read_system_config as _read_system_config
+
+
+def _now_iso() -> str:
+    return datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+
+
+# ---------------------------------------------------------------------------
+# GET /healthz
+# ---------------------------------------------------------------------------
+
+
+@get("/healthz")
+def handle_healthz(ctx: RouteContext) -> None:
+    db_ok = False
+    try:
+        with ctx.repo._connect() as conn:
+            conn.execute("SELECT 1")
+        db_ok = True
+    except Exception:
+        pass
+
+    modules_summary: dict[str, str] = {}
+    try:
+        status_payload = ctx.mimic_ops.service_status()
+        if isinstance(status_payload, dict):
+            modules_summary = {
+                "system_running": "alive" if status_payload.get("system_running") else "dead",
+                "alive_count": str(status_payload.get("alive_count", 0)),
+                "total_modules": str(status_payload.get("total_modules", 0)),
+            }
+    except Exception:
+        modules_summary = {"error": "status_check_failed"}
+
+    started = getattr(ctx.mimic_ops, "_service_started_at", "")
+    uptime_seconds = 0
+    if started:
+        try:
+            start_dt = datetime.strptime(started, "%Y-%m-%dT%H:%M:%S")
+            uptime_seconds = int((datetime.now() - start_dt).total_seconds())
+        except Exception:
+            pass
+
+    ctx.send_json(
+        {
+            "status": "ok" if db_ok else "degraded",
+            "timestamp": _now_iso(),
+            "database": "writable" if db_ok else "error",
+            "modules": modules_summary,
+            "uptime_seconds": uptime_seconds,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
+# GET /api/health/check
+# ---------------------------------------------------------------------------
+
+
+@get("/api/health/check")
+def handle_health_check(ctx: RouteContext) -> None:
+    result: dict[str, Any] = {"timestamp": _now_iso()}
+
+    # -- Cookie health --
+    cookie_info: dict[str, Any] = {"ok": False, "message": "未检查"}
+    try:
+        from src.core.cookie_health import CookieHealthChecker
+
+        cookie_text = os.environ.get("XIANYU_COOKIE_1", "")
+        if not cookie_text:
+            ck = ctx.mimic_ops.get_cookie()
+            cookie_text = str(ck.get("cookie", "") or "")
+        checker = CookieHealthChecker(cookie_text, timeout_seconds=8.0)
+        ck_result = checker.check_sync(force=True)
+        cookie_info = {"ok": bool(ck_result.get("healthy")), "message": ck_result.get("message", "")}
+    except Exception as exc:
+        cookie_info = {"ok": False, "message": f"检查异常: {exc}"}
+    result["cookie"] = cookie_info
+
+    # -- AI health --
+    ai_info: dict[str, Any] = {"ok": False, "message": "未配置"}
+    try:
+        ai_key = os.environ.get("AI_API_KEY", "")
+        ai_base = os.environ.get("AI_BASE_URL", "")
+        ai_model = os.environ.get("AI_MODEL", "")
+        if not ai_key or not ai_base:
+            try:
+                _sys_cfg_path = Path(__file__).resolve().parents[2] / "data" / "system_config.json"
+                if _sys_cfg_path.exists():
+                    _sys_cfg = json.loads(_sys_cfg_path.read_text(encoding="utf-8"))
+                    ai_cfg = _sys_cfg.get("ai", {})
+                    ai_key = ai_key or str(ai_cfg.get("api_key", "") or "")
+                    ai_base = ai_base or str(ai_cfg.get("base_url", "") or "")
+                    ai_model = ai_model or str(ai_cfg.get("model", "") or "")
+            except Exception:
+                pass
+        ai_model = ai_model or "qwen-plus"
+        if ai_key and ai_base:
+            t0 = _time_mod.time()
+            import httpx
+
+            chat_url = ai_base.rstrip("/") + "/chat/completions"
+            with httpx.Client(timeout=8.0) as hc:
+                resp = hc.post(
+                    chat_url,
+                    headers={"Authorization": f"Bearer {ai_key}", "Content-Type": "application/json"},
+                    json={
+                        "model": ai_model,
+                        "max_tokens": 1,
+                        "messages": [{"role": "user", "content": "hi"}],
+                    },
+                )
+            latency = int((_time_mod.time() - t0) * 1000)
+            if resp.status_code == 200:
+                ai_info = {"ok": True, "message": "连通", "latency_ms": latency}
+            else:
+                _status_msgs = {401: "API Key 无效", 403: "无权访问", 429: "请求过频"}
+                _msg = _status_msgs.get(resp.status_code, f"HTTP {resp.status_code}")
+                ai_info = {"ok": False, "message": _msg, "latency_ms": latency}
+        else:
+            ai_info = {"ok": False, "message": "API Key 或 Base URL 未配置"}
+    except Exception as exc:
+        ai_info = {"ok": False, "message": f"检查异常: {type(exc).__name__}"}
+    result["ai"] = ai_info
+
+    # -- XGJ health --
+    xgj_info: dict[str, Any] = {"ok": False, "message": "未检查"}
+    try:
+        sys_cfg = _read_system_config()
+        xgj_cfg = sys_cfg.get("xianguanjia", {})
+        xgj_app_key = str(xgj_cfg.get("app_key", "") or os.environ.get("XGJ_APP_KEY", ""))
+        xgj_app_secret = str(xgj_cfg.get("app_secret", "") or os.environ.get("XGJ_APP_SECRET", ""))
+        xgj_base = str(
+            xgj_cfg.get("base_url", "") or os.environ.get("XGJ_BASE_URL", "https://open.goofish.pro")
+        )
+        if not xgj_app_key or not xgj_app_secret:
+            xgj_info = {"ok": False, "message": "AppKey 或 AppSecret 未配置"}
+        else:
+            from src.dashboard_server import _test_xgj_connection
+
+            xgj_info = _test_xgj_connection(
+                app_key=xgj_app_key,
+                app_secret=xgj_app_secret,
+                base_url=xgj_base,
+                mode=str(xgj_cfg.get("mode", "self_developed")),
+                seller_id=str(xgj_cfg.get("seller_id", "")),
+            )
+    except Exception as exc:
+        xgj_info = {"ok": False, "message": f"检查异常: {type(exc).__name__}"}
+    result["xgj"] = xgj_info
+
+    result["services"] = {"python": {"ok": True, "message": "运行中"}}
+    ctx.send_json(result)
+
+
+# ---------------------------------------------------------------------------
+# GET /api/module/*
+# ---------------------------------------------------------------------------
+
+
+@get("/api/module/status")
+def handle_module_status(ctx: RouteContext) -> None:
+    window = ctx.query_int("window", default=60, min_val=1, max_val=10080)
+    limit = ctx.query_int("limit", default=20, min_val=1, max_val=200)
+    payload = ctx.module_console.status(window_minutes=window, limit=limit)
+    status = 200 if not payload.get("error") else 500
+    ctx.send_json(payload, status=status)
+
+
+@get("/api/module/check")
+def handle_module_check(ctx: RouteContext) -> None:
+    skip_gateway = ctx.query_bool("skip_gateway")
+    payload = ctx.module_console.check(skip_gateway=skip_gateway)
+    status = 200 if not payload.get("error") else 500
+    ctx.send_json(payload, status=status)
+
+
+@get("/api/module/logs")
+def handle_module_logs(ctx: RouteContext) -> None:
+    target = ctx.query_str("target", "all").strip().lower()
+    tail = ctx.query_int("tail", default=120, min_val=10, max_val=500)
+    payload = ctx.module_console.logs(target=target, tail_lines=tail)
+    status = 200 if not payload.get("error") else 500
+    ctx.send_json(payload, status=status)
+
+
+# ---------------------------------------------------------------------------
+# GET /api/status, /api/service-status
+# ---------------------------------------------------------------------------
+
+
+@get("/api/status")
+def handle_status(ctx: RouteContext) -> None:
+    ctx.send_json(ctx.mimic_ops.service_status())
+
+
+@get("/api/service-status")
+def handle_service_status(ctx: RouteContext) -> None:
+    ctx.send_json(ctx.mimic_ops.service_status())
+
+
+# ---------------------------------------------------------------------------
+# POST /api/module/control
+# ---------------------------------------------------------------------------
+
+
+@post("/api/module/control")
+def handle_module_control(ctx: RouteContext) -> None:
+    body = ctx.json_body()
+    action = str(body.get("action") or "").strip().lower()
+    target = str(body.get("target") or "all").strip().lower()
+    payload = ctx.module_console.control(action=action, target=target)
+    status = 200 if not payload.get("error") else 400
+    ctx.send_json(payload, status=status)
+
+
+# ---------------------------------------------------------------------------
+# POST /api/service/control, /api/service/recover, /api/service/auto-fix
+# ---------------------------------------------------------------------------
+
+
+@post("/api/service/control")
+def handle_service_control(ctx: RouteContext) -> None:
+    body = ctx.json_body()
+    action = str(body.get("action") or "").strip().lower()
+    payload = ctx.mimic_ops.service_control(action=action)
+    ctx.send_json(payload, status=200 if payload.get("success") else 400)
+
+
+@post("/api/service/recover")
+def handle_service_recover(ctx: RouteContext) -> None:
+    body = ctx.json_body()
+    target = str(body.get("target") or "presales").strip().lower()
+    payload = ctx.mimic_ops.service_recover(target=target)
+    ctx.send_json(payload, status=200 if payload.get("success") else 400)
+
+
+@post("/api/service/auto-fix")
+def handle_service_auto_fix(ctx: RouteContext) -> None:
+    payload = ctx.mimic_ops.service_auto_fix()
+    ctx.send_json(payload, status=200 if payload.get("success") else 400)
+
+
+# ---------------------------------------------------------------------------
+# POST /api/reset-database
+# ---------------------------------------------------------------------------
+
+
+@post("/api/reset-database")
+def handle_reset_database(ctx: RouteContext) -> None:
+    body = ctx.json_body()
+    db_type = str(body.get("type") or "all")
+    payload = ctx.mimic_ops.reset_database(db_type=db_type)
+    ctx.send_json(payload, status=200 if payload.get("success") else 400)
