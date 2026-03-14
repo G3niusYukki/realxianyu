@@ -4319,22 +4319,6 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
 
 
-            if path == "/api/get-cookie":
-                self._send_json(self.mimic_ops.get_cookie())
-                return
-
-
-
-            if path == "/api/download-cookie-plugin":
-                try:
-                    data, filename = self.mimic_ops.export_cookie_plugin_bundle()
-                    self._send_bytes(data=data, content_type="application/zip", download_name=filename)
-                except FileNotFoundError as exc:
-                    self._send_json(_error_payload(str(exc), code="NOT_FOUND"), status=404)
-                return
-
-
-
 
             if path == "/api/virtual-goods/metrics":
                 payload: dict[str, Any]
@@ -4578,61 +4562,6 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 )
                 return
 
-
-            if path == "/api/cookie/auto-grab/status":
-                self.send_response(200)
-                self.send_header("Content-Type", "text/event-stream; charset=utf-8")
-                self.send_header("Cache-Control", "no-cache")
-                self.send_header("Connection", "keep-alive")
-                self.end_headers()
-                grabber = getattr(DashboardHandler, "_cookie_grabber", None)
-                try:
-                    for _ in range(600):
-                        if grabber is not None:
-                            p = grabber.progress
-                            event = json.dumps(
-                                {
-                                    "stage": p.stage.value if hasattr(p.stage, "value") else str(p.stage),
-                                    "message": p.message,
-                                    "hint": p.hint,
-                                    "progress": p.progress,
-                                    "error": p.error,
-                                },
-                                ensure_ascii=False,
-                            )
-                            self.wfile.write(f"data: {event}\n\n".encode())
-                            self.wfile.flush()
-                            if p.stage.value in {"success", "failed", "cancelled"}:
-                                break
-                        else:
-                            event = json.dumps(
-                                {"stage": "idle", "message": "未在运行", "hint": "", "progress": 0, "error": ""},
-                                ensure_ascii=False,
-                            )
-                            self.wfile.write(f"data: {event}\n\n".encode())
-                            self.wfile.flush()
-                            break
-                        time.sleep(0.5)
-                except (BrokenPipeError, ConnectionResetError):
-                    return
-                return
-
-            if path == "/api/cookie/auto-refresh/status":
-                refresher = getattr(DashboardHandler, "_cookie_auto_refresher", None)
-                if refresher is None:
-                    self._send_json(
-                        {
-                            "enabled": False,
-                            "interval_minutes": 0,
-                            "message": "自动刷新未启用（设置 COOKIE_AUTO_REFRESH=true 启用）",
-                        }
-                    )
-                else:
-                    from dataclasses import asdict
-
-                    s = refresher.status()
-                    self._send_json(asdict(s))
-                return
 
 
             # ---------- Auto-Publish Scheduler ----------
@@ -4970,79 +4899,10 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
 
 
-            if path == "/api/update-cookie":
-                body = self._read_json_body()
-                cookie = str(body.get("cookie") or "").strip()
-                payload = self.mimic_ops.update_cookie(cookie, auto_recover=True)
-                self._send_json(payload, status=200 if payload.get("success") else 400)
-                return
 
-            if path == "/api/import-cookie-plugin":
-                try:
-                    files = self._read_multipart_files()
-                except Exception as exc:
-                    self._send_json(
-                        {
-                            "success": False,
-                            "error": "Failed to parse upload body. Please retry with txt/json/zip exports.",
-                            "details": str(exc),
-                        },
-                        status=400,
-                    )
-                    return
 
-                try:
-                    payload = self.mimic_ops.import_cookie_plugin_files(files, auto_recover=True)
-                except Exception as exc:
-                    self._send_json(
-                        {
-                            "success": False,
-                            "error": "Cookie import processing failed.",
-                            "details": str(exc),
-                        },
-                        status=400,
-                    )
-                    return
 
-                self._send_json(payload, status=200 if payload.get("success") else 400)
-                return
 
-            if path == "/api/parse-cookie":
-                body = self._read_json_body()
-                cookie_text = str(body.get("text") or body.get("cookie") or "").strip()
-                payload = self.mimic_ops.parse_cookie_text(cookie_text)
-                self._send_json(payload, status=200 if payload.get("success") else 400)
-                return
-
-            if path == "/api/cookie-diagnose":
-                body = self._read_json_body()
-                cookie_text = str(body.get("text") or body.get("cookie") or "").strip()
-                payload = self.mimic_ops.diagnose_cookie(cookie_text)
-                self._send_json(payload, status=200 if payload.get("success") else 400)
-                return
-
-            if path == "/api/cookie/validate":
-                body = self._read_json_body()
-                cookie_text = str(body.get("cookie") or body.get("text") or "").strip()
-                if not cookie_text:
-                    self._send_json({"ok": False, "grade": "F", "message": "Cookie 不能为空"}, status=400)
-                    return
-                diagnosis = self.mimic_ops.diagnose_cookie(cookie_text)
-                domain_filter = self.mimic_ops._cookie_domain_filter_stats(cookie_text)
-                grade = diagnosis.get("grade", "F")
-                self._send_json(
-                    {
-                        "ok": grade in ("可用", "高风险"),
-                        "grade": grade,
-                        "message": diagnosis.get("message", ""),
-                        "actions": diagnosis.get("actions", []),
-                        "required_present": diagnosis.get("required_present", []),
-                        "required_missing": diagnosis.get("required_missing", []),
-                        "cookie_items": diagnosis.get("cookie_items", 0),
-                        "domain_filter": domain_filter,
-                    }
-                )
-                return
 
 
 
@@ -5155,49 +5015,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 self._send_json({"ok": True, "results": results})
                 return
 
-            if path == "/api/cookie/auto-grab":
-                import threading
-                from src.core.cookie_grabber import CookieGrabber
 
-                if getattr(DashboardHandler, "_cookie_grab_running", False):
-                    self._send_json({"ok": False, "error": "已有获取任务在运行"}, status=409)
-                    return
-
-                grabber = CookieGrabber()
-                DashboardHandler._cookie_grabber = grabber
-                DashboardHandler._cookie_grab_running = True
-
-                def _run_grab() -> None:
-                    import asyncio
-
-                    loop = asyncio.new_event_loop()
-                    try:
-                        result = loop.run_until_complete(grabber.auto_grab())
-                        DashboardHandler._cookie_grab_result = {
-                            "ok": result.ok,
-                            "source": result.source,
-                            "message": result.message,
-                            "error": result.error,
-                        }
-                    except Exception as exc:
-                        DashboardHandler._cookie_grab_result = {"ok": False, "error": str(exc)}
-                    finally:
-                        loop.close()
-                        DashboardHandler._cookie_grab_running = False
-
-                t = threading.Thread(target=_run_grab, daemon=True)
-                t.start()
-                self._send_json({"ok": True, "message": "Cookie 获取任务已启动，请通过 SSE 接口监听进度"})
-                return
-
-            if path == "/api/cookie/auto-grab/cancel":
-                grabber = getattr(DashboardHandler, "_cookie_grabber", None)
-                if grabber is not None:
-                    grabber.cancel()
-                    self._send_json({"ok": True, "message": "已取消"})
-                else:
-                    self._send_json({"ok": False, "error": "没有正在运行的获取任务"})
-                return
 
 
             # ---------- XGJ test connection ----------
