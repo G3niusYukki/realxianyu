@@ -15,11 +15,6 @@ export const api: AxiosInstance = axios.create({
   timeout: 15000,
 });
 
-/** @deprecated Use `api` instead */
-export const nodeApi = api;
-/** @deprecated Use `api` instead */
-export const pyApi = api;
-
 interface FriendlyError {
   msg: string;
   action: string;
