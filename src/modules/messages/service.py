@@ -461,11 +461,11 @@ class MessagesService:
                 continue
             ok_pairs.append((courier_name, result))
 
-        # 根据计费重智能过滤运力类型
+        # 根据计费重智能过滤运力类型（20kg以下隐藏快运，20kg以上同时展示快递+快运供对比）
         if ok_pairs:
             first_exp = ok_pairs[0][1].explain if isinstance(ok_pairs[0][1].explain, dict) else {}
             billing_w = float(first_exp.get("billing_weight_kg") or request.weight or 0)
-            if billing_w < 30:
+            if billing_w < 20:
                 ok_pairs = [
                     p for p in ok_pairs
                     if (p[1].explain or {}).get("service_type") != "freight"
@@ -523,9 +523,20 @@ class MessagesService:
             lines.append("快递方案：")
             for i, (name, result) in enumerate(express_rows, 1):
                 lines.append(_format_courier_line(i, name, result))
-            lines.append("大件快运方案（首重30kg起）：")
+
+            bw_val = float(billing_w or 0)
+            cheapest_freight = freight_rows[0][1]
+            unit_price = float(cheapest_freight.total_fee) / bw_val if bw_val > 0 else 0
+            freight_header = f"大件快运方案（首重30kg起，低至{unit_price:.1f}元/kg）：" if unit_price > 0 else "大件快运方案（首重30kg起）："
+            lines.append(freight_header)
             for i, (name, result) in enumerate(freight_rows, 1):
                 lines.append(_format_courier_line(i, name, result))
+
+            cheapest_express_fee = float(express_rows[0][1].total_fee) if express_rows else 0
+            cheapest_freight_fee = float(cheapest_freight.total_fee)
+            if cheapest_freight_fee < cheapest_express_fee:
+                saving = cheapest_express_fee - cheapest_freight_fee
+                lines.append(f"推荐：大件快运比快递便宜{saving:.0f}元，越重越划算~")
         else:
             for i, (name, result) in enumerate(quote_rows, 1):
                 lines.append(_format_courier_line(i, name, result))
