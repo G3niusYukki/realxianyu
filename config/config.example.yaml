@@ -133,6 +133,11 @@ messages:
       max_attempts: 2         # 每轮 RGV587 最多自动尝试次数
       cooldown_seconds: 300   # 两次尝试间隔（秒）
       headless: false         # 是否无头模式（建议 false，可随时手动接管浏览器窗口）
+      # 指纹浏览器配置（推荐：大幅降低风控检测概率）
+      fingerprint_browser:
+        enabled: false                       # 是否启用指纹浏览器（需先安装 BitBrowser 并创建窗口）
+        api_url: "http://127.0.0.1:54345"   # BitBrowser 本地 API 地址
+        browser_id: ""                       # BitBrowser 中的浏览器窗口 ID
   max_replies_per_run: 10
   fast_reply_enabled: true
   reply_target_seconds: 3.0
@@ -231,6 +236,36 @@ quote:
       member_first_add: 0.25
       normal_extra_add: 0.50
       member_extra_add: 0.30
+  # 三层定价：分服务类别加价（优先于 markup_rules）
+  # 快递首重1kg，快运首重30kg
+  markup_categories:
+    线上快递:
+      default: { first_add: 0.90, extra_add: 0.70 }
+      圆通: { first_add: 0.90, extra_add: 0.70 }
+      韵达: { first_add: 1.20, extra_add: 0.70 }
+      中通: { first_add: 1.20, extra_add: 0.70 }
+      申通: { first_add: 1.20, extra_add: 0.70 }
+      菜鸟裹裹: { first_add: 0.90, extra_add: 0.70 }
+      极兔: { first_add: 0.90, extra_add: 0.70 }
+      德邦: { first_add: 1.20, extra_add: 0.70 }
+      顺丰: { first_add: 1.20, extra_add: 0.70 }
+      京东: { first_add: 1.20, extra_add: 0.70 }
+      邮政: { first_add: 0.60, extra_add: 0.70 }
+    线上快运:
+      default: { first_add: 8.00, extra_add: 0.45 }
+      百世快运: { first_add: 8.00, extra_add: 0.45 }
+      跨越速运: { first_add: 8.00, extra_add: 0.45 }
+      壹米滴答: { first_add: 8.00, extra_add: 0.45 }
+      顺心捷达: { first_add: 8.00, extra_add: 0.45 }
+      中通快运: { first_add: 8.00, extra_add: 0.45 }
+      德邦快运: { first_add: 9.00, extra_add: 0.45 }
+      安能: { first_add: 8.00, extra_add: 0.45 }
+  # 三层定价：闲鱼让利（首重+续重均可配置）
+  xianyu_discount:
+    线上快递:
+      default: { first_discount: 0.00, extra_discount: 0.00 }
+    线上快运:
+      default: { first_discount: 0.00, extra_discount: 0.00 }
   providers:
     remote:
       enabled: false

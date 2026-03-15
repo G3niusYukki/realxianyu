@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 import time as _time_mod
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -16,6 +18,16 @@ from src.dashboard.config_service import read_system_config as _read_system_conf
 
 def _now_iso() -> str:
     return datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+
+
+# ---------------------------------------------------------------------------
+# Health check response cache (TTL 30s)
+# ---------------------------------------------------------------------------
+
+_health_cache: dict[str, Any] | None = None
+_health_cache_ts: float = 0.0
+_health_cache_lock = threading.Lock()
+_HEALTH_CACHE_TTL = 30.0
 
 
 # ---------------------------------------------------------------------------
@@ -70,35 +82,25 @@ def handle_healthz(ctx: RouteContext) -> None:
 # ---------------------------------------------------------------------------
 
 
-@get("/api/health/check")
-def handle_health_check(ctx: RouteContext) -> None:
-    result: dict[str, Any] = {"timestamp": _now_iso()}
-
-    # -- Cookie health --
-    cookie_info: dict[str, Any] = {"ok": False, "message": "未检查"}
+def _check_cookie_health(cookie_text: str) -> dict[str, Any]:
     try:
         from src.core.cookie_health import CookieHealthChecker
 
-        cookie_text = os.environ.get("XIANYU_COOKIE_1", "")
-        if not cookie_text:
-            ck = ctx.mimic_ops.get_cookie()
-            cookie_text = str(ck.get("cookie", "") or "")
         checker = CookieHealthChecker(cookie_text, timeout_seconds=8.0)
         ck_result = checker.check_sync(force=True)
-        cookie_info = {"ok": bool(ck_result.get("healthy")), "message": ck_result.get("message", "")}
+        return {"ok": bool(ck_result.get("healthy")), "message": ck_result.get("message", "")}
     except Exception as exc:
-        cookie_info = {"ok": False, "message": f"检查异常: {exc}"}
-    result["cookie"] = cookie_info
+        return {"ok": False, "message": f"检查异常: {exc}"}
 
-    # -- AI health --
-    ai_info: dict[str, Any] = {"ok": False, "message": "未配置"}
+
+def _check_ai_health() -> dict[str, Any]:
     try:
         ai_key = os.environ.get("AI_API_KEY", "")
         ai_base = os.environ.get("AI_BASE_URL", "")
         ai_model = os.environ.get("AI_MODEL", "")
         if not ai_key or not ai_base:
             try:
-                _sys_cfg_path = Path(__file__).resolve().parents[2] / "data" / "system_config.json"
+                _sys_cfg_path = Path(__file__).resolve().parents[3] / "data" / "system_config.json"
                 if _sys_cfg_path.exists():
                     _sys_cfg = json.loads(_sys_cfg_path.read_text(encoding="utf-8"))
                     ai_cfg = _sys_cfg.get("ai", {})
@@ -125,19 +127,16 @@ def handle_health_check(ctx: RouteContext) -> None:
                 )
             latency = int((_time_mod.time() - t0) * 1000)
             if resp.status_code == 200:
-                ai_info = {"ok": True, "message": "连通", "latency_ms": latency}
-            else:
-                _status_msgs = {401: "API Key 无效", 403: "无权访问", 429: "请求过频"}
-                _msg = _status_msgs.get(resp.status_code, f"HTTP {resp.status_code}")
-                ai_info = {"ok": False, "message": _msg, "latency_ms": latency}
-        else:
-            ai_info = {"ok": False, "message": "API Key 或 Base URL 未配置"}
+                return {"ok": True, "message": "连通", "latency_ms": latency}
+            _status_msgs = {401: "API Key 无效", 403: "无权访问", 429: "请求过频"}
+            _msg = _status_msgs.get(resp.status_code, f"HTTP {resp.status_code}")
+            return {"ok": False, "message": _msg, "latency_ms": latency}
+        return {"ok": False, "message": "API Key 或 Base URL 未配置"}
     except Exception as exc:
-        ai_info = {"ok": False, "message": f"检查异常: {type(exc).__name__}"}
-    result["ai"] = ai_info
+        return {"ok": False, "message": f"检查异常: {type(exc).__name__}"}
 
-    # -- XGJ health --
-    xgj_info: dict[str, Any] = {"ok": False, "message": "未检查"}
+
+def _check_xgj_health() -> dict[str, Any]:
     try:
         sys_cfg = _read_system_config()
         xgj_cfg = sys_cfg.get("xianguanjia", {})
@@ -147,22 +146,53 @@ def handle_health_check(ctx: RouteContext) -> None:
             xgj_cfg.get("base_url", "") or os.environ.get("XGJ_BASE_URL", "https://open.goofish.pro")
         )
         if not xgj_app_key or not xgj_app_secret:
-            xgj_info = {"ok": False, "message": "AppKey 或 AppSecret 未配置"}
-        else:
-            from src.dashboard_server import _test_xgj_connection
+            return {"ok": False, "message": "AppKey 或 AppSecret 未配置"}
+        from src.dashboard_server import _test_xgj_connection
 
-            xgj_info = _test_xgj_connection(
-                app_key=xgj_app_key,
-                app_secret=xgj_app_secret,
-                base_url=xgj_base,
-                mode=str(xgj_cfg.get("mode", "self_developed")),
-                seller_id=str(xgj_cfg.get("seller_id", "")),
-            )
+        return _test_xgj_connection(
+            app_key=xgj_app_key,
+            app_secret=xgj_app_secret,
+            base_url=xgj_base,
+            mode=str(xgj_cfg.get("mode", "self_developed")),
+            seller_id=str(xgj_cfg.get("seller_id", "")),
+        )
     except Exception as exc:
-        xgj_info = {"ok": False, "message": f"检查异常: {type(exc).__name__}"}
-    result["xgj"] = xgj_info
+        return {"ok": False, "message": f"检查异常: {type(exc).__name__}"}
+
+
+@get("/api/health/check")
+def handle_health_check(ctx: RouteContext) -> None:
+    global _health_cache, _health_cache_ts
+
+    with _health_cache_lock:
+        if _health_cache is not None and (_time_mod.time() - _health_cache_ts) < _HEALTH_CACHE_TTL:
+            ctx.send_json(_health_cache)
+            return
+
+    cookie_text = os.environ.get("XIANYU_COOKIE_1", "")
+    if not cookie_text:
+        try:
+            ck = ctx.mimic_ops.get_cookie()
+            cookie_text = str(ck.get("cookie", "") or "")
+        except Exception:
+            pass
+
+    result: dict[str, Any] = {"timestamp": _now_iso()}
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        fut_cookie = pool.submit(_check_cookie_health, cookie_text)
+        fut_ai = pool.submit(_check_ai_health)
+        fut_xgj = pool.submit(_check_xgj_health)
+
+        result["cookie"] = fut_cookie.result(timeout=12)
+        result["ai"] = fut_ai.result(timeout=12)
+        result["xgj"] = fut_xgj.result(timeout=12)
 
     result["services"] = {"python": {"ok": True, "message": "运行中"}}
+
+    with _health_cache_lock:
+        _health_cache = result
+        _health_cache_ts = _time_mod.time()
+
     ctx.send_json(result)
 
 

@@ -454,6 +454,12 @@ class GoofishWsTransport:
         cc_poll_interval = 30.0
         cc_last_poll = 0.0
         cc_not_configured = False
+        fp_poll_interval = 120.0
+        fp_last_poll = 0.0
+        fp_not_configured = False
+        self.logger.info(
+            "进入 Cookie 更新等待循环 (检测: env/config, CookieCloud, 指纹浏览器)"
+        )
         while not self._stop_event.is_set():
             if self._cookie_changed.is_set():
                 self._cookie_changed.clear()
@@ -467,6 +473,15 @@ class GoofishWsTransport:
                     return True
                 if refreshed is None:
                     cc_not_configured = True
+            if not fp_not_configured and (now - fp_last_poll) >= fp_poll_interval:
+                fp_last_poll = now
+                recovered = await self._try_slider_recovery()
+                if recovered:
+                    return True
+                slider_cfg = self.config.get("slider_auto_solve", {})
+                fp_cfg = slider_cfg.get("fingerprint_browser", {}) if isinstance(slider_cfg, dict) else {}
+                if not (isinstance(fp_cfg, dict) and fp_cfg.get("enabled")):
+                    fp_not_configured = True
             await asyncio.sleep(interval)
         return False
 
@@ -599,8 +614,20 @@ class GoofishWsTransport:
         except Exception:
             pass
 
+    _last_slider_recovery_at: float = 0.0
+    _SLIDER_RECOVERY_COOLDOWN = 60.0
+
     async def _try_slider_recovery(self) -> bool:
         """Phase 2+3: open browser for slider verification, optionally auto-solve."""
+        now = time.time()
+        if now - self._last_slider_recovery_at < self._SLIDER_RECOVERY_COOLDOWN:
+            elapsed = now - self._last_slider_recovery_at
+            self.logger.info(
+                f"Slider recovery cooldown: {self._SLIDER_RECOVERY_COOLDOWN - elapsed:.0f}s remaining, skipping"
+            )
+            return False
+        self._last_slider_recovery_at = now
+
         try:
             from src.core.slider_solver import try_slider_recovery
         except ImportError:
@@ -614,9 +641,10 @@ class GoofishWsTransport:
             )
             if result and result.get("cookie"):
                 cookie_str = result["cookie"]
-                _required = {"sgcookie", "unb", "cookie2"}
+                _required = {"sgcookie", "unb", "cookie2", "_m_h5_tk"}
                 cookie_keys = {p.split("=")[0].strip() for p in cookie_str.split(";") if "=" in p}
-                is_complete = bool(_required & cookie_keys)
+                missing = _required - cookie_keys
+                is_complete = not missing
 
                 if is_complete:
                     changed = self._apply_cookie_text(cookie_str, reason="slider_recovery")
@@ -634,12 +662,16 @@ class GoofishWsTransport:
                             pass
                     return changed
 
-                self.logger.info("Slider solved but cookie incomplete, waiting for CookieCloud sync...")
+                self.logger.info(
+                    f"Slider recovery: cookie incomplete (missing: {missing}), "
+                    f"got {len(cookie_keys)} fields. Waiting for CookieCloud sync..."
+                )
                 try:
                     from src.core.notify import send_system_notification
                     send_system_notification(
-                        "【闲鱼自动化】✅ 滑块验证已通过\n"
-                        "但自动提取的 Cookie 不完整，请在 CookieCloud 扩展中点「手动同步」完成恢复",
+                        "【闲鱼自动化】⚠️ 滑块页面无验证码，但提取的 Cookie 不完整\n"
+                        "缺少字段: " + ", ".join(sorted(missing)) + "\n"
+                        "请在 CookieCloud 扩展中点「手动同步」或在闲鱼网页重新登录",
                         event="risk_control",
                     )
                 except Exception:
@@ -1188,28 +1220,39 @@ class GoofishWsTransport:
                 if auth_error:
                     if is_rgv587:
                         self._rgv587_consecutive += 1
-                        _RGV587_BACKOFF_MAX = 2
-                        if self._rgv587_consecutive <= _RGV587_BACKOFF_MAX:
-                            backoff = 60.0 * self._rgv587_consecutive
+                        slider_cfg = self.config.get("slider_auto_solve", {})
+                        slider_enabled = bool(slider_cfg.get("enabled")) if isinstance(slider_cfg, dict) else False
+
+                        if slider_enabled:
                             self.logger.warning(
-                                f"RGV587 风控检测 ({self._rgv587_consecutive}/{_RGV587_BACKOFF_MAX})，"
-                                f"退避 {backoff:.0f}s 后重试..."
+                                f"RGV587 风控检测 ({self._rgv587_consecutive})，立即尝试滑块恢复..."
                             )
-                            if await self._try_active_cookie_refresh():
-                                self.logger.info("Active cookie refresh succeeded during RGV587 backoff")
-                            await asyncio.sleep(backoff)
-                            continue
-                        self.logger.warning(
-                            "RGV587 风控持续触发，请在浏览器打开闲鱼消息页(https://www.goofish.com/im)完成滑块验证后更新 Cookie。"
-                            " 暂停自动重连，等待 Cookie 更新..."
-                        )
-                        self._send_risk_control_notification()
-                        recovered = await self._try_slider_recovery()
-                        if recovered:
-                            self._connect_failures = 0
-                            self._rgv587_consecutive = 0
-                            self.logger.info("滑块验证恢复成功，立即重试 WS 连接")
-                            continue
+                            self._send_risk_control_notification()
+                            recovered = await self._try_slider_recovery()
+                            if recovered:
+                                self._connect_failures = 0
+                                self._rgv587_consecutive = 0
+                                self.logger.info("滑块验证恢复成功，立即重试 WS 连接")
+                                continue
+                            self.logger.warning("滑块自动恢复失败，等待 Cookie 更新...")
+                        else:
+                            _RGV587_BACKOFF_MAX = 2
+                            if self._rgv587_consecutive <= _RGV587_BACKOFF_MAX:
+                                backoff = 60.0 * self._rgv587_consecutive
+                                self.logger.warning(
+                                    f"RGV587 风控检测 ({self._rgv587_consecutive}/{_RGV587_BACKOFF_MAX})，"
+                                    f"退避 {backoff:.0f}s 后重试..."
+                                )
+                                if await self._try_active_cookie_refresh():
+                                    self.logger.info("Active cookie refresh succeeded during RGV587 backoff")
+                                await asyncio.sleep(backoff)
+                                continue
+                            self.logger.warning(
+                                "RGV587 风控持续触发，请在浏览器打开闲鱼消息页(https://www.goofish.com/im)完成滑块验证后更新 Cookie。"
+                                " 暂停自动重连，等待 Cookie 更新..."
+                            )
+                            self._send_risk_control_notification()
+
                         if await self._wait_for_cookie_update_forever():
                             self._connect_failures = 0
                             self._rgv587_consecutive = 0

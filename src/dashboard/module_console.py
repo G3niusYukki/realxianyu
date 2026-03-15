@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -34,8 +35,13 @@ def _extract_json_payload(text: str) -> Any | None:
 class ModuleConsole:
     """通过 CLI 复用模块状态与控制能力。"""
 
+    _STATUS_CACHE_TTL: float = 15.0
+
     def __init__(self, project_root: str | Path):
         self.project_root = Path(project_root).resolve()
+        self._status_cache: dict[str, Any] | None = None
+        self._status_cache_ts: float = 0.0
+        self._status_cache_key: str = ""
 
     def _run_module_cli(
         self,
@@ -90,12 +96,24 @@ class ModuleConsole:
         return {"ok": True, "stdout": (proc.stdout or "").strip(), "_cli_cmd": " ".join(cmd)}
 
     def status(self, window_minutes: int = 60, limit: int = 20) -> dict[str, Any]:
-        return self._run_module_cli(
+        cache_key = f"{window_minutes}:{limit}"
+        now = time.time()
+        if (
+            self._status_cache is not None
+            and cache_key == self._status_cache_key
+            and (now - self._status_cache_ts) < self._STATUS_CACHE_TTL
+        ):
+            return self._status_cache
+        result = self._run_module_cli(
             action="status",
             target="all",
             extra_args=["--window-minutes", str(window_minutes), "--limit", str(limit)],
             timeout_seconds=90,
         )
+        self._status_cache = result
+        self._status_cache_key = cache_key
+        self._status_cache_ts = now
+        return result
 
     def logs(self, target: str, tail_lines: int = 120) -> dict[str, Any]:
         safe_target = target if target in {"all", *MODULE_TARGETS} else "all"
@@ -144,4 +162,6 @@ class ModuleConsole:
         else:
             args.extend(["--stop-timeout", "6"])
 
-        return self._run_module_cli(action=act, target=tgt, extra_args=args, timeout_seconds=120)
+        result = self._run_module_cli(action=act, target=tgt, extra_args=args, timeout_seconds=120)
+        self._status_cache = None
+        return result

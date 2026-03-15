@@ -33,6 +33,7 @@ NC_SLIDER_SELECTORS = [
     "#baxia-slideBar .btn_slide",
     "#baxia-dialog-content .btn_slide",
     ".slide-btn",
+    "[aria-label='滑块']",
 ]
 
 NC_TRACK_SELECTORS = [
@@ -79,11 +80,19 @@ def _get_slider_config(config: dict[str, Any] | None) -> dict[str, Any]:
     slider_cfg = ws_cfg.get("slider_auto_solve", {})
     if not isinstance(slider_cfg, dict):
         slider_cfg = {}
+    fp_cfg = slider_cfg.get("fingerprint_browser", {})
+    if not isinstance(fp_cfg, dict):
+        fp_cfg = {}
     return {
         "enabled": bool(slider_cfg.get("enabled", False)),
         "max_attempts": int(slider_cfg.get("max_attempts", 2)),
         "cooldown_seconds": int(slider_cfg.get("cooldown_seconds", 300)),
         "headless": bool(slider_cfg.get("headless", False)),
+        "fingerprint_browser": {
+            "enabled": bool(fp_cfg.get("enabled", False)),
+            "api_url": str(fp_cfg.get("api_url", "http://127.0.0.1:54345")).rstrip("/"),
+            "browser_id": str(fp_cfg.get("browser_id", "")),
+        },
     }
 
 
@@ -265,37 +274,109 @@ async def _solve_nc_slider(page: Any, frame: Any, slider_el: Any) -> bool:
 
     await asyncio.sleep(random.uniform(0.05, 0.2))
     await page.mouse.up()
-    await asyncio.sleep(2.5)
+
+    for _ in range(10):
+        await asyncio.sleep(0.3)
+        for err_sel in [".errloading", ".nc-lang-cnt"]:
+            try:
+                err_el = await page.query_selector(err_sel)
+                if err_el and await err_el.is_visible():
+                    err_text = await err_el.inner_text()
+                    if any(kw in (err_text or "") for kw in ["出错", "请重试", "失败"]):
+                        return False
+            except Exception:
+                pass
+        if await _check_nc_success(frame, page=page):
+            return True
 
     return await _check_nc_success(frame, page=page)
+
+
+_PUZZLE_BG_SELECTORS = [
+    ".yoda-image-bg",
+    ".baxia-bg-img",
+    "#aliyunCaptcha-puzzle-bg",
+    "img.bg-img",
+    ".nc-container img",
+    "img[id*='bg']",
+    "img[class*='bg']",
+    "canvas.baxia-canvas",
+]
+
+_PUZZLE_SLICE_SELECTORS = [
+    ".yoda-image-slice img",
+    ".baxia-slice-img",
+    "#aliyunCaptcha-puzzle-slice",
+    "img.slice-img",
+    "img[id*='slice']",
+    "img[class*='slice']",
+    ".yoda-image-slice",
+]
 
 
 async def _solve_puzzle_slider(page: Any, frame: Any, slider_el: Any) -> bool:
     """Attempt to solve puzzle slider using opencv gap detection."""
     try:
+        all_frames = [frame] + [f for f in page.frames if f != frame]
+
         bg_el = None
-        for sel in [".yoda-image-bg", ".baxia-bg-img", "#aliyunCaptcha-puzzle-bg", "img.bg-img"]:
-            bg_el = await frame.query_selector(sel)
+        sl_el = None
+        target_frame = frame
+
+        for f in all_frames:
+            for sel in _PUZZLE_BG_SELECTORS:
+                try:
+                    el = await f.query_selector(sel)
+                    if el and await el.is_visible():
+                        bg_el = el
+                        target_frame = f
+                        logger.info(f"Puzzle: found bg element via '{sel}'")
+                        break
+                except Exception:
+                    continue
             if bg_el:
                 break
 
-        sl_el = None
-        for sel in [".yoda-image-slice img", ".baxia-slice-img", "#aliyunCaptcha-puzzle-slice", "img.slice-img"]:
-            sl_el = await frame.query_selector(sel)
+        for f in all_frames:
+            for sel in _PUZZLE_SLICE_SELECTORS:
+                try:
+                    el = await f.query_selector(sel)
+                    if el and await el.is_visible():
+                        sl_el = el
+                        logger.info(f"Puzzle: found slice element via '{sel}'")
+                        break
+                except Exception:
+                    continue
             if sl_el:
                 break
 
         if not bg_el or not sl_el:
-            logger.debug("Puzzle slider: background or slider image element not found")
-            return False
+            logger.info(
+                f"Puzzle slider: elements not found (bg={'found' if bg_el else 'MISSING'}, "
+                f"slice={'found' if sl_el else 'MISSING'}). "
+                "Trying screenshot-based fallback..."
+            )
+            if not bg_el and not sl_el:
+                try:
+                    all_imgs = await target_frame.query_selector_all("img")
+                    logger.info(f"Puzzle: found {len(all_imgs)} img elements in frame")
+                    for img in all_imgs[:10]:
+                        src = await img.get_attribute("src") or ""
+                        cls = await img.get_attribute("class") or ""
+                        logger.info(f"  img: class='{cls}', src='{src[:80]}'")
+                except Exception:
+                    pass
+                return False
 
-        bg_url = await bg_el.get_attribute("src")
-        sl_url = await sl_el.get_attribute("src")
+        bg_url = await bg_el.get_attribute("src") if bg_el else None
+        sl_url = await sl_el.get_attribute("src") if sl_el else None
 
         if not bg_url or not sl_url:
-            logger.debug("Puzzle slider: image URLs not found, trying screenshot")
-            bg_bytes = await bg_el.screenshot()
-            sl_bytes = await sl_el.screenshot()
+            logger.info("Puzzle slider: image URLs not found, trying screenshot")
+            bg_bytes = await bg_el.screenshot() if bg_el else None
+            sl_bytes = await sl_el.screenshot() if sl_el else None
+            if not bg_bytes or not sl_bytes:
+                return False
         else:
             import httpx
             async with httpx.AsyncClient(timeout=10) as client:
@@ -304,10 +385,14 @@ async def _solve_puzzle_slider(page: Any, frame: Any, slider_el: Any) -> bool:
                 bg_bytes = bg_resp.content
                 sl_bytes = sl_resp.content
 
+        logger.info(f"Puzzle: bg image {len(bg_bytes)} bytes, slice image {len(sl_bytes)} bytes")
+
         gap_x = find_puzzle_gap_opencv(bg_bytes, sl_bytes)
         if gap_x is None:
             logger.info("Puzzle slider: opencv gap detection failed")
             return False
+
+        logger.info(f"Puzzle: gap detected at x={gap_x}")
 
         slider_box = await slider_el.bounding_box()
         if not slider_box:
@@ -319,6 +404,8 @@ async def _solve_puzzle_slider(page: Any, frame: Any, slider_el: Any) -> bool:
             drag_distance = int(gap_x / scale) if scale != 1.0 else gap_x
         else:
             drag_distance = gap_x
+
+        logger.info(f"Puzzle: drag_distance={drag_distance}px")
 
         start_x = int(slider_box["x"] + slider_box["width"] / 2)
         start_y = int(slider_box["y"] + slider_box["height"] / 2)
@@ -337,9 +424,13 @@ async def _solve_puzzle_slider(page: Any, frame: Any, slider_el: Any) -> bool:
             await asyncio.sleep(dt_ms / 1000.0)
 
         await page.mouse.up()
-        await asyncio.sleep(2.5)
 
-        return await _check_nc_success(frame)
+        for _ in range(10):
+            await asyncio.sleep(0.3)
+            if await _check_nc_success(target_frame, page=page):
+                return True
+
+        return await _check_nc_success(target_frame, page=page)
 
     except Exception as exc:
         logger.info(f"Puzzle slider solve error: {exc}")
@@ -357,6 +448,42 @@ def _extract_goofish_cookies(all_cookies: list[dict[str, Any]]) -> str | None:
 def _has_login_cookies(cookies: list[dict[str, Any]]) -> bool:
     names = {c.get("name", "") for c in cookies}
     return bool(names & _AUTH_COOKIES)
+
+
+async def _try_connect_fingerprint_browser(
+    pw: Any, fp_config: dict[str, Any], _log: Any
+) -> tuple[Any, Any, bool] | None:
+    """Strategy 0: Connect via BitBrowser fingerprint browser API."""
+    api_url = fp_config.get("api_url", "")
+    browser_id = fp_config.get("browser_id", "")
+    if not api_url or not browser_id:
+        return None
+    try:
+        import httpx
+
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(
+                f"{api_url}/browser/open",
+                json={"id": browser_id},
+            )
+            data = resp.json()
+            if not data.get("success"):
+                _log.info(f"Fingerprint browser open failed: {data}")
+                return None
+            ws_url = data.get("data", {}).get("ws")
+            if not ws_url:
+                _log.info("Fingerprint browser returned no ws URL")
+                return None
+        browser = await pw.chromium.connect_over_cdp(ws_url)
+        contexts = browser.contexts
+        if contexts:
+            _log.info("Slider recovery: connected via fingerprint browser (BitBrowser)")
+            return browser, contexts[0], True
+        _log.info("Fingerprint browser connected but no contexts")
+        await browser.close()
+    except Exception as e:
+        _log.info(f"Fingerprint browser connect failed: {e}")
+    return None
 
 
 _CDP_PORTS = [9222, 9223, 9224]
@@ -511,20 +638,28 @@ async def try_slider_recovery(
     try:
         pw = await async_playwright().start()
 
-        # Strategy 1: connect to existing Chrome via CDP
-        cdp_result = await _try_connect_cdp(pw, _log)
-        if cdp_result:
-            browser, context, is_cdp = cdp_result
-        else:
-            # Strategy 2: launch with user's Chrome profile
-            profile_result = await _try_launch_with_profile(pw, headless, _log)
-            if profile_result:
-                browser, context, is_cdp = profile_result
+        # Strategy 0: connect via fingerprint browser (BitBrowser)
+        fp_cfg = slider_cfg.get("fingerprint_browser", {})
+        if fp_cfg.get("enabled"):
+            fp_result = await _try_connect_fingerprint_browser(pw, fp_cfg, _log)
+            if fp_result:
+                browser, context, is_cdp = fp_result
+
+        if not context:
+            # Strategy 1: connect to existing Chrome via CDP
+            cdp_result = await _try_connect_cdp(pw, _log)
+            if cdp_result:
+                browser, context, is_cdp = cdp_result
             else:
-                # Strategy 3: fresh browser with injected cookies
-                fresh_result = await _try_launch_fresh(pw, headless, cookie_text, _log)
-                if fresh_result:
-                    browser, context, is_cdp = fresh_result
+                # Strategy 2: launch with user's Chrome profile
+                profile_result = await _try_launch_with_profile(pw, headless, _log)
+                if profile_result:
+                    browser, context, is_cdp = profile_result
+                else:
+                    # Strategy 3: fresh browser with injected cookies
+                    fresh_result = await _try_launch_fresh(pw, headless, cookie_text, _log)
+                    if fresh_result:
+                        browser, context, is_cdp = fresh_result
 
         if not context:
             _log.info("Slider recovery: all browser strategies failed")

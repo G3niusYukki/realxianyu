@@ -1553,6 +1553,55 @@ export default function SystemConfig() {
                     </div>
                     <ToggleSwitch checked={!!config.slider_auto_solve?.headless} onChange={() => handleChange('slider_auto_solve', 'headless', !config.slider_auto_solve?.headless)} />
                   </div>
+
+                  {/* 指纹浏览器配置 */}
+                  <div className="mt-2 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200">
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <p className="font-medium text-xy-text-primary text-sm">指纹浏览器（BitBrowser）</p>
+                        <p className="text-xs text-xy-text-secondary mt-0.5">通过 BitBrowser 指纹浏览器接管已登录的浏览器实例，大幅降低风控检测概率</p>
+                      </div>
+                      <ToggleSwitch
+                        checked={!!config.slider_auto_solve?.fingerprint_browser?.enabled}
+                        onChange={() => handleChange('slider_auto_solve', 'fingerprint_browser', {
+                          ...(config.slider_auto_solve?.fingerprint_browser || {}),
+                          enabled: !config.slider_auto_solve?.fingerprint_browser?.enabled,
+                        })}
+                      />
+                    </div>
+                    {config.slider_auto_solve?.fingerprint_browser?.enabled && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+                        <div>
+                          <label className="xy-label">API 地址</label>
+                          <input
+                            type="text"
+                            className="xy-input px-3 py-2 w-full"
+                            value={config.slider_auto_solve?.fingerprint_browser?.api_url ?? 'http://127.0.0.1:54345'}
+                            placeholder="http://127.0.0.1:54345"
+                            onChange={e => handleChange('slider_auto_solve', 'fingerprint_browser', {
+                              ...(config.slider_auto_solve?.fingerprint_browser || {}),
+                              api_url: e.target.value,
+                            })}
+                          />
+                          <p className="text-[11px] text-gray-400 mt-1">BitBrowser 本地 API 地址，默认端口 54345</p>
+                        </div>
+                        <div>
+                          <label className="xy-label">浏览器窗口 ID</label>
+                          <input
+                            type="text"
+                            className="xy-input px-3 py-2 w-full"
+                            value={config.slider_auto_solve?.fingerprint_browser?.browser_id ?? ''}
+                            placeholder="在 BitBrowser 中右键窗口 → 复制 ID"
+                            onChange={e => handleChange('slider_auto_solve', 'fingerprint_browser', {
+                              ...(config.slider_auto_solve?.fingerprint_browser || {}),
+                              browser_id: e.target.value,
+                            })}
+                          />
+                          <p className="text-[11px] text-gray-400 mt-1">在 BitBrowser 窗口列表中右键复制窗口 ID</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </CollapsibleSection>
             </div>
@@ -1764,7 +1813,7 @@ export default function SystemConfig() {
                     </div>
                   </div>
                 </div>
-                <GuideCard summary="快递品类用户可在「商品管理 > 加价规则」中配置更精细的路线加价">
+                <GuideCard summary="可在「商品管理 > 三层定价」中按服务类别配置分运力的加价和闲鱼让利">
                   <p>此处的定价规则为全局兜底策略，针对不同路线可设置更精细的定价偏移。</p>
                 </GuideCard>
               </CollapsibleSection>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { getProducts, unpublishProduct, publishProduct } from '../../api/xianguanjia';
 import { api } from '../../api/index';
 import { useStoreCategory } from '../../contexts/StoreCategoryContext';
@@ -13,10 +13,75 @@ import Pagination from '../../components/Pagination';
 
 const CHART_COLORS = ['#6366f1', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
 
+const SERVICE_CATEGORIES = [
+  '线上快递', '线下快递', '线上快运', '线下快运',
+  '同城寄', '电动车', '分销', '商家寄件',
+];
+
+const EXPRESS_COURIERS = ['圆通', '韵达', '中通', '申通', '菜鸟裹裹', '极兔', '德邦', '顺丰', '京东', '邮政'];
+const FREIGHT_COURIERS = ['百世快运', '跨越速运', '壹米滴答', '顺心捷达', '中通快运', '德邦快运', '安能'];
+
+const CATEGORY_DEFAULT_COURIERS: Record<string, string[]> = {
+  '线上快递': EXPRESS_COURIERS,
+  '线下快递': EXPRESS_COURIERS,
+  '线上快运': FREIGHT_COURIERS,
+  '线下快运': FREIGHT_COURIERS,
+};
+
+const DEFAULT_MARKUP: Record<string, CategoryMarkup> = {
+  '线上快递': {
+    default: { first_add: 0.90, extra_add: 0.70 },
+    '圆通': { first_add: 0.90, extra_add: 0.70 },
+    '韵达': { first_add: 1.20, extra_add: 0.70 },
+    '中通': { first_add: 1.20, extra_add: 0.70 },
+    '申通': { first_add: 1.20, extra_add: 0.70 },
+    '菜鸟裹裹': { first_add: 0.90, extra_add: 0.70 },
+    '极兔': { first_add: 0.90, extra_add: 0.70 },
+    '德邦': { first_add: 1.20, extra_add: 0.70 },
+    '顺丰': { first_add: 1.20, extra_add: 0.70 },
+    '京东': { first_add: 1.20, extra_add: 0.70 },
+    '邮政': { first_add: 0.60, extra_add: 0.70 },
+  },
+  '线下快递': { default: { first_add: 0, extra_add: 0 } },
+  '线上快运': {
+    default: { first_add: 8.00, extra_add: 0.45 },
+    '百世快运': { first_add: 8.00, extra_add: 0.45 },
+    '跨越速运': { first_add: 8.00, extra_add: 0.45 },
+    '壹米滴答': { first_add: 8.00, extra_add: 0.45 },
+    '顺心捷达': { first_add: 8.00, extra_add: 0.45 },
+    '中通快运': { first_add: 8.00, extra_add: 0.45 },
+    '德邦快运': { first_add: 9.00, extra_add: 0.45 },
+    '安能': { first_add: 8.00, extra_add: 0.45 },
+  },
+  '线下快运': { default: { first_add: 0, extra_add: 0 } },
+  '同城寄': { default: { first_add: 0, extra_add: 0 } },
+  '电动车': { default: { first_add: 0, extra_add: 0 } },
+  '分销': { default: { first_add: 0, extra_add: 0 } },
+  '商家寄件': { default: { first_add: 0, extra_add: 0 } },
+};
+
+interface CourierSummary {
+  courier: string;
+  service_type: string;
+  base_weight: number;
+  route_count: number;
+  cheapest_first: number;
+  cheapest_extra: number;
+  cheapest_route: string;
+}
+
+interface CategoryMarkup {
+  [courier: string]: { first_add: number; extra_add: number };
+}
+
+interface CategoryDiscount {
+  [courier: string]: { first_discount: number; extra_discount: number };
+}
+
 const PRODUCT_TABS = [
   { key: 'list', label: '商品列表', visible: () => true },
   { key: 'routes', label: '路线数据', visible: (cat: string) => cat === 'express' },
-  { key: 'markup', label: '加价规则', visible: (cat: string) => cat === 'express' },
+  { key: 'pricing', label: '三层定价', visible: () => true },
 ];
 
 export default function ProductList() {
@@ -30,16 +95,26 @@ export default function ProductList() {
   const [routeStats, setRouteStats] = useState<any>(null);
   const [routeLoading, setRouteLoading] = useState(false);
 
-  const [markupRules, setMarkupRules] = useState<Record<string, Record<string, number>>>({});
-  const [markupLoading, setMarkupLoading] = useState(false);
-  const [markupSaving, setMarkupSaving] = useState(false);
+  // 三层定价 state
+  const [pricingCategory, setPricingCategory] = useState(SERVICE_CATEGORIES[0]);
+  const [markupCategories, setMarkupCategories] = useState<Record<string, CategoryMarkup>>({});
+  const [xianyuDiscount, setXianyuDiscount] = useState<Record<string, CategoryDiscount>>({});
+  const [costSummary, setCostSummary] = useState<CourierSummary[]>([]);
+  const [pricingLoading, setPricingLoading] = useState(false);
+  const [pricingSaving, setPricingSaving] = useState(false);
+
+  // 路线查询 state
+  const [queryOrigin, setQueryOrigin] = useState('');
+  const [queryDestination, setQueryDestination] = useState('');
+  const [routeCostSummary, setRouteCostSummary] = useState<CourierSummary[] | null>(null);
+  const [routeQuerying, setRouteQuerying] = useState(false);
 
   const visibleTabs = useMemo(() => PRODUCT_TABS.filter(t => t.visible(category)), [category]);
 
   useEffect(() => { fetchProducts(); }, [page]);
   useEffect(() => {
     if (activeTab === 'routes') fetchRouteStats();
-    if (activeTab === 'markup') fetchMarkupRules();
+    if (activeTab === 'pricing') fetchPricingData();
   }, [activeTab]);
 
   const fetchProducts = async () => {
@@ -59,26 +134,6 @@ export default function ProductList() {
       setRouteStats(res.data?.stats || res.data);
     } catch { toast.error('加载路线数据失败'); }
     finally { setRouteLoading(false); }
-  };
-
-  const fetchMarkupRules = async () => {
-    setMarkupLoading(true);
-    try {
-      const res = await api.get('/get-markup-rules');
-      const rules = res.data?.markup_rules || res.data?.rules || {};
-      setMarkupRules(typeof rules === 'object' && !Array.isArray(rules) ? rules : {});
-    } catch { toast.error('加载加价规则失败'); }
-    finally { setMarkupLoading(false); }
-  };
-
-  const handleSaveMarkup = async () => {
-    setMarkupSaving(true);
-    try {
-      const res = await api.post('/save-markup-rules', { markup_rules: markupRules });
-      if (res.data?.ok || res.data?.success) toast.success('加价规则已保存');
-      else toast.error(res.data?.error || '保存失败');
-    } catch (e: any) { toast.error(e.message || '保存失败'); }
-    finally { setMarkupSaving(false); }
   };
 
   const handleClearRoutes = async () => {
@@ -109,18 +164,98 @@ export default function ProductList() {
     e.target.value = '';
   };
 
-  const handleImportMarkup = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const fd = new FormData();
-    fd.append('file', file);
+  // ---- 三层定价 ----
+  const fetchPricingData = useCallback(async () => {
+    setPricingLoading(true);
     try {
-      const res = await api.post('/import-markup', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
-      if (res.data?.success || res.data?.ok) { toast.success('加价规则导入成功'); fetchMarkupRules(); }
-      else toast.error(res.data?.error || '导入失败');
-    } catch { toast.error('导入加价规则失败'); }
-    e.target.value = '';
+      const [configRes, costRes] = await Promise.all([
+        api.get('/get-pricing-config'),
+        api.get('/get-cost-summary'),
+      ]);
+      const savedMarkup = configRes.data?.markup_categories || {};
+      const merged: Record<string, CategoryMarkup> = {};
+      for (const cat of SERVICE_CATEGORIES) {
+        merged[cat] = { ...(DEFAULT_MARKUP[cat] || {}), ...(savedMarkup[cat] || {}) };
+      }
+      setMarkupCategories(merged);
+      if (configRes.data?.xianyu_discount) setXianyuDiscount(configRes.data.xianyu_discount);
+      if (costRes.data?.couriers) setCostSummary(costRes.data.couriers);
+    } catch { toast.error('加载定价配置失败'); }
+    finally { setPricingLoading(false); }
+  }, []);
+
+  const handleSavePricing = async () => {
+    setPricingSaving(true);
+    try {
+      const res = await api.post('/save-pricing-config', {
+        markup_categories: markupCategories,
+        xianyu_discount: xianyuDiscount,
+      });
+      if (res.data?.success) toast.success('定价配置已保存');
+      else toast.error(res.data?.error || '保存失败');
+    } catch (e: any) { toast.error(e.message || '保存失败'); }
+    finally { setPricingSaving(false); }
   };
+
+  const handleQueryRouteCost = async () => {
+    if (!queryOrigin.trim() || !queryDestination.trim()) {
+      toast.error('请输入始发地和目的地');
+      return;
+    }
+    setRouteQuerying(true);
+    try {
+      const res = await api.get('/query-route-cost', { params: { origin: queryOrigin.trim(), destination: queryDestination.trim() } });
+      if (res.data?.success) {
+        setRouteCostSummary(res.data.couriers || []);
+        if (!res.data.couriers?.length) toast('该路线暂无成本数据', { icon: '⚠️' });
+      } else {
+        toast.error(res.data?.error || '查询失败');
+      }
+    } catch { toast.error('查询路线成本失败'); }
+    finally { setRouteQuerying(false); }
+  };
+
+  const handleClearRouteQuery = () => {
+    setRouteCostSummary(null);
+    setQueryOrigin('');
+    setQueryDestination('');
+  };
+
+  const updateCategoryMarkup = (category: string, courier: string, field: 'first_add' | 'extra_add', value: string) => {
+    setMarkupCategories(prev => {
+      const cat = { ...(prev[category] || {}) };
+      cat[courier] = { ...(cat[courier] || { first_add: 0, extra_add: 0 }), [field]: value === '' ? 0 : Number(value) };
+      return { ...prev, [category]: cat };
+    });
+  };
+
+  const updateCategoryDiscount = (category: string, courier: string, field: 'first_discount' | 'extra_discount', value: string) => {
+    setXianyuDiscount(prev => {
+      const cat = { ...(prev[category] || {}) };
+      cat[courier] = {
+        ...(cat[courier] || { first_discount: 0, extra_discount: 0 }),
+        [field]: value === '' ? 0 : Number(value),
+      };
+      return { ...prev, [category]: cat };
+    });
+  };
+
+  const isFreightCategory = ['线上快运', '线下快运'].includes(pricingCategory);
+  const categoryBaseWeight = isFreightCategory ? 30 : 1;
+
+  // 当前类别下的运力列表（预设名单 + 成本表 + 配置合并，保持预设顺序在前）
+  const currentCategoryCouriers = useMemo(() => {
+    const preset = CATEGORY_DEFAULT_COURIERS[pricingCategory] || [];
+    const costCouriers = costSummary
+      .filter(c => isFreightCategory ? c.service_type === 'freight' : c.service_type === 'express')
+      .map(c => c.courier);
+    const markupCouriers = Object.keys(markupCategories[pricingCategory] || {}).filter(k => k !== 'default');
+    const discountCouriers = Object.keys(xianyuDiscount[pricingCategory] || {}).filter(k => k !== 'default');
+    const extra = new Set([...costCouriers, ...markupCouriers, ...discountCouriers]);
+    extra.delete('default');
+    preset.forEach(c => extra.delete(c));
+    return ['default', ...preset, ...Array.from(extra).sort()];
+  }, [pricingCategory, costSummary, markupCategories, xianyuDiscount, isFreightCategory]);
 
   const filteredProducts = useMemo(() => {
     if (!searchQuery.trim()) return products;
@@ -148,37 +283,51 @@ export default function ProductList() {
     return `¥${(num / 100).toFixed(2)}`;
   };
 
-  const MARKUP_FIELDS = [
-    { key: 'normal_first_add', label: '普通首重加价' },
-    { key: 'member_first_add', label: '会员首重加价' },
-    { key: 'normal_extra_add', label: '普通续重加价' },
-    { key: 'member_extra_add', label: '会员续重加价' },
-  ];
-
-  const updateMarkupField = (courier: string, field: string, value: string) => {
-    setMarkupRules(prev => ({
-      ...prev,
-      [courier]: { ...prev[courier], [field]: value === '' ? 0 : Number(value) },
-    }));
-  };
-
-  const removeCourier = (courier: string) => {
-    if (courier === 'default') return;
-    setMarkupRules(prev => {
-      const next = { ...prev };
-      delete next[courier];
-      return next;
+  const addPricingCourier = () => {
+    const name = window.prompt('请输入运力名称（如：圆通、中通、百世快运）');
+    if (!name?.trim()) return;
+    const key = name.trim();
+    const existing = currentCategoryCouriers.includes(key);
+    if (existing) { toast.error('该运力已存在'); return; }
+    setMarkupCategories(prev => {
+      const cat = { ...(prev[pricingCategory] || {}) };
+      cat[key] = { first_add: 0, extra_add: 0 };
+      return { ...prev, [pricingCategory]: cat };
+    });
+    setXianyuDiscount(prev => {
+      const cat = { ...(prev[pricingCategory] || {}) };
+      cat[key] = { first_discount: 0, extra_discount: 0 };
+      return { ...prev, [pricingCategory]: cat };
     });
   };
 
-  const addCourier = () => {
-    const name = window.prompt('请输入快递公司名称（如：圆通、中通）');
-    if (!name?.trim()) return;
-    const key = name.trim();
-    if (markupRules[key]) { toast.error('该快递公司已存在'); return; }
-    const defaults = markupRules['default'] || { normal_first_add: 0.5, member_first_add: 0.25, normal_extra_add: 0.5, member_extra_add: 0.3 };
-    setMarkupRules(prev => ({ ...prev, [key]: { ...defaults } }));
+  const removePricingCourier = (courier: string) => {
+    if (courier === 'default') return;
+    setMarkupCategories(prev => {
+      const cat = { ...(prev[pricingCategory] || {}) };
+      delete cat[courier];
+      return { ...prev, [pricingCategory]: cat };
+    });
+    setXianyuDiscount(prev => {
+      const cat = { ...(prev[pricingCategory] || {}) };
+      delete cat[courier];
+      return { ...prev, [pricingCategory]: cat };
+    });
   };
+
+  const activeCostData = routeCostSummary ?? costSummary;
+
+  const getCheapestCost = (courier: string): { firstCost: number | null; extraCost: number | null } => {
+    const match = activeCostData.find(
+      c => c.courier === courier && (isFreightCategory ? c.service_type === 'freight' : c.service_type === 'express')
+    );
+    if (!match) return { firstCost: null, extraCost: null };
+    return { firstCost: match.cheapest_first, extraCost: match.cheapest_extra };
+  };
+
+  const filteredCostSummary = activeCostData.filter(c =>
+    isFreightCategory ? c.service_type === 'freight' : c.service_type === 'express'
+  );
 
   return (
     <div className="xy-page xy-enter">
@@ -188,7 +337,7 @@ export default function ProductList() {
           <p className="xy-subtitle mt-1">管理闲鱼在售商品，或使用 AI 辅助发布新商品</p>
         </div>
         <div className="flex gap-3">
-          <button onClick={() => { if (activeTab === 'list') fetchProducts(); else if (activeTab === 'routes') fetchRouteStats(); else fetchMarkupRules(); }} className="xy-btn-secondary px-3" aria-label="刷新">
+          <button onClick={() => { if (activeTab === 'list') fetchProducts(); else if (activeTab === 'routes') fetchRouteStats(); else if (activeTab === 'pricing') fetchPricingData(); }} className="xy-btn-secondary px-3" aria-label="刷新">
             <RefreshCw className="w-4 h-4" />
           </button>
           <Link to="/products/auto-publish" className="xy-btn-primary flex items-center gap-2">
@@ -370,7 +519,7 @@ export default function ProductList() {
                         <ResponsiveContainer width="100%" height={280}>
                           <BarChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
                             <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-                            <YAxis tick={{ fontSize: 12 }} tickFormatter={(v: number) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v} />
+                            <YAxis tick={{ fontSize: 12 }} tickFormatter={(v: number) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)} />
                             <Tooltip formatter={(v: number) => v.toLocaleString()} />
                             <Bar dataKey="count" name="路线数" radius={[4, 4, 0, 0]}>
                               {chartData.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
@@ -442,79 +591,238 @@ export default function ProductList() {
         </div>
       )}
 
-      {activeTab === 'markup' && (
+      {activeTab === 'pricing' && (
         <div className="space-y-6 animate-in fade-in slide-in-from-right-4">
-          <div className="flex justify-between items-center">
-            <h2 className="text-lg font-bold text-xy-text-primary flex items-center gap-2"><DollarSign className="w-5 h-5 text-amber-500" /> 加价规则</h2>
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+            <h2 className="text-lg font-bold text-xy-text-primary flex items-center gap-2">
+              <DollarSign className="w-5 h-5 text-amber-500" /> 三层定价管理
+            </h2>
             <div className="flex gap-2">
-              <label className="xy-btn-secondary text-sm px-3 py-1.5 flex items-center gap-1.5 cursor-pointer">
-                <Upload className="w-4 h-4" /> 导入
-                <input type="file" accept=".csv,.xlsx,.json" className="hidden" onChange={handleImportMarkup} />
-              </label>
-              <button onClick={addCourier} className="xy-btn-secondary text-sm px-3 py-1.5 flex items-center gap-1.5">
-                <Plus className="w-4 h-4" /> 添加快递公司
+              <button onClick={fetchPricingData} className="xy-btn-secondary text-sm px-3 py-1.5 flex items-center gap-1.5">
+                <RefreshCw className="w-4 h-4" /> 刷新
               </button>
-              <button onClick={handleSaveMarkup} disabled={markupSaving} className="xy-btn-primary text-sm px-4 py-1.5 flex items-center gap-1.5">
-                {markupSaving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              <button onClick={handleSavePricing} disabled={pricingSaving} className="xy-btn-primary text-sm px-4 py-1.5 flex items-center gap-1.5">
+                {pricingSaving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                 保存
               </button>
             </div>
           </div>
 
-          {markupLoading ? (
+          {/* 服务类别 tabs */}
+          <div className="flex flex-wrap bg-xy-gray-100 p-1 rounded-xl gap-1">
+            {SERVICE_CATEGORIES.map(cat => (
+              <button key={cat} onClick={() => setPricingCategory(cat)}
+                className={`px-4 py-1.5 text-xs font-medium rounded-lg transition-colors ${pricingCategory === cat ? 'bg-white shadow-sm text-xy-text-primary' : 'text-xy-text-secondary hover:text-xy-text-primary'}`}>
+                {cat}
+              </button>
+            ))}
+          </div>
+
+          {pricingLoading ? (
             <div className="xy-card p-12 text-center"><RefreshCw className="w-6 h-6 animate-spin text-xy-brand-500 mx-auto" /></div>
-          ) : Object.keys(markupRules).length === 0 ? (
-            <div className="xy-card p-12 text-center text-xy-text-muted">
-              <DollarSign className="w-12 h-12 mx-auto mb-3 text-xy-gray-300" />
-              <p>暂无加价规则，请添加或导入</p>
-            </div>
           ) : (
-            <div className="xy-card overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm whitespace-nowrap min-w-[600px]">
-                  <thead>
-                    <tr className="bg-xy-gray-50 border-b border-xy-border">
-                      <th className="text-left px-4 py-3 font-medium text-xy-text-secondary">快递公司</th>
-                      {MARKUP_FIELDS.map(f => (
-                        <th key={f.key} className="text-left px-4 py-3 font-medium text-xy-text-secondary">{f.label}</th>
-                      ))}
-                      <th className="text-right px-4 py-3 font-medium text-xy-text-secondary">操作</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-xy-border">
-                    {Object.entries(markupRules).map(([courier, fields]) => (
-                      <tr key={courier} className="hover:bg-xy-gray-50 transition-colors">
-                        <td className="px-4 py-2">
-                          <span className={`text-sm font-medium ${courier === 'default' ? 'text-xy-brand-600' : 'text-xy-text-primary'}`}>
-                            {courier === 'default' ? '默认规则' : courier}
-                          </span>
-                        </td>
-                        {MARKUP_FIELDS.map(f => (
-                          <td key={f.key} className="px-4 py-2">
-                            <input
-                              type="number" step="0.01" min="0"
-                              className="xy-input px-2 py-1 text-sm w-20"
-                              value={fields?.[f.key] ?? ''}
-                              onChange={e => updateMarkupField(courier, f.key, e.target.value)}
-                            />
-                          </td>
-                        ))}
-                        <td className="px-4 py-2 text-right">
-                          {courier !== 'default' && (
-                            <button onClick={() => removeCourier(courier)} className="p-1 text-red-500 hover:bg-red-50 rounded" title="删除">
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          )}
-                        </td>
+            <div className="space-y-4">
+              {/* 公式说明 */}
+              <div className="xy-card p-4 bg-blue-50 border-blue-200 text-sm text-blue-800">
+                <p className="font-medium mb-1">三层定价公式 — {pricingCategory}
+                  {isFreightCategory && <span className="ml-2 px-2 py-0.5 bg-blue-100 rounded text-xs font-bold">首重 {categoryBaseWeight}kg 起</span>}
+                </p>
+                <p>小程序价首重 = 成本首重 + 首重加价 | 小程序价续重 = 成本续重 + 续重加价</p>
+                <p>闲鱼价首重 = 小程序价首重 - 首重让利 | 闲鱼价续重 = 小程序价续重 - 续重让利</p>
+                <p className="text-blue-600 mt-1">闲鱼最终价 = 闲鱼首重价 + max(0, 计费重 - {categoryBaseWeight}kg) × 闲鱼续重价</p>
+              </div>
+
+              {/* 路线查询 + 成本表 */}
+              <div className="xy-card overflow-hidden">
+                <div className="px-4 py-3 border-b border-xy-border bg-xy-gray-50 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-semibold text-xy-text-secondary">
+                      {routeCostSummary
+                        ? <>指定路线成本：<span className="text-xy-brand-600">{queryOrigin} → {queryDestination}</span></>
+                        : '成本表（只读，来自 xlsx）'}
+                      {isFreightCategory
+                        ? <span className="ml-2 text-xs px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded">大件/快运 首重30kg</span>
+                        : <span className="ml-2 text-xs px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded">快递 首重1kg</span>}
+                    </h3>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <input type="text" placeholder="始发地（如：江西）" className="xy-input px-2.5 py-1 text-sm w-32"
+                      value={queryOrigin} onChange={e => setQueryOrigin(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && handleQueryRouteCost()} />
+                    <span className="text-xy-text-muted text-sm">→</span>
+                    <input type="text" placeholder="目的地（如：广东）" className="xy-input px-2.5 py-1 text-sm w-32"
+                      value={queryDestination} onChange={e => setQueryDestination(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && handleQueryRouteCost()} />
+                    <button onClick={handleQueryRouteCost} disabled={routeQuerying}
+                      className="xy-btn-primary text-xs px-3 py-1.5 flex items-center gap-1">
+                      {routeQuerying ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
+                      查询
+                    </button>
+                    {routeCostSummary && (
+                      <button onClick={handleClearRouteQuery} className="xy-btn-secondary text-xs px-3 py-1.5 flex items-center gap-1">
+                        <Trash2 className="w-3.5 h-3.5" /> 清除
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm whitespace-nowrap">
+                    <thead>
+                      <tr className="bg-xy-gray-50 border-b border-xy-border">
+                        <th className="text-left px-4 py-2 font-medium text-xy-text-secondary">运力</th>
+                        <th className="text-left px-4 py-2 font-medium text-xy-text-secondary">首重(kg)</th>
+                        <th className="text-left px-4 py-2 font-medium text-xy-text-secondary">{routeCostSummary ? '首重成本' : '最低首重成本'}</th>
+                        <th className="text-left px-4 py-2 font-medium text-xy-text-secondary">{routeCostSummary ? '续重成本' : '最低续重成本'}</th>
+                        <th className="text-left px-4 py-2 font-medium text-xy-text-secondary">{routeCostSummary ? '匹配路线' : '最低路线'}</th>
+                        <th className="text-left px-4 py-2 font-medium text-xy-text-secondary">{routeCostSummary ? '匹配数' : '路线数'}</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-xy-border">
+                      {filteredCostSummary.map(c => (
+                        <tr key={c.courier} className="hover:bg-xy-gray-50">
+                          <td className="px-4 py-2 font-medium text-xy-text-primary">{c.courier}</td>
+                          <td className="px-4 py-2 text-xy-text-secondary">{c.base_weight}</td>
+                          <td className="px-4 py-2 text-xy-text-secondary font-mono">{c.cheapest_first != null ? c.cheapest_first.toFixed(2) : '-'}</td>
+                          <td className="px-4 py-2 text-xy-text-secondary font-mono">{c.cheapest_extra != null ? c.cheapest_extra.toFixed(2) : '-'}</td>
+                          <td className="px-4 py-2 text-xy-text-muted text-xs">{c.cheapest_route || '-'}</td>
+                          <td className="px-4 py-2 text-xy-text-secondary">{c.route_count}</td>
+                        </tr>
+                      ))}
+                      {filteredCostSummary.length === 0 && (
+                        <tr><td colSpan={6} className="px-4 py-6 text-center text-xy-text-muted">暂无该类别的成本数据</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* 加价表（可编辑） */}
+              <div className="xy-card overflow-hidden">
+                <div className="px-4 py-3 border-b border-xy-border bg-xy-gray-50 flex justify-between items-center">
+                  <h3 className="text-sm font-semibold text-xy-text-secondary">
+                    加价表（可编辑）— {pricingCategory}
+                    {isFreightCategory && <span className="ml-2 text-xs px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded">首重{categoryBaseWeight}kg起</span>}
+                    {routeCostSummary && <span className="ml-2 text-xs px-1.5 py-0.5 bg-green-100 text-green-700 rounded">基于 {queryOrigin}→{queryDestination} 路线</span>}
+                  </h3>
+                  <button onClick={addPricingCourier} className="xy-btn-secondary text-xs px-2.5 py-1 flex items-center gap-1">
+                    <Plus className="w-3.5 h-3.5" /> 添加运力
+                  </button>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm whitespace-nowrap">
+                    <thead>
+                      <tr className="bg-xy-gray-50 border-b border-xy-border">
+                        <th className="text-left px-4 py-2 font-medium text-xy-text-secondary">运力</th>
+                        <th className="text-left px-4 py-2 font-medium text-xy-text-secondary">
+                          首重加价{isFreightCategory ? <span className="text-xs text-amber-600 ml-1">(元/{categoryBaseWeight}kg起)</span> : <span className="text-xs text-xy-text-muted ml-1">(元)</span>}
+                        </th>
+                        <th className="text-left px-4 py-2 font-medium text-xy-text-secondary">
+                          续重加价<span className="text-xs text-xy-text-muted ml-1">(元/kg)</span>
+                        </th>
+                        <th className="text-left px-4 py-2 font-medium text-xy-text-secondary text-green-600">小程序首重价</th>
+                        <th className="text-left px-4 py-2 font-medium text-xy-text-secondary text-green-600">小程序续重价</th>
+                        <th className="text-right px-4 py-2 font-medium text-xy-text-secondary">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-xy-border">
+                      {currentCategoryCouriers.map(courier => {
+                        const rule = (markupCategories[pricingCategory] || {})[courier] || { first_add: 0, extra_add: 0 };
+                        const { firstCost, extraCost } = courier === 'default' ? { firstCost: null, extraCost: null } : getCheapestCost(courier);
+                        const miniFirst = firstCost != null ? (firstCost + (rule.first_add ?? 0)).toFixed(2) : '-';
+                        const miniExtra = extraCost != null ? (extraCost + (rule.extra_add ?? 0)).toFixed(2) : '-';
+                        return (
+                          <tr key={courier} className="hover:bg-xy-gray-50">
+                            <td className="px-4 py-2">
+                              <span className={`text-sm font-medium ${courier === 'default' ? 'text-xy-brand-600' : 'text-xy-text-primary'}`}>
+                                {courier === 'default' ? '默认' : courier}
+                              </span>
+                            </td>
+                            <td className="px-4 py-2">
+                              <input type="number" step="0.01" className="xy-input px-2 py-1 text-sm w-24"
+                                value={rule.first_add ?? 0}
+                                onChange={e => updateCategoryMarkup(pricingCategory, courier, 'first_add', e.target.value)} />
+                            </td>
+                            <td className="px-4 py-2">
+                              <input type="number" step="0.01" className="xy-input px-2 py-1 text-sm w-24"
+                                value={rule.extra_add ?? 0}
+                                onChange={e => updateCategoryMarkup(pricingCategory, courier, 'extra_add', e.target.value)} />
+                            </td>
+                            <td className="px-4 py-2 text-green-700 font-mono text-xs">{miniFirst}</td>
+                            <td className="px-4 py-2 text-green-700 font-mono text-xs">{miniExtra}</td>
+                            <td className="px-4 py-2 text-right">
+                              {courier !== 'default' && (
+                                <button onClick={() => removePricingCourier(courier)} className="p-1 text-red-500 hover:bg-red-50 rounded" title="删除">
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* 让利表（可编辑） */}
+              <div className="xy-card overflow-hidden">
+                <div className="px-4 py-3 border-b border-xy-border bg-xy-gray-50">
+                  <h3 className="text-sm font-semibold text-xy-text-secondary">
+                    闲鱼让利表（可编辑）— {pricingCategory}
+                    {routeCostSummary && <span className="ml-2 text-xs px-1.5 py-0.5 bg-orange-100 text-orange-700 rounded">基于 {queryOrigin}→{queryDestination} 路线</span>}
+                  </h3>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm whitespace-nowrap">
+                    <thead>
+                      <tr className="bg-xy-gray-50 border-b border-xy-border">
+                        <th className="text-left px-4 py-2 font-medium text-xy-text-secondary">运力</th>
+                        <th className="text-left px-4 py-2 font-medium text-xy-text-secondary">首重让利</th>
+                        <th className="text-left px-4 py-2 font-medium text-xy-text-secondary">续重让利</th>
+                        <th className="text-left px-4 py-2 font-medium text-xy-text-secondary text-orange-600">闲鱼首重价</th>
+                        <th className="text-left px-4 py-2 font-medium text-xy-text-secondary text-orange-600">闲鱼续重价</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-xy-border">
+                      {currentCategoryCouriers.map(courier => {
+                        const discountRule = (xianyuDiscount[pricingCategory] || {})[courier] || { first_discount: 0, extra_discount: 0 };
+                        const markupRule = (markupCategories[pricingCategory] || {})[courier] || { first_add: 0, extra_add: 0 };
+                        const { firstCost, extraCost } = courier === 'default' ? { firstCost: null, extraCost: null } : getCheapestCost(courier);
+                        const miniFirst = firstCost != null ? firstCost + (markupRule.first_add ?? 0) : null;
+                        const miniExtra = extraCost != null ? extraCost + (markupRule.extra_add ?? 0) : null;
+                        const xyFirst = miniFirst != null ? Math.max(0, miniFirst - (discountRule.first_discount ?? 0)).toFixed(2) : '-';
+                        const xyExtra = miniExtra != null ? Math.max(0, miniExtra - (discountRule.extra_discount ?? 0)).toFixed(2) : '-';
+                        return (
+                          <tr key={courier} className="hover:bg-xy-gray-50">
+                            <td className="px-4 py-2">
+                              <span className={`text-sm font-medium ${courier === 'default' ? 'text-xy-brand-600' : 'text-xy-text-primary'}`}>
+                                {courier === 'default' ? '默认' : courier}
+                              </span>
+                            </td>
+                            <td className="px-4 py-2">
+                              <input type="number" step="0.01" className="xy-input px-2 py-1 text-sm w-24"
+                                value={discountRule.first_discount ?? 0}
+                                onChange={e => updateCategoryDiscount(pricingCategory, courier, 'first_discount', e.target.value)} />
+                            </td>
+                            <td className="px-4 py-2">
+                              <input type="number" step="0.01" className="xy-input px-2 py-1 text-sm w-24"
+                                value={discountRule.extra_discount ?? 0}
+                                onChange={e => updateCategoryDiscount(pricingCategory, courier, 'extra_discount', e.target.value)} />
+                            </td>
+                            <td className="px-4 py-2 text-orange-700 font-mono text-xs">{xyFirst}</td>
+                            <td className="px-4 py-2 text-orange-700 font-mono text-xs">{xyExtra}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           )}
         </div>
       )}
+
     </div>
   );
 }

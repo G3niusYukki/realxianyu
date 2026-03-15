@@ -184,12 +184,20 @@ def _sync_system_config_to_yaml(sys_config: dict[str, Any]) -> None:
     slider = sys_config.get("slider_auto_solve")
     if isinstance(slider, dict):
         ws_cfg = cfg.setdefault("messages", {}).setdefault("ws", {})
-        ws_cfg["slider_auto_solve"] = {
+        slider_dict = {
             "enabled": bool(slider.get("enabled", False)),
             "max_attempts": int(slider.get("max_attempts", 2)),
             "cooldown_seconds": int(slider.get("cooldown_seconds", 300)),
             "headless": bool(slider.get("headless", False)),
         }
+        fp = slider.get("fingerprint_browser")
+        if isinstance(fp, dict):
+            slider_dict["fingerprint_browser"] = {
+                "enabled": bool(fp.get("enabled", False)),
+                "api_url": str(fp.get("api_url", "http://127.0.0.1:54345")),
+                "browser_id": str(fp.get("browser_id", "")),
+            }
+        ws_cfg["slider_auto_solve"] = slider_dict
         changed = True
 
     if changed:
@@ -356,6 +364,10 @@ class MimicOps:
         self._last_auto_recover_at = ""
         self._last_auto_recover_result: dict[str, Any] = {}
         self._recover_lock = threading.Lock()
+        self._cost_table_repo: Any = None
+        self._shared_cookie_checker: Any = None
+        self._risk_log_cache: dict[str, Any] | None = None
+        self._risk_log_cache_ts: float = 0.0
 
     @property
     def env_path(self) -> Path:
@@ -1992,58 +2004,83 @@ class MimicOps:
         path.mkdir(parents=True, exist_ok=True)
         return path
 
+    _route_stats_cache: dict[str, Any] | None = None
+    _route_stats_mtime: float = 0.0
+    _route_stats_ts: float = 0.0
+    _ROUTE_STATS_TTL: float = 120.0
+    _route_stats_lock = threading.Lock()
+
     def route_stats(self) -> dict[str, Any]:
-        cfg = get_config().get_section("quote", {})
-        patterns = cfg.get("cost_table_patterns", ["*.xlsx", "*.xls", "*.csv"])
-        if not isinstance(patterns, list):
-            patterns = ["*.xlsx", "*.xls", "*.csv"]
-        for required in ("*.xlsx", "*.xls", "*.csv"):
-            if required not in patterns:
-                patterns.append(required)
-        quote_dir = self._quote_dir()
-        files = []
-        latest_mtime = 0.0
-        for pattern in patterns:
-            for fp in quote_dir.glob(str(pattern)):
-                if fp.is_file():
-                    files.append(fp)
-                    latest_mtime = max(latest_mtime, fp.stat().st_mtime)
+        now = time.time()
+        if self._route_stats_cache is not None and (now - self._route_stats_ts) < self._ROUTE_STATS_TTL:
+            return self._route_stats_cache
 
-        route_count = 0
-        courier_set: set[str] = set()
-        courier_details: dict[str, int] = {}
-        parse_errors: list[str] = []
+        if not self._route_stats_lock.acquire(blocking=True, timeout=30):
+            if self._route_stats_cache is not None:
+                return self._route_stats_cache
+            return {"success": True, "stats": {}}
 
-        for fp in sorted(set(files)):
-            try:
-                repo = CostTableRepository(table_dir=fp)
-                repo.get_stats(max_files=1)
-                records = getattr(repo, "_records", [])
-                route_count += len(records)
-                for rec in records:
-                    courier = str(getattr(rec, "courier", "") or "").strip()
-                    if not courier:
-                        continue
-                    courier_set.add(courier)
-                    courier_details[courier] = int(courier_details.get(courier, 0) or 0) + 1
-            except Exception as exc:
-                parse_errors.append(f"{fp.name}: {exc}")
+        try:
+            if self._route_stats_cache is not None and (time.time() - self._route_stats_ts) < self._ROUTE_STATS_TTL:
+                return self._route_stats_cache
 
-        last_updated = "-"
-        if latest_mtime > 0:
-            last_updated = datetime.fromtimestamp(latest_mtime).strftime("%Y-%m-%d %H:%M:%S")
+            cfg = get_config().get_section("quote", {})
+            patterns = cfg.get("cost_table_patterns", ["*.xlsx", "*.xls", "*.csv"])
+            if not isinstance(patterns, list):
+                patterns = ["*.xlsx", "*.xls", "*.csv"]
+            for required in ("*.xlsx", "*.xls", "*.csv"):
+                if required not in patterns:
+                    patterns.append(required)
+            quote_dir = self._quote_dir()
+            files = []
+            latest_mtime = 0.0
+            for pattern in patterns:
+                for fp in quote_dir.glob(str(pattern)):
+                    if fp.is_file():
+                        files.append(fp)
+                        latest_mtime = max(latest_mtime, fp.stat().st_mtime)
 
-        stats = {
-            "couriers": len(courier_set),
-            "routes": int(route_count),
-            "tables": len(set(files)),
-            "last_updated": last_updated,
-            "courier_details": dict(sorted(courier_details.items(), key=lambda x: x[0])),
-            "files": [str(p.name) for p in sorted(set(files))[:200]],
-        }
-        if parse_errors:
-            stats["parse_error"] = " | ".join(parse_errors[:5])
-        return {"success": True, "stats": stats}
+            route_count = 0
+            courier_set: set[str] = set()
+            courier_details: dict[str, int] = {}
+            parse_errors: list[str] = []
+
+            for fp in sorted(set(files)):
+                try:
+                    repo = CostTableRepository(table_dir=fp)
+                    repo.get_stats(max_files=1)
+                    records = getattr(repo, "_records", [])
+                    route_count += len(records)
+                    for rec in records:
+                        courier = str(getattr(rec, "courier", "") or "").strip()
+                        if not courier:
+                            continue
+                        courier_set.add(courier)
+                        courier_details[courier] = int(courier_details.get(courier, 0) or 0) + 1
+                except Exception as exc:
+                    parse_errors.append(f"{fp.name}: {exc}")
+
+            last_updated = "-"
+            if latest_mtime > 0:
+                last_updated = datetime.fromtimestamp(latest_mtime).strftime("%Y-%m-%d %H:%M:%S")
+
+            stats = {
+                "couriers": len(courier_set),
+                "routes": int(route_count),
+                "tables": len(set(files)),
+                "last_updated": last_updated,
+                "courier_details": dict(sorted(courier_details.items(), key=lambda x: x[0])),
+                "files": [str(p.name) for p in sorted(set(files))[:200]],
+            }
+            if parse_errors:
+                stats["parse_error"] = " | ".join(parse_errors[:5])
+            result = {"success": True, "stats": stats}
+            self._route_stats_cache = result
+            self._route_stats_mtime = latest_mtime
+            self._route_stats_ts = time.time()
+            return result
+        finally:
+            self._route_stats_lock.release()
 
     def _workflow_db_path(self) -> Path:
         messages_cfg = get_config().get_section("messages", {})
@@ -2259,6 +2296,7 @@ class MimicOps:
             }
 
         stats = self.route_stats().get("stats", {})
+        self._cost_table_repo = None
         message = f"Imported {len(saved)} file(s)"
         if zip_count > 0:
             message += f" from {zip_count} zip archive(s)"
@@ -2292,6 +2330,7 @@ class MimicOps:
                 fp.unlink(missing_ok=True)
                 deleted += 1
             result["results"]["routes"] = {"message": f"Deleted {deleted} cost table files"}
+            self._cost_table_repo = None
 
         if target in {"chat", "all"}:
             removed: list[str] = []
@@ -3071,6 +3110,135 @@ class MimicOps:
             "markup_rules": normalized,
         }
 
+
+    def get_pricing_config(self) -> dict[str, Any]:
+        """读取 YAML 中的 markup_categories 和 xianyu_discount。"""
+        setup = QuoteSetupService(config_path=str(self.config_path))
+        data, _ = setup._load_yaml()
+        quote_cfg = data.get("quote", {}) if isinstance(data, dict) else {}
+        return {
+            "success": True,
+            "markup_categories": quote_cfg.get("markup_categories", {}),
+            "xianyu_discount": quote_cfg.get("xianyu_discount", {}),
+            "service_categories": [
+                "线上快递", "线下快递", "线上快运", "线下快运",
+                "同城寄", "电动车", "分销", "商家寄件",
+            ],
+            "updated_at": _now_iso(),
+        }
+
+    def save_pricing_config(self, markup_categories: Any = None, xianyu_discount: Any = None) -> dict[str, Any]:
+        """保存加价表和让利表到 YAML。"""
+        setup = QuoteSetupService(config_path=str(self.config_path))
+        data, existed = setup._load_yaml()
+        quote_cfg = data.get("quote")
+        if not isinstance(quote_cfg, dict):
+            quote_cfg = {}
+            data["quote"] = quote_cfg
+
+        if isinstance(markup_categories, dict):
+            quote_cfg["markup_categories"] = markup_categories
+        if isinstance(xianyu_discount, dict):
+            quote_cfg["xianyu_discount"] = xianyu_discount
+
+        backup_path = setup._backup_existing_file() if existed else None
+        setup._write_yaml(data)
+        try:
+            get_config().reload(str(self.config_path))
+        except Exception:
+            pass
+
+        return {"success": True, "updated_at": _now_iso()}
+
+    def _get_cost_table_repo(self):
+        from src.modules.quote.cost_table import CostTableRepository
+        if self._cost_table_repo is None:
+            self._cost_table_repo = CostTableRepository(table_dir=str(self._quote_dir()))
+        return self._cost_table_repo
+
+    def get_cost_summary(self) -> dict[str, Any]:
+        """从成本表 xlsx 读取各运力概览数据（只读）。"""
+        repo = self._get_cost_table_repo()
+        stats = repo.get_stats()
+
+        # 按运力聚合概览，取同一路线最低总成本
+        repo._reload_if_needed()
+        courier_summary: dict[str, dict] = {}
+        for record in repo._records:
+            key = record.courier
+            total = record.first_cost + record.extra_cost
+            if key not in courier_summary:
+                courier_summary[key] = {
+                    "courier": key,
+                    "service_type": record.service_type,
+                    "base_weight": record.base_weight,
+                    "route_count": 0,
+                    "cheapest_first": record.first_cost,
+                    "cheapest_extra": record.extra_cost,
+                    "_cheapest_total": total,
+                    "cheapest_route": f"{record.origin}->{record.destination}",
+                }
+            info = courier_summary[key]
+            info["route_count"] += 1
+            if total < info["_cheapest_total"]:
+                info["cheapest_first"] = record.first_cost
+                info["cheapest_extra"] = record.extra_cost
+                info["_cheapest_total"] = total
+                info["cheapest_route"] = f"{record.origin}->{record.destination}"
+
+        for info in courier_summary.values():
+            info.pop("_cheapest_total", None)
+
+        return {
+            "success": True,
+            "couriers": list(courier_summary.values()),
+            "total_records": stats["total_records"],
+            "total_files": stats["total_files"],
+        }
+
+    def query_route_cost(self, origin: str, destination: str) -> dict[str, Any]:
+        """查询指定路线下各运力的成本明细。"""
+        origin = (origin or "").strip()
+        destination = (destination or "").strip()
+        if not origin or not destination:
+            return {"success": False, "error": "请输入始发地和目的地"}
+
+        repo = self._get_cost_table_repo()
+        candidates = repo.find_candidates(origin=origin, destination=destination, courier=None, limit=500)
+
+        courier_summary: dict[str, dict] = {}
+        for record in candidates:
+            key = record.courier
+            total = record.first_cost + record.extra_cost
+            if key not in courier_summary:
+                courier_summary[key] = {
+                    "courier": key,
+                    "service_type": record.service_type,
+                    "base_weight": record.base_weight,
+                    "route_count": 0,
+                    "cheapest_first": record.first_cost,
+                    "cheapest_extra": record.extra_cost,
+                    "_cheapest_total": total,
+                    "cheapest_route": f"{record.origin}->{record.destination}",
+                }
+            info = courier_summary[key]
+            info["route_count"] += 1
+            if total < info["_cheapest_total"]:
+                info["cheapest_first"] = record.first_cost
+                info["cheapest_extra"] = record.extra_cost
+                info["_cheapest_total"] = total
+                info["cheapest_route"] = f"{record.origin}->{record.destination}"
+
+        for info in courier_summary.values():
+            info.pop("_cheapest_total", None)
+
+        return {
+            "success": True,
+            "origin": origin,
+            "destination": destination,
+            "couriers": list(courier_summary.values()),
+        }
+
     def _module_runtime_log(self, target: str) -> Path:
         return self.project_root / "data" / "module_runtime" / f"{target}.log"
 
@@ -3207,7 +3375,19 @@ class MimicOps:
         except ValueError:
             return None
 
+    _RISK_LOG_CACHE_TTL: float = 5.0
+
     def _risk_control_status_from_logs(self, target: str = "presales", tail_lines: int = 300) -> dict[str, Any]:
+        now = time.time()
+        if self._risk_log_cache is not None and (now - self._risk_log_cache_ts) < self._RISK_LOG_CACHE_TTL:
+            return self._risk_log_cache
+
+        result = self._risk_control_status_from_logs_uncached(target=target, tail_lines=tail_lines)
+        self._risk_log_cache = result
+        self._risk_log_cache_ts = now
+        return result
+
+    def _risk_control_status_from_logs_uncached(self, target: str = "presales", tail_lines: int = 300) -> dict[str, Any]:
         fp = self._module_runtime_log(target)
         _empty = {
             "last_event": "",
@@ -3494,11 +3674,17 @@ class MimicOps:
             "last_auto_recover_result": self._last_auto_recover_result,
         }
 
+    def _route_stats_nonblocking(self) -> dict[str, Any]:
+        """Return cached route_stats if available; never block on cold Excel parsing."""
+        if self._route_stats_cache is not None:
+            return self._route_stats_cache
+        return {"success": True, "stats": {}}
+
     def service_status(self) -> dict[str, Any]:
         module_status = self.module_console.status(window_minutes=60, limit=20)
         cookie = self.get_cookie()
         cookie_text = str(cookie.get("cookie", "") or "")
-        route_stats = self.route_stats()
+        route_stats = self._route_stats_nonblocking()
         xgj_settings = self.get_xianguanjia_settings()
         risk_control = self._risk_control_status_from_logs(target="presales", tail_lines=300)
         modules = module_status.get("modules") if isinstance(module_status, dict) else {}
@@ -3595,11 +3781,14 @@ class MimicOps:
 
         cookie_health_info: dict[str, Any] = {"healthy": False, "message": "未检查", "score": 0}
         try:
-            from src.core.cookie_health import CookieHealthChecker
-
             if cookie_text:
-                _ck_checker = CookieHealthChecker(cookie_text, timeout_seconds=5.0)
-                _ck_result = _ck_checker.check_sync(force=False)
+                from src.core.cookie_health import CookieHealthChecker
+
+                if self._shared_cookie_checker is None:
+                    self._shared_cookie_checker = CookieHealthChecker(cookie_text, timeout_seconds=5.0)
+                else:
+                    self._shared_cookie_checker.cookie_text = cookie_text
+                _ck_result = self._shared_cookie_checker.check_sync(force=False)
                 cookie_health_info = {
                     "healthy": bool(_ck_result.get("healthy")),
                     "message": _ck_result.get("message", ""),

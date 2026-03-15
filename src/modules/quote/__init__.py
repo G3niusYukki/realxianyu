@@ -4,6 +4,7 @@ from .cost_table import CostRecord, CostTableRepository
 from .engine import AutoQuoteEngine
 from .models import QuoteRequest, QuoteResult
 from .providers import (
+    SERVICE_CATEGORIES,
     ApiCostMarkupQuoteProvider,
     CostTableMarkupQuoteProvider,
     IQuoteProvider,
@@ -26,4 +27,5 @@ __all__ = [
     "QuoteSetupService",
     "RemoteQuoteProvider",
     "RuleTableQuoteProvider",
+    "SERVICE_CATEGORIES",
 ]

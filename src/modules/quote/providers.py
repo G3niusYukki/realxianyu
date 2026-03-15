@@ -10,8 +10,13 @@ from typing import Any
 
 import httpx
 
-from src.modules.quote.cost_table import CostTableRepository, normalize_courier_name
+from src.modules.quote.cost_table import CostTableRepository, FREIGHT_COURIERS, normalize_courier_name
 from src.modules.quote.models import QuoteRequest, QuoteResult
+
+SERVICE_CATEGORIES = [
+    "线上快递", "线下快递", "线上快运", "线下快运",
+    "同城寄", "电动车", "分销", "商家寄件",
+]
 
 DEFAULT_MARKUP_RULE: dict[str, float] = {
     "normal_first_add": 0.50,
@@ -100,7 +105,7 @@ class RuleTableQuoteProvider(IQuoteProvider):
 
 
 class CostTableMarkupQuoteProvider(IQuoteProvider):
-    """成本表 + 加价规则 provider。"""
+    """成本表 + 加价规则 provider（支持三层定价）。"""
 
     def __init__(
         self,
@@ -110,11 +115,15 @@ class CostTableMarkupQuoteProvider(IQuoteProvider):
         markup_rules: dict[str, Any] | None = None,
         pricing_profile: str = "normal",
         volume_divisor_default: float | None = None,
+        markup_categories: dict[str, Any] | None = None,
+        xianyu_discount: dict[str, Any] | None = None,
     ):
         self.repo = CostTableRepository(table_dir=table_dir, include_patterns=include_patterns or ["*.xlsx", "*.csv"])
         self.pricing_profile = "member" if str(pricing_profile).strip().lower() == "member" else "normal"
         self.markup_rules = _normalize_markup_rules(markup_rules or {})
         self.volume_divisor_default = float(volume_divisor_default or 0.0) if volume_divisor_default else 0.0
+        self.category_markup = _normalize_category_markup(markup_categories or {})
+        self.xianyu_discount_rules = _normalize_xianyu_discount(xianyu_discount or {})
 
     async def get_quote(self, request: QuoteRequest, timeout_ms: int = 3000) -> QuoteResult:
         requested_courier = _requested_courier(request.courier)
@@ -130,8 +139,24 @@ class CostTableMarkupQuoteProvider(IQuoteProvider):
             )
 
         row = candidates[0]
-        markup = _resolve_markup(self.markup_rules, row.courier)
-        first_add, extra_add = _profile_markup(markup, self.pricing_profile)
+
+        # 根据运力确定服务类别
+        category = "线上快运" if row.service_type == "freight" else "线上快递"
+
+        # 新的三层计价
+        if self.category_markup:
+            first_add, extra_add = _resolve_category_markup(
+                self.category_markup, category, row.courier
+            )
+            first_discount, extra_discount = _resolve_xianyu_discount_value(
+                self.xianyu_discount_rules, category, row.courier
+            )
+        else:
+            # 向后兼容旧格式
+            markup = _resolve_markup(self.markup_rules, row.courier)
+            first_add, extra_add = _profile_markup(markup, self.pricing_profile)
+            first_discount = 0.0
+            extra_discount = 0.0
 
         actual_weight = max(0.0, float(request.weight))
         divisor = _first_positive(row.throw_ratio, self.volume_divisor_default)
@@ -141,10 +166,17 @@ class CostTableMarkupQuoteProvider(IQuoteProvider):
             divisor=divisor,
         )
         billing_weight = max(actual_weight, volume_weight)
-        extra_weight = max(0.0, billing_weight - 1.0)
-        sale_first = max(0.0, float(row.first_cost) + first_add)
-        sale_extra = max(0.0, float(row.extra_cost) + extra_add)
-        extra_fee = extra_weight * sale_extra
+
+        # 使用 base_weight 而非硬编码 1.0
+        extra_weight = max(0.0, billing_weight - row.base_weight)
+
+        # 三层计算
+        mini_first = float(row.first_cost) + first_add
+        mini_extra = float(row.extra_cost) + extra_add
+        xianyu_first = max(0.0, mini_first - first_discount)
+        xianyu_extra = max(0.0, mini_extra - extra_discount)
+
+        extra_fee = extra_weight * xianyu_extra
 
         surcharges: dict[str, float] = {}
         if extra_fee > 0:
@@ -152,9 +184,9 @@ class CostTableMarkupQuoteProvider(IQuoteProvider):
 
         return QuoteResult(
             provider="cost_table_markup",
-            base_fee=round(sale_first, 2),
+            base_fee=round(xianyu_first, 2),
             surcharges=surcharges,
-            total_fee=round(sale_first + extra_fee, 2),
+            total_fee=round(xianyu_first + extra_fee, 2),
             eta_minutes=_eta_by_service_level(request.service_level),
             confidence=0.92,
             source_excel=row.source_file,
@@ -166,13 +198,22 @@ class CostTableMarkupQuoteProvider(IQuoteProvider):
                 "matched_destination": row.destination,
                 "cost_first": row.first_cost,
                 "cost_extra": row.extra_cost,
+                "base_weight": row.base_weight,
+                "service_type": row.service_type,
+                "markup_category": category,
+                "first_add": first_add,
+                "extra_add": extra_add,
+                "first_discount": first_discount,
+                "extra_discount": extra_discount,
+                "mini_program_first": round(mini_first, 2),
+                "mini_program_extra": round(mini_extra, 2),
+                "xianyu_first": round(xianyu_first, 2),
+                "xianyu_extra": round(xianyu_extra, 2),
                 "actual_weight_kg": round(actual_weight, 3),
                 "billing_weight_kg": round(billing_weight, 3),
                 "volume_cm3": round(float(request.volume or 0.0), 3),
                 "volume_weight_kg": round(volume_weight, 3),
                 "volume_divisor": divisor if divisor > 0 else None,
-                "markup_first_add": first_add,
-                "markup_extra_add": extra_add,
                 "source_file": row.source_file,
                 "source_sheet": row.source_sheet,
             },
@@ -184,7 +225,7 @@ class CostTableMarkupQuoteProvider(IQuoteProvider):
 
 
 class ApiCostMarkupQuoteProvider(IQuoteProvider):
-    """API 成本价 + 加价规则 provider。"""
+    """API 成本价 + 加价规则 provider（支持三层定价）。"""
 
     def __init__(
         self,
@@ -194,12 +235,16 @@ class ApiCostMarkupQuoteProvider(IQuoteProvider):
         markup_rules: dict[str, Any] | None = None,
         pricing_profile: str = "normal",
         volume_divisor_default: float | None = None,
+        markup_categories: dict[str, Any] | None = None,
+        xianyu_discount: dict[str, Any] | None = None,
     ):
         self.api_url = str(api_url or "").strip()
         self.api_key_env = str(api_key_env or "").strip()
         self.markup_rules = _normalize_markup_rules(markup_rules or {})
         self.pricing_profile = "member" if str(pricing_profile).strip().lower() == "member" else "normal"
         self.volume_divisor_default = float(volume_divisor_default or 0.0) if volume_divisor_default else 0.0
+        self.category_markup = _normalize_category_markup(markup_categories or {})
+        self.xianyu_discount_rules = _normalize_xianyu_discount(xianyu_discount or {})
 
     async def get_quote(self, request: QuoteRequest, timeout_ms: int = 3000) -> QuoteResult:
         if not self.api_url:
@@ -257,18 +302,35 @@ class ApiCostMarkupQuoteProvider(IQuoteProvider):
             float(api_billable_weight or 0.0),
             float(volume_weight or 0.0),
         )
-        extra_weight = max(0.0, billing_weight - 1.0)
+        is_freight = courier in FREIGHT_COURIERS
+        base_weight = 30.0 if is_freight else 1.0
+        extra_weight = max(0.0, billing_weight - base_weight)
         if first_cost is None:
             first_cost = max(0.0, float(total_cost or 0.0) - (extra_weight * float(extra_cost or 0.0)))
         if extra_cost is None:
             extra_cost = 0.0
 
-        markup = _resolve_markup(self.markup_rules, courier)
-        first_add, extra_add = _profile_markup(markup, self.pricing_profile)
+        category = "线上快运" if is_freight else "线上快递"
 
-        sale_first = max(0.0, first_cost + first_add)
-        sale_extra = max(0.0, extra_cost + extra_add)
-        extra_fee = extra_weight * sale_extra
+        if self.category_markup:
+            first_add, extra_add = _resolve_category_markup(
+                self.category_markup, category, courier
+            )
+            first_discount, extra_discount = _resolve_xianyu_discount_value(
+                self.xianyu_discount_rules, category, courier
+            )
+        else:
+            markup = _resolve_markup(self.markup_rules, courier)
+            first_add, extra_add = _profile_markup(markup, self.pricing_profile)
+            first_discount = 0.0
+            extra_discount = 0.0
+
+        mini_first = first_cost + first_add
+        mini_extra = extra_cost + extra_add
+        xianyu_first = max(0.0, mini_first - first_discount)
+        xianyu_extra = max(0.0, mini_extra - extra_discount)
+
+        extra_fee = extra_weight * xianyu_extra
         surcharges: dict[str, float] = {}
         if extra_fee > 0:
             surcharges["续重"] = round(extra_fee, 2)
@@ -276,9 +338,9 @@ class ApiCostMarkupQuoteProvider(IQuoteProvider):
         provider_name = str(parsed.get("provider") or "api_cost_markup")
         return QuoteResult(
             provider=provider_name,
-            base_fee=round(sale_first, 2),
+            base_fee=round(xianyu_first, 2),
             surcharges=surcharges,
-            total_fee=round(sale_first + extra_fee, 2),
+            total_fee=round(xianyu_first + extra_fee, 2),
             eta_minutes=int(parsed.get("eta_minutes") or _eta_by_service_level(request.service_level)),
             confidence=float(parsed.get("confidence") or 0.93),
             explain={
@@ -287,14 +349,23 @@ class ApiCostMarkupQuoteProvider(IQuoteProvider):
                 "cost_first": first_cost,
                 "cost_extra": extra_cost,
                 "cost_total_raw": total_cost,
+                "base_weight": base_weight,
+                "service_type": "freight" if is_freight else "express",
+                "markup_category": category,
+                "first_add": first_add,
+                "extra_add": extra_add,
+                "first_discount": first_discount,
+                "extra_discount": extra_discount,
+                "mini_program_first": round(mini_first, 2),
+                "mini_program_extra": round(mini_extra, 2),
+                "xianyu_first": round(xianyu_first, 2),
+                "xianyu_extra": round(xianyu_extra, 2),
                 "actual_weight_kg": round(float(request.weight or 0.0), 3),
                 "billing_weight_kg": round(billing_weight, 3),
                 "volume_cm3": round(float(request.volume or 0.0), 3),
                 "volume_weight_kg": round(volume_weight, 3),
                 "api_billable_weight_kg": api_billable_weight,
                 "volume_divisor": self.volume_divisor_default if self.volume_divisor_default > 0 else None,
-                "markup_first_add": first_add,
-                "markup_extra_add": extra_add,
                 "api_provider": provider_name,
             },
         )
@@ -560,6 +631,88 @@ def _parse_remote_quote_response(data: Any) -> dict[str, Any]:
         "confidence": payload.get("confidence"),
         "explain": explain,
     }
+
+
+def _normalize_category_markup(raw: dict[str, Any]) -> dict[str, dict[str, dict[str, float]]]:
+    """解析分类加价配置。
+
+    返回: { category: { courier: { "first_add": x, "extra_add": y } } }
+    """
+    result: dict[str, dict[str, dict[str, float]]] = {}
+    if not isinstance(raw, dict):
+        return result
+    for category, couriers in raw.items():
+        cat = str(category).strip()
+        if not cat or not isinstance(couriers, dict):
+            continue
+        cat_rules: dict[str, dict[str, float]] = {}
+        for courier_key, rule in couriers.items():
+            key = str(courier_key).strip()
+            if not key or not isinstance(rule, dict):
+                continue
+            cat_rules[key if key == "default" else normalize_courier_name(key)] = {
+                "first_add": float(rule.get("first_add", 0.0)),
+                "extra_add": float(rule.get("extra_add", 0.0)),
+            }
+        if "default" not in cat_rules:
+            cat_rules["default"] = {"first_add": 0.0, "extra_add": 0.0}
+        result[cat] = cat_rules
+    return result
+
+
+def _normalize_xianyu_discount(raw: dict[str, Any]) -> dict[str, dict[str, dict[str, float]]]:
+    """解析闲鱼让利配置。
+
+    返回: { category: { courier: { "first_discount": x, "extra_discount": y } } }
+    """
+    result: dict[str, dict[str, dict[str, float]]] = {}
+    if not isinstance(raw, dict):
+        return result
+    for category, couriers in raw.items():
+        cat = str(category).strip()
+        if not cat or not isinstance(couriers, dict):
+            continue
+        cat_rules: dict[str, dict[str, float]] = {}
+        for courier_key, rule in couriers.items():
+            key = str(courier_key).strip()
+            if not key or not isinstance(rule, dict):
+                continue
+            cat_rules[key if key == "default" else normalize_courier_name(key)] = {
+                "first_discount": float(rule.get("first_discount", 0.0)),
+                "extra_discount": float(rule.get("extra_discount", 0.0)),
+            }
+        if "default" not in cat_rules:
+            cat_rules["default"] = {"first_discount": 0.0, "extra_discount": 0.0}
+        result[cat] = cat_rules
+    return result
+
+
+def _resolve_category_markup(
+    rules: dict[str, dict[str, dict[str, float]]],
+    category: str,
+    courier: str,
+) -> tuple[float, float]:
+    """根据服务类别和运力查找加价值，返回 (first_add, extra_add)。"""
+    cat_rules = rules.get(category, {})
+    courier_rule = cat_rules.get(courier) or cat_rules.get("default") or {}
+    return (
+        float(courier_rule.get("first_add", 0.0)),
+        float(courier_rule.get("extra_add", 0.0)),
+    )
+
+
+def _resolve_xianyu_discount_value(
+    rules: dict[str, dict[str, dict[str, float]]],
+    category: str,
+    courier: str,
+) -> tuple[float, float]:
+    """根据服务类别和运力查找让利值，返回 (first_discount, extra_discount)。"""
+    cat_rules = rules.get(category, {})
+    courier_rule = cat_rules.get(courier) or cat_rules.get("default") or {}
+    return (
+        float(courier_rule.get("first_discount", 0.0)),
+        float(courier_rule.get("extra_discount", 0.0)),
+    )
 
 
 def _first_positive(*values: Any) -> float:

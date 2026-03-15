@@ -70,11 +70,13 @@ export default function Messages() {
     setLoading(true);
     setError(null);
     try {
-      const statusRes = await api.get('/status');
+      const [statusRes, repliesRes] = await Promise.all([
+        api.get('/status'),
+        api.get('/replies').catch(() => null),
+      ]);
       setStats(statusRes.data.message_stats || null);
 
-      try {
-        const repliesRes = await api.get('/replies');
+      if (repliesRes) {
         const d = repliesRes.data;
         if (Array.isArray(d)) {
           setReplies(d);
@@ -83,7 +85,7 @@ export default function Messages() {
         } else {
           setReplies([]);
         }
-      } catch {
+      } else {
         setReplies([]);
       }
     } catch (err: any) {
@@ -111,7 +113,7 @@ export default function Messages() {
     scrollToBottom();
 
     try {
-      const res = await api.post('/test-reply', { message: msg, session_id: sessionId });
+      const res = await api.post('/test-reply', { message: msg, session_id: sessionId }, { timeout: 60000 });
       const d = res.data;
       setChatMessages(prev => prev.map(m => m.id === botPlaceholder.id ? {
         ...m, loading: false,
