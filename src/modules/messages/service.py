@@ -212,7 +212,7 @@ class MessagesService:
         )
 
         self.quote_engine = AutoQuoteEngine(self.quote_config)
-        default_quote_keywords = ["报价", "多少钱", "价格", "运费", "邮费", "快递费", "寄到", "发到", "送到", "怎么寄", "怎么收费", "多钱", "啥价", "咋卖", "怎么卖", "什么价", "几块钱"]
+        default_quote_keywords = ["报价", "多少钱", "价格", "运费", "邮费", "快递费", "寄到", "发到", "送到", "怎么寄", "怎么收费", "多钱", "啥价", "咋卖", "怎么卖", "什么价", "几块钱", "首重", "续重"]
         default_standard_format_triggers = ["在吗", "在不", "hi", "hello", "哈喽", "有人吗"]
         raw_quote_keywords = self.config.get("quote_intent_keywords")
         if isinstance(raw_quote_keywords, list):
@@ -221,7 +221,8 @@ class MessagesService:
             ]
         else:
             cleaned_quote_keywords = []
-        self.quote_intent_keywords = cleaned_quote_keywords or [str(s).lower() for s in default_quote_keywords]
+        base = cleaned_quote_keywords or [str(s).lower() for s in default_quote_keywords]
+        self.quote_intent_keywords = list(dict.fromkeys(base + ["首重", "续重"]))
         raw_standard_triggers = self.config.get("standard_format_trigger_keywords")
         if isinstance(raw_standard_triggers, list):
             cleaned_standard_triggers = [
@@ -256,6 +257,7 @@ class MessagesService:
         self.context_memory_ttl_seconds = max(300, int(self.config.get("context_memory_ttl_seconds", 3600)))
         self.courier_lock_template = str(self.config.get("courier_lock_template", DEFAULT_COURIER_LOCK_TEMPLATE))
         self._quote_context_memory: dict[str, dict[str, Any]] = {}
+        self._ledger_miss_cache: set[str] = set()
 
         manual_timeout = int(self.config.get("manual_mode_timeout", 3600))
         self._manual_mode_store = ManualModeStore(
@@ -458,6 +460,17 @@ class MessagesService:
             if result is None:
                 continue
             ok_pairs.append((courier_name, result))
+
+        # 根据计费重智能过滤运力类型
+        if ok_pairs:
+            first_exp = ok_pairs[0][1].explain if isinstance(ok_pairs[0][1].explain, dict) else {}
+            billing_w = float(first_exp.get("billing_weight_kg") or request.weight or 0)
+            if billing_w < 30:
+                ok_pairs = [
+                    p for p in ok_pairs
+                    if (p[1].explain or {}).get("service_type") != "freight"
+                ]
+
         ok_pairs.sort(key=lambda item: (float(item[1].total_fee), str(item[0])))
         return ok_pairs
 
@@ -484,16 +497,38 @@ class MessagesService:
             weight_parts.append(f"按 {float(billing_w):.1f}kg 计费")
             lines.append(" | ".join(weight_parts))
 
-        for index, (courier_name, result) in enumerate(quote_rows, start=1):
+        def _format_courier_line(index: int, courier_name: str, result: "QuoteResult") -> str:
             exp = result.explain if isinstance(result.explain, dict) else {}
-            first_cost = exp.get("cost_first")
-            extra_cost = exp.get("cost_extra")
             bw = float(exp.get("billing_weight_kg") or billing_w or 0)
-            extra_w = max(0.0, bw - 1.0)
+            base_w = float(exp.get("base_weight", 1.0))
+            extra_w = max(0.0, bw - base_w)
+            xianyu_extra = exp.get("xianyu_extra")
             price_str = f"{float(result.total_fee):.2f}元"
-            if first_cost is not None and extra_cost is not None and extra_w > 0:
-                price_str += f"（首重{float(first_cost):.2f} + 续重{extra_w:.1f}kg×{float(extra_cost):.2f}）"
-            lines.append(f"{index}. {courier_name}：{price_str}")
+            if xianyu_extra is not None and extra_w > 0:
+                if base_w > 1:
+                    price_str += f"（首重{base_w:.0f}kg {float(result.base_fee):.2f} + 续重{extra_w:.1f}kg×{float(xianyu_extra):.2f}）"
+                else:
+                    price_str += f"（首重{float(result.base_fee):.2f} + 续重{extra_w:.1f}kg×{float(xianyu_extra):.2f}）"
+            elif extra_w > 0:
+                first_cost = exp.get("cost_first")
+                extra_cost = exp.get("cost_extra")
+                if first_cost is not None and extra_cost is not None:
+                    price_str += f"（首重{float(first_cost):.2f} + 续重{extra_w:.1f}kg×{float(extra_cost):.2f}）"
+            return f"{index}. {courier_name}：{price_str}"
+
+        express_rows = [(n, r) for n, r in quote_rows if (r.explain or {}).get("service_type") != "freight"]
+        freight_rows = [(n, r) for n, r in quote_rows if (r.explain or {}).get("service_type") == "freight"]
+
+        if express_rows and freight_rows:
+            lines.append("快递方案：")
+            for i, (name, result) in enumerate(express_rows, 1):
+                lines.append(_format_courier_line(i, name, result))
+            lines.append("大件快运方案（首重30kg起）：")
+            for i, (name, result) in enumerate(freight_rows, 1):
+                lines.append(_format_courier_line(i, name, result))
+        else:
+            for i, (name, result) in enumerate(quote_rows, 1):
+                lines.append(_format_courier_line(i, name, result))
 
         lines.append("回复“选XX快递”帮您锁定价格哦~")
         lines.append("下单流程：先拍下链接不付款 → 我改价 → 付款后自动发兑换码，到小橙序下单即可~")
@@ -676,14 +711,15 @@ class MessagesService:
             return False
 
         if any(p in text for p in ["到货", "多久到", "什么时候到", "到没", "到了吗", "到哪了"]):
-            if not any(marker in text for marker in ["寄", "发", "收", "从", "由", "~", "～", "-", "—"]):
+            _route_markers = ("寄", "发", "收", "从", "由", "~", "～", "-", "\u2013", "—", "→")
+            if not any(marker in text for marker in _route_markers):
                 return False
 
         route_patterns = (
             r"[\u4e00-\u9fa5]{2,20}\s*(?:到|寄到|发到|送到)\s*[\u4e00-\u9fa5]{2,20}",
             r"(?:寄件|发件|收件|寄自|发自|从|由)",
-            r"[\u4e00-\u9fa5]{2,20}\s*[~～\-—]\s*[\u4e00-\u9fa5]{2,20}",
-            r"[\u4e00-\u9fa5]{2,4}\s*(?:发(?![了的个件给过货到着]))\s*[\u4e00-\u9fa5]{2,4}",
+            r"[\u4e00-\u9fa5]{2,20}\s*[~～\-\u2013\u2014\u2015→➔>＞]\s*[\u4e00-\u9fa5]{2,20}",
+            r"[\u4e00-\u9fa5]{2,4}\s*(?:发(?![了的个件给过货到着])|寄(?![了的个件给过到着]))\s*[\u4e00-\u9fa5]{2,4}",
             r"[\u4e00-\u9fa5]{2,4}\s*[\u4e00-\u9fa5]{2,4}\s*\d+(?:\.\d+)?\s*(?:kg|公斤|斤|g|克)",
             r"[\u4e00-\u9fa5]{2,6}(?:省)?内",
         )
@@ -706,7 +742,7 @@ class MessagesService:
         r"\d+\s*(?:kg|公斤|斤|g|克)(?![a-zA-Z])"
         r"|[\u4e00-\u9fa5]{2,6}(?:省|市|区|县|镇)"
         r"|[\u4e00-\u9fa5]{2,10}\s*(?:到|寄到|发到)\s*[\u4e00-\u9fa5]{2,10}"
-        r"|[\u4e00-\u9fa5]{2,10}\s*[~～\-—]\s*[\u4e00-\u9fa5]{2,10}",
+        r"|[\u4e00-\u9fa5]{2,10}\s*[~～\-\u2013\u2014\u2015→➔>＞]\s*[\u4e00-\u9fa5]{2,10}",
         flags=re.IGNORECASE,
     )
 
@@ -851,7 +887,7 @@ class MessagesService:
         if labeled_origin and labeled_dest:
             return labeled_origin.group(1), labeled_dest.group(1)
 
-        compact = re.search(r"([\u4e00-\u9fa5]{2,20})\s*[~～\-—]\s*([\u4e00-\u9fa5]{2,20})", text)
+        compact = re.search(r"([\u4e00-\u9fa5]{2,20})\s*[~～\-\u2013\u2014\u2015→➔>＞]\s*([\u4e00-\u9fa5]{2,20})", text)
         if compact:
             return compact.group(1), compact.group(2)
 
@@ -908,9 +944,42 @@ class MessagesService:
             return {}
         self._prune_quote_context_memory()
         payload = self._quote_context_memory.get(session_id)
-        if not isinstance(payload, dict):
-            return {}
-        return dict(payload)
+        if isinstance(payload, dict):
+            return dict(payload)
+        if session_id not in self._ledger_miss_cache:
+            recovered = self._recover_context_from_ledger(session_id)
+            if recovered:
+                self._quote_context_memory[session_id] = recovered
+                return dict(recovered)
+            self._ledger_miss_cache.add(session_id)
+        return {}
+
+    def _recover_context_from_ledger(self, session_id: str) -> dict[str, Any] | None:
+        """尝试从 QuoteLedger 恢复报价上下文（进程重启后内存丢失的场景）。"""
+        try:
+            ledger = get_quote_ledger()
+            record = ledger.find_by_session(session_id, max_age_seconds=self.context_memory_ttl_seconds)
+            if not record:
+                return None
+            recovered: dict[str, Any] = {"updated_at": record.get("created_at", time.time())}
+            for field in ("origin", "destination", "weight", "courier_choice"):
+                val = record.get(field)
+                if val and (not isinstance(val, str) or val.strip()):
+                    recovered[field] = val
+            quote_rows = record.get("quote_rows")
+            if isinstance(quote_rows, list) and quote_rows:
+                recovered["last_quote_rows"] = quote_rows
+            self.logger.info(
+                "从 QuoteLedger 恢复会话上下文: session=%s, origin=%s, dest=%s, rows=%d",
+                session_id,
+                recovered.get("origin", ""),
+                recovered.get("destination", ""),
+                len(recovered.get("last_quote_rows", [])),
+            )
+            return recovered if len(recovered) > 1 else None
+        except Exception as exc:
+            self.logger.warning("QuoteLedger 恢复失败: %s", exc)
+            return None
 
     def _update_quote_context(self, session_id: str, **kwargs: Any) -> None:
         if not self.context_memory_enabled or not session_id:
@@ -990,7 +1059,7 @@ class MessagesService:
 
     _NON_LOCATION_TERMS = frozenset({
         "韵达", "圆通", "中通", "申通", "顺丰", "极兔", "德邦",
-        "京东", "邮政", "菜鸟裹裹",
+        "京东", "邮政", "菜鸟裹裹", "菜鸟", "裹裹",
         "首重", "续重", "快递", "退款", "退货", "报价", "包邮",
         "发货", "收货", "签收", "下单", "拍下", "改价",
         "你好", "可以", "不行", "算了", "好的", "谢谢", "没有", "什么",
@@ -1017,6 +1086,10 @@ class MessagesService:
     def _extract_quote_fields(self, message_text: str) -> dict[str, Any]:
         origin, destination = self._extract_locations(message_text)
         weight = self._extract_weight_kg(message_text)
+        if weight is None and re.search(r"首重", message_text or ""):
+            weight = 1.0
+        if weight is None and re.search(r"续重", message_text or ""):
+            weight = 2.0
         fields = {
             "origin": origin,
             "destination": destination,
@@ -1245,6 +1318,18 @@ class MessagesService:
             return True
         return False
 
+    _COURIER_ALIASES: dict[str, str] = {
+        "菜鸟": "菜鸟裹裹",
+        "裹裹": "菜鸟裹裹",
+        "极兔速递": "极兔",
+        "京东快递": "京东",
+        "德邦快递": "德邦",
+        "申通快递": "申通",
+        "韵达快递": "韵达",
+        "圆通快递": "圆通",
+        "中通快递": "中通",
+    }
+
     def _detect_courier_choice(self, message_text: str) -> str | None:
         text = (message_text or "").strip()
         if not text:
@@ -1258,18 +1343,21 @@ class MessagesService:
                 if name and name not in couriers:
                     couriers.append(name)
 
+        all_names = couriers + [a for a in self._COURIER_ALIASES if a not in couriers]
+
         pattern = re.compile(
-            r"(?:选|选择|确认|走|用|安排)\s*(" + "|".join([re.escape(x) for x in couriers]) + r")",
+            r"(?:选|选择|确认|走|用|安排)\s*(" + "|".join([re.escape(x) for x in sorted(all_names, key=len, reverse=True)]) + r")",
             flags=re.IGNORECASE,
         )
         matched = pattern.search(text)
         if matched:
-            return str(matched.group(1))
+            name = str(matched.group(1))
+            return self._COURIER_ALIASES.get(name, name)
 
         compact = re.sub(r"\s+", "", text)
-        for courier in couriers:
-            if compact == courier:
-                return courier
+        for name in sorted(all_names, key=len, reverse=True):
+            if compact == name:
+                return self._COURIER_ALIASES.get(name, name)
         return None
 
     @classmethod
@@ -1341,6 +1429,8 @@ class MessagesService:
                 f"好的，已为您锁定 {courier}（{price_label}）~\n"
                 "先拍下链接不付款，我帮您改价，付款后系统自动发兑换码哦~"
             )
+        if courier != "已选渠道" and courier not in reply:
+            reply = f"已为您锁定 {courier}（{price_label}）~\n{reply}"
         return reply, bool(row)
 
     def _build_quote_request(self, message_text: str) -> tuple[QuoteRequest | None, list[str]]:
@@ -1451,38 +1541,52 @@ class MessagesService:
                     "rule_matched": pre_matched.name,
                 }
 
-            _greeting_rules = frozenset({"express_availability"})
+            _greeting_rules = frozenset({"express_availability", "express_first_weight"})
             if pre_matched.name in _greeting_rules:
                 origin, dest = self._extract_locations(message_text)
                 if origin or dest:
-                    if session_id:
-                        self._update_quote_context(session_id, origin=origin, destination=dest)
-                    parts = []
-                    sf_kw = re.search(r"顺丰|京东", message_text or "")
-                    if sf_kw:
-                        parts.append("闲鱼特价渠道暂时没有顺丰/京东，小橙序内可直接下单且价格更优~ 这边有韵达/圆通/中通/申通可选")
+                    _weight = self._extract_weight_kg(message_text)
+                    if _weight is None and re.search(r"首重", message_text or ""):
+                        _weight = 1.0
+                    if _weight is None and re.search(r"续重", message_text or ""):
+                        _weight = 2.0
+                    if origin and dest and _weight is not None and _weight > 0:
+                        pass  # all fields present, fall through to quote engine
                     else:
-                        parts.append("在的亲")
-                    route_str = f"{origin} -> {dest}" if origin and dest else (origin or dest or "")
-                    if route_str:
-                        parts.append(f"已收到路线 {route_str}")
-                    parts.append("告诉我包裹重量（kg）马上帮您查价~")
-                    return self._sanitize_reply("，".join(parts)), {
-                        "is_quote": True,
-                        "quote_need_info": True,
-                        "quote_missing_fields": ["weight"],
-                        "rule_matched": pre_matched.name,
-                    }
+                        if session_id:
+                            self._update_quote_context(session_id, origin=origin, destination=dest)
+                        parts = []
+                        sf_kw = re.search(r"顺丰|京东", message_text or "")
+                        if sf_kw:
+                            parts.append("闲鱼特价渠道暂时没有顺丰/京东，小橙序内可直接下单且价格更优~ 这边有韵达/圆通/中通/申通可选")
+                        else:
+                            parts.append("在的亲")
+                        route_str = f"{origin} -> {dest}" if origin and dest else (origin or dest or "")
+                        if route_str:
+                            parts.append(f"已收到路线 {route_str}")
+                        parts.append("告诉我包裹重量（kg）马上帮您查价~")
+                        return self._sanitize_reply("，".join(parts)), {
+                            "is_quote": True,
+                            "quote_need_info": True,
+                            "quote_missing_fields": ["weight"],
+                            "rule_matched": pre_matched.name,
+                        }
 
             _QUOTE_YIELDABLE_RULES = frozenset({
                 "express_large",
                 "express_volume",
                 "express_remote_area",
+                "express_first_weight",
+                "express_sf_jd",
             })
             use_rule_reply = True
             if is_quote_intent and pre_matched.name in _QUOTE_YIELDABLE_RULES:
                 _origin, _dest = self._extract_locations(message_text)
                 _weight = self._extract_weight_kg(message_text)
+                if _weight is None and re.search(r"首重", message_text or ""):
+                    _weight = 1.0
+                if _weight is None and re.search(r"续重", message_text or ""):
+                    _weight = 2.0
                 if _origin and _dest and _weight is not None and _weight > 0:
                     use_rule_reply = False
                     self.logger.info(
@@ -1623,6 +1727,8 @@ class MessagesService:
             if multi_quote_rows:
                 best_courier, best_result = multi_quote_rows[0]
                 reply = self._compose_multi_courier_quote_reply(multi_quote_rows)
+                if re.search(r"顺丰|京东", message_text or ""):
+                    reply = "闲鱼特价渠道暂时没有顺丰/京东哦~ 这边有韵达/圆通/中通/申通/极兔可选：\n\n" + reply
                 latency_ms = int((perf_counter() - start) * 1000)
                 if session_id:
                     self._update_quote_context(
@@ -1677,6 +1783,8 @@ class MessagesService:
                 validity_minutes=int(self.quote_config.get("validity_minutes", 30)),
                 template=selected_template,
             )
+            if re.search(r"顺丰|京东", message_text or ""):
+                reply = "闲鱼特价渠道暂时没有顺丰/京东哦~ 这边有韵达/圆通/中通/申通/极兔可选：\n\n" + reply
             if session_id:
                 self._update_quote_context(
                     session_id,

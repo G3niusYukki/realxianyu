@@ -70,7 +70,7 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
             "最低", "便宜", "优惠", "少点", "能便宜",
             "太贵了", "贵了", "打折", "折扣", "降价", "再低", "能再少", "打个折",
         ],
-        "reply": "亲，这已经是首单优惠价了，非常划算~ 量大的话可以再商量哦~",
+        "reply": "亲，这个价格已经比自寄便宜5折起了~ 首单还有额外折扣，发我路线和重量查一下具体能省多少~",
     },
 
     # ============================================================
@@ -385,7 +385,13 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     },
     {
         "name": "express_sf_jd",
-        "keywords": ["有顺丰吗", "顺丰还有", "有京东吗", "京东还有", "顺丰", "京东快递", "京东物流", "改成京东", "改成顺丰", "换京东", "换顺丰"],
+        "keywords": [
+            "有顺丰吗", "顺丰还有", "有京东吗", "京东还有",
+            "顺丰", "京东", "京东快递", "京东物流",
+            "改成京东", "改成顺丰", "换京东", "换顺丰",
+            "发京东", "走京东", "用京东", "要京东",
+            "发顺丰", "走顺丰", "用顺丰", "要顺丰",
+        ],
         "reply": "闲鱼特价渠道暂时没有顺丰/京东哦~ 不过在小橙序内可以直接下单顺丰/京东，价格也比其他平台更优惠~",
         "priority": 46,
         "categories": ["express"],
@@ -653,7 +659,7 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     # ============================================================
     {
         "name": "express_competitor_compare",
-        "keywords": ["菜鸟", "裹裹", "比别家", "别家便宜", "其他家", "比你便宜"],
+        "keywords": ["比别家", "别家便宜", "其他家", "比你便宜"],
         "reply": "我们的价格已经非常有竞争力了~ 而且首单用户还有额外优惠哦~ 告诉我寄件信息帮您查价对比~",
         "priority": 50,
         "categories": ["express"],
@@ -913,14 +919,7 @@ class ReplyStrategyEngine:
         return self._dedup
 
     def _get_bargain_tracker(self):
-        if self._bargain_tracker is None and self.bargain_tracking_enabled:
-            try:
-                from src.modules.messages.bargain_tracker import BargainTracker
-
-                self._bargain_tracker = BargainTracker()
-            except Exception:
-                pass
-        return self._bargain_tracker
+        return None
 
     def classify_intent(self, message_text: str, item_title: str = "") -> str:
         normalized = self._normalize_text(message_text)
