@@ -669,13 +669,23 @@ async def try_slider_recovery(
             pages = context.pages
             page = None
             for p in pages:
-                if "goofish.com" in (p.url or ""):
+                if "goofish.com/im" in (p.url or ""):
                     page = p
-                    _log.info(f"Slider recovery: reusing existing goofish tab: {p.url}")
+                    _log.info(f"Slider recovery: reusing IM tab: {p.url}")
                     break
             if not page:
+                for p in pages:
+                    if "goofish.com" in (p.url or ""):
+                        page = p
+                        _log.info(f"Slider recovery: navigating existing tab to IM page")
+                        try:
+                            await page.goto(_GOOFISH_IM_URL, wait_until="domcontentloaded", timeout=30000)
+                        except Exception as nav_exc:
+                            _log.info(f"Slider recovery: navigation error: {nav_exc}")
+                        break
+            if not page:
                 page = await context.new_page()
-                _log.info(f"Slider recovery: navigating to {_GOOFISH_IM_URL}")
+                _log.info(f"Slider recovery: navigating new tab to {_GOOFISH_IM_URL}")
                 try:
                     await page.goto(_GOOFISH_IM_URL, wait_until="domcontentloaded", timeout=30000)
                 except Exception as nav_exc:
