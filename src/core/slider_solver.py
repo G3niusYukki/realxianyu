@@ -34,6 +34,11 @@ NC_SLIDER_SELECTORS = [
     "#baxia-dialog-content .btn_slide",
     ".slide-btn",
     "[aria-label='滑块']",
+    "[class*='btn_slide']",
+    "[id*='n1z']",
+    ".nc_wrapper span",
+    "#nc_2_n1z",
+    "#nc_3_n1z",
 ]
 
 NC_TRACK_SELECTORS = [
@@ -43,6 +48,9 @@ NC_TRACK_SELECTORS = [
     ".slide-track",
     "#baxia-slideBar",
     ".nc_wrapper .nc_scale",
+    "#nc_2__scale_text",
+    "#nc_3__scale_text",
+    "[class*='nc_scale']",
 ]
 
 PUZZLE_SELECTORS = [
@@ -182,8 +190,13 @@ def find_puzzle_gap_opencv(background_bytes: bytes, slider_bytes: bytes) -> int 
 
 
 async def _find_slider_in_frames(page: Any) -> tuple[Any, Any, str] | None:
-    """Search all frames for slider elements. Returns (frame, element, type)."""
+    """Search all frames for slider elements. Returns (frame, element, type).
+
+    When a baxia-dialog container is found, waits for and searches inside it
+    for an NC slider component which loads asynchronously.
+    """
     targets = [page] + list(page.frames)
+
     for frame in targets:
         for sel in NC_SLIDER_SELECTORS:
             try:
@@ -192,13 +205,89 @@ async def _find_slider_in_frames(page: Any) -> tuple[Any, Any, str] | None:
                     return frame, el, "nc"
             except Exception:
                 continue
+
+    baxia_dialog = None
+    baxia_frame = None
+    for frame in targets:
         for sel in PUZZLE_SELECTORS:
             try:
                 el = await frame.query_selector(sel)
                 if el and await el.is_visible():
-                    return frame, el, "puzzle"
+                    if sel == ".baxia-dialog":
+                        baxia_dialog = el
+                        baxia_frame = frame
+                    else:
+                        return frame, el, "puzzle"
             except Exception:
                 continue
+
+    if baxia_dialog:
+        nc_btn = await _wait_for_nc_inside_baxia(page, baxia_frame, baxia_dialog)
+        if nc_btn:
+            return nc_btn
+        return baxia_frame, baxia_dialog, "puzzle"
+
+    return None
+
+
+async def _wait_for_nc_inside_baxia(
+    page: Any, frame: Any, dialog_el: Any
+) -> tuple[Any, Any, str] | None:
+    """Wait for the NC slider component to load inside a baxia-dialog.
+
+    The NC component loads asynchronously via JS, so the container div
+    appears before the slider button. We poll a few times to catch it.
+    """
+    nc_inner_selectors = NC_SLIDER_SELECTORS + [
+        ".baxia-dialog .btn_slide",
+        ".baxia-dialog [class*='slide']",
+        ".baxia-dialog span[class*='btn']",
+    ]
+
+    for wait_round in range(4):
+        if wait_round > 0:
+            await asyncio.sleep(1.5)
+
+        all_frames = [frame] + [f for f in page.frames if f != frame]
+        for f in all_frames:
+            for sel in nc_inner_selectors:
+                try:
+                    el = await f.query_selector(sel)
+                    if el and await el.is_visible():
+                        logger.info(
+                            "Baxia dialog: found NC button via '%s' (wait_round=%d)",
+                            sel, wait_round,
+                        )
+                        return f, el, "nc"
+                except Exception:
+                    continue
+
+        try:
+            iframes = await dialog_el.query_selector_all("iframe")
+            for iframe_el in iframes:
+                iframe_name = await iframe_el.get_attribute("name") or ""
+                iframe_src = await iframe_el.get_attribute("src") or ""
+                logger.info(
+                    "Baxia dialog: found iframe name='%s' src='%s' (wait_round=%d)",
+                    iframe_name, iframe_src[:100], wait_round,
+                )
+                for f in page.frames:
+                    if f.name == iframe_name or (iframe_src and iframe_src in (f.url or "")):
+                        for sel in NC_SLIDER_SELECTORS:
+                            try:
+                                el = await f.query_selector(sel)
+                                if el and await el.is_visible():
+                                    logger.info(
+                                        "Baxia iframe: found NC button via '%s'",
+                                        sel,
+                                    )
+                                    return f, el, "nc"
+                            except Exception:
+                                continue
+        except Exception:
+            pass
+
+    logger.info("Baxia dialog: no NC component found after polling, treating as puzzle")
     return None
 
 
@@ -292,6 +381,147 @@ async def _solve_nc_slider(page: Any, frame: Any, slider_el: Any) -> bool:
     return await _check_nc_success(frame, page=page)
 
 
+async def _dump_baxia_dom(page: Any, frame: Any) -> None:
+    """Dump DOM structure inside baxia-dialog for diagnostics."""
+    try:
+        all_frames = [frame] + [f for f in page.frames if f != frame]
+        for f in all_frames:
+            try:
+                baxia = await f.query_selector(".baxia-dialog")
+                if not baxia:
+                    continue
+                html_snippet = await f.evaluate(
+                    """(el) => {
+                        const children = el.querySelectorAll('*');
+                        const items = [];
+                        for (let i = 0; i < Math.min(children.length, 40); i++) {
+                            const c = children[i];
+                            items.push({
+                                tag: c.tagName,
+                                id: c.id || '',
+                                cls: c.className || '',
+                                visible: c.offsetParent !== null || c.style.display !== 'none'
+                            });
+                        }
+                        return items;
+                    }""",
+                    baxia,
+                )
+                logger.info("Baxia DOM dump (%d elements):", len(html_snippet))
+                for item in html_snippet:
+                    if item.get("visible"):
+                        logger.info(
+                            "  <%s id='%s' class='%s'>",
+                            item.get("tag", "?"),
+                            item.get("id", ""),
+                            str(item.get("cls", ""))[:80],
+                        )
+                return
+            except Exception:
+                continue
+
+        imgs = await frame.query_selector_all("img")
+        logger.info("Frame img elements (%d):", len(imgs))
+        for img in imgs[:15]:
+            src = await img.get_attribute("src") or ""
+            cls = await img.get_attribute("class") or ""
+            el_id = await img.get_attribute("id") or ""
+            logger.info("  img id='%s' class='%s' src='%s'", el_id, cls, src[:80])
+    except Exception as exc:
+        logger.info("DOM dump failed: %s", exc)
+
+
+async def _try_nc_fallback_inside_puzzle(page: Any, frame: Any) -> bool:
+    """When puzzle detection found bg but no slice, try NC-style drag as fallback.
+
+    The baxia-dialog may contain an NC slider (drag-to-right) that was
+    misclassified as a puzzle because the container matched first.
+    """
+    logger.info("Puzzle fallback: searching for NC-style slider inside dialog...")
+
+    nc_broad_selectors = NC_SLIDER_SELECTORS + [
+        ".baxia-dialog .btn_slide",
+        ".baxia-dialog [class*='slide']",
+        ".baxia-dialog span[class*='btn']",
+        ".baxia-dialog [class*='nc']",
+        "span[class*='btn_slide']",
+    ]
+
+    all_frames = [frame] + [f for f in page.frames if f != frame]
+
+    for f in all_frames:
+        for sel in nc_broad_selectors:
+            try:
+                el = await f.query_selector(sel)
+                if el and await el.is_visible():
+                    box = await el.bounding_box()
+                    if not box or box["width"] < 10 or box["height"] < 10:
+                        continue
+                    logger.info("Puzzle fallback: found NC button via '%s', trying drag", sel)
+                    return await _solve_nc_slider(page, f, el)
+            except Exception:
+                continue
+
+    try:
+        for f in all_frames:
+            draggables = await f.evaluate("""() => {
+                const candidates = document.querySelectorAll(
+                    '.baxia-dialog span, .baxia-dialog div, .baxia-dialog button'
+                );
+                const results = [];
+                for (const el of candidates) {
+                    const rect = el.getBoundingClientRect();
+                    const style = window.getComputedStyle(el);
+                    if (rect.width > 20 && rect.width < 80
+                        && rect.height > 20 && rect.height < 80
+                        && style.cursor !== 'default'
+                        && style.display !== 'none') {
+                        results.push({
+                            tag: el.tagName,
+                            id: el.id || '',
+                            cls: el.className || '',
+                            x: rect.x, y: rect.y,
+                            w: rect.width, h: rect.height,
+                            cursor: style.cursor
+                        });
+                    }
+                }
+                return results;
+            }""")
+            if draggables:
+                logger.info("Puzzle fallback: found %d candidate draggable elements:", len(draggables))
+                for d in draggables[:5]:
+                    logger.info(
+                        "  <%s id='%s' class='%s' cursor='%s' %dx%d>",
+                        d.get("tag"), d.get("id"), str(d.get("cls", ""))[:60],
+                        d.get("cursor"), d.get("w", 0), d.get("h", 0),
+                    )
+
+                best = draggables[0]
+                for d in draggables:
+                    if d.get("cursor") in ("pointer", "move", "grab"):
+                        best = d
+                        break
+
+                sel_str = ""
+                if best.get("id"):
+                    sel_str = f"#{best['id']}"
+                elif best.get("cls"):
+                    first_cls = str(best["cls"]).split()[0]
+                    sel_str = f".{first_cls}"
+
+                if sel_str:
+                    el = await f.query_selector(sel_str)
+                    if el:
+                        logger.info("Puzzle fallback: trying drag on '%s'", sel_str)
+                        return await _solve_nc_slider(page, f, el)
+    except Exception as exc:
+        logger.info("Puzzle fallback evaluate failed: %s", exc)
+
+    logger.info("Puzzle fallback: no draggable element found")
+    return False
+
+
 _PUZZLE_BG_SELECTORS = [
     ".yoda-image-bg",
     ".baxia-bg-img",
@@ -354,19 +584,15 @@ async def _solve_puzzle_slider(page: Any, frame: Any, slider_el: Any) -> bool:
             logger.info(
                 f"Puzzle slider: elements not found (bg={'found' if bg_el else 'MISSING'}, "
                 f"slice={'found' if sl_el else 'MISSING'}). "
-                "Trying screenshot-based fallback..."
+                "Trying fallback..."
             )
-            if not bg_el and not sl_el:
-                try:
-                    all_imgs = await target_frame.query_selector_all("img")
-                    logger.info(f"Puzzle: found {len(all_imgs)} img elements in frame")
-                    for img in all_imgs[:10]:
-                        src = await img.get_attribute("src") or ""
-                        cls = await img.get_attribute("class") or ""
-                        logger.info(f"  img: class='{cls}', src='{src[:80]}'")
-                except Exception:
-                    pass
-                return False
+            await _dump_baxia_dom(page, target_frame)
+
+            if bg_el and not sl_el:
+                nc_result = await _try_nc_fallback_inside_puzzle(page, target_frame)
+                return nc_result
+
+            return False
 
         bg_url = await bg_el.get_attribute("src") if bg_el else None
         sl_url = await sl_el.get_attribute("src") if sl_el else None
