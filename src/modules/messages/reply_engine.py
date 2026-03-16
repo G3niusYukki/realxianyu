@@ -70,7 +70,7 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
             "最低", "便宜", "优惠", "少点", "能便宜",
             "太贵了", "贵了", "打折", "折扣", "降价", "再低", "能再少", "打个折",
         ],
-        "reply": "亲，这已经是首单优惠价了，非常划算~ 量大的话可以再商量哦~",
+        "reply": "亲，这个价格已经比自寄便宜5折起了~ 首单还有额外折扣，发我路线和重量查一下具体能省多少~",
     },
     # ============================================================
     # 快递售前 — 需人工介入（priority=45，先于普通售前匹配）
@@ -99,7 +99,8 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     {
         "name": "express_large",
         "keywords": ["搬家", "毕业寄", "大件"],
-        "reply": "大件/搬家可以走德邦哦~ 我帮您确认一下具体方案~",
+        "exclude_patterns": [r"搬家袋", r"搬家.*打包"],
+        "reply": "大件/搬家物品需要人工确认方案~ 方便告诉我包裹的大概尺寸和重量吗？我帮您核算最优价格~",
         "priority": 45,
         "categories": ["express"],
         "needs_human": True,
@@ -389,7 +390,13 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     },
     {
         "name": "express_sf_jd",
-        "keywords": ["有顺丰吗", "顺丰还有", "有京东吗", "京东还有", "顺丰", "京东快递", "京东物流", "改成京东", "改成顺丰", "换京东", "换顺丰"],
+        "keywords": [
+            "有顺丰吗", "顺丰还有", "有京东吗", "京东还有",
+            "顺丰", "京东", "京东快递", "京东物流",
+            "改成京东", "改成顺丰", "换京东", "换顺丰",
+            "发京东", "走京东", "用京东", "要京东",
+            "发顺丰", "走顺丰", "用顺丰", "要顺丰",
+        ],
         "reply": "闲鱼特价渠道暂时没有顺丰/京东哦~ 不过在小橙序内可以直接下单顺丰/京东，价格也比其他平台更优惠~",
         "priority": 46,
         "categories": ["express"],
@@ -428,7 +435,7 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     {
         "name": "express_first_order",
         "keywords": ["第二次", "再买", "续费", "还能用"],
-        "reply": "亲，闲鱼首单优惠每个手机号限一次~ 后续直接在小橙序下单就行，正常价也比自寄便宜5折起，非常划算哦~",
+        "reply": "亲，闲鱼首单优惠每个手机号限一次~ 后续寄件直接在小橙序下单就行，不用再从闲鱼走了，正常价也比自寄便宜5折起，非常划算哦~",
         "priority": 50,
         "categories": ["express"],
         "phase": "presale",
@@ -539,8 +546,8 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     },
     {
         "name": "express_multi_pkg",
-        "keywords": ["两个包裹", "多个包裹", "子母件"],
-        "reply": "一个快递订单只能一个包裹~ 多个包裹需要分开下单哦~",
+        "keywords": ["两个包裹", "多个包裹", "子母件", "两个快递", "多个快递", "寄两个", "寄三个", "两件", "多件"],
+        "reply": "每个快递需分别下单哦~ 首单优惠仅限第一次使用小橙序的手机号，后续寄件可直接在小橙序下单，正常价也比自寄便宜5折起，非常方便~\n您先告诉我每个包裹的 寄件地-收件地-重量，我分别给您报价~",
         "priority": 50,
         "categories": ["express"],
         "phase": "presale",
@@ -657,7 +664,7 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     # ============================================================
     {
         "name": "express_competitor_compare",
-        "keywords": ["菜鸟", "裹裹", "比别家", "别家便宜", "其他家", "比你便宜"],
+        "keywords": ["比别家", "别家便宜", "其他家", "比你便宜"],
         "reply": "我们的价格已经非常有竞争力了~ 而且首单用户还有额外优惠哦~ 告诉我寄件信息帮您查价对比~",
         "priority": 50,
         "categories": ["express"],
@@ -786,6 +793,7 @@ class IntentRule:
     reply: str
     keywords: list[str] = field(default_factory=list)
     patterns: list[str] = field(default_factory=list)
+    exclude_patterns: list[str] = field(default_factory=list)
     priority: int = 100
     categories: list[str] = field(default_factory=list)
     needs_human: bool = False
@@ -799,13 +807,22 @@ class IntentRule:
             return False
         if self.max_length > 0 and len(text.strip()) > self.max_length:
             return False
+        hit = False
         for keyword in self.keywords:
             if keyword and keyword.lower() in text:
-                return True
-        for pattern in self.patterns:
-            if pattern and re.search(pattern, text, flags=re.IGNORECASE):
-                return True
-        return False
+                hit = True
+                break
+        if not hit:
+            for pattern in self.patterns:
+                if pattern and re.search(pattern, text, flags=re.IGNORECASE):
+                    hit = True
+                    break
+        if not hit:
+            return False
+        for exc in self.exclude_patterns:
+            if exc and re.search(exc, text, flags=re.IGNORECASE):
+                return False
+        return True
 
 
 class ReplyStrategyEngine:
@@ -907,14 +924,7 @@ class ReplyStrategyEngine:
         return self._dedup
 
     def _get_bargain_tracker(self):
-        if self._bargain_tracker is None and self.bargain_tracking_enabled:
-            try:
-                from src.modules.messages.bargain_tracker import BargainTracker
-
-                self._bargain_tracker = BargainTracker()
-            except Exception:
-                pass
-        return self._bargain_tracker
+        return None
 
     def classify_intent(self, message_text: str, item_title: str = "") -> str:
         normalized = self._normalize_text(message_text)
@@ -1077,6 +1087,7 @@ class ReplyStrategyEngine:
 
         keywords = [str(k).strip().lower() for k in raw_rule.get("keywords", []) if str(k).strip()]
         patterns = [str(p).strip() for p in raw_rule.get("patterns", []) if str(p).strip()]
+        exclude_patterns = [str(p).strip() for p in raw_rule.get("exclude_patterns", []) if str(p).strip()]
         priority = int(raw_rule.get("priority", 100))
         categories = [str(c).strip() for c in raw_rule.get("categories", []) if str(c).strip()]
         needs_human = bool(raw_rule.get("needs_human", False))
@@ -1087,7 +1098,8 @@ class ReplyStrategyEngine:
 
         return IntentRule(
             name=name, reply=reply, keywords=keywords,
-            patterns=patterns, priority=priority, categories=categories,
+            patterns=patterns, exclude_patterns=exclude_patterns,
+            priority=priority, categories=categories,
             needs_human=needs_human, human_reason=human_reason, phase=phase,
             skip_reply=skip_reply, max_length=max_length,
         )

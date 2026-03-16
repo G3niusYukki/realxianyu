@@ -173,22 +173,47 @@ export default function AccountList() {
     } catch { setAutoRefresh(null); }
   }, []);
 
+  const fetchRiskStatus = useCallback(async () => {
+    try {
+      const res = await api.get('/service-status');
+      if (res.data) {
+        setRiskStatus({
+          risk_control: res.data.risk_control,
+          recovery: res.data.recovery,
+          recovery_stage: res.data.recovery_stage,
+          token_error: res.data.token_error,
+          service_status: res.data.service_status,
+        });
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  const fetchCookieHealth = useCallback(async () => {
+    try {
+      const res = await api.get('/health/check');
+      if (res.data?.cookie) setCurrentCookieHealth(res.data.cookie);
+    } catch { /* non-blocking */ }
+  }, []);
+
   useEffect(() => {
     fetchAll();
     fetchAutoRefreshStatus();
-    refreshTimerRef.current = setInterval(fetchAutoRefreshStatus, 30000);
+    fetchCookieHealth();
+    refreshTimerRef.current = setInterval(() => {
+      fetchAutoRefreshStatus();
+      fetchRiskStatus();
+    }, 15000);
     return () => {
       if (eventSourceRef.current) eventSourceRef.current.close();
       if (refreshTimerRef.current) clearInterval(refreshTimerRef.current);
     };
-  }, [fetchAutoRefreshStatus]);
+  }, [fetchAutoRefreshStatus, fetchRiskStatus, fetchCookieHealth]);
 
   const fetchAll = async () => {
     setLoading(true);
     try {
-      const [cfgRes, healthRes, statusRes] = await Promise.all([
+      const [cfgRes, statusRes] = await Promise.all([
         api.get('/config'),
-        api.get('/health/check').catch(() => null),
         api.get('/service-status').catch(() => null),
       ]);
 
@@ -197,9 +222,6 @@ export default function AccountList() {
       const configured = !!(xgj.app_key && xgj.app_secret && !String(xgj.app_key).includes('****'));
       setAccounts([{ id: 'default', name: '默认店铺', enabled: true, configured }]);
 
-      if (healthRes?.data?.cookie) {
-        setCurrentCookieHealth(healthRes.data.cookie);
-      }
       if (statusRes?.data) {
         setRiskStatus({
           risk_control: statusRes.data.risk_control,

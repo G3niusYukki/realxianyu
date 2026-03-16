@@ -32,6 +32,7 @@ import yaml
 from src.core.config import get_config
 from src.dashboard.repository import DashboardRepository, LiveDashboardDataSource
 from src.dashboard.module_console import ModuleConsole, MODULE_TARGETS
+from src.dashboard.router import RouteContext, dispatch_get, dispatch_post, dispatch_put, dispatch_delete
 from src.dashboard.config_service import (
     read_system_config as _read_system_config,
     write_system_config as _write_system_config,
@@ -183,12 +184,20 @@ def _sync_system_config_to_yaml(sys_config: dict[str, Any]) -> None:
     slider = sys_config.get("slider_auto_solve")
     if isinstance(slider, dict):
         ws_cfg = cfg.setdefault("messages", {}).setdefault("ws", {})
-        ws_cfg["slider_auto_solve"] = {
+        slider_dict = {
             "enabled": bool(slider.get("enabled", False)),
             "max_attempts": int(slider.get("max_attempts", 2)),
             "cooldown_seconds": int(slider.get("cooldown_seconds", 300)),
             "headless": bool(slider.get("headless", False)),
         }
+        fp = slider.get("fingerprint_browser")
+        if isinstance(fp, dict):
+            slider_dict["fingerprint_browser"] = {
+                "enabled": bool(fp.get("enabled", False)),
+                "api_url": str(fp.get("api_url", "http://127.0.0.1:54345")),
+                "browser_id": str(fp.get("browser_id", "")),
+            }
+        ws_cfg["slider_auto_solve"] = slider_dict
         changed = True
 
     if changed:
@@ -355,6 +364,10 @@ class MimicOps:
         self._last_auto_recover_at = ""
         self._last_auto_recover_result: dict[str, Any] = {}
         self._recover_lock = threading.Lock()
+        self._cost_table_repo: Any = None
+        self._shared_cookie_checker: Any = None
+        self._risk_log_cache: dict[str, Any] | None = None
+        self._risk_log_cache_ts: float = 0.0
 
     @property
     def env_path(self) -> Path:
@@ -2004,58 +2017,83 @@ class MimicOps:
         path.mkdir(parents=True, exist_ok=True)
         return path
 
+    _route_stats_cache: dict[str, Any] | None = None
+    _route_stats_mtime: float = 0.0
+    _route_stats_ts: float = 0.0
+    _ROUTE_STATS_TTL: float = 120.0
+    _route_stats_lock = threading.Lock()
+
     def route_stats(self) -> dict[str, Any]:
-        cfg = get_config().get_section("quote", {})
-        patterns = cfg.get("cost_table_patterns", ["*.xlsx", "*.xls", "*.csv"])
-        if not isinstance(patterns, list):
-            patterns = ["*.xlsx", "*.xls", "*.csv"]
-        for required in ("*.xlsx", "*.xls", "*.csv"):
-            if required not in patterns:
-                patterns.append(required)
-        quote_dir = self._quote_dir()
-        files = []
-        latest_mtime = 0.0
-        for pattern in patterns:
-            for fp in quote_dir.glob(str(pattern)):
-                if fp.is_file():
-                    files.append(fp)
-                    latest_mtime = max(latest_mtime, fp.stat().st_mtime)
+        now = time.time()
+        if self._route_stats_cache is not None and (now - self._route_stats_ts) < self._ROUTE_STATS_TTL:
+            return self._route_stats_cache
 
-        route_count = 0
-        courier_set: set[str] = set()
-        courier_details: dict[str, int] = {}
-        parse_errors: list[str] = []
+        if not self._route_stats_lock.acquire(blocking=True, timeout=30):
+            if self._route_stats_cache is not None:
+                return self._route_stats_cache
+            return {"success": True, "stats": {}}
 
-        for fp in sorted(set(files)):
-            try:
-                repo = CostTableRepository(table_dir=fp)
-                repo.get_stats(max_files=1)
-                records = getattr(repo, "_records", [])
-                route_count += len(records)
-                for rec in records:
-                    courier = str(getattr(rec, "courier", "") or "").strip()
-                    if not courier:
-                        continue
-                    courier_set.add(courier)
-                    courier_details[courier] = int(courier_details.get(courier, 0) or 0) + 1
-            except Exception as exc:
-                parse_errors.append(f"{fp.name}: {exc}")
+        try:
+            if self._route_stats_cache is not None and (time.time() - self._route_stats_ts) < self._ROUTE_STATS_TTL:
+                return self._route_stats_cache
 
-        last_updated = "-"
-        if latest_mtime > 0:
-            last_updated = datetime.fromtimestamp(latest_mtime).strftime("%Y-%m-%d %H:%M:%S")
+            cfg = get_config().get_section("quote", {})
+            patterns = cfg.get("cost_table_patterns", ["*.xlsx", "*.xls", "*.csv"])
+            if not isinstance(patterns, list):
+                patterns = ["*.xlsx", "*.xls", "*.csv"]
+            for required in ("*.xlsx", "*.xls", "*.csv"):
+                if required not in patterns:
+                    patterns.append(required)
+            quote_dir = self._quote_dir()
+            files = []
+            latest_mtime = 0.0
+            for pattern in patterns:
+                for fp in quote_dir.glob(str(pattern)):
+                    if fp.is_file():
+                        files.append(fp)
+                        latest_mtime = max(latest_mtime, fp.stat().st_mtime)
 
-        stats = {
-            "couriers": len(courier_set),
-            "routes": int(route_count),
-            "tables": len(set(files)),
-            "last_updated": last_updated,
-            "courier_details": dict(sorted(courier_details.items(), key=lambda x: x[0])),
-            "files": [str(p.name) for p in sorted(set(files))[:200]],
-        }
-        if parse_errors:
-            stats["parse_error"] = " | ".join(parse_errors[:5])
-        return {"success": True, "stats": stats}
+            route_count = 0
+            courier_set: set[str] = set()
+            courier_details: dict[str, int] = {}
+            parse_errors: list[str] = []
+
+            for fp in sorted(set(files)):
+                try:
+                    repo = CostTableRepository(table_dir=fp)
+                    repo.get_stats(max_files=1)
+                    records = getattr(repo, "_records", [])
+                    route_count += len(records)
+                    for rec in records:
+                        courier = str(getattr(rec, "courier", "") or "").strip()
+                        if not courier:
+                            continue
+                        courier_set.add(courier)
+                        courier_details[courier] = int(courier_details.get(courier, 0) or 0) + 1
+                except Exception as exc:
+                    parse_errors.append(f"{fp.name}: {exc}")
+
+            last_updated = "-"
+            if latest_mtime > 0:
+                last_updated = datetime.fromtimestamp(latest_mtime).strftime("%Y-%m-%d %H:%M:%S")
+
+            stats = {
+                "couriers": len(courier_set),
+                "routes": int(route_count),
+                "tables": len(set(files)),
+                "last_updated": last_updated,
+                "courier_details": dict(sorted(courier_details.items(), key=lambda x: x[0])),
+                "files": [str(p.name) for p in sorted(set(files))[:200]],
+            }
+            if parse_errors:
+                stats["parse_error"] = " | ".join(parse_errors[:5])
+            result = {"success": True, "stats": stats}
+            self._route_stats_cache = result
+            self._route_stats_mtime = latest_mtime
+            self._route_stats_ts = time.time()
+            return result
+        finally:
+            self._route_stats_lock.release()
 
     def _workflow_db_path(self) -> Path:
         messages_cfg = get_config().get_section("messages", {})
@@ -2271,6 +2309,7 @@ class MimicOps:
             }
 
         stats = self.route_stats().get("stats", {})
+        self._cost_table_repo = None
         message = f"Imported {len(saved)} file(s)"
         if zip_count > 0:
             message += f" from {zip_count} zip archive(s)"
@@ -2304,6 +2343,7 @@ class MimicOps:
                 fp.unlink(missing_ok=True)
                 deleted += 1
             result["results"]["routes"] = {"message": f"Deleted {deleted} cost table files"}
+            self._cost_table_repo = None
 
         if target in {"chat", "all"}:
             removed: list[str] = []
@@ -2353,7 +2393,73 @@ class MimicOps:
         self.template_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
         return {"success": True, "message": "Template saved", **payload}
 
-    def get_replies(self) -> dict[str, Any]:
+    def get_replies(self) -> list[dict[str, Any]]:
+        """查询自动回复日志（关联 workflow_jobs + compliance_audit 补充缺失数据）。"""
+        db = self.project_root / "data" / "workflow.db"
+        if not db.exists():
+            return []
+        try:
+            conn = sqlite3.connect(str(db))
+            conn.row_factory = sqlite3.Row
+
+            comp_db = self.project_root / "data" / "compliance.db"
+            has_comp = comp_db.exists()
+            if has_comp:
+                conn.execute("ATTACH DATABASE ? AS comp", (str(comp_db),))
+
+            rows = conn.execute(
+                """SELECT id, session_id, to_state, metadata, created_at
+                   FROM session_state_transitions
+                   WHERE to_state IN ('REPLIED','QUOTED') AND status='success'
+                   ORDER BY created_at DESC LIMIT 200"""
+            ).fetchall()
+
+            sids = list({r["session_id"] for r in rows})
+
+            job_map: dict[str, dict] = {}
+            if sids:
+                ph = ",".join("?" * len(sids))
+                for jr in conn.execute(
+                    f"SELECT session_id, payload_json FROM workflow_jobs"
+                    f" WHERE session_id IN ({ph}) AND stage='reply' ORDER BY id DESC",
+                    sids,
+                ):
+                    if jr["session_id"] not in job_map:
+                        job_map[jr["session_id"]] = json.loads(jr["payload_json"]) if jr["payload_json"] else {}
+
+            audit_map: dict[str, str] = {}
+            if has_comp and sids:
+                ph = ",".join("?" * len(sids))
+                for ar in conn.execute(
+                    f"SELECT session_id, content FROM comp.compliance_audit"
+                    f" WHERE session_id IN ({ph}) AND action='message_send' AND blocked=0"
+                    f" ORDER BY created_at DESC",
+                    sids,
+                ):
+                    if ar["session_id"] not in audit_map:
+                        audit_map[ar["session_id"]] = ar["content"]
+
+            conn.close()
+        except Exception:
+            return []
+
+        logs: list[dict[str, Any]] = []
+        for r in rows:
+            meta = json.loads(r["metadata"]) if r["metadata"] else {}
+            payload = job_map.get(r["session_id"], {})
+            logs.append({
+                "id": str(r["id"]),
+                "session_id": r["session_id"],
+                "buyer_message": meta.get("buyer_message") or payload.get("last_message", ""),
+                "reply_text": meta.get("reply_text") or audit_map.get(r["session_id"], ""),
+                "intent": "quote" if meta.get("quote") else meta.get("intent", "auto_reply"),
+                "item_title": meta.get("peer_name") or payload.get("peer_name", ""),
+                "replied_at": r["created_at"],
+            })
+        return logs
+
+    def get_reply_templates(self) -> dict[str, Any]:
+        """返回回复模板配置（原 get_replies 功能）。"""
         template = self.get_template(default=False)
         return {
             "success": bool(template.get("success")),
@@ -3017,6 +3123,135 @@ class MimicOps:
             "markup_rules": normalized,
         }
 
+
+    def get_pricing_config(self) -> dict[str, Any]:
+        """读取 YAML 中的 markup_categories 和 xianyu_discount。"""
+        setup = QuoteSetupService(config_path=str(self.config_path))
+        data, _ = setup._load_yaml()
+        quote_cfg = data.get("quote", {}) if isinstance(data, dict) else {}
+        return {
+            "success": True,
+            "markup_categories": quote_cfg.get("markup_categories", {}),
+            "xianyu_discount": quote_cfg.get("xianyu_discount", {}),
+            "service_categories": [
+                "线上快递", "线下快递", "线上快运", "线下快运",
+                "同城寄", "电动车", "分销", "商家寄件",
+            ],
+            "updated_at": _now_iso(),
+        }
+
+    def save_pricing_config(self, markup_categories: Any = None, xianyu_discount: Any = None) -> dict[str, Any]:
+        """保存加价表和让利表到 YAML。"""
+        setup = QuoteSetupService(config_path=str(self.config_path))
+        data, existed = setup._load_yaml()
+        quote_cfg = data.get("quote")
+        if not isinstance(quote_cfg, dict):
+            quote_cfg = {}
+            data["quote"] = quote_cfg
+
+        if isinstance(markup_categories, dict):
+            quote_cfg["markup_categories"] = markup_categories
+        if isinstance(xianyu_discount, dict):
+            quote_cfg["xianyu_discount"] = xianyu_discount
+
+        backup_path = setup._backup_existing_file() if existed else None
+        setup._write_yaml(data)
+        try:
+            get_config().reload(str(self.config_path))
+        except Exception:
+            pass
+
+        return {"success": True, "updated_at": _now_iso()}
+
+    def _get_cost_table_repo(self):
+        from src.modules.quote.cost_table import CostTableRepository
+        if self._cost_table_repo is None:
+            self._cost_table_repo = CostTableRepository(table_dir=str(self._quote_dir()))
+        return self._cost_table_repo
+
+    def get_cost_summary(self) -> dict[str, Any]:
+        """从成本表 xlsx 读取各运力概览数据（只读）。"""
+        repo = self._get_cost_table_repo()
+        stats = repo.get_stats()
+
+        # 按运力聚合概览，取同一路线最低总成本
+        repo._reload_if_needed()
+        courier_summary: dict[str, dict] = {}
+        for record in repo._records:
+            key = record.courier
+            total = record.first_cost + record.extra_cost
+            if key not in courier_summary:
+                courier_summary[key] = {
+                    "courier": key,
+                    "service_type": record.service_type,
+                    "base_weight": record.base_weight,
+                    "route_count": 0,
+                    "cheapest_first": record.first_cost,
+                    "cheapest_extra": record.extra_cost,
+                    "_cheapest_total": total,
+                    "cheapest_route": f"{record.origin}->{record.destination}",
+                }
+            info = courier_summary[key]
+            info["route_count"] += 1
+            if total < info["_cheapest_total"]:
+                info["cheapest_first"] = record.first_cost
+                info["cheapest_extra"] = record.extra_cost
+                info["_cheapest_total"] = total
+                info["cheapest_route"] = f"{record.origin}->{record.destination}"
+
+        for info in courier_summary.values():
+            info.pop("_cheapest_total", None)
+
+        return {
+            "success": True,
+            "couriers": list(courier_summary.values()),
+            "total_records": stats["total_records"],
+            "total_files": stats["total_files"],
+        }
+
+    def query_route_cost(self, origin: str, destination: str) -> dict[str, Any]:
+        """查询指定路线下各运力的成本明细。"""
+        origin = (origin or "").strip()
+        destination = (destination or "").strip()
+        if not origin or not destination:
+            return {"success": False, "error": "请输入始发地和目的地"}
+
+        repo = self._get_cost_table_repo()
+        candidates = repo.find_candidates(origin=origin, destination=destination, courier=None, limit=500)
+
+        courier_summary: dict[str, dict] = {}
+        for record in candidates:
+            key = record.courier
+            total = record.first_cost + record.extra_cost
+            if key not in courier_summary:
+                courier_summary[key] = {
+                    "courier": key,
+                    "service_type": record.service_type,
+                    "base_weight": record.base_weight,
+                    "route_count": 0,
+                    "cheapest_first": record.first_cost,
+                    "cheapest_extra": record.extra_cost,
+                    "_cheapest_total": total,
+                    "cheapest_route": f"{record.origin}->{record.destination}",
+                }
+            info = courier_summary[key]
+            info["route_count"] += 1
+            if total < info["_cheapest_total"]:
+                info["cheapest_first"] = record.first_cost
+                info["cheapest_extra"] = record.extra_cost
+                info["_cheapest_total"] = total
+                info["cheapest_route"] = f"{record.origin}->{record.destination}"
+
+        for info in courier_summary.values():
+            info.pop("_cheapest_total", None)
+
+        return {
+            "success": True,
+            "origin": origin,
+            "destination": destination,
+            "couriers": list(courier_summary.values()),
+        }
+
     def _module_runtime_log(self, target: str) -> Path:
         return self.project_root / "data" / "module_runtime" / f"{target}.log"
 
@@ -3153,7 +3388,19 @@ class MimicOps:
         except ValueError:
             return None
 
+    _RISK_LOG_CACHE_TTL: float = 5.0
+
     def _risk_control_status_from_logs(self, target: str = "presales", tail_lines: int = 300) -> dict[str, Any]:
+        now = time.time()
+        if self._risk_log_cache is not None and (now - self._risk_log_cache_ts) < self._RISK_LOG_CACHE_TTL:
+            return self._risk_log_cache
+
+        result = self._risk_control_status_from_logs_uncached(target=target, tail_lines=tail_lines)
+        self._risk_log_cache = result
+        self._risk_log_cache_ts = now
+        return result
+
+    def _risk_control_status_from_logs_uncached(self, target: str = "presales", tail_lines: int = 300) -> dict[str, Any]:
         fp = self._module_runtime_log(target)
         _empty = {
             "last_event": "",
@@ -3458,11 +3705,17 @@ class MimicOps:
             "last_auto_recover_result": self._last_auto_recover_result,
         }
 
+    def _route_stats_nonblocking(self) -> dict[str, Any]:
+        """Return cached route_stats if available; never block on cold Excel parsing."""
+        if self._route_stats_cache is not None:
+            return self._route_stats_cache
+        return {"success": True, "stats": {}}
+
     def service_status(self) -> dict[str, Any]:
         module_status = self.module_console.status(window_minutes=60, limit=20)
         cookie = self.get_cookie()
         cookie_text = str(cookie.get("cookie", "") or "")
-        route_stats = self.route_stats()
+        route_stats = self._route_stats_nonblocking()
         xgj_settings = self.get_xianguanjia_settings()
         risk_control = self._risk_control_status_from_logs(target="presales", tail_lines=300)
         modules = module_status.get("modules") if isinstance(module_status, dict) else {}
@@ -3559,11 +3812,14 @@ class MimicOps:
 
         cookie_health_info: dict[str, Any] = {"healthy": False, "message": "未检查", "score": 0}
         try:
-            from src.core.cookie_health import CookieHealthChecker
-
             if cookie_text:
-                _ck_checker = CookieHealthChecker(cookie_text, timeout_seconds=5.0)
-                _ck_result = _ck_checker.check_sync(force=False)
+                from src.core.cookie_health import CookieHealthChecker
+
+                if self._shared_cookie_checker is None:
+                    self._shared_cookie_checker = CookieHealthChecker(cookie_text, timeout_seconds=5.0)
+                else:
+                    self._shared_cookie_checker.cookie_text = cookie_text
+                _ck_result = self._shared_cookie_checker.check_sync(force=False)
                 cookie_health_info = {
                     "healthy": bool(_ck_result.get("healthy")),
                     "message": _ck_result.get("message", ""),
@@ -4210,7 +4466,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
         password = os.environ.get("COOKIE_CLOUD_PASSWORD", "").strip()
         if not uuid_val or not password:
             try:
-                cfg_path = Path(__file__).resolve().parents[1] / "server" / "data" / "system_config.json"
+                cfg_path = Path(__file__).resolve().parents[1] / "data" / "system_config.json"
                 if cfg_path.exists():
                     cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
                     cc = cfg.get("cookie_cloud", {}) if isinstance(cfg.get("cookie_cloud"), dict) else {}
@@ -4275,752 +4531,29 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 self._handle_cookie_cloud(path[len("/cookie-cloud") :].rstrip("/") or "/", method="GET")
                 return
 
-            if path == "/healthz":
-                db_ok = False
-                try:
-                    with self.repo._connect() as conn:
-                        conn.execute("SELECT 1")
-                    db_ok = True
-                except Exception:
-                    pass
-
-                # Module liveness via quick status check
-                modules_summary: dict[str, str] = {}
-                try:
-                    status_payload = self.mimic_ops.service_status()
-                    if isinstance(status_payload, dict):
-                        modules_summary = {
-                            "system_running": "alive" if status_payload.get("system_running") else "dead",
-                            "alive_count": str(status_payload.get("alive_count", 0)),
-                            "total_modules": str(status_payload.get("total_modules", 0)),
-                        }
-                except Exception:
-                    modules_summary = {"error": "status_check_failed"}
-
-                started = getattr(self.mimic_ops, "_service_started_at", "")
-                uptime_seconds = 0
-                if started:
-                    try:
-                        start_dt = datetime.strptime(started, "%Y-%m-%dT%H:%M:%S")
-                        uptime_seconds = int((datetime.now() - start_dt).total_seconds())
-                    except Exception:
-                        pass
-
-                self._send_json(
-                    {
-                        "status": "ok" if db_ok else "degraded",
-                        "timestamp": _now_iso(),
-                        "database": "writable" if db_ok else "error",
-                        "modules": modules_summary,
-                        "uptime_seconds": uptime_seconds,
-                    }
-                )
+            # --- Route dispatch (decorator-registered routes) ---
+            _ctx = RouteContext(
+                _handler=self, path=path,
+                query=query,
+            )
+            if dispatch_get(path, _ctx):
                 return
+
+
 
             if path in {"/", "/cookie", "/test", "/logs", "/logs/realtime"}:
                 self._serve_spa_file(path)
                 return
 
-            if path in {"/api/summary", "/api/trend", "/api/recent-operations", "/api/top-products"}:
-                aggregate_source = "virtual_goods_service.get_dashboard_metrics"
-                aggregate_payload = self._aggregate_dashboard_payload(path)
-                if isinstance(aggregate_payload, dict) and aggregate_payload.get("source") == aggregate_source:
-                    self._send_json(aggregate_payload)
-                    return
-                self._send_json(self._legacy_dashboard_payload(path, query))
-                return
 
-            if path == "/api/module/status":
-                window = _safe_int((query.get("window") or ["60"])[0], default=60, min_value=1, max_value=10080)
-                limit = _safe_int((query.get("limit") or ["20"])[0], default=20, min_value=1, max_value=200)
-                payload = self.module_console.status(window_minutes=window, limit=limit)
-                status = 200 if not payload.get("error") else 500
-                self._send_json(payload, status=status)
-                return
 
-            if path == "/api/module/check":
-                skip_gateway = (query.get("skip_gateway") or ["0"])[0] in {"1", "true", "yes"}
-                payload = self.module_console.check(skip_gateway=skip_gateway)
-                status = 200 if not payload.get("error") else 500
-                self._send_json(payload, status=status)
-                return
 
-            if path == "/api/module/logs":
-                target = str((query.get("target") or ["all"])[0]).strip().lower()
-                tail = _safe_int((query.get("tail") or ["120"])[0], default=120, min_value=10, max_value=500)
-                payload = self.module_console.logs(target=target, tail_lines=tail)
-                status = 200 if not payload.get("error") else 500
-                self._send_json(payload, status=status)
-                return
 
-            if path in ("/api/status", "/api/service-status"):
-                self._send_json(self.mimic_ops.service_status())
-                return
 
-            if path == "/api/get-cookie":
-                self._send_json(self.mimic_ops.get_cookie())
-                return
 
-            if path == "/api/route-stats":
-                self._send_json(self.mimic_ops.route_stats())
-                return
-
-            if path == "/api/export-routes":
-                data, filename = self.mimic_ops.export_routes_zip()
-                self._send_bytes(data=data, content_type="application/zip", download_name=filename)
-                return
-
-            if path == "/api/download-cookie-plugin":
-                try:
-                    data, filename = self.mimic_ops.export_cookie_plugin_bundle()
-                    self._send_bytes(data=data, content_type="application/zip", download_name=filename)
-                except FileNotFoundError as exc:
-                    self._send_json(_error_payload(str(exc), code="NOT_FOUND"), status=404)
-                return
-
-            if path == "/api/get-template":
-                use_default = (query.get("default") or ["false"])[0].lower() in {"1", "true", "yes"}
-                self._send_json(self.mimic_ops.get_template(default=use_default))
-                return
-
-            if path == "/api/replies":
-                self._send_json(self.mimic_ops.get_replies())
-                return
-
-            if path == "/api/get-markup-rules":
-                self._send_json(self.mimic_ops.get_markup_rules())
-                return
-
-            if path == "/api/logs/files":
-                self._send_json(self.mimic_ops.list_log_files())
-                return
-
-            if path == "/api/logs/content":
-                file_name = str((query.get("file") or [""])[0]).strip()
-                tail = _safe_int((query.get("tail") or ["200"])[0], default=200, min_value=1, max_value=5000)
-                page_raw = (query.get("page") or [None])[0]
-                size_raw = (query.get("size") or [None])[0]
-                search = str((query.get("search") or [""])[0]).strip()
-                if page_raw is not None or size_raw is not None or search:
-                    page = _safe_int(
-                        str(page_raw) if page_raw is not None else None, default=1, min_value=1, max_value=100000
-                    )
-                    size = _safe_int(
-                        str(size_raw) if size_raw is not None else None, default=100, min_value=10, max_value=2000
-                    )
-                    payload = self.mimic_ops.read_log_content(
-                        file_name=file_name,
-                        page=page,
-                        size=size,
-                        search=search,
-                    )
-                else:
-                    payload = self.mimic_ops.read_log_content(file_name=file_name, tail=tail)
-                self._send_json(payload, status=200 if payload.get("success") else 404)
-                return
-
-            if path == "/api/logs/realtime/stream":
-                file_name = str((query.get("file") or ["presales"])[0]).strip()
-                tail = _safe_int((query.get("tail") or ["200"])[0], default=200, min_value=1, max_value=1000)
-                self.send_response(200)
-                self.send_header("Content-Type", "text/event-stream; charset=utf-8")
-                self.send_header("Cache-Control", "no-cache")
-                self.send_header("Connection", "keep-alive")
-                self.end_headers()
-
-                last = ""
-                try:
-                    for _ in range(180):
-                        payload = self.mimic_ops.read_log_content(file_name=file_name, tail=tail)
-                        lines = (
-                            payload.get("lines", [])
-                            if payload.get("success")
-                            else [payload.get("error", "log not found")]
-                        )
-                        text = "\n".join(lines)
-                        if text != last:
-                            event = json.dumps(
-                                {"success": True, "lines": lines, "updated_at": _now_iso()}, ensure_ascii=False
-                            )
-                            self.wfile.write(f"data: {event}\n\n".encode())
-                            self.wfile.flush()
-                            last = text
-                        time.sleep(1)
-                except (BrokenPipeError, ConnectionResetError):
-                    return
-                return
-
-            if path == "/api/virtual-goods/metrics":
-                payload: dict[str, Any]
-                metrics_query = getattr(self.mimic_ops, "get_virtual_goods_metrics", None)
-                if callable(metrics_query):
-                    result = metrics_query()
-                    payload = (
-                        result if isinstance(result, dict) else _error_payload("virtual_goods metrics payload invalid")
-                    )
-                else:
-                    aggregate_query = getattr(self.mimic_ops, "get_dashboard_readonly_aggregate", None)
-                    aggregate = aggregate_query() if callable(aggregate_query) else None
-                    if isinstance(aggregate, dict):
-                        payload = {
-                            "success": bool(aggregate.get("success")),
-                            "module": "virtual_goods",
-                            "readonly": True,
-                            "service_response": aggregate.get("service_response", {}),
-                            "dashboard_panels": aggregate.get("sections", {}),
-                            "generated_at": aggregate.get("generated_at", ""),
-                        }
-                        if not payload["success"]:
-                            payload = aggregate
-                    else:
-                        payload = _error_payload(
-                            "virtual_goods metrics endpoint unavailable", code="VG_QUERY_NOT_AVAILABLE"
-                        )
-                self._send_json(payload, status=200 if payload.get("success") else 400)
-                return
-
-            if path == "/api/dashboard":
-                aggregate = self.mimic_ops.get_dashboard_readonly_aggregate()
-                self._send_json(aggregate, status=200 if aggregate.get("success") else 400)
-                return
-
-            if path == "/api/virtual-goods/inspect-order":
-                order_id = str((query.get("order_id") or query.get("xianyu_order_id") or [""])[0]).strip()
-                payload = self.mimic_ops.inspect_virtual_goods_order(order_id)
-                self._send_json(payload, status=200 if payload.get("success") else 400)
-                return
-
-            if path == "/api/listing/templates":
-                from src.modules.listing.templates import list_templates
-                from src.modules.listing.templates.frames import list_frames
-
-                self._send_json(
-                    {
-                        "ok": True,
-                        "templates": list_templates(),
-                        "frames": list_frames(),
-                    }
-                )
-                return
-
-            if path == "/api/listing/frames":
-                from src.modules.listing.templates.frames import list_frames
-
-                self._send_json({"ok": True, "frames": list_frames()})
-                return
-
-            if path == "/api/listing/thumbnails":
-                from src.modules.listing.templates.frames import list_frames as _lf
-                from pathlib import Path as _P
-
-                cat = (query.get("category") or ["express"])[0].strip()
-                thumb_map = {}
-                for f in _lf():
-                    p = _P(f"data/thumbnails/{f['id']}_{cat}.png")
-                    if p.is_file():
-                        thumb_map[f["id"]] = f"/api/generated-image?path={p}"
-                self._send_json({"ok": True, "thumbnails": thumb_map})
-                return
-
-            if path == "/api/generated-image":
-                img_path = (query.get("path") or [""])[0].strip()
-                if not img_path:
-                    self._send_json(_error_payload("Missing path"), status=400)
-                    return
-                from pathlib import Path as _P
-
-                resolved = _P(img_path).resolve()
-                allowed_dirs = [
-                    _P("data/generated_images").resolve(),
-                    _P("data/brand_assets").resolve(),
-                    _P("data/thumbnails").resolve(),
-                ]
-                if not any(str(resolved).startswith(str(d)) for d in allowed_dirs):
-                    self._send_json(_error_payload("Access denied"), status=403)
-                    return
-                if not resolved.is_file():
-                    self._send_json(_error_payload("File not found"), status=404)
-                    return
-                ext = resolved.suffix.lower()
-                mime_map = {
-                    ".png": "image/png",
-                    ".jpg": "image/jpeg",
-                    ".jpeg": "image/jpeg",
-                    ".gif": "image/gif",
-                    ".webp": "image/webp",
-                    ".svg": "image/svg+xml",
-                }
-                content_type = mime_map.get(ext, "application/octet-stream")
-                data = resolved.read_bytes()
-                self.send_response(200)
-                self.send_header("Content-Type", content_type)
-                self.send_header("Content-Length", str(len(data)))
-                self.send_header("Cache-Control", "public, max-age=3600")
-                self.end_headers()
-                self.wfile.write(data)
-                return
-
-            if path == "/api/listing/preview-frame":
-                frame_id = (query.get("frame_id") or [""])[0].strip()
-                category = (query.get("category") or ["express"])[0].strip()
-                brand_ids_raw = (query.get("brand_asset_ids") or [""])[0].strip()
-                if not frame_id:
-                    self._send_json(_error_payload("Missing frame_id"), status=400)
-                    return
-
-                brand_asset_ids = [x.strip() for x in brand_ids_raw.split(",") if x.strip()] if brand_ids_raw else []
-
-                if brand_asset_ids:
-                    from src.modules.listing.brand_assets import BrandAssetManager
-
-                    mgr = BrandAssetManager()
-                    brand_items = []
-                    for aid in brand_asset_ids:
-                        entry = next((a for a in mgr.list_assets() if a["id"] == aid), None)
-                        if entry is None:
-                            continue
-                        p = mgr.get_asset_path(aid)
-                        if p is None:
-                            continue
-                        from src.modules.listing.brand_assets import file_to_data_uri
-
-                        brand_items.append({"name": entry["name"], "src": file_to_data_uri(p)})
-                else:
-                    from pathlib import Path as _P
-
-                    thumb_path = _P(f"data/thumbnails/{frame_id}_{category}.png")
-                    if thumb_path.is_file():
-                        self._send_json(
-                            {
-                                "ok": True,
-                                "image_path": str(thumb_path),
-                                "image_url": f"/api/generated-image?path={thumb_path}",
-                            }
-                        )
-                        return
-                    from src.modules.listing.templates.frames._common import sample_brand_items
-
-                    brand_items = sample_brand_items()
-
-                from src.modules.listing.image_generator import generate_frame_images
-
-                params = {"brand_items": brand_items}
-                output_dir = "data/thumbnails" if not brand_asset_ids else "data/generated_images"
-                paths = _run_async(
-                    generate_frame_images(frame_id=frame_id, category=category, params=params, output_dir=output_dir)
-                )
-                if not paths:
-                    self._send_json(_error_payload("Failed to generate preview"), status=500)
-                    return
-                if not brand_asset_ids:
-                    import shutil
-
-                    stable_name = f"data/thumbnails/{frame_id}_{category}.png"
-                    try:
-                        shutil.copy2(paths[0], stable_name)
-                    except Exception:
-                        stable_name = paths[0]
-                else:
-                    stable_name = paths[0]
-                self._send_json(
-                    {"ok": True, "image_path": stable_name, "image_url": f"/api/generated-image?path={stable_name}"}
-                )
-                return
-
-            if path == "/api/composition/layers":
-                from src.modules.listing.templates.compositor import list_all_options
-
-                options = list_all_options()
-                self._send_json({"ok": True, **options})
-                return
-
-            if path == "/api/listing/preview-composition":
-                qs_params = parse_qs(parsed.query)
-                category = (qs_params.get("category") or ["express"])[0].strip()
-                layout_p = (qs_params.get("layout") or [None])[0]
-                cs_p = (qs_params.get("color_scheme") or [None])[0]
-                deco_p = (qs_params.get("decoration") or [None])[0]
-                ts_p = (qs_params.get("title_style") or [None])[0]
-                brand_ids_raw = (qs_params.get("brand_asset_ids") or [""])[0].strip()
-
-                brand_asset_ids = [x.strip() for x in brand_ids_raw.split(",") if x.strip()] if brand_ids_raw else []
-
-                if brand_asset_ids:
-                    from src.modules.listing.brand_assets import BrandAssetManager
-
-                    mgr = BrandAssetManager()
-                    brand_items = []
-                    for aid in brand_asset_ids:
-                        entry = next((a for a in mgr.list_assets() if a["id"] == aid), None)
-                        if entry is None:
-                            continue
-                        p = mgr.get_asset_path(aid)
-                        if p is None:
-                            continue
-                        from src.modules.listing.brand_assets import file_to_data_uri
-
-                        brand_items.append({"name": entry["name"], "src": file_to_data_uri(p)})
-                else:
-                    from src.modules.listing.templates.frames._common import sample_brand_items
-
-                    brand_items = sample_brand_items()
-
-                layers = {}
-                if layout_p:
-                    layers["layout"] = layout_p
-                if cs_p:
-                    layers["color_scheme"] = cs_p
-                if deco_p:
-                    layers["decoration"] = deco_p
-                if ts_p:
-                    layers["title_style"] = ts_p
-
-                from src.modules.listing.image_generator import generate_composition_images
-
-                params = {"brand_items": brand_items}
-                paths, used_layers = _run_async(
-                    generate_composition_images(
-                        category=category, params=params, layers=layers or None, output_dir="data/generated_images"
-                    )
-                )
-                if not paths:
-                    self._send_json(_error_payload("Failed to generate composition preview"), status=500)
-                    return
-                self._send_json(
-                    {
-                        "ok": True,
-                        "image_path": paths[0],
-                        "image_url": f"/api/generated-image?path={paths[0]}",
-                        "composition": used_layers,
-                    }
-                )
-                return
-
-            if path == "/api/health/check":
-                import time as _t
-
-                result: dict[str, Any] = {"timestamp": _now_iso()}
-
-                cookie_info: dict[str, Any] = {"ok": False, "message": "未检查"}
-                try:
-                    from src.core.cookie_health import CookieHealthChecker
-
-                    cookie_text = os.environ.get("XIANYU_COOKIE_1", "")
-                    if not cookie_text:
-                        ck = self.mimic_ops.get_cookie()
-                        cookie_text = str(ck.get("cookie", "") or "")
-                    checker = CookieHealthChecker(cookie_text, timeout_seconds=8.0)
-                    ck_result = checker.check_sync(force=True)
-                    cookie_info = {"ok": bool(ck_result.get("healthy")), "message": ck_result.get("message", "")}
-                except Exception as exc:
-                    cookie_info = {"ok": False, "message": f"检查异常: {exc}"}
-                result["cookie"] = cookie_info
-
-                ai_info: dict[str, Any] = {"ok": False, "message": "未配置"}
-                try:
-                    ai_key = os.environ.get("AI_API_KEY", "")
-                    ai_base = os.environ.get("AI_BASE_URL", "")
-                    ai_model = os.environ.get("AI_MODEL", "")
-                    if not ai_key or not ai_base:
-                        try:
-                            _sys_cfg_path = (
-                                Path(__file__).resolve().parents[1] / "server" / "data" / "system_config.json"
-                            )
-                            if _sys_cfg_path.exists():
-                                _sys_cfg = json.loads(_sys_cfg_path.read_text(encoding="utf-8"))
-                                ai_cfg = _sys_cfg.get("ai", {})
-                                ai_key = ai_key or str(ai_cfg.get("api_key", "") or "")
-                                ai_base = ai_base or str(ai_cfg.get("base_url", "") or "")
-                                ai_model = ai_model or str(ai_cfg.get("model", "") or "")
-                        except Exception:
-                            pass
-                    ai_model = ai_model or "qwen-plus"
-                    if ai_key and ai_base:
-                        t0 = _t.time()
-                        import httpx
-
-                        chat_url = ai_base.rstrip("/") + "/chat/completions"
-                        with httpx.Client(timeout=8.0) as hc:
-                            resp = hc.post(
-                                chat_url,
-                                headers={"Authorization": f"Bearer {ai_key}", "Content-Type": "application/json"},
-                                json={
-                                    "model": ai_model,
-                                    "max_tokens": 1,
-                                    "messages": [{"role": "user", "content": "hi"}],
-                                },
-                            )
-                        latency = int((_t.time() - t0) * 1000)
-                        if resp.status_code == 200:
-                            ai_info = {"ok": True, "message": "连通", "latency_ms": latency}
-                        else:
-                            _status_msgs = {401: "API Key 无效", 403: "无权访问", 429: "请求过频"}
-                            _msg = _status_msgs.get(resp.status_code, f"HTTP {resp.status_code}")
-                            ai_info = {"ok": False, "message": _msg, "latency_ms": latency}
-                    else:
-                        ai_info = {"ok": False, "message": "API Key 或 Base URL 未配置"}
-                except Exception as exc:
-                    ai_info = {"ok": False, "message": f"检查异常: {type(exc).__name__}"}
-                result["ai"] = ai_info
-
-                xgj_info: dict[str, Any] = {"ok": False, "message": "未检查"}
-                try:
-                    sys_cfg = _read_system_config()
-                    xgj_cfg = sys_cfg.get("xianguanjia", {})
-                    xgj_app_key = str(xgj_cfg.get("app_key", "") or os.environ.get("XGJ_APP_KEY", ""))
-                    xgj_app_secret = str(xgj_cfg.get("app_secret", "") or os.environ.get("XGJ_APP_SECRET", ""))
-                    xgj_base = str(
-                        xgj_cfg.get("base_url", "") or os.environ.get("XGJ_BASE_URL", "https://open.goofish.pro")
-                    )
-                    if not xgj_app_key or not xgj_app_secret:
-                        xgj_info = {"ok": False, "message": "AppKey 或 AppSecret 未配置"}
-                    else:
-                        xgj_info = _test_xgj_connection(
-                            app_key=xgj_app_key,
-                            app_secret=xgj_app_secret,
-                            base_url=xgj_base,
-                            mode=str(xgj_cfg.get("mode", "self_developed")),
-                            seller_id=str(xgj_cfg.get("seller_id", "")),
-                        )
-                except Exception as exc:
-                    xgj_info = {"ok": False, "message": f"检查异常: {type(exc).__name__}"}
-                result["xgj"] = xgj_info
-
-                result["node"] = {"ok": True, "message": "已合并至 Python"}
-                result["services"] = {"python": {"ok": True, "message": "运行中"}}
-                self._send_json(result)
-                return
-
-            if path == "/api/cookie/auto-grab/status":
-                self.send_response(200)
-                self.send_header("Content-Type", "text/event-stream; charset=utf-8")
-                self.send_header("Cache-Control", "no-cache")
-                self.send_header("Connection", "keep-alive")
-                self.end_headers()
-                grabber = getattr(DashboardHandler, "_cookie_grabber", None)
-                try:
-                    for _ in range(600):
-                        if grabber is not None:
-                            p = grabber.progress
-                            event = json.dumps(
-                                {
-                                    "stage": p.stage.value if hasattr(p.stage, "value") else str(p.stage),
-                                    "message": p.message,
-                                    "hint": p.hint,
-                                    "progress": p.progress,
-                                    "error": p.error,
-                                },
-                                ensure_ascii=False,
-                            )
-                            self.wfile.write(f"data: {event}\n\n".encode())
-                            self.wfile.flush()
-                            if p.stage.value in {"success", "failed", "cancelled"}:
-                                break
-                        else:
-                            event = json.dumps(
-                                {"stage": "idle", "message": "未在运行", "hint": "", "progress": 0, "error": ""},
-                                ensure_ascii=False,
-                            )
-                            self.wfile.write(f"data: {event}\n\n".encode())
-                            self.wfile.flush()
-                            break
-                        time.sleep(0.5)
-                except (BrokenPipeError, ConnectionResetError):
-                    return
-                return
-
-            if path == "/api/cookie/auto-refresh/status":
-                refresher = getattr(DashboardHandler, "_cookie_auto_refresher", None)
-                if refresher is None:
-                    self._send_json(
-                        {
-                            "enabled": False,
-                            "interval_minutes": 0,
-                            "message": "自动刷新未启用（设置 COOKIE_AUTO_REFRESH=true 启用）",
-                        }
-                    )
-                else:
-                    from dataclasses import asdict
-
-                    s = refresher.status()
-                    self._send_json(asdict(s))
-                return
-
-            # ---------- Setup Progress ----------
-            if path == "/api/config/setup-progress":
-                cfg = _read_system_config()
-                xgj = cfg.get("xianguanjia", {})
-                ai_cfg = cfg.get("ai", {})
-                oss_cfg = cfg.get("oss", {})
-                store = cfg.get("store", {})
-                ar = cfg.get("auto_reply", {})
-                notif = cfg.get("notifications", {})
-
-                def _has_real(d: dict, key: str) -> bool:
-                    v = d.get(key, "")
-                    return bool(v) and "****" not in str(v)
-
-                checks = {
-                    "store_category": bool(store.get("category")),
-                    "xianguanjia": _has_real(xgj, "app_key"),
-                    "ai": _has_real(ai_cfg, "api_key"),
-                    "oss": _has_real(oss_cfg, "access_key_id"),
-                    "auto_reply": bool(ar.get("default_reply")),
-                    "notifications": bool(notif.get("feishu_enabled") or notif.get("wechat_enabled")),
-                }
-                done = sum(1 for v in checks.values() if v)
-                total = len(checks)
-                self._send_json(
-                    {
-                        "ok": True,
-                        **checks,
-                        "overall_percent": int(done / total * 100) if total else 0,
-                    }
-                )
-                return
-
-            # ---------- Auto-Publish Scheduler ----------
-            if path == "/api/auto-publish/status":
-                from src.modules.listing.scheduler import AutoPublishScheduler
-            # ---------- Auto-Publish Scheduler ----------
-            if path == "/api/auto-publish/status":
-                from src.modules.listing.scheduler import AutoPublishScheduler
-
-                ap_cfg = _read_system_config().get("auto_publish", {})
-                user_schedule = {}
-                for k in (
-                    "cold_start_days",
-                    "cold_start_daily_count",
-                    "steady_replace_count",
-                    "max_active_listings",
-                    "steady_replace_metric",
-                ):
-                    if k in ap_cfg:
-                        user_schedule[k] = ap_cfg[k]
-                sched = AutoPublishScheduler(schedule=user_schedule if user_schedule else None)
-                self._send_json({"ok": True, **sched.get_status()})
-                return
-
-            # ---------- Brand Assets Grouped ----------
-            if path == "/api/brand-assets/grouped":
-                from src.modules.listing.brand_assets import BrandAssetManager
-
-                mgr = BrandAssetManager()
-                cat_filter = parse_qs(parsed.query).get("category", [None])[0]
-                grouped = mgr.get_brands_grouped(category=cat_filter)
-                self._send_json({"ok": True, "brands": grouped})
-                return
-
-            # ---------- Publish Queue ----------
-            if path == "/api/publish-queue":
-                from src.modules.listing.publish_queue import PublishQueue
-
-                q = PublishQueue(project_root=self.mimic_ops.project_root)
-                date_filter = parse_qs(parsed.query).get("date", [None])[0]
-                items = q.get_queue(date=date_filter)
-                from dataclasses import asdict
-
-                self._send_json({"ok": True, "items": [asdict(it) for it in items]})
-                return
-
-            # ---------- Brand Assets ----------
-            if path == "/api/brand-assets":
-                from src.modules.listing.brand_assets import BrandAssetManager
-
-                mgr = BrandAssetManager()
-                cat_filter = parse_qs(parsed.query).get("category", [None])[0]
-                self._send_json({"ok": True, "assets": mgr.list_assets(cat_filter)})
-                return
-
-            if path.startswith("/api/brand-assets/file/"):
-                fname = path.split("/api/brand-assets/file/", 1)[1]
-                if not fname or ".." in fname or "/" in fname:
-                    self._send_json(_error_payload("Invalid filename"), status=400)
-                    return
-                fpath = Path("data/brand_assets") / fname
-                if fpath.is_file():
-                    ct, _ = mimetypes.guess_type(str(fpath))
-                    data = fpath.read_bytes()
-                    self.send_response(200)
-                    self.send_header("Content-Type", ct or "application/octet-stream")
-                    self.send_header("Content-Length", str(len(data)))
-                    self.send_header("Cache-Control", "public, max-age=86400")
-                    self.end_headers()
-                    self.wfile.write(data)
-                else:
-                    self._send_json(_error_payload("File not found", code="NOT_FOUND"), status=404)
-                return
-
-            # ---------- Config CRUD (migrated from Node.js) ----------
-            if path == "/api/config":
-                cfg = _read_system_config()
-                if "slider_auto_solve" not in cfg:
-                    yaml_slider = get_config().get_section("messages", {}).get("ws", {}).get("slider_auto_solve", {})
-                    if isinstance(yaml_slider, dict) and yaml_slider:
-                        cfg["slider_auto_solve"] = yaml_slider
-                ar = cfg.get("auto_reply")
-                if isinstance(ar, dict) and "custom_intent_rules" not in ar:
-                    yaml_rules = get_config().get_section("messages", {}).get("intent_rules", [])
-                    if isinstance(yaml_rules, list) and yaml_rules:
-                        ar["custom_intent_rules"] = yaml_rules
-                self._send_json({"ok": True, "config": cfg})
-                return
-
-            if path == "/api/config/sections":
-                self._send_json({"ok": True, "sections": _CONFIG_SECTIONS})
-                return
-
-            if path == "/api/intent-rules":
-                from src.modules.messages.reply_engine import DEFAULT_INTENT_RULES, ReplyStrategyEngine
-                sys_cfg = _read_system_config()
-                ar = sys_cfg.get("auto_reply", {})
-                custom_rules = ar.get("custom_intent_rules", [])
-                if not isinstance(custom_rules, list):
-                    custom_rules = []
-                yaml_rules = get_config().get_section("messages", {}).get("intent_rules", [])
-                if isinstance(yaml_rules, list) and yaml_rules and not custom_rules:
-                    custom_rules = yaml_rules
-                custom_names = {r.get("name") for r in custom_rules if isinstance(r, dict)}
-
-                kw_text = ar.get("keyword_replies_text", "")
-                kw_replies: dict[str, str] = {}
-                if isinstance(kw_text, str) and kw_text.strip():
-                    for line in kw_text.strip().splitlines():
-                        line = line.strip()
-                        if "=" in line:
-                            k, v = line.split("=", 1)
-                            k, v = k.strip(), v.strip()
-                            if k and v:
-                                kw_replies[k] = v
-
-                result: list[dict[str, Any]] = []
-                for r in DEFAULT_INTENT_RULES:
-                    entry = dict(r)
-                    if entry.get("name") in custom_names:
-                        entry["source"] = "overridden"
-                    else:
-                        entry["source"] = "builtin"
-                    result.append(entry)
-                for r in custom_rules:
-                    if not isinstance(r, dict) or not r.get("name"):
-                        continue
-                    entry = dict(r)
-                    if entry["name"] not in {d.get("name") for d in DEFAULT_INTENT_RULES}:
-                        entry["source"] = "custom"
-                    else:
-                        entry["source"] = "custom"
-                    result.append(entry)
-                for keyword, reply in kw_replies.items():
-                    result.append({
-                        "name": f"legacy_{keyword}",
-                        "keywords": [keyword],
-                        "reply": reply,
-                        "priority": 30,
-                        "categories": [],
-                        "phase": "",
-                        "source": "keyword",
-                    })
-                self._send_json({"ok": True, "rules": result})
+            # ---------- vendor static files (Chart.js etc.) ----------
+            if path.startswith("/vendor/"):
+                self._serve_vendor_file(path)
                 return
 
             # ---------- SPA static file serving ----------
@@ -5062,54 +4595,40 @@ class DashboardHandler(BaseHTTPRequestHandler):
         else:
             self._send_html(_get_embedded_html("DASHBOARD_HTML"))
 
+    def _serve_vendor_file(self, path: str) -> None:
+        """Serve bundled vendor files from src/dashboard/vendor/ (e.g. Chart.js)."""
+        filename = Path(path.lstrip("/")).name
+        if not filename or ".." in path:
+            self._send_json(_error_payload("Not Found", code="NOT_FOUND"), status=404)
+            return
+        vendor_dir = Path(__file__).resolve().parent / "dashboard" / "vendor"
+        file_path = vendor_dir / filename
+        if not file_path.is_file():
+            self._send_json(_error_payload("Not Found", code="NOT_FOUND"), status=404)
+            return
+        content_type, _ = mimetypes.guess_type(str(file_path))
+        content_type = content_type or "application/octet-stream"
+        data = file_path.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Cache-Control", "public, max-age=604800")
+        self.end_headers()
+        self.wfile.write(data)
+
     def do_PUT(self) -> None:
         parsed = urlparse(self.path)
         path = parsed.path
         try:
-            if path.startswith("/api/publish-queue/"):
-                item_id = path.split("/api/publish-queue/")[1].strip("/")
-                if item_id:
-                    body = self._read_json_body()
-                    from src.modules.listing.publish_queue import PublishQueue
-
-                    q = PublishQueue(project_root=self.mimic_ops.project_root)
-                    item = q.update_item(item_id, body)
-                    if item is None:
-                        self._send_json(_error_payload("Queue item not found"), status=404)
-                        return
-                    from dataclasses import asdict
-
-                    self._send_json({"ok": True, "item": asdict(item)})
-                    return
-
-            if path == "/api/config":
-                body = self._read_json_body()
-                current = _read_system_config()
-                for section, values in body.items():
-                    if section not in _ALLOWED_CONFIG_SECTIONS:
-                        continue
-                    if not isinstance(values, dict):
-                        continue
-                    clean: dict[str, Any] = {}
-                    for k, v in values.items():
-                        if not isinstance(k, str) or k.startswith("__"):
-                            continue
-                        if any(s in k.lower() for s in _SENSITIVE_CONFIG_KEYS) and isinstance(v, str) and "****" in v:
-                            continue
-                        clean[k] = v
-                    current[section] = {**(current.get(section) or {}), **clean}
-                _write_system_config(current)
-                _sync_system_config_to_yaml(current)
-                get_config().reload()
-                try:
-                    from src.modules.messages.service import _active_service
-                    if _active_service is not None:
-                        _active_service.reload_rules()
-                        logger.info("Hot-reloaded reply rules after config save")
-                except Exception as exc:
-                    logger.warning("Failed to hot-reload rules: %s", exc)
-                self._send_json({"ok": True, "message": "Configuration updated", "config": current})
+            # --- Route dispatch (decorator-registered routes) ---
+            _ctx = RouteContext(
+                _handler=self, path=path,
+                query=parse_qs(parsed.query),
+            )
+            if dispatch_put(path, _ctx):
                 return
+
+
 
             self._send_json(_error_payload("Not Found", code="NOT_FOUND"), status=404)
         except Exception as e:
@@ -5119,32 +4638,11 @@ class DashboardHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
         try:
-            if path.startswith("/api/publish-queue/"):
-                item_id = path.split("/api/publish-queue/")[1].strip("/")
-                if not item_id:
-                    self._send_json(_error_payload("Missing item id"), status=400)
-                    return
-                from src.modules.listing.publish_queue import PublishQueue
-
-                q = PublishQueue(project_root=self.mimic_ops.project_root)
-                if q.delete_item(item_id):
-                    self._send_json({"ok": True, "message": "Queue item deleted"})
-                else:
-                    self._send_json(_error_payload("Queue item not found", code="NOT_FOUND"), status=404)
-                return
-
-            if path.startswith("/api/brand-assets/"):
-                asset_id = path.split("/api/brand-assets/", 1)[1].strip("/")
-                if not asset_id:
-                    self._send_json(_error_payload("Missing asset id"), status=400)
-                    return
-                from src.modules.listing.brand_assets import BrandAssetManager
-
-                mgr = BrandAssetManager()
-                if mgr.delete_asset(asset_id):
-                    self._send_json({"ok": True, "message": "Asset deleted"})
-                else:
-                    self._send_json(_error_payload("Asset not found", code="NOT_FOUND"), status=404)
+            _ctx = RouteContext(
+                _handler=self, path=path,
+                query=parse_qs(parsed.query),
+            )
+            if dispatch_delete(path, _ctx):
                 return
             self._send_json(_error_payload("Not Found", code="NOT_FOUND"), status=404)
         except Exception as e:
@@ -5159,653 +4657,23 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 self._handle_cookie_cloud(path[len("/cookie-cloud") :].rstrip("/") or "/", method="POST")
                 return
 
-            if path == "/api/orders/remind":
-                body = self._read_json_body()
-                order_id = str(body.get("order_no") or body.get("order_id") or "").strip()
-                session_id = str(body.get("session_id", "")).strip()
-                if not order_id:
-                    self._send_json(_error_payload("Missing order_no"), status=400)
-                    return
 
-                try:
-                    from src.modules.followup.service import FollowUpEngine
-
-                    engine = FollowUpEngine.from_system_config()
-                except Exception as init_err:
-                    self._send_json(
-                        {"ok": False, "error": f"催单引擎初始化失败: {init_err}", "reason": "engine_init_error"}
-                    )
-                    return
-
-                if not getattr(engine, "_reminder_enabled", True):
-                    self._send_json({"ok": False, "error": "催单功能未启用", "reason": "disabled"})
-                    return
-
-                if not session_id:
-                    session_id = self.mimic_ops._resolve_session_id_for_order(order_id)
-
-                use_session = session_id or order_id
-                try:
-                    result = engine.process_unpaid_order(
-                        session_id=use_session,
-                        order_id=order_id,
-                        force=True,
-                    )
-                except Exception as proc_err:
-                    self._send_json({"ok": False, "error": f"催单处理失败: {proc_err}", "reason": "process_error"})
-                    return
-
-                if result.get("eligible") and session_id:
-                    template_text = result.get("template_text", "")
-                    if template_text:
-                        try:
-                            import asyncio
-                            from src.modules.messages.service import MessagesService
-
-                            msgs_cfg = {}
-                            try:
-                                from src.core.config import get_config
-
-                                msgs_cfg = get_config().messages
-                            except Exception:
-                                pass
-                            svc = MessagesService(msgs_cfg)
-                            loop = asyncio.new_event_loop()
-                            sent = loop.run_until_complete(svc.reply_to_session(session_id, template_text))
-                            loop.close()
-                            result["message_sent"] = sent
-                        except Exception as send_err:
-                            result["message_sent"] = False
-                            result["send_error"] = str(send_err)
-                elif result.get("eligible") and not session_id:
-                    result["message_sent"] = False
-                    result["send_note"] = "no_session_id_resolved"
-
-                self._send_json({"ok": True, **result})
+            # --- Route dispatch (decorator-registered routes) ---
+            _ctx = RouteContext(
+                _handler=self, path=path,
+                query=parse_qs(urlparse(self.path).query),
+            )
+            if dispatch_post(path, _ctx):
                 return
 
-            if path == "/api/brand-assets/upload":
-                import cgi
 
-                content_type = self.headers.get("Content-Type", "")
-                if "multipart/form-data" in content_type:
-                    form = cgi.FieldStorage(
-                        fp=self.rfile,
-                        headers=self.headers,
-                        environ={"REQUEST_METHOD": "POST", "CONTENT_TYPE": content_type},
-                    )
-                    file_item = form["file"] if "file" in form else None
-                    name = form.getvalue("name", "unnamed")
-                    cat = form.getvalue("category", "default")
-                    if file_item is None or not getattr(file_item, "file", None):
-                        self._send_json(_error_payload("Missing file field"), status=400)
-                        return
-                    file_data = file_item.file.read()
-                    fname = getattr(file_item, "filename", "") or "upload.png"
-                    ext = fname.rsplit(".", 1)[-1] if "." in fname else "png"
-                else:
-                    body = self._read_json_body()
-                    import base64
 
-                    b64 = body.get("file_data", "")
-                    file_data = base64.b64decode(b64) if b64 else b""
-                    name = body.get("name", "unnamed")
-                    cat = body.get("category", "default")
-                    ext = body.get("file_ext", "png")
-                    if not file_data:
-                        self._send_json(_error_payload("Missing file_data"), status=400)
-                        return
 
-                from src.modules.listing.brand_assets import BrandAssetManager
 
-                mgr = BrandAssetManager()
-                try:
-                    asset = mgr.add_asset(name, cat, file_data, ext)
-                    self._send_json({"ok": True, "asset": asset})
-                except ValueError as ve:
-                    self._send_json(_error_payload(str(ve)), status=400)
-                return
 
-            if path == "/api/ai/test":
-                import time as _t
 
-                body = self._read_json_body()
-                ai_key = str(body.get("api_key") or "").strip()
-                ai_base = str(body.get("base_url") or "").strip()
-                ai_model = str(body.get("model") or "").strip() or "qwen-plus"
-                if not ai_key or not ai_base:
-                    self._send_json({"ok": False, "message": "请填写 API Key 和 API 地址"})
-                    return
-                try:
-                    t0 = _t.time()
-                    import httpx
 
-                    chat_url = ai_base.rstrip("/") + "/chat/completions"
-                    with httpx.Client(timeout=10.0) as hc:
-                        resp = hc.post(
-                            chat_url,
-                            headers={"Authorization": f"Bearer {ai_key}", "Content-Type": "application/json"},
-                            json={"model": ai_model, "max_tokens": 1, "messages": [{"role": "user", "content": "hi"}]},
-                        )
-                    latency = int((_t.time() - t0) * 1000)
-                    if resp.status_code == 200:
-                        self._send_json({"ok": True, "message": f"连接成功（延迟 {latency}ms）", "latency_ms": latency})
-                    else:
-                        detail = ""
-                        try:
-                            detail = resp.json().get("error", {}).get("message", "")
-                        except Exception:
-                            pass
-                        status_msgs = {
-                            401: "API Key 无效或已过期，请检查后重试",
-                            403: "API Key 无权访问该模型",
-                            404: f"模型 {ai_model} 不存在，请检查模型名称",
-                            429: "请求过于频繁，请稍后再试",
-                        }
-                        msg = status_msgs.get(resp.status_code, f"HTTP {resp.status_code}")
-                        if detail:
-                            msg += f"（{detail}）"
-                        self._send_json({"ok": False, "message": msg, "latency_ms": latency})
-                except Exception as exc:
-                    self._send_json({"ok": False, "message": f"连接异常: {type(exc).__name__}: {exc}"})
-                return
 
-            if path == "/api/module/control":
-                body = self._read_json_body()
-                action = str(body.get("action") or "").strip().lower()
-                target = str(body.get("target") or "all").strip().lower()
-                payload = self.module_console.control(action=action, target=target)
-                status = 200 if not payload.get("error") else 400
-                self._send_json(payload, status=status)
-                return
-
-            if path == "/api/service/control":
-                body = self._read_json_body()
-                action = str(body.get("action") or "").strip().lower()
-                payload = self.mimic_ops.service_control(action=action)
-                self._send_json(payload, status=200 if payload.get("success") else 400)
-                return
-
-            if path == "/api/service/recover":
-                body = self._read_json_body()
-                target = str(body.get("target") or "presales").strip().lower()
-                payload = self.mimic_ops.service_recover(target=target)
-                self._send_json(payload, status=200 if payload.get("success") else 400)
-                return
-
-            if path == "/api/service/auto-fix":
-                payload = self.mimic_ops.service_auto_fix()
-                self._send_json(payload, status=200 if payload.get("success") else 400)
-                return
-
-            if path == "/api/update-cookie":
-                body = self._read_json_body()
-                cookie = str(body.get("cookie") or "").strip()
-                payload = self.mimic_ops.update_cookie(cookie, auto_recover=True)
-                self._send_json(payload, status=200 if payload.get("success") else 400)
-                return
-
-            if path == "/api/import-cookie-plugin":
-                try:
-                    files = self._read_multipart_files()
-                except Exception as exc:
-                    self._send_json(
-                        {
-                            "success": False,
-                            "error": "Failed to parse upload body. Please retry with txt/json/zip exports.",
-                            "details": str(exc),
-                        },
-                        status=400,
-                    )
-                    return
-
-                try:
-                    payload = self.mimic_ops.import_cookie_plugin_files(files, auto_recover=True)
-                except Exception as exc:
-                    self._send_json(
-                        {
-                            "success": False,
-                            "error": "Cookie import processing failed.",
-                            "details": str(exc),
-                        },
-                        status=400,
-                    )
-                    return
-
-                self._send_json(payload, status=200 if payload.get("success") else 400)
-                return
-
-            if path == "/api/parse-cookie":
-                body = self._read_json_body()
-                cookie_text = str(body.get("text") or body.get("cookie") or "").strip()
-                payload = self.mimic_ops.parse_cookie_text(cookie_text)
-                self._send_json(payload, status=200 if payload.get("success") else 400)
-                return
-
-            if path == "/api/cookie-diagnose":
-                body = self._read_json_body()
-                cookie_text = str(body.get("text") or body.get("cookie") or "").strip()
-                payload = self.mimic_ops.diagnose_cookie(cookie_text)
-                self._send_json(payload, status=200 if payload.get("success") else 400)
-                return
-
-            if path == "/api/cookie/validate":
-                body = self._read_json_body()
-                cookie_text = str(body.get("cookie") or body.get("text") or "").strip()
-                if not cookie_text:
-                    self._send_json({"ok": False, "grade": "F", "message": "Cookie 不能为空"}, status=400)
-                    return
-                diagnosis = self.mimic_ops.diagnose_cookie(cookie_text)
-                domain_filter = self.mimic_ops._cookie_domain_filter_stats(cookie_text)
-                grade = diagnosis.get("grade", "F")
-                self._send_json(
-                    {
-                        "ok": grade in ("可用", "高风险"),
-                        "grade": grade,
-                        "message": diagnosis.get("message", ""),
-                        "actions": diagnosis.get("actions", []),
-                        "required_present": diagnosis.get("required_present", []),
-                        "required_missing": diagnosis.get("required_missing", []),
-                        "cookie_items": diagnosis.get("cookie_items", 0),
-                        "domain_filter": domain_filter,
-                    }
-                )
-                return
-
-            if path == "/api/import-routes":
-                try:
-                    files = self._read_multipart_files()
-                except Exception as exc:
-                    self._send_json(
-                        {
-                            "success": False,
-                            "error": "Failed to parse upload body. Please retry with xlsx/xls/csv/zip files.",
-                            "details": str(exc),
-                        },
-                        status=400,
-                    )
-                    return
-
-                try:
-                    payload = self.mimic_ops.import_route_files(files)
-                except Exception as exc:
-                    self._send_json(
-                        {
-                            "success": False,
-                            "error": "Import processing failed.",
-                            "details": str(exc),
-                        },
-                        status=400,
-                    )
-                    return
-
-                self._send_json(payload, status=200 if payload.get("success") else 400)
-                return
-
-            if path == "/api/import-markup":
-                try:
-                    files = self._read_multipart_files()
-                except Exception as exc:
-                    self._send_json(
-                        {
-                            "success": False,
-                            "error": "Failed to parse upload body. Please retry with markup files.",
-                            "details": str(exc),
-                        },
-                        status=400,
-                    )
-                    return
-
-                try:
-                    payload = self.mimic_ops.import_markup_files(files)
-                except Exception as exc:
-                    self._send_json(
-                        {
-                            "success": False,
-                            "error": "Import processing failed.",
-                            "details": str(exc),
-                        },
-                        status=400,
-                    )
-                    return
-
-                self._send_json(payload, status=200 if payload.get("success") else 400)
-                return
-
-            if path == "/api/reset-database":
-                body = self._read_json_body()
-                db_type = str(body.get("type") or "all")
-                payload = self.mimic_ops.reset_database(db_type=db_type)
-                self._send_json(payload, status=200 if payload.get("success") else 400)
-                return
-
-            if path == "/api/save-template":
-                body = self._read_json_body()
-                payload = self.mimic_ops.save_template(
-                    weight_template=str(body.get("weight_template") or ""),
-                    volume_template=str(body.get("volume_template") or ""),
-                )
-                self._send_json(payload, status=200 if payload.get("success") else 400)
-                return
-
-            if path == "/api/save-markup-rules":
-                body = self._read_json_body()
-                payload = self.mimic_ops.save_markup_rules(body.get("markup_rules"))
-                self._send_json(payload, status=200 if payload.get("success") else 400)
-                return
-
-            if path == "/api/test-reply":
-                body = self._read_json_body()
-                payload = self.mimic_ops.test_reply(body)
-                self._send_json(payload, status=200 if payload.get("success") else 400)
-                return
-
-            if path == "/api/xgj/settings":
-                body = self._read_json_body()
-                payload = self.mimic_ops.save_xianguanjia_settings(body)
-                self._send_json(payload, status=200 if payload.get("success") else 400)
-                return
-
-            if path == "/api/xgj/retry-price":
-                body = self._read_json_body()
-                payload = self.mimic_ops.retry_xianguanjia_price(body)
-                self._send_json(payload, status=200 if payload.get("success") else 400)
-                return
-
-            if path == "/api/xgj/retry-ship":
-                body = self._read_json_body()
-                payload = self.mimic_ops.retry_xianguanjia_delivery(body)
-                self._send_json(payload, status=200 if payload.get("success") else 400)
-                return
-
-            if path == "/api/orders/callback":
-                body = self._read_json_body()
-                payload = self.mimic_ops.handle_order_callback(body)
-                self._send_json(payload, status=200 if payload.get("success") else 400)
-                return
-
-            if path == "/api/virtual-goods/inspect-order":
-                body = self._read_json_body()
-                order_id = str(body.get("order_id") or body.get("xianyu_order_id") or "").strip()
-                payload = self.mimic_ops.inspect_virtual_goods_order(order_id)
-                self._send_json(payload, status=200 if payload.get("success") else 400)
-                return
-
-            if path == "/api/listing/preview":
-                body = self._read_json_body()
-                payload = self._handle_listing_preview(body)
-                self._send_json(payload, status=200 if payload.get("ok") else 400)
-                return
-
-            if path == "/api/listing/publish":
-                body = self._read_json_body()
-                payload = self._handle_listing_publish(body)
-                self._send_json(payload, status=200 if payload.get("ok") else 400)
-                return
-
-            # ---------- Publish Queue POST endpoints ----------
-            if path == "/api/publish-queue/generate":
-                from src.modules.listing.publish_queue import PublishQueue
-
-                body = self._read_json_body()
-                q = PublishQueue(project_root=self.mimic_ops.project_root)
-                category = body.get("category", "express")
-                ap_cfg = _read_system_config().get("auto_publish", {})
-                user_schedule = {}
-                for k in (
-                    "cold_start_days",
-                    "cold_start_daily_count",
-                    "steady_replace_count",
-                    "max_active_listings",
-                    "steady_replace_metric",
-                ):
-                    if k in ap_cfg:
-                        user_schedule[k] = ap_cfg[k]
-                items = _run_async(
-                    q.generate_daily_queue(
-                        category=category,
-                        user_schedule=user_schedule if user_schedule else None,
-                    )
-                )
-                from dataclasses import asdict
-
-                self._send_json({"ok": True, "items": [asdict(it) for it in items]})
-                return
-
-            if path.startswith("/api/publish-queue/") and path.endswith("/regenerate"):
-                item_id = path.split("/api/publish-queue/")[1].replace("/regenerate", "")
-                from src.modules.listing.publish_queue import PublishQueue
-
-                q = PublishQueue(project_root=self.mimic_ops.project_root)
-                item = _run_async(q.regenerate_images(item_id))
-                if item is None:
-                    self._send_json(_error_payload("Queue item not found"), status=404)
-                    return
-                from dataclasses import asdict
-
-                self._send_json({"ok": True, "item": asdict(item)})
-                return
-
-            if path.startswith("/api/publish-queue/") and path.endswith("/publish"):
-                item_id = path.split("/api/publish-queue/")[1].replace("/publish", "")
-                from src.modules.listing.publish_queue import PublishQueue
-
-                q = PublishQueue(project_root=self.mimic_ops.project_root)
-                publish_cfg = self._build_publish_config()
-                result = _run_async(q.publish_item(item_id, config=publish_cfg))
-                self._send_json(result, status=200 if result.get("ok") else 400)
-                return
-
-            if path == "/api/publish-queue/publish-batch":
-                body = self._read_json_body()
-                from src.modules.listing.publish_queue import PublishQueue
-
-                q = PublishQueue(project_root=self.mimic_ops.project_root)
-                item_ids = body.get("item_ids", [])
-                interval = body.get("interval_seconds", 30)
-                publish_cfg = self._build_publish_config()
-                results = _run_async(q.publish_batch(item_ids, interval_seconds=interval, config=publish_cfg))
-                self._send_json({"ok": True, "results": results})
-                return
-
-            if path == "/api/cookie/auto-grab":
-                import threading
-                from src.core.cookie_grabber import CookieGrabber
-
-                if getattr(DashboardHandler, "_cookie_grab_running", False):
-                    self._send_json({"ok": False, "error": "已有获取任务在运行"}, status=409)
-                    return
-
-                grabber = CookieGrabber()
-                DashboardHandler._cookie_grabber = grabber
-                DashboardHandler._cookie_grab_running = True
-
-                def _run_grab() -> None:
-                    import asyncio
-
-                    loop = asyncio.new_event_loop()
-                    try:
-                        result = loop.run_until_complete(grabber.auto_grab())
-                        DashboardHandler._cookie_grab_result = {
-                            "ok": result.ok,
-                            "source": result.source,
-                            "message": result.message,
-                            "error": result.error,
-                        }
-                    except Exception as exc:
-                        DashboardHandler._cookie_grab_result = {"ok": False, "error": str(exc)}
-                    finally:
-                        loop.close()
-                        DashboardHandler._cookie_grab_running = False
-
-                t = threading.Thread(target=_run_grab, daemon=True)
-                t.start()
-                self._send_json({"ok": True, "message": "Cookie 获取任务已启动，请通过 SSE 接口监听进度"})
-                return
-
-            if path == "/api/cookie/auto-grab/cancel":
-                grabber = getattr(DashboardHandler, "_cookie_grabber", None)
-                if grabber is not None:
-                    grabber.cancel()
-                    self._send_json({"ok": True, "message": "已取消"})
-                else:
-                    self._send_json({"ok": False, "error": "没有正在运行的获取任务"})
-                return
-
-            if path == "/api/notifications/test":
-                body = self._read_json_body()
-                channel = str(body.get("channel", "")).strip()
-                webhook_url = str(body.get("webhook_url", "")).strip()
-                if not channel or not webhook_url:
-                    self._send_json({"ok": False, "error": "缺少 channel 或 webhook_url"}, status=400)
-                    return
-
-                import asyncio
-
-                test_msg = "【闲鱼自动化】通知测试\n如果你看到这条消息，说明通知配置成功！"
-
-                async def _send() -> bool:
-                    if channel == "feishu":
-                        from src.modules.messages.notifications import FeishuNotifier
-
-                        return await FeishuNotifier(webhook_url).send_text(test_msg)
-                    elif channel == "wechat":
-                        from src.modules.messages.notifications import WeChatNotifier
-
-                        return await WeChatNotifier(webhook_url).send_text(test_msg)
-                    return False
-
-                loop = asyncio.new_event_loop()
-                try:
-                    ok = loop.run_until_complete(_send())
-                finally:
-                    loop.close()
-
-                if ok:
-                    self._send_json({"ok": True, "message": "测试消息发送成功"})
-                else:
-                    self._send_json({"ok": False, "error": "发送失败，请检查 Webhook URL 是否正确"}, status=400)
-                return
-
-            # ---------- XGJ test connection ----------
-            if path == "/api/xgj/test-connection":
-                body = self._read_json_body()
-                app_key = str(body.get("app_key", ""))
-                app_secret = str(body.get("app_secret", ""))
-                base_url = str(body.get("base_url", "") or "https://open.goofish.pro")
-                mode = str(body.get("mode", "self_developed"))
-                seller_id = str(body.get("seller_id", ""))
-                if not app_key or not app_secret:
-                    self._send_json({"ok": False, "message": "AppKey 或 AppSecret 未填写"})
-                    return
-                try:
-                    info = _test_xgj_connection(
-                        app_key=app_key,
-                        app_secret=app_secret,
-                        base_url=base_url,
-                        mode=mode,
-                        seller_id=seller_id,
-                    )
-                    self._send_json(info)
-                except Exception as exc:
-                    self._send_json({"ok": False, "message": f"检查异常: {type(exc).__name__}: {exc}"})
-                return
-
-            # ---------- XGJ proxy (migrated from Node.js) ----------
-            if path == "/api/xgj/proxy":
-                body = self._read_json_body()
-                api_path = str(body.get("apiPath") or body.get("path") or "")
-                req_body = body.get("body") or body.get("payload") or {}
-                if not api_path or not api_path.startswith("/api/open/"):
-                    self._send_json({"error": "Invalid apiPath"}, status=400)
-                    return
-                cfg = _read_system_config()
-                xgj = cfg.get("xianguanjia", {})
-                app_key = str(xgj.get("app_key", ""))
-                app_secret = str(xgj.get("app_secret", ""))
-                base_url = str(xgj.get("base_url", "") or "https://open.goofish.pro")
-                mode = str(xgj.get("mode", "self_developed"))
-                seller_id = str(xgj.get("seller_id", ""))
-                if not app_key or not app_secret:
-                    self._send_json(
-                        {"ok": False, "error": "闲管家 API 未配置，请在设置中配置 AppKey 和 AppSecret"}, status=400
-                    )
-                    return
-                payload_str = json.dumps(req_body, ensure_ascii=False)
-                ts = str(int(time.time()))
-                from src.integrations.xianguanjia.signing import sign_open_platform_request, sign_business_request
-
-                if mode == "business" and seller_id:
-                    sign = sign_business_request(
-                        app_key=app_key, app_secret=app_secret, seller_id=seller_id, timestamp=ts, body=payload_str
-                    )
-                else:
-                    sign = sign_open_platform_request(
-                        app_key=app_key, app_secret=app_secret, timestamp=ts, body=payload_str
-                    )
-                try:
-                    import httpx
-
-                    url = f"{base_url}{api_path}"
-                    with httpx.Client(timeout=15.0) as hc:
-                        resp = hc.post(
-                            url,
-                            params={"appid": app_key, "timestamp": ts, "sign": sign},
-                            content=payload_str,
-                            headers={"Content-Type": "application/json"},
-                        )
-                    resp_data = resp.json()
-
-                    if api_path == "/api/open/product/list":
-                        self._enrich_product_images(resp_data, base_url, app_key, app_secret, mode, seller_id)
-
-                    self._send_json({"ok": True, "data": resp_data})
-                except Exception as exc:
-                    logger.error("XGJ proxy error: %s", exc)
-                    self._send_json({"ok": False, "error": str(exc)}, status=500)
-                return
-
-            if path in {"/api/xgj/order/receive", "/api/xgj/product/receive"}:
-                content_len = int(self.headers.get("Content-Length", "0"))
-                raw_body = self.rfile.read(content_len) if content_len > 0 else b""
-                body_str = raw_body.decode("utf-8") if raw_body else ""
-                cfg = _read_system_config()
-                xgj = cfg.get("xianguanjia", {})
-                app_key = str(xgj.get("app_key", ""))
-                app_secret = str(xgj.get("app_secret", ""))
-                if not app_key or not app_secret:
-                    self._send_json({"result": "fail", "msg": "Not configured"}, status=400)
-                    return
-                parsed_url = urlparse(self.path)
-                qs = parse_qs(parsed_url.query)
-                sign_val = qs.get("sign", [""])[0]
-                try:
-                    body_data = json.loads(body_str) if body_str else {}
-                except Exception:
-                    body_data = {}
-                ts_val = str(body_data.get("timestamp") or (qs.get("timestamp", [""])[0]))
-                now = int(time.time())
-                try:
-                    if abs(now - int(ts_val)) > 300:
-                        self._send_json({"result": "fail", "msg": "Timestamp expired"}, status=400)
-                        return
-                except (ValueError, TypeError):
-                    self._send_json({"result": "fail", "msg": "Invalid timestamp"}, status=400)
-                    return
-                from src.integrations.xianguanjia.signing import verify_open_platform_callback_signature
-
-                if not verify_open_platform_callback_signature(
-                    app_key=app_key, app_secret=app_secret, timestamp=ts_val, sign=sign_val, body=body_str
-                ):
-                    self._send_json({"result": "fail", "msg": "Invalid signature"}, status=401)
-                    return
-
-                if path == "/api/xgj/product/receive":
-                    result = self.mimic_ops.handle_product_callback(body_data)
-                else:
-                    result = self.mimic_ops.handle_order_push(body_data)
-                self._send_json({"result": "success", "msg": "接收成功"})
-                return
 
             self._send_json(_error_payload("Not Found", code="NOT_FOUND"), status=404)
         except Exception as e:  # pragma: no cover - safety net
@@ -5816,6 +4684,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
 
 def run_server(host: str = "127.0.0.1", port: int = 8091, db_path: str | None = None) -> None:
+    import src.dashboard.routes  # noqa: F401 — trigger route registration
     import signal
 
     config = get_config()

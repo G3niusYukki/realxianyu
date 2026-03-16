@@ -22,18 +22,31 @@ XML_NS_OFFICE_REL = "{http://schemas.openxmlformats.org/officeDocument/2006/rela
 XML_NS_PKG_REL = "{http://schemas.openxmlformats.org/package/2006/relationships}"
 
 COURIER_ALIASES = {
+    # 快递
     "圆通": "圆通",
     "圆通快递": "圆通",
+    "圆通特定版": "圆通",
     "韵达": "韵达",
     "韵达快递": "韵达",
+    "韵达特惠版": "韵达",
     "中通": "中通",
     "中通快递": "中通",
+    "中通1": "中通",
+    "中通2": "中通",
     "申通": "申通",
     "申通快递": "申通",
+    "申通1": "申通",
+    "申通2": "申通",
+    "申通no1": "申通",
+    "申通no2": "申通",
     "菜鸟": "菜鸟裹裹",
     "菜鸟裹裹": "菜鸟裹裹",
+    "菜鸟裹裹1": "菜鸟裹裹",
+    "菜鸟裹裹2": "菜鸟裹裹",
     "极兔": "极兔",
     "极兔速递": "极兔",
+    "极兔1": "极兔",
+    "极兔2": "极兔",
     "德邦": "德邦",
     "德邦快递": "德邦",
     "顺丰": "顺丰",
@@ -43,6 +56,25 @@ COURIER_ALIASES = {
     "邮政": "邮政",
     "中国邮政": "邮政",
     "ems": "邮政",
+    # 物流/快运
+    "百世快运": "百世快运",
+    "跨越速运": "跨越速运",
+    "跨越": "跨越速运",
+    "壹米滴答": "壹米滴答",
+    "壹米": "壹米滴答",
+    "安能": "安能",
+    "安能物流": "安能",
+    "安能快运": "安能",
+    "顺心捷达": "顺心捷达",
+    "中通快运": "中通快运",
+    "圆通快运": "圆通快运",
+    "德邦快运": "德邦快运",
+    "德邦物流": "德邦快运",
+}
+
+FREIGHT_COURIERS: set[str] = {
+    "百世快运", "跨越速运", "壹米滴答", "安能", "顺心捷达",
+    "中通快运", "圆通快运", "德邦快运",
 }
 
 REGION_ALIASES = {
@@ -119,6 +151,15 @@ REGION_ALIASES = {
 PROVINCE_SET = set(REGION_ALIASES.values())
 
 
+_COURIER_SUFFIX_RE = re.compile(
+    r"[-_]?(?:[A-Za-z]{0,4}\d{2,4}(?:[-_]\d+)?|捞|特惠|揽件高|省|市)$"
+)
+
+_CANONICAL_COURIERS: list[str] = sorted(
+    set(COURIER_ALIASES.values()), key=len, reverse=True
+)
+
+
 def normalize_courier_name(name: str | None) -> str:
     raw = str(name or "").strip()
     if not raw:
@@ -128,10 +169,19 @@ def normalize_courier_name(name: str | None) -> str:
         return COURIER_ALIASES[lowered]
     if raw in COURIER_ALIASES:
         return COURIER_ALIASES[raw]
-    compact = raw.replace("速递", "").replace("物流", "").replace("快递", "").strip()
+    compact = raw.replace("速递", "").replace("物流", "").replace("快递", "").replace("货运", "").strip()
     if compact in COURIER_ALIASES:
         return COURIER_ALIASES[compact]
-    return compact or raw
+
+    stripped = _COURIER_SUFFIX_RE.sub("", compact).strip() or compact
+    if stripped in COURIER_ALIASES:
+        return COURIER_ALIASES[stripped]
+
+    for canonical in _CANONICAL_COURIERS:
+        if stripped.startswith(canonical) or compact.startswith(canonical):
+            return canonical
+
+    return stripped or compact or raw
 
 
 def normalize_location_name(value: str | None) -> str:
@@ -168,6 +218,8 @@ class CostRecord:
     first_cost: float
     extra_cost: float
     throw_ratio: float | None = None
+    base_weight: float = 1.0
+    service_type: str = "express"
     source_file: str = ""
     source_sheet: str = ""
 
@@ -175,10 +227,12 @@ class CostRecord:
 class CostTableRepository:
     """加载并查询成本价表（xlsx/csv）。"""
 
+    _SKIP_SHEETS: set[str] = {"申通no2"}
+
     _HEADER_ALIASES = {
         "courier": {"快递公司", "物流公司", "承运商"},
-        "origin": {"始发地", "寄件地", "发件地", "发货地", "始发城市"},
-        "destination": {"目的地", "收件地", "收件地址", "收件城市", "到达地"},
+        "origin": {"始发地", "寄件地", "发件地", "发货地", "始发城市", "揽收地", "始发省份", "始发省", "发件城市"},
+        "destination": {"目的地", "收件地", "收件地址", "收件城市", "到达地", "目的省份", "目的省", "目的城市", "到达城市"},
         "first_cost": {"首重", "首重1kg", "首重价", "首重价格", "首重1kg价"},
         "extra_cost": {"续重", "续重1kg", "续重价", "续重价格", "续重1kg价"},
         "throw_ratio": {"抛比", "抛重比", "材积比", "体积系数"},
@@ -333,7 +387,16 @@ class CostTableRepository:
 
     @staticmethod
     def _sort_candidates(records: list[CostRecord]) -> list[CostRecord]:
-        return sorted(records, key=lambda r: (r.first_cost + r.extra_cost, r.first_cost, r.extra_cost, r.courier))
+        sorted_records = sorted(
+            records, key=lambda r: (r.first_cost + r.extra_cost, r.first_cost, r.extra_cost, r.courier)
+        )
+        seen: set[str] = set()
+        deduped: list[CostRecord] = []
+        for r in sorted_records:
+            if r.courier not in seen:
+                seen.add(r.courier)
+                deduped.append(r)
+        return deduped
 
     def _rank_by_origin_similarity(self, records: list[CostRecord], origin_norm: str) -> list[CostRecord]:
         if not records:
@@ -351,7 +414,13 @@ class CostTableRepository:
             return []
 
         ranked.sort(key=lambda item: (-item[0], item[1].first_cost + item[1].extra_cost, item[1].first_cost))
-        return [record for _, record in ranked]
+        seen: set[str] = set()
+        deduped: list[CostRecord] = []
+        for _, record in ranked:
+            if record.courier not in seen:
+                seen.add(record.courier)
+                deduped.append(record)
+        return deduped
 
     def _rank_by_route_similarity(
         self,
@@ -383,7 +452,13 @@ class CostTableRepository:
                 item[2].first_cost,
             )
         )
-        return [record for _, _, record in ranked]
+        seen: set[str] = set()
+        deduped: list[CostRecord] = []
+        for _, _, record in ranked:
+            if record.courier not in seen:
+                seen.add(record.courier)
+                deduped.append(record)
+        return deduped
 
     @staticmethod
     def _origin_similarity(request_origin: str, row_origin: str) -> int:
@@ -426,6 +501,8 @@ class CostTableRepository:
         rows_by_sheet = self._iter_xlsx_rows(path)
         records: list[CostRecord] = []
         for sheet_name, rows in rows_by_sheet.items():
+            if sheet_name.lower() in self._SKIP_SHEETS:
+                continue
             records.extend(self._rows_to_records(rows, source_file=path.name, source_sheet=sheet_name))
         return records
 
@@ -437,16 +514,29 @@ class CostTableRepository:
         header_map: dict[str, int] = {}
         for idx, row in enumerate(rows):
             header_map = self._resolve_header_map(row)
-            if {"courier", "origin", "destination", "first_cost", "extra_cost"}.issubset(set(header_map.keys())):
+            # 放宽要求: origin + destination + first_cost + extra_cost 即可
+            required = {"origin", "destination", "first_cost", "extra_cost"}
+            if required.issubset(set(header_map.keys())):
                 header_row_index = idx
                 break
 
         if header_row_index < 0:
             return []
 
+        # 如果没有 courier 列，从 sheet 名推断
+        has_courier_col = "courier" in header_map
+        inferred_courier = ""
+        if not has_courier_col:
+            inferred_courier = normalize_courier_name(source_sheet)
+            if not inferred_courier:
+                return []
+
         records: list[CostRecord] = []
         for row in rows[header_row_index + 1 :]:
-            courier = self._cell_text(row, header_map.get("courier"))
+            if has_courier_col:
+                courier = self._cell_text(row, header_map.get("courier"))
+            else:
+                courier = inferred_courier
             origin = self._cell_text(row, header_map.get("origin"))
             destination = self._cell_text(row, header_map.get("destination"))
             first_cost = self._cell_float(row, header_map.get("first_cost"))
@@ -458,14 +548,19 @@ class CostTableRepository:
             if first_cost is None or extra_cost is None:
                 continue
 
+            normalized_courier = normalize_courier_name(courier)
+            is_freight = normalized_courier in FREIGHT_COURIERS
+
             records.append(
                 CostRecord(
-                    courier=normalize_courier_name(courier),
+                    courier=normalized_courier,
                     origin=origin.strip(),
                     destination=destination.strip(),
                     first_cost=first_cost,
                     extra_cost=extra_cost,
                     throw_ratio=throw_ratio,
+                    base_weight=30.0 if is_freight else 1.0,
+                    service_type="freight" if is_freight else "express",
                     source_file=source_file,
                     source_sheet=source_sheet,
                 )

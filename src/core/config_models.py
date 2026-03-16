@@ -220,6 +220,8 @@ class QuoteConfig(BaseModel):
     api_fallback_to_table_parallel: bool = Field(default=True, description="API 失败时并行回退到成本表")
     api_prefer_max_wait_seconds: float = Field(default=1.2, ge=0.05, description="API 优先等待上限")
     markup_rules: dict[str, Any] = Field(default_factory=dict, description="加价规则")
+    markup_categories: dict[str, Any] = Field(default_factory=dict, description="三层定价：分服务类别加价")
+    xianyu_discount: dict[str, Any] = Field(default_factory=dict, description="三层定价：闲鱼让利")
 
 
 class AppConfig(BaseModel):

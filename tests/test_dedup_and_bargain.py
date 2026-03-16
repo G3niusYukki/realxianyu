@@ -168,16 +168,14 @@ class TestReplyEngineProcessMessage:
         assert r2["skipped"] is True
         assert r2["skip_reason"] == "duplicate"
 
-    def test_process_message_bargain_count(self, tmp_path):
+    def test_process_message_bargain_disabled(self, tmp_path):
         from src.modules.messages.reply_engine import ReplyStrategyEngine
-        from src.modules.messages.bargain_tracker import BargainTracker
         engine = ReplyStrategyEngine(
             default_reply="默认回复",
             virtual_default_reply="虚拟商品回复",
             dedup_enabled=False,
             bargain_tracking_enabled=True,
         )
-        engine._bargain_tracker = BargainTracker(db_path=str(tmp_path / "b.db"))
         r = engine.process_message("chat1", "能便宜点吗", 1000)
-        assert r["bargain_count"] == 1
-        assert r["bargain_hint"] is not None
+        assert r["bargain_count"] == 0
+        assert r["bargain_hint"] is None

@@ -8,6 +8,7 @@ import pytest
 
 import src.dashboard_server as ds
 from src.dashboard_server import DashboardHandler
+import src.dashboard.routes  # ensure routes are registered for tests
 from src.modules.accounts.monitor import Monitor
 from src.modules.accounts.scheduler import Scheduler, Task, TaskType, TaskStatus
 

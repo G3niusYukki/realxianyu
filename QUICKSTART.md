@@ -8,8 +8,8 @@
 
 | 依赖 | 版本要求 | 说明 |
 |------|---------|------|
-| Python | 3.10+ | Python 后端运行时 |
-| Node.js | 18+ | Node.js 后端和 React 前端 |
+| Python | 3.10+ | 后端运行时 |
+| Node.js | 18+ | React 前端开发工具（Vite） |
 | npm | 随 Node.js 安装 | 包管理器 |
 | Chrome / Edge | 任意版本 | Cookie 自动获取需要本机浏览器 |
 
@@ -87,18 +87,6 @@ xianyu-openclaw/
 │   └── integrations/      # 第三方集成
 │       └── xianguanjia/   #   闲管家集成
 │
-├── server/                # Node.js 后端
-│   ├── src/
-│   │   ├── app.js         #   入口（端口 3001）
-│   │   ├── config/        #   配置
-│   │   ├── middleware/    #   中间件
-│   │   ├── models/        #   数据模型
-│   │   ├── routes/        #   API 路由
-│   │   └── services/      #   服务层
-│   └── data/
-│       ├── system_config.json # 前端管理的系统配置（AI、通知等）
-│       └── cookie_cloud/  #   CookieCloud 数据
-│
 ├── client/                # React 前端（管理面板）
 │   ├── src/
 │   │   ├── App.tsx        #   应用入口
@@ -152,7 +140,7 @@ xianyu-openclaw/
 |------|------|---------|
 | `.env` | 环境变量（Cookie、端口） | 更换 Cookie、修改端口 |
 | `config/config.yaml` | 报价规则、快递参数、关键词 | 调整价格、新增快递线路 |
-| `server/data/system_config.json` | 前端管理的配置（AI、通知） | 通过管理面板修改 |
+| `data/system_config.json` | 前端管理的配置（AI、通知） | 通过管理面板修改 |
 | `data/express_faq.json` | AI 回复参考的 FAQ 知识库 | 新增常见问题 |
 | `config/rules.yaml` | 自定义回复规则 | 定制特殊回复 |
 
@@ -168,8 +156,7 @@ python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 playwright install chromium
 
-# Node.js 依赖
-cd server && npm install && cd ..
+# 前端依赖（Vite 开发工具需要 Node.js）
 cd client && npm install && cd ..
 ```
 
@@ -187,17 +174,14 @@ cp config/config.example.yaml config/config.yaml
 
 编辑 `.env` 填入闲鱼 Cookie。AI 配置可稍后在管理面板中设置。
 
-### 第 3 步：分别启动三个服务
+### 第 3 步：分别启动两个服务
 
 ```bash
 # 终端 1 - Python 后端
 source .venv/bin/activate
 python3 -m src.dashboard_server --port 8091
 
-# 终端 2 - Node.js 后端
-cd server && node src/app.js
-
-# 终端 3 - React 前端
+# 终端 2 - React 前端（Vite dev server）
 cd client && npx vite --host
 ```
 
@@ -207,7 +191,6 @@ cd client && npx vite --host
 |------|------|---------|
 | 管理面板 | http://localhost:5173 | 管理面板首页 |
 | Python API | http://localhost:8091 | Dashboard 页面 |
-| Node.js API | http://localhost:3001/health | 健康状态 JSON |
 
 ---
 
@@ -221,7 +204,6 @@ docker compose ps       # 查看状态
 
 | 容器 | 端口 | 说明 |
 |------|------|------|
-| xianyu-node-backend | 3001 | Node.js 后端 |
 | xianyu-python-backend | 8091 | Python 后端 |
 | xianyu-react-frontend | 5173 | React 前端 |
 
@@ -246,6 +228,19 @@ docker compose ps       # 查看状态
 
 Cookie 有效期 7-30 天。过期后通过管理面板在线更新。
 
+### 人工介入模式
+
+当卖家在闲鱼**手动发送消息**后，该会话自动暂停自动回复，避免人工与机器人话术冲突。
+
+- **触发方式**：卖家在闲鱼对话中手动发消息
+- **恢复方式**：
+  - 超时自动恢复（默认 1 小时，在 `config.yaml` 中配置 `manual_mode_timeout`）
+  - 在管理面板「消息中心 → 人工模式」手动恢复
+- **配置项**：`messages.manual_mode_timeout`，单位秒，设为 `0` 表示不自动恢复
+- **管理 API**：
+  - `GET /api/manual-mode` — 查看当前人工模式会话
+  - `POST /api/manual-mode` — 开启/关闭（body: `{"session_id": "xxx", "enabled": false}`）
+
 ### AI 配置推荐
 
 | 提供商 | 模型 | 适合场景 |
@@ -256,6 +251,110 @@ Cookie 有效期 7-30 天。过期后通过管理面板在线更新。
 
 ---
 
+## 国内环境部署（无外网）
+
+项目完全支持国内无外网环境部署。启动脚本会**自动检测网络环境**并切换国内镜像源。
+
+### 自动模式（推荐）
+
+启动脚本会自动探测 `pypi.org` 是否可达，不可达时自动切换：
+
+```bash
+# 直接运行，脚本自动判断
+bash quick-start.sh
+```
+
+### 手动强制使用国内源
+
+```bash
+# macOS / Linux
+CHINA_MIRROR=1 bash quick-start.sh
+
+# Windows
+set CHINA_MIRROR=1 && quick-start.bat
+```
+
+### 国内源对照表
+
+| 依赖 | 国内镜像 | 环境变量 |
+|------|---------|---------|
+| pip (Python) | `mirrors.aliyun.com/pypi/simple/` | 自动设置 |
+| npm (Node.js) | `registry.npmmirror.com` | 自动设置 |
+| Playwright | `npmmirror.com/mirrors/playwright` | `PLAYWRIGHT_DOWNLOAD_HOST` |
+| Docker 基础镜像 | 见下方 Docker 配置 | Docker daemon 配置 |
+
+### 手动配置国内源（不使用启动脚本时）
+
+```bash
+# pip 使用阿里云源
+pip install -r requirements.txt -i https://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com
+
+# npm 使用 npmmirror
+npm config set registry https://registry.npmmirror.com
+npm install
+
+# Playwright 使用国内镜像下载
+export PLAYWRIGHT_DOWNLOAD_HOST=https://npmmirror.com/mirrors/playwright
+playwright install chromium
+```
+
+### Docker 国内构建
+
+```bash
+# 使用国内镜像源构建所有容器
+MIRROR=china docker compose build
+docker compose up -d
+```
+
+Docker 拉取基础镜像加速 — 编辑 `/etc/docker/daemon.json`：
+
+```json
+{
+  "registry-mirrors": [
+    "https://mirror.ccs.tencentyun.com",
+    "https://docker.mirrors.ustc.edu.cn"
+  ]
+}
+```
+
+然后重启 Docker：`sudo systemctl restart docker`
+
+### 离线部署方案
+
+在有网络的机器上预打包，拷贝到目标机器：
+
+```bash
+# 有网机器：安装所有依赖后打包
+bash quick-start.sh              # 先完成所有依赖安装
+tar czf deploy.tar.gz \
+  --exclude='.git' \
+  --exclude='__pycache__' \
+  --exclude='*.pyc' \
+  --exclude='htmlcov' \
+  --exclude='logs' \
+  .
+
+# 目标机器：解压后直接启动（无需联网）
+tar xzf deploy.tar.gz
+source .venv/bin/activate
+python3 -m src.dashboard_server --port 8091 &
+cd client && npx vite --host &
+```
+
+### AI 服务
+
+AI 功能使用国内供应商无需外网：
+
+| 提供商 | 推荐 | 说明 |
+|--------|------|------|
+| 百炼千问 (Qwen) | **首选** | `dashscope.aliyuncs.com`，国内直连 |
+| DeepSeek | 推荐 | `api.deepseek.com`，国内直连 |
+| 火山方舟 | 可选 | `ark.cn-beijing.volces.com`，国内直连 |
+| 智谱 | 可选 | `open.bigmodel.cn`，国内直连 |
+| OpenAI | 需代理 | 国内无法直连 |
+
+---
+
 ## 常见问题
 
 ### 端口被占用
@@ -263,7 +362,6 @@ Cookie 有效期 7-30 天。过期后通过管理面板在线更新。
 ```bash
 # macOS/Linux - 查看并杀掉占用进程
 lsof -ti :5173 | xargs kill -9
-lsof -ti :3001 | xargs kill -9
 lsof -ti :8091 | xargs kill -9
 ```
 
@@ -281,11 +379,19 @@ npm cache clean --force    # 清除缓存
 npm install                # 重试
 ```
 
-### pip install 失败（国内用户）
+### pip / npm install 失败（国内用户）
+
+使用启动脚本会自动切换国内源。手动安装时：
 
 ```bash
-pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+# pip 使用阿里云
+pip install -r requirements.txt -i https://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com
+
+# npm 使用 npmmirror
+npm install --registry=https://registry.npmmirror.com
 ```
+
+详见上方「国内环境部署」章节。
 
 ---
 
