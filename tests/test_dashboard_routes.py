@@ -679,3 +679,55 @@ class TestProductsRoutes:
         mock_ctx._handler._handle_listing_publish.return_value = {"ok": True}
         products.handle_listing_publish(mock_ctx)
         mock_ctx.send_json.assert_called_once()
+
+    @patch("src.modules.listing.publish_queue.PublishQueue")
+    def test_handle_publish_queue(self, mock_queue_class):
+        """Test /api/publish-queue route."""
+        mock_ctx = MagicMock()
+        mock_ctx.mimic_ops.project_root = "/tmp"
+        mock_ctx.query_str.return_value = None
+        mock_queue = MagicMock()
+        mock_queue.get_queue.return_value = []
+        mock_queue_class.return_value = mock_queue
+        products.handle_publish_queue(mock_ctx)
+        mock_ctx.send_json.assert_called_once()
+
+    def test_handle_auto_publish_status(self):
+        """Test /api/auto-publish/status route."""
+        mock_ctx = MagicMock()
+        with patch("src.dashboard.routes.products.AutoPublishScheduler") as mock_scheduler:
+            mock_sched = MagicMock()
+            mock_sched.get_status.return_value = {"enabled": True}
+            mock_scheduler.return_value = mock_sched
+            products.handle_auto_publish_status(mock_ctx)
+        mock_ctx.send_json.assert_called_once()
+
+    def test_handle_publish_queue_post_actions_not_found(self):
+        """Test /api/publish-queue/<item_id> route with unknown action."""
+        mock_ctx = MagicMock()
+        mock_ctx.path_params.get.return_value = "unknown/action"
+        products.handle_publish_queue_post_actions(mock_ctx)
+        mock_ctx.send_json.assert_called_once()
+
+    def test_handle_orders_remind_missing_order(self):
+        """Test /api/orders/remind route with missing order_no."""
+        mock_ctx = MagicMock()
+        mock_ctx.json_body.return_value = {}
+        orders.handle_orders_remind(mock_ctx)
+        mock_ctx.send_json.assert_called_once()
+
+    def test_handle_xgj_proxy_missing_config(self):
+        """Test /api/xgj/proxy route with missing config."""
+        mock_ctx = MagicMock()
+        mock_ctx.json_body.return_value = {"apiPath": "/api/open/test"}
+        with patch("src.dashboard.routes.config._read_system_config") as mock_read:
+            mock_read.return_value = {"xianguanjia": {}}
+            orders.handle_xgj_proxy(mock_ctx)
+        mock_ctx.send_json.assert_called_once()
+
+    def test_handle_xgj_proxy_invalid_path(self):
+        """Test /api/xgj/proxy route with invalid path."""
+        mock_ctx = MagicMock()
+        mock_ctx.json_body.return_value = {"apiPath": "/invalid/path"}
+        orders.handle_xgj_proxy(mock_ctx)
+        mock_ctx.send_json.assert_called_once()
