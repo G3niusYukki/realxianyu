@@ -664,8 +664,33 @@ class GoofishWsTransport:
 
                 self.logger.info(
                     f"Slider recovery: cookie incomplete (missing: {missing}), "
-                    f"got {len(cookie_keys)} fields. Waiting for CookieCloud sync..."
+                    f"got {len(cookie_keys)} fields. Trying hasLogin to generate _m_h5_tk..."
                 )
+
+                if "_m_h5_tk" in missing and len(missing) == 1:
+                    self._apply_cookie_text(cookie_str, reason="slider_partial")
+                    os.environ["XIANYU_COOKIE_1"] = self.cookie_text
+                    try:
+                        hl_ok = await self._preflight_has_login()
+                        if hl_ok and self.cookies.get("_m_h5_tk"):
+                            self.logger.info(
+                                "hasLogin 补全 _m_h5_tk 成功，WS 即将重连"
+                            )
+                            self._session_peer.clear()
+                            self._seen_event.clear()
+                            try:
+                                from src.core.notify import send_system_notification
+                                send_system_notification(
+                                    "【闲鱼自动化】✅ hasLogin 补全 _m_h5_tk 成功\nCookie 已自动恢复，WS 即将重连",
+                                    event="risk_control",
+                                )
+                            except Exception:
+                                pass
+                            return True
+                        self.logger.info("hasLogin 未能补全 _m_h5_tk，回退 CookieCloud 轮询")
+                    except Exception as exc:
+                        self.logger.info(f"hasLogin 补全失败: {exc}")
+
                 try:
                     from src.core.notify import send_system_notification
                     send_system_notification(
