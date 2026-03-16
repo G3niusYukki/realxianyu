@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, Mock
 
 import pytest
 
+import src.dashboard.routes  # ensure routes are registered
 from src.dashboard.router import (
     RouteContext,
     clear_routes,
