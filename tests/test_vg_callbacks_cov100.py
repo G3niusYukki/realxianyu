@@ -119,14 +119,14 @@ class TestResolveFulfillmentStatus:
 class TestVerify:
     def test_missing_signature(self):
         svc = _make_service(config={"xianguanjia": {"app_key": "k", "app_secret": "s"}})
-        ok, sign, err = svc._verify(source_family="open_platform", raw_body="", headers={}, query_params={})
+        ok, _sign, err = svc._verify(source_family="open_platform", raw_body="", headers={}, query_params={})
         assert not ok
         assert err == "missing_signature_or_timestamp"
 
     @patch("src.modules.virtual_goods.callbacks.verify_open_platform_callback_signature", return_value=False)
     def test_missing_open_platform_secret(self, _mock_verify):
         svc = _make_service(config={})
-        ok, sign, err = svc._verify(
+        ok, _sign, err = svc._verify(
             source_family="open_platform",
             raw_body="body",
             headers={"x-sign": "abc", "x-timestamp": "123"},
@@ -138,7 +138,7 @@ class TestVerify:
     @patch("src.modules.virtual_goods.callbacks.verify_virtual_supply_callback_signature", return_value=False)
     def test_missing_virtual_supply_secret(self, _mock_verify):
         svc = _make_service(config={"xianguanjia": {"app_secret": "s"}})
-        ok, sign, err = svc._verify(
+        ok, _sign, err = svc._verify(
             source_family="virtual_supply",
             raw_body="body",
             headers={"x-sign": "abc", "x-timestamp": "123"},

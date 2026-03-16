@@ -224,7 +224,7 @@ class TestAccountsService:
     def test_persist_accounts(self):
         from src.modules.accounts.service import AccountsService
         svc = self._make_service(accounts_list=[{"id": "a1", "cookie": "c1"}])
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with tempfile.TemporaryDirectory():
             with patch("src.modules.accounts.service.Path") as MockPath:
                 mock_file = MagicMock()
                 MockPath.return_value = mock_file

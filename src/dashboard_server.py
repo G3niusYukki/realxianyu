@@ -3149,7 +3149,7 @@ class MimicOps:
         if isinstance(xianyu_discount, dict):
             quote_cfg["xianyu_discount"] = xianyu_discount
 
-        backup_path = setup._backup_existing_file() if existed else None
+        setup._backup_existing_file() if existed else None
         setup._write_yaml(data)
         try:
             get_config().reload(str(self.config_path))

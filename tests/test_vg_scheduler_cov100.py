@@ -69,7 +69,7 @@ class TestCallbackReplay:
         svc.list_replay_callbacks.return_value = [{"event_kind": "weird"}]
         svc.report_scheduler_anomaly = MagicMock()
         scheduler = VirtualGoodsScheduler(svc)
-        result = scheduler.callback_replay()
+        scheduler.callback_replay()
         svc.report_scheduler_anomaly.assert_called_once()
 
     def test_replay_returns_not_ok(self):

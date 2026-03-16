@@ -209,7 +209,7 @@ class TestIMediaService:
 
     def test_validate_image(self):
         svc = ConcreteMediaService()
-        ok, msg = svc.validate_image("/img.jpg")
+        ok, _msg = svc.validate_image("/img.jpg")
         assert ok is True
 
 

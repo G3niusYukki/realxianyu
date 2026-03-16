@@ -129,7 +129,7 @@ class TestTicketingService:
         mock_provider.quote_ticket = AsyncMock(return_value=quote)
 
         svc = TicketingService(recognizer=mock_recognizer, provider=mock_provider)
-        sel, q, draft = await svc.prepare_listing_from_screenshot(b"img_data")
+        _sel, _q, draft = await svc.prepare_listing_from_screenshot(b"img_data")
         assert draft.title.startswith("万达影城")
         assert draft.price > 0
 

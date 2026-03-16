@@ -190,12 +190,12 @@ class TestGenerateReply:
 
     def test_default_reply(self):
         engine = _make_engine(compliance_enabled=False)
-        reply, skip = engine.generate_reply("完全不匹配的消息")
+        reply, _skip = engine.generate_reply("完全不匹配的消息")
         assert "默认回复" in reply
 
     def test_virtual_context_reply(self):
         engine = _make_engine(compliance_enabled=False)
-        reply, skip = engine.generate_reply("想咨询一下", item_title="卡密商品")
+        reply, _skip = engine.generate_reply("想咨询一下", item_title="卡密商品")
         assert "虚拟商品默认回复" in reply
 
     def test_with_item_title(self):
@@ -205,13 +205,13 @@ class TestGenerateReply:
             compliance_enabled=False,
             intent_rules=[{"name": "greet", "keywords": ["打招呼测试"], "reply": "欢迎光临"}],
         )
-        reply, skip = engine.generate_reply("打招呼测试", item_title="测试商品")
+        reply, _skip = engine.generate_reply("打招呼测试", item_title="测试商品")
         assert "测试商品" in reply
         assert "欢迎光临" in reply
 
     def test_with_prefix(self):
         engine = _make_engine(reply_prefix="[BOT] ", compliance_enabled=False, category="express")
-        reply, skip = engine.generate_reply("在吗？")
+        reply, _skip = engine.generate_reply("在吗？")
         assert reply.startswith("[BOT] ")
 
     def test_compliance_blocks(self):
@@ -223,7 +223,7 @@ class TestGenerateReply:
         mock_guard = MagicMock()
         mock_guard.evaluate_content.return_value = {"blocked": True, "hits": ["敏感词"]}
         engine._compliance_guard = mock_guard
-        reply, skip = engine.generate_reply("合规测试词")
+        reply, _skip = engine.generate_reply("合规测试词")
         assert reply == "默认回复"
 
     def test_compliance_passes(self):
@@ -231,7 +231,7 @@ class TestGenerateReply:
         mock_guard = MagicMock()
         mock_guard.evaluate_content.return_value = {"blocked": False}
         engine._compliance_guard = mock_guard
-        reply, skip = engine.generate_reply("在吗？")
+        reply, _skip = engine.generate_reply("在吗？")
         assert "在的" in reply
 
     def test_compliance_exception(self):
@@ -239,7 +239,7 @@ class TestGenerateReply:
         mock_guard = MagicMock()
         mock_guard.evaluate_content.side_effect = Exception("guard error")
         engine._compliance_guard = mock_guard
-        reply, skip = engine.generate_reply("在吗？")
+        reply, _skip = engine.generate_reply("在吗？")
         assert "在的" in reply
 
     def test_no_guard_returns_text(self):

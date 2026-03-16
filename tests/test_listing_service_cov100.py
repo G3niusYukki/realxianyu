@@ -83,7 +83,7 @@ class TestResolveMappingStatus:
         store = MagicMock()
         store.get_listing_product_mapping.side_effect = [None, {"mapping_status": "syncing"}]
         svc.mapping_store = store
-        status, found = svc._resolve_mapping_status(internal_listing_id="lid", product_id="pid")
+        status, _found = svc._resolve_mapping_status(internal_listing_id="lid", product_id="pid")
         assert status == "pending_sync"
 
     def test_exception_returns_inactive(self):
@@ -100,7 +100,7 @@ class TestResolveMappingStatus:
         store = MagicMock()
         store.get_listing_product_mapping.return_value = None
         svc.mapping_store = store
-        status, found = svc._resolve_mapping_status(internal_listing_id=None, product_id=None)
+        status, _found = svc._resolve_mapping_status(internal_listing_id=None, product_id=None)
         assert status == "inactive"
 
 
@@ -230,7 +230,7 @@ class TestExecutePublish:
         controller.new_page.return_value = "page1"
         controller.execute_script.return_value = "https://goofish.com/success/12345"
         svc = _make_service(controller=controller)
-        product_id, product_url = await svc._execute_publish(
+        product_id, _product_url = await svc._execute_publish(
             _make_listing(images=["img.jpg"], tags=["全新"])
         )
         assert product_id == "12345"
@@ -310,7 +310,7 @@ class TestStepVerifySuccess:
         controller = AsyncMock()
         controller.execute_script.return_value = "https://goofish.com/success/99"
         svc = _make_service(controller=controller)
-        pid, purl = await svc._step_verify_success("page1")
+        pid, _purl = await svc._step_verify_success("page1")
         assert pid == "99"
 
     @pytest.mark.asyncio

@@ -161,7 +161,7 @@ async def test_listing_verify_update_delete_raise_without_controller() -> None:
 def test_reply_engine_virtual_default_fallback_branch() -> None:
     engine = ReplyStrategyEngine(default_reply="默认", virtual_default_reply="虚拟回复")
     # 使用较长的消息避免匹配 low_engagement 规则（max_length=6）
-    reply, blocked = engine.generate_reply("咨询一下这个商品", item_title="超值会员卡")
+    reply, _blocked = engine.generate_reply("咨询一下这个商品", item_title="超值会员卡")
     assert reply.endswith("虚拟回复")
 
 

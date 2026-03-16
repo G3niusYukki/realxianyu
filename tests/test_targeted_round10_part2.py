@@ -78,7 +78,8 @@ def test_dashboard_risk_control_status_variants(temp_dir) -> None:
     from datetime import datetime as _dt
     from datetime import timedelta as _td
     _now = _dt.now()
-    _ts = lambda m: (_now - _td(minutes=m)).strftime("%Y-%m-%d %H:%M:%S")
+    def _ts(m):
+        return (_now - _td(minutes=m)).strftime("%Y-%m-%d %H:%M:%S")
 
     lines = [f"{_ts(10 - i)} websocket http 400" for i in range(6)]
     log_path.write_text("\n".join(lines), encoding="utf-8")

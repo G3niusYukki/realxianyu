@@ -195,7 +195,7 @@ async def _find_slider_in_frames(page: Any) -> tuple[Any, Any, str] | None:
     When a baxia-dialog container is found, waits for and searches inside it
     for an NC slider component which loads asynchronously.
     """
-    targets = [page] + list(page.frames)
+    targets = [page, *list(page.frames)]
 
     for frame in targets:
         for sel in NC_SLIDER_SELECTORS:
@@ -238,11 +238,7 @@ async def _wait_for_nc_inside_baxia(
     The NC component loads asynchronously via JS, so the container div
     appears before the slider button. We poll a few times to catch it.
     """
-    nc_inner_selectors = NC_SLIDER_SELECTORS + [
-        ".baxia-dialog .btn_slide",
-        ".baxia-dialog [class*='slide']",
-        ".baxia-dialog span[class*='btn']",
-    ]
+    nc_inner_selectors = [*NC_SLIDER_SELECTORS, ".baxia-dialog .btn_slide", ".baxia-dialog [class*='slide']", ".baxia-dialog span[class*='btn']"]
 
     for wait_round in range(4):
         if wait_round > 0:
@@ -439,13 +435,7 @@ async def _try_nc_fallback_inside_puzzle(page: Any, frame: Any) -> bool:
     """
     logger.info("Puzzle fallback: searching for NC-style slider inside dialog...")
 
-    nc_broad_selectors = NC_SLIDER_SELECTORS + [
-        ".baxia-dialog .btn_slide",
-        ".baxia-dialog [class*='slide']",
-        ".baxia-dialog span[class*='btn']",
-        ".baxia-dialog [class*='nc']",
-        "span[class*='btn_slide']",
-    ]
+    nc_broad_selectors = [*NC_SLIDER_SELECTORS, ".baxia-dialog .btn_slide", ".baxia-dialog [class*='slide']", ".baxia-dialog span[class*='btn']", ".baxia-dialog [class*='nc']", "span[class*='btn_slide']"]
 
     all_frames = [frame] + [f for f in page.frames if f != frame]
 

@@ -93,7 +93,7 @@ class TestAutoPublishServiceInit:
             from src.modules.listing.auto_publish import AutoPublishService
 
             cfg = {"oss": {"bucket": "test"}}
-            svc = AutoPublishService(config=cfg)
+            AutoPublishService(config=cfg)
             MockOSS.assert_called_once_with({"bucket": "test"})
 
 
@@ -531,7 +531,7 @@ class TestPublishProductScheduledTime:
     """测试 _publish_product 的 scheduled_time 处理。"""
 
     def test_datetime_string_passed_directly(self, auto_publish_service):
-        result = auto_publish_service._publish_product(
+        auto_publish_service._publish_product(
             product_id=123,
             user_name="user",
             scheduled_time="2026-03-10 14:30:00",

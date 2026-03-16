@@ -241,7 +241,7 @@ class MessagesService:
         else:
             cleaned_quote_keywords = []
         base = cleaned_quote_keywords or [str(s).lower() for s in default_quote_keywords]
-        self.quote_intent_keywords = list(dict.fromkeys(base + ["首重", "续重"]))
+        self.quote_intent_keywords = list(dict.fromkeys([*base, "首重", "续重"]))
         raw_standard_triggers = self.config.get("standard_format_trigger_keywords")
         if isinstance(raw_standard_triggers, list):
             cleaned_standard_triggers = [

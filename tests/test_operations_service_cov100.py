@@ -42,7 +42,7 @@ def mock_api_client(mock_api_response_ok):
 
 def _make_ops_service(api_client=None, config=None, analytics=None, controller=None):
     with (
-        patch("src.modules.operations.service.get_compliance_guard") as mock_cg,
+        patch("src.modules.operations.service.get_compliance_guard"),
         patch("src.modules.operations.service.get_config") as mock_gc,
     ):
         mock_gc.return_value = MagicMock(browser={"delay": {"min": 0.01, "max": 0.02}})
@@ -244,7 +244,7 @@ class TestRelist:
         analytics = MagicMock()
         analytics.log_operation = AsyncMock()
         svc = _make_ops_service(api_client=mock_api_client, analytics=analytics)
-        result = await svc.relist(12345)
+        await svc.relist(12345)
         analytics.log_operation.assert_called_once()
 
     @pytest.mark.asyncio
@@ -473,7 +473,7 @@ class TestBatchUpdatePrice:
         analytics.log_operation = AsyncMock()
         svc = _make_ops_service(api_client=mock_api_client, analytics=analytics)
         updates = [{"product_id": "p1", "new_price": 10.0}]
-        result = await svc.batch_update_price(updates, delay_range=(0.001, 0.002))
+        await svc.batch_update_price(updates, delay_range=(0.001, 0.002))
         analytics.log_operation.assert_called()
 
 
