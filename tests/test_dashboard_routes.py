@@ -379,14 +379,14 @@ class TestConfigRoutes:
 
     @patch("src.dashboard.routes.config._read_system_config")
     @patch("src.dashboard.routes.config._write_system_config")
-    @patch("src.dashboard.routes.config._sync_system_config_to_yaml")
     @patch("src.dashboard.routes.config.get_config")
-    def test_handle_config_post(self, mock_get_config, mock_sync, mock_write, mock_read):
+    def test_handle_config_post(self, mock_get_config, mock_write, mock_read):
         """Test /api/config POST route."""
         mock_ctx = MagicMock()
         mock_ctx.json_body.return_value = {"ai": {"api_key": "test123"}}
         mock_read.return_value = {}
-        config.handle_config_post(mock_ctx)
+        with patch("src.dashboard.routes.config._sync_system_config_to_yaml"):
+            config.handle_config_post(mock_ctx)
         mock_ctx.send_json.assert_called_once()
 
 
@@ -400,9 +400,7 @@ class TestCookieRoutes:
         cookie.handle_get_cookie(mock_ctx)
         mock_ctx.send_json.assert_called_once_with({"cookie": "test"})
 
-    @patch("src.dashboard.routes.cookie.Path.is_file")
-    @patch("src.dashboard.routes.cookie.Path.read_bytes")
-    def test_handle_download_cookie_plugin(self, mock_read_bytes, mock_is_file):
+    def test_handle_download_cookie_plugin(self):
         """Test /api/download-cookie-plugin route."""
         mock_ctx = MagicMock()
         mock_ctx.mimic_ops.export_cookie_plugin_bundle.return_value = (b"zip data", "plugin.zip")
