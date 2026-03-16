@@ -99,7 +99,7 @@ async def test_quote_all_couriers_and_random_range(cfg):
 
     async def get_quote(req):
         if req.courier == "A":
-            return SimpleNamespace(total_fee=8.5)
+            return SimpleNamespace(total_fee=8.5, explain={})
         raise RuntimeError("bad")
 
     s.quote_engine = SimpleNamespace(get_quote=get_quote)

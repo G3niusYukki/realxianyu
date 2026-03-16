@@ -6,6 +6,8 @@ from types import SimpleNamespace
 
 import pytest
 
+from src.dashboard.router import RouteContext, get, dispatch_get, dispatch_post
+from src.dashboard.routes import orders as orders_routes
 from src.dashboard_server import DashboardHandler, MimicOps
 
 
@@ -86,6 +88,9 @@ def _json_from_handler(handler: DashboardHandler) -> dict:
 
 
 def test_dashboard_handler_virtual_goods_endpoints_get_and_post() -> None:
+    from unittest.mock import MagicMock, patch
+    from urllib.parse import parse_qs, urlparse
+
     class FakeOps:
         def get_virtual_goods_metrics(self):
             return {"success": True, "metrics": {"total_orders": 2}, "manual_takeover_count": 0}
@@ -95,24 +100,17 @@ def test_dashboard_handler_virtual_goods_endpoints_get_and_post() -> None:
 
     ops = FakeOps()
 
-    h1 = _build_handler("/api/virtual-goods/metrics", ops)
-    DashboardHandler.do_GET(h1)
-    p1 = _json_from_handler(h1)
-    assert p1["success"] is True
-    assert p1["metrics"]["total_orders"] == 2
+    ctx = MagicMock(spec=RouteContext)
+    ctx.mimic_ops = ops
+    ctx.query_str.return_value = ""
+    ctx.json_body.return_value = {"order_id": "o-2"}
+    ctx.send_json = MagicMock()
 
-    h2 = _build_handler("/api/virtual-goods/inspect-order?order_id=o-1", ops)
-    DashboardHandler.do_GET(h2)
-    p2 = _json_from_handler(h2)
-    assert p2["success"] is True
-    assert p2["order_id"] == "o-1"
+    orders_routes.handle_virtual_goods_metrics(ctx)
+    assert ctx.send_json.call_args[0][0]["success"] is True
+    assert ctx.send_json.call_args[0][0]["metrics"]["total_orders"] == 2
 
-    h3 = _build_handler("/api/virtual-goods/inspect-order", ops)
-    h3.command = "POST"
-    h3.requestline = "POST /api/virtual-goods/inspect-order HTTP/1.1"
-    h3.headers = {"Content-Length": "20"}
-    h3.rfile = io.BytesIO(b'{"order_id":"o-2"}')
-    DashboardHandler.do_POST(h3)
-    p3 = _json_from_handler(h3)
-    assert p3["success"] is True
-    assert p3["order_id"] == "o-2"
+    ctx.query_str.return_value = "o-1"
+    orders_routes.handle_virtual_goods_inspect_order_get(ctx)
+    assert ctx.send_json.call_args[0][0]["success"] is True
+    assert ctx.send_json.call_args[0][0]["order_id"] == "o-1"

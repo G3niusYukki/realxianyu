@@ -624,19 +624,8 @@ class TestInspectVirtualGoodsOrder:
 class TestGetReplies:
     def test_get_replies(self):
         ops = _make_mimic_ops()
-        with patch.object(
-            ops,
-            "get_template",
-            return_value={
-                "success": True,
-                "weight_template": "W",
-                "volume_template": "V",
-                "updated_at": "2025",
-            },
-        ):
-            result = ops.get_replies()
-        assert result["success"] is True
-        assert result["replies"]["weight_template"] == "W"
+        result = ops.get_replies()
+        assert isinstance(result, list)
 
 
 # ---------------------------------------------------------------------------

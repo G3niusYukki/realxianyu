@@ -283,29 +283,36 @@ class TestRouter:
 
     def test_get_decorator_registers(self):
         @route_mod.get("/test")
-        def handler(h):
+        def handler(ctx):
             pass
 
-        assert route_mod.dispatch_get("/test") is handler
+        mock_ctx = MagicMock()
+        assert route_mod.dispatch_get("/test", mock_ctx) is True
+        handler(mock_ctx)
 
     def test_post_decorator_registers(self):
         @route_mod.post("/submit")
-        def handler(h):
+        def handler(ctx):
             pass
 
-        assert route_mod.dispatch_post("/submit") is handler
+        mock_ctx = MagicMock()
+        assert route_mod.dispatch_post("/submit", mock_ctx) is True
+        handler(mock_ctx)
 
     def test_put_decorator_registers(self):
         @route_mod.put("/update")
-        def handler(h):
+        def handler(ctx):
             pass
 
-        assert route_mod.dispatch_put("/update") is handler
+        mock_ctx = MagicMock()
+        assert route_mod.dispatch_put("/update", mock_ctx) is True
+        handler(mock_ctx)
 
     def test_dispatch_unknown_returns_none(self):
-        assert route_mod.dispatch_get("/nonexistent") is None
-        assert route_mod.dispatch_post("/nonexistent") is None
-        assert route_mod.dispatch_put("/nonexistent") is None
+        mock_ctx = MagicMock()
+        assert route_mod.dispatch_get("/nonexistent", mock_ctx) is False
+        assert route_mod.dispatch_post("/nonexistent", mock_ctx) is False
+        assert route_mod.dispatch_put("/nonexistent", mock_ctx) is False
 
     def test_all_routes_summary(self):
         @route_mod.get("/a")
