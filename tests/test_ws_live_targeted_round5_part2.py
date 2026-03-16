@@ -44,7 +44,9 @@ def test_messagepack_decoder_more_paths() -> None:
 
 
 def test_decode_sync_payload_decode_fail_branches(monkeypatch) -> None:
-    monkeypatch.setattr("src.modules.messages.ws_live.base64.b64decode", lambda _x: (_ for _ in ()).throw(ValueError("bad")))
+    monkeypatch.setattr(
+        "src.modules.messages.ws_live.base64.b64decode", lambda _x: (_ for _ in ()).throw(ValueError("bad"))
+    )
     monkeypatch.setattr(
         "src.modules.messages.ws_live.base64.urlsafe_b64decode",
         lambda _x: (_ for _ in ()).throw(ValueError("bad2")),
@@ -149,7 +151,9 @@ async def test_preflight_has_login_paths(ws_enabled, monkeypatch) -> None:
     monkeypatch.setattr("src.modules.messages.ws_live.httpx.AsyncClient", lambda **_k: _CM("raise", []))
     assert await t._preflight_has_login() is False
 
-    monkeypatch.setattr("src.modules.messages.ws_live.httpx.AsyncClient", lambda **_k: _CM({"content": {"success": True}}, []))
+    monkeypatch.setattr(
+        "src.modules.messages.ws_live.httpx.AsyncClient", lambda **_k: _CM({"content": {"success": True}}, [])
+    )
     assert await t._preflight_has_login() is True
 
     applied = {"called": False}

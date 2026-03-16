@@ -40,8 +40,10 @@ class TestCmdOrders:
             xgj_app_key="key123",
             xgj_app_secret="secret456",
         )
-        with patch("src.cli.cmd_orders.__module__", "src.cli"), \
-             patch("src.modules.orders.service.OrderFulfillmentService") as MockService:
+        with (
+            patch("src.cli.cmd_orders.__module__", "src.cli"),
+            patch("src.modules.orders.service.OrderFulfillmentService") as MockService,
+        ):
             mock_svc = MagicMock()
             mock_svc.list_orders.return_value = []
             MockService.return_value = mock_svc
@@ -181,8 +183,10 @@ class TestCookieHealth:
         captured = []
         mock_checker = MagicMock()
         mock_checker.check_sync.return_value = {"healthy": True}
-        with patch("src.core.cookie_health.CookieHealthChecker", return_value=mock_checker), \
-             patch("src.cli._json_out", side_effect=lambda d: captured.append(d)), \
-             patch.dict("os.environ", {"XIANYU_COOKIE_1": "test_cookie"}):
+        with (
+            patch("src.core.cookie_health.CookieHealthChecker", return_value=mock_checker),
+            patch("src.cli._json_out", side_effect=lambda d: captured.append(d)),
+            patch.dict("os.environ", {"XIANYU_COOKIE_1": "test_cookie"}),
+        ):
             await cmd_module(ns)
         assert captured[0]["healthy"] is True

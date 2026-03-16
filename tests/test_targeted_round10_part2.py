@@ -40,7 +40,9 @@ def test_dashboard_extract_text_from_image_fallback_and_errors(monkeypatch: pyte
             return "   "
 
     monkeypatch.setitem(sys.modules, "pytesseract", FakePytesseract)
-    monkeypatch.setattr(ds.subprocess, "run", lambda *_a, **_k: SimpleNamespace(returncode=0, stdout="ocr text", stderr=""))
+    monkeypatch.setattr(
+        ds.subprocess, "run", lambda *_a, **_k: SimpleNamespace(returncode=0, stdout="ocr text", stderr="")
+    )
 
     from PIL import Image
 
@@ -77,7 +79,9 @@ def test_dashboard_risk_control_status_variants(temp_dir) -> None:
 
     from datetime import datetime as _dt
     from datetime import timedelta as _td
+
     _now = _dt.now()
+
     def _ts(m):
         return (_now - _td(minutes=m)).strftime("%Y-%m-%d %H:%M:%S")
 
@@ -87,10 +91,12 @@ def test_dashboard_risk_control_status_variants(temp_dir) -> None:
     assert warn["level"] == "warning"
 
     log_path.write_text(
-        "\n".join([
-            f"{_ts(10)} token api failed",
-            f"{_ts(5)} connected to goofish websocket transport",
-        ]),
+        "\n".join(
+            [
+                f"{_ts(10)} token api failed",
+                f"{_ts(5)} connected to goofish websocket transport",
+            ]
+        ),
         encoding="utf-8",
     )
     recovered = ops._risk_control_status_from_logs("presales", tail_lines=300)
@@ -139,11 +145,16 @@ async def test_scheduler_missing_branches(monkeypatch: pytest.MonkeyPatch, temp_
 
     monkeypatch.setitem(sys.modules, "src.modules.listing.models", SimpleNamespace(Listing=FakeListing))
     monkeypatch.setitem(sys.modules, "src.modules.listing.service", SimpleNamespace(ListingService=object))
-    monkeypatch.setattr("src.modules.accounts.scheduler.create_browser_client", AsyncMock(return_value=SimpleNamespace(disconnect=AsyncMock())))
+    monkeypatch.setattr(
+        "src.modules.accounts.scheduler.create_browser_client",
+        AsyncMock(return_value=SimpleNamespace(disconnect=AsyncMock())),
+    )
     res_pub = await s._execute_publish({"listings": [{"title": "x"}]})
     assert res_pub["error_code"] == "PUBLISH_EXECUTION_FAILED"
 
-    monkeypatch.setattr("src.modules.accounts.scheduler.create_browser_client", AsyncMock(side_effect=RuntimeError("no browser")))
+    monkeypatch.setattr(
+        "src.modules.accounts.scheduler.create_browser_client", AsyncMock(side_effect=RuntimeError("no browser"))
+    )
     res_polish = await s._execute_polish({})
     assert res_polish["error_code"] == "POLISH_EXECUTION_FAILED"
 
@@ -158,6 +169,7 @@ async def test_scheduler_missing_branches(monkeypatch: pytest.MonkeyPatch, temp_
     task_bad = Task(task_id="tb", name="b", task_type=TaskType.POLISH, cron_expression="* * * * *")
     task_bad.enabled = True
     from datetime import datetime
+
     task_bad.last_run = datetime.now()
     monkeypatch.setattr(s, "_get_next_cron_run", lambda *_a, **_k: (_ for _ in ()).throw(ValueError("bad cron")))
     assert s._should_run(task_bad) is False

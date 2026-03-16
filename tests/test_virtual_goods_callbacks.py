@@ -14,7 +14,9 @@ def _headers() -> dict[str, str]:
     return {"x-sign": "sig", "x-timestamp": "1710000000000"}
 
 
-def _ingress_handle_with_query_params(ingress, *, callback_type: str, body: str, headers: dict[str, str], query_params: dict[str, str]):
+def _ingress_handle_with_query_params(
+    ingress, *, callback_type: str, body: str, headers: dict[str, str], query_params: dict[str, str]
+):
     sig = inspect.signature(ingress.handle)
     if "query_params" in sig.parameters:
         return ingress.handle(callback_type=callback_type, body=body, headers=headers, query_params=query_params)
@@ -100,7 +102,9 @@ def test_external_ack_lease_denied_returns_failure(monkeypatch, temp_dir) -> Non
 
     out = svc.ingress.handle(
         callback_type="open_platform/order",
-        body=json.dumps({"order_id": "o-lease-denied", "status": "已付款", "event_id": "evt-lease-denied"}, ensure_ascii=False),
+        body=json.dumps(
+            {"order_id": "o-lease-denied", "status": "已付款", "event_id": "evt-lease-denied"}, ensure_ascii=False
+        ),
         headers=_headers(),
     )
 
@@ -135,12 +139,22 @@ def test_signature_routing_open_platform_vs_virtual_supply(monkeypatch, temp_dir
 
     open_body = json.dumps({"order_id": "o-r-1", "status": "已付款", "event_id": "evt-r-1"}, ensure_ascii=False)
     vs_body = json.dumps(
-        {"order_id": "o-r-2", "status": "已发货", "event_id": "evt-r-2", "source_family": "virtual_supply", "event_kind": "coupon"},
+        {
+            "order_id": "o-r-2",
+            "status": "已发货",
+            "event_id": "evt-r-2",
+            "source_family": "virtual_supply",
+            "event_kind": "coupon",
+        },
         ensure_ascii=False,
     )
 
-    out1 = svc.callbacks.process(source_family="open_platform", event_kind="order", raw_body=open_body, headers=_headers())
-    out2 = svc.callbacks.process(source_family="virtual_supply", event_kind="coupon", raw_body=vs_body, headers=_headers())
+    out1 = svc.callbacks.process(
+        source_family="open_platform", event_kind="order", raw_body=open_body, headers=_headers()
+    )
+    out2 = svc.callbacks.process(
+        source_family="virtual_supply", event_kind="coupon", raw_body=vs_body, headers=_headers()
+    )
 
     assert out1["ok"] is True and out2["ok"] is True
     assert calls.count("open") == 1
@@ -155,7 +169,9 @@ def test_query_params_signature_fields_are_accepted_via_ingress_handle(monkeypat
         return True
 
     monkeypatch.setattr("src.modules.virtual_goods.callbacks.verify_virtual_supply_callback_signature", _vs)
-    monkeypatch.setattr("src.modules.virtual_goods.callbacks.verify_open_platform_callback_signature", lambda **kwargs: True)
+    monkeypatch.setattr(
+        "src.modules.virtual_goods.callbacks.verify_open_platform_callback_signature", lambda **kwargs: True
+    )
 
     svc = VirtualGoodsService(
         db_path=str(temp_dir / "orders_query_params.db"),
@@ -171,7 +187,13 @@ def test_query_params_signature_fields_are_accepted_via_ingress_handle(monkeypat
     )
 
     body = json.dumps(
-        {"order_id": "o-q-1", "status": "已发货", "event_id": "evt-q-1", "source_family": "virtual_supply", "event_kind": "coupon"},
+        {
+            "order_id": "o-q-1",
+            "status": "已发货",
+            "event_id": "evt-q-1",
+            "source_family": "virtual_supply",
+            "event_kind": "coupon",
+        },
         ensure_ascii=False,
     )
     out = _ingress_handle_with_query_params(
@@ -251,7 +273,10 @@ def test_replay_ten_times_only_one_processed(monkeypatch, temp_dir) -> None:
     body = json.dumps({"order_id": "o-replay", "status": "已付款", "event_id": "evt-replay"}, ensure_ascii=False)
 
     first = svc.callbacks.process(source_family="open_platform", event_kind="order", raw_body=body, headers=_headers())
-    rest = [svc.callbacks.process(source_family="open_platform", event_kind="order", raw_body=body, headers=_headers()) for _ in range(9)]
+    rest = [
+        svc.callbacks.process(source_family="open_platform", event_kind="order", raw_body=body, headers=_headers())
+        for _ in range(9)
+    ]
 
     assert first["processed"] is True
     assert sum(1 for x in rest if x["duplicate"]) == 9
@@ -267,7 +292,9 @@ def test_status_regression_and_manual_takeover_are_blocked(monkeypatch, temp_dir
         callback_status="processed",
     )
     down = json.dumps({"order_id": "o-guard-1", "status": "已付款", "event_id": "evt-guard-1"}, ensure_ascii=False)
-    out_down = svc.callbacks.process(source_family="open_platform", event_kind="order", raw_body=down, headers=_headers())
+    out_down = svc.callbacks.process(
+        source_family="open_platform", event_kind="order", raw_body=down, headers=_headers()
+    )
     assert out_down["blocked"] == "status_regression"
 
     svc = _build_service(monkeypatch, temp_dir)
@@ -281,7 +308,9 @@ def test_status_regression_and_manual_takeover_are_blocked(monkeypatch, temp_dir
         {"order_id": "o-guard-2", "status": "已发货", "event_id": "evt-guard-2", "event_kind": "coupon"},
         ensure_ascii=False,
     )
-    out_refund = svc.callbacks.process(source_family="virtual_supply", event_kind="coupon", raw_body=refund_back, headers=_headers())
+    out_refund = svc.callbacks.process(
+        source_family="virtual_supply", event_kind="coupon", raw_body=refund_back, headers=_headers()
+    )
     assert out_refund["blocked"] == "status_regression"
 
     svc = _build_service(monkeypatch, temp_dir)
@@ -295,7 +324,9 @@ def test_status_regression_and_manual_takeover_are_blocked(monkeypatch, temp_dir
         {"order_id": "o-guard-3", "status": "已发货", "event_id": "evt-guard-3", "event_kind": "coupon"},
         ensure_ascii=False,
     )
-    out_closed = svc.callbacks.process(source_family="virtual_supply", event_kind="coupon", raw_body=reopen, headers=_headers())
+    out_closed = svc.callbacks.process(
+        source_family="virtual_supply", event_kind="coupon", raw_body=reopen, headers=_headers()
+    )
     assert out_closed["blocked"] == "status_regression"
 
     svc = _build_service(monkeypatch, temp_dir)
@@ -307,7 +338,9 @@ def test_status_regression_and_manual_takeover_are_blocked(monkeypatch, temp_dir
         manual_takeover=True,
     )
     manual = json.dumps({"order_id": "o-guard-4", "status": "已付款", "event_id": "evt-guard-4"}, ensure_ascii=False)
-    out_manual = svc.callbacks.process(source_family="open_platform", event_kind="order", raw_body=manual, headers=_headers())
+    out_manual = svc.callbacks.process(
+        source_family="open_platform", event_kind="order", raw_body=manual, headers=_headers()
+    )
     assert out_manual["blocked"] == "manual_takeover"
 
 
@@ -341,7 +374,9 @@ def test_claim_failure_does_not_advance_processing_state(monkeypatch, temp_dir) 
     svc = _build_service(monkeypatch, temp_dir)
     monkeypatch.setattr(svc.store, "claim_callback_lease", lambda **kwargs: False)
 
-    body = json.dumps({"order_id": "o-claim-fail-1", "status": "已付款", "event_id": "evt-claim-fail-1"}, ensure_ascii=False)
+    body = json.dumps(
+        {"order_id": "o-claim-fail-1", "status": "已付款", "event_id": "evt-claim-fail-1"}, ensure_ascii=False
+    )
     out = svc.ingress.handle(callback_type="open_platform/order", body=body, headers=_headers())
 
     assert out["code"] == 1
@@ -385,7 +420,9 @@ def test_current_event_claim_does_not_misprocess_other_callback(monkeypatch, tem
 
 
 def test_reclaim_allows_callback_to_be_claimed_again(temp_dir) -> None:
-    svc = VirtualGoodsService(db_path=str(temp_dir / "orders_attempt.db"), config={"xianguanjia": {"app_key": "ak", "app_secret": "as"}})
+    svc = VirtualGoodsService(
+        db_path=str(temp_dir / "orders_attempt.db"), config={"xianguanjia": {"app_key": "ak", "app_secret": "as"}}
+    )
     callback_id, inserted = svc.store.insert_callback(
         callback_type="order",
         external_event_id="evt-attempt-1",

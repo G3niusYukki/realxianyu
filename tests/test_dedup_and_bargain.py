@@ -9,6 +9,7 @@ import pytest
 class TestMessageDedup:
     def _make(self, tmp_path):
         from src.modules.messages.dedup import MessageDedup
+
         return MessageDedup(db_path=str(tmp_path / "dedup.db"))
 
     def test_not_duplicate_initially(self, tmp_path):
@@ -47,6 +48,7 @@ class TestMessageDedup:
         d.mark_replied("chat1", 1000, "你好", reply="v1")
         d.mark_replied("chat1", 2000, "你好", reply="v2")
         import sqlite3
+
         conn = sqlite3.connect(str(tmp_path / "dedup.db"))
         row = conn.execute("SELECT count FROM content_replies LIMIT 1").fetchone()
         conn.close()
@@ -56,6 +58,7 @@ class TestMessageDedup:
         d = self._make(tmp_path)
         d.mark_replied("chat1", 1000, "old msg", reply="ok")
         import sqlite3
+
         conn = sqlite3.connect(str(tmp_path / "dedup.db"))
         conn.execute("UPDATE message_replies SET replied_at = datetime('now', '-2 days')")
         conn.execute("UPDATE content_replies SET last_at = datetime('now', '-2 days')")
@@ -69,6 +72,7 @@ class TestMessageDedup:
 class TestBargainTracker:
     def _make(self, tmp_path):
         from src.modules.messages.bargain_tracker import BargainTracker
+
         return BargainTracker(db_path=str(tmp_path / "bargain.db"))
 
     def test_initial_count_zero(self, tmp_path):
@@ -77,6 +81,7 @@ class TestBargainTracker:
 
     def test_is_bargain_message(self, tmp_path):
         from src.modules.messages.bargain_tracker import BargainTracker
+
         assert BargainTracker.is_bargain_message("能便宜点吗")
         assert BargainTracker.is_bargain_message("最低多少钱")
         assert not BargainTracker.is_bargain_message("这个怎么用")
@@ -123,6 +128,7 @@ class TestBargainTracker:
         t = self._make(tmp_path)
         t.increment("chat1")
         import sqlite3
+
         conn = sqlite3.connect(str(tmp_path / "bargain.db"))
         conn.execute("UPDATE bargain_counts SET last_updated = datetime('now', '-2 days')")
         conn.commit()
@@ -135,6 +141,7 @@ class TestBargainTracker:
 class TestReplyEngineProcessMessage:
     def _make_engine(self):
         from src.modules.messages.reply_engine import ReplyStrategyEngine
+
         return ReplyStrategyEngine(
             default_reply="默认回复",
             virtual_default_reply="虚拟商品回复",
@@ -144,6 +151,7 @@ class TestReplyEngineProcessMessage:
 
     def test_process_message_basic(self, tmp_path):
         from src.modules.messages.reply_engine import ReplyStrategyEngine
+
         engine = ReplyStrategyEngine(
             default_reply="默认回复",
             virtual_default_reply="虚拟商品回复",
@@ -155,6 +163,7 @@ class TestReplyEngineProcessMessage:
         try:
             from src.modules.messages.bargain_tracker import BargainTracker
             from src.modules.messages.dedup import MessageDedup
+
             engine._dedup = MessageDedup(db_path=str(tmp_path / "d.db"))
             engine._bargain_tracker = BargainTracker(db_path=str(tmp_path / "b.db"))
         except Exception:
@@ -170,6 +179,7 @@ class TestReplyEngineProcessMessage:
 
     def test_process_message_bargain_disabled(self, tmp_path):
         from src.modules.messages.reply_engine import ReplyStrategyEngine
+
         engine = ReplyStrategyEngine(
             default_reply="默认回复",
             virtual_default_reply="虚拟商品回复",

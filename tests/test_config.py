@@ -128,13 +128,7 @@ class TestConfigModels:
 
     def test_account_config_validation(self):
         """测试账号配置验证"""
-        config = AccountConfig(
-            id="test_account",
-            name="测试账号",
-            cookie="test_cookie",
-            priority=5,
-            enabled=True
-        )
+        config = AccountConfig(id="test_account", name="测试账号", cookie="test_cookie", priority=5, enabled=True)
         assert config.id == "test_account"
         assert config.name == "测试账号"
         assert config.priority == 5
@@ -165,34 +159,14 @@ class TestConfigModels:
     def test_config_model_full_validation(self):
         """测试完整配置模型验证"""
         config_data = {
-            "app": {
-                "name": "test_app",
-                "version": "1.0.0",
-                "debug": True,
-                "log_level": "DEBUG"
-            },
-            "openclaw": {
-                "host": "localhost",
-                "port": 9222
-            },
-            "ai": {
-                "provider": "deepseek",
-                "model": "deepseek-chat"
-            },
-            "database": {
-                "type": "sqlite",
-                "path": ":memory:"
-            },
+            "app": {"name": "test_app", "version": "1.0.0", "debug": True, "log_level": "DEBUG"},
+            "openclaw": {"host": "localhost", "port": 9222},
+            "ai": {"provider": "deepseek", "model": "deepseek-chat"},
+            "database": {"type": "sqlite", "path": ":memory:"},
             "accounts": [
-                {
-                    "id": "account_1",
-                    "name": "测试账号",
-                    "cookie": "test_cookie",
-                    "priority": 1,
-                    "enabled": True
-                }
+                {"id": "account_1", "name": "测试账号", "cookie": "test_cookie", "priority": 1, "enabled": True}
             ],
-            "default_account": "account_1"
+            "default_account": "account_1",
         }
 
         config = ConfigModel.from_dict(config_data)
@@ -206,24 +180,12 @@ class TestConfigModels:
         """测试日志级别验证"""
         # 有效日志级别
         for level in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]:
-            config_data = {
-                "app": {
-                    "name": "test",
-                    "version": "1.0.0",
-                    "log_level": level
-                }
-            }
+            config_data = {"app": {"name": "test", "version": "1.0.0", "log_level": level}}
             config = ConfigModel.from_dict(config_data)
             assert config.app.log_level == level
 
         # 无效日志级别
-        config_data = {
-            "app": {
-                "name": "test",
-                "version": "1.0.0",
-                "log_level": "INVALID"
-            }
-        }
+        config_data = {"app": {"name": "test", "version": "1.0.0", "log_level": "INVALID"}}
         with pytest.raises(ValidationError):
             ConfigModel.from_dict(config_data)
 
@@ -231,20 +193,16 @@ class TestConfigModels:
         """测试默认账号验证"""
         # 默认账号存在于列表中
         config_data = {
-            "accounts": [
-                {"id": "account_1", "name": "账号1", "cookie": "test", "priority": 1, "enabled": True}
-            ],
-            "default_account": "account_1"
+            "accounts": [{"id": "account_1", "name": "账号1", "cookie": "test", "priority": 1, "enabled": True}],
+            "default_account": "account_1",
         }
         config = ConfigModel.from_dict(config_data)
         assert config.default_account == "account_1"
 
         # 当前实现不强制 default_account 必须存在于 accounts 列表中
         config_data = {
-            "accounts": [
-                {"id": "account_1", "name": "账号1", "cookie": "test", "priority": 1, "enabled": True}
-            ],
-            "default_account": "nonexistent_account"
+            "accounts": [{"id": "account_1", "name": "账号1", "cookie": "test", "priority": 1, "enabled": True}],
+            "default_account": "nonexistent_account",
         }
         config = ConfigModel.from_dict(config_data)
         assert config.default_account == "nonexistent_account"

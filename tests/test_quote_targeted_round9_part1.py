@@ -68,7 +68,9 @@ async def test_remote_provider_edges(monkeypatch):
         status_code = 200
 
         def json(self):
-            return {"data": {"provider": "remote_vendor", "base_fee": 10, "total_fee": 12.5, "surcharges": {"fuel": 2.5}}}
+            return {
+                "data": {"provider": "remote_vendor", "base_fee": 10, "total_fee": 12.5, "surcharges": {"fuel": 2.5}}
+            }
 
     class ClientOk:
         def __init__(self, timeout=None):
@@ -148,7 +150,10 @@ async def test_api_provider_paths(monkeypatch):
 
     class ClientOk(Client):
         async def post(self, *_a, **_k):
-            return Resp(status_code=200, body={"data": {"provider": "p", "first_cost": 3, "extra_cost": 2, "billable_weight": 2.5}})
+            return Resp(
+                status_code=200,
+                body={"data": {"provider": "p", "first_cost": 3, "extra_cost": 2, "billable_weight": 2.5}},
+            )
 
     monkeypatch.setattr("httpx.AsyncClient", ClientOk)
     r = await provider.get_quote(req)
@@ -180,7 +185,9 @@ async def test_engine_internal_branches(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_engine_api_parallel_fallback_rule(monkeypatch):
-    eng = AutoQuoteEngine({"mode": "api_cost_plus_markup", "analytics_log_enabled": False, "api_prefer_max_wait_seconds": 0.01})
+    eng = AutoQuoteEngine(
+        {"mode": "api_cost_plus_markup", "analytics_log_enabled": False, "api_prefer_max_wait_seconds": 0.01}
+    )
     req = QuoteRequest(origin="浙江", destination="广东", weight=1.0, service_level="standard")
 
     async def slow_api(*_a, **_k):
@@ -207,7 +214,9 @@ async def test_engine_api_parallel_fallback_rule(monkeypatch):
 @pytest.mark.asyncio
 async def test_engine_remote_only_and_fallback_fail(monkeypatch):
     req = QuoteRequest(origin="A", destination="B", weight=1.0, service_level="standard")
-    eng = AutoQuoteEngine({"mode": "remote_only", "retry_times": 1, "circuit_fail_threshold": 1, "analytics_log_enabled": False})
+    eng = AutoQuoteEngine(
+        {"mode": "remote_only", "retry_times": 1, "circuit_fail_threshold": 1, "analytics_log_enabled": False}
+    )
 
     async def bad_remote(*_a, **_k):
         raise RuntimeError("broken")
@@ -236,7 +245,9 @@ def test_cost_table_more_branches(tmp_path: Path):
     assert repo.get_stats()["total_records"] == 0
 
     csv_path = tmp_path / "x.csv"
-    csv_path.write_text("快递公司,始发地,目的地,首重1KG,续重1KG,抛比\n圆通快递,浙江省,广东省,3.0,2.0,6000\n", encoding="utf-8")
+    csv_path.write_text(
+        "快递公司,始发地,目的地,首重1KG,续重1KG,抛比\n圆通快递,浙江省,广东省,3.0,2.0,6000\n", encoding="utf-8"
+    )
     stats = repo.get_stats()
     assert stats["total_records"] == 1
 
@@ -249,9 +260,20 @@ def test_cost_table_more_branches(tmp_path: Path):
 
     # direct coverage helpers
     from xml.etree import ElementTree as ET
-    assert repo._read_cell_value(ET.fromstring('<c xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" t="inlineStr"><is><t>x</t></is></c>'), []) == "x"
+
+    assert (
+        repo._read_cell_value(
+            ET.fromstring(
+                '<c xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" t="inlineStr"><is><t>x</t></is></c>'
+            ),
+            [],
+        )
+        == "x"
+    )
     parsed = _parse_cost_api_response([{"carrier": "圆通", "base_price": 2, "continue_cost": 1}])
     assert parsed["courier"] == "圆通"
 
-    ranked = repo._rank_by_origin_similarity([CostRecord(courier="圆通", origin="浙江", destination="广东", first_cost=3, extra_cost=2)], "杭州")
+    ranked = repo._rank_by_origin_similarity(
+        [CostRecord(courier="圆通", origin="浙江", destination="广东", first_cost=3, extra_cost=2)], "杭州"
+    )
     assert ranked

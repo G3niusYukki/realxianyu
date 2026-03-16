@@ -86,9 +86,7 @@ class TestClaimCallback:
 class TestRecordManualTakeoverEvent:
     def test_conn_none_branch(self, store):
         store.upsert_order(xianyu_order_id="o1", order_status="delivered")
-        event_id = store.record_manual_takeover_event(
-            xianyu_order_id="o1", enabled=True, reason="test"
-        )
+        event_id = store.record_manual_takeover_event(xianyu_order_id="o1", enabled=True, reason="test")
         assert event_id > 0
 
 
@@ -112,15 +110,11 @@ class TestRecordOrderEvent:
 class TestUpsertListingProductMapping:
     def test_invalid_status(self, store):
         with pytest.raises(ValueError, match="Unsupported mapping status"):
-            store.upsert_listing_product_mapping(
-                xianyu_product_id="p1", mapping_status="garbage"
-            )
+            store.upsert_listing_product_mapping(xianyu_product_id="p1", mapping_status="garbage")
 
     def test_empty_product_id(self, store):
         with pytest.raises(ValueError, match="xianyu_product_id is required"):
-            store.upsert_listing_product_mapping(
-                xianyu_product_id="", mapping_status="unmapped"
-            )
+            store.upsert_listing_product_mapping(xianyu_product_id="", mapping_status="unmapped")
 
 
 class TestGetListingProductMapping:
@@ -140,20 +134,14 @@ class TestGetListingProductMapping:
 class TestUpdateListingMappingStatus:
     def test_empty_product_id(self, store):
         with pytest.raises(ValueError, match="xianyu_product_id is required"):
-            store.update_listing_mapping_status(
-                xianyu_product_id="", mapping_status="mapped"
-            )
+            store.update_listing_mapping_status(xianyu_product_id="", mapping_status="mapped")
 
     def test_invalid_status(self, store):
         with pytest.raises(ValueError, match="Unsupported mapping status"):
-            store.update_listing_mapping_status(
-                xianyu_product_id="p1", mapping_status="garbage"
-            )
+            store.update_listing_mapping_status(xianyu_product_id="p1", mapping_status="garbage")
 
     def test_no_existing_row(self, store):
-        result = store.update_listing_mapping_status(
-            xianyu_product_id="nonexistent", mapping_status="mapped"
-        )
+        result = store.update_listing_mapping_status(xianyu_product_id="nonexistent", mapping_status="mapped")
         assert result is None
 
 

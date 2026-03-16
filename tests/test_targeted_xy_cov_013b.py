@@ -17,7 +17,7 @@ from src.core.error_handler import (
 
 def test_dashboard_extract_json_payload_and_module_console_branches(monkeypatch, tmp_path):
     assert ds._extract_json_payload("") is None
-    assert ds._extract_json_payload("prefix {\"ok\": 1} suffix") == {"ok": 1}
+    assert ds._extract_json_payload('prefix {"ok": 1} suffix') == {"ok": 1}
     assert ds._extract_json_payload("xx [1,2,3] yy") == [1, 2, 3]
     assert ds._extract_json_payload("not-json") is None
 

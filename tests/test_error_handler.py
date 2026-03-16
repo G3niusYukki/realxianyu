@@ -34,6 +34,7 @@ class TestHandleControllerErrors:
     @pytest.mark.asyncio
     async def test_handle_controller_errors_success(self):
         """测试成功执行"""
+
         @handle_controller_errors(default_return="fallback")
         async def test_func(self):
             return "success"
@@ -45,6 +46,7 @@ class TestHandleControllerErrors:
     @pytest.mark.asyncio
     async def test_handle_controller_errors_connection_error(self):
         """测试连接错误"""
+
         @handle_controller_errors(default_return="fallback")
         async def test_func(self):
             raise ConnectionError("Connection failed")
@@ -56,6 +58,7 @@ class TestHandleControllerErrors:
     @pytest.mark.asyncio
     async def test_handle_controller_errors_http_error(self):
         """测试HTTP错误"""
+
         @handle_controller_errors(default_return="fallback")
         async def test_func(self):
             raise httpx.HTTPError("HTTP request failed")
@@ -67,6 +70,7 @@ class TestHandleControllerErrors:
     @pytest.mark.asyncio
     async def test_handle_controller_errors_timeout(self):
         """测试超时错误"""
+
         @handle_controller_errors(default_return="fallback")
         async def test_func(self):
             raise httpx.TimeoutException("Request timeout")
@@ -78,6 +82,7 @@ class TestHandleControllerErrors:
     @pytest.mark.asyncio
     async def test_handle_controller_errors_cancelled(self):
         """测试任务取消"""
+
         @handle_controller_errors(default_return="fallback", raise_on_error=False)
         async def test_func(self):
             raise asyncio.CancelledError()
@@ -89,6 +94,7 @@ class TestHandleControllerErrors:
     @pytest.mark.asyncio
     async def test_handle_controller_errors_raise_on_error(self):
         """测试raise_on_error参数"""
+
         @handle_controller_errors(default_return="fallback", raise_on_error=True)
         async def test_func(self):
             raise ConnectionError("Connection failed")
@@ -104,6 +110,7 @@ class TestHandleOperationErrors:
     @pytest.mark.asyncio
     async def test_handle_operation_errors_async(self):
         """测试异步操作"""
+
         @handle_operation_errors(default_return=False)
         async def test_func(self):
             return True
@@ -114,6 +121,7 @@ class TestHandleOperationErrors:
 
     def test_handle_operation_errors_sync(self):
         """测试同步操作"""
+
         @handle_operation_errors(default_return=False)
         def test_func(self):
             return True
@@ -125,6 +133,7 @@ class TestHandleOperationErrors:
     @pytest.mark.asyncio
     async def test_handle_operation_errors_exception(self):
         """测试异常处理"""
+
         @handle_operation_errors(default_return=False)
         async def test_func(self):
             raise ValueError("Test error")
@@ -151,6 +160,7 @@ class TestSafeExecute:
     @pytest.mark.asyncio
     async def test_safe_execute_async_success(self):
         """测试异步成功执行"""
+
         @safe_execute()
         async def test_func():
             return "success"
@@ -161,6 +171,7 @@ class TestSafeExecute:
     @pytest.mark.asyncio
     async def test_safe_execute_async_error(self):
         """测试异步错误处理"""
+
         @safe_execute()
         async def test_func():
             raise ValueError("Test error")
@@ -170,6 +181,7 @@ class TestSafeExecute:
 
     def test_safe_execute_sync_success(self):
         """测试同步成功执行"""
+
         @safe_execute()
         def test_func():
             return "success"
@@ -179,6 +191,7 @@ class TestSafeExecute:
 
     def test_safe_execute_sync_error(self):
         """测试同步错误处理"""
+
         @safe_execute()
         def test_func():
             raise ValueError("Test error")
@@ -205,6 +218,7 @@ class TestRetry:
     @pytest.mark.asyncio
     async def test_retry_success_on_first_attempt(self):
         """测试第一次尝试成功"""
+
         @retry(max_attempts=3, delay=0.1)
         async def test_func():
             return "success"
@@ -231,6 +245,7 @@ class TestRetry:
     @pytest.mark.asyncio
     async def test_retry_max_attempts_exceeded(self):
         """测试超过最大尝试次数"""
+
         @retry(max_attempts=2, delay=0.1)
         async def test_func():
             raise ValueError("Persistent error")
@@ -298,6 +313,7 @@ class TestLogExecutionTime:
         @log_execution_time(logger=mock_logger)
         def test_func():
             import time
+
             time.sleep(0.05)
             return "success"
 
@@ -384,6 +400,7 @@ class TestHandleErrors:
     @pytest.mark.asyncio
     async def test_handle_errors_async(self):
         """测试异步错误处理"""
+
         @handle_errors(default_return="fallback")
         async def test_func():
             return "success"
@@ -394,6 +411,7 @@ class TestHandleErrors:
     @pytest.mark.asyncio
     async def test_handle_errors_async_with_exception(self):
         """测试异步异常处理"""
+
         @handle_errors(default_return="fallback")
         async def test_func():
             raise ValueError("Test error")
@@ -403,6 +421,7 @@ class TestHandleErrors:
 
     def test_handle_errors_sync(self):
         """测试同步错误处理"""
+
         @handle_errors(default_return="fallback")
         def test_func():
             return "success"
@@ -412,6 +431,7 @@ class TestHandleErrors:
 
     def test_handle_errors_sync_with_exception(self):
         """测试同步异常处理"""
+
         @handle_errors(default_return="fallback")
         def test_func():
             raise ValueError("Test error")
@@ -422,6 +442,7 @@ class TestHandleErrors:
     @pytest.mark.asyncio
     async def test_handle_errors_specific_exception(self):
         """测试特定异常类型"""
+
         @handle_errors(exceptions=(ValueError,), default_return="value_error")
         async def test_func():
             raise ValueError("Test error")
@@ -432,6 +453,7 @@ class TestHandleErrors:
     @pytest.mark.asyncio
     async def test_handle_errors_raise_on_error(self):
         """测试raise_on_error参数"""
+
         @handle_errors(raise_on_error=True)
         async def test_func():
             raise ValueError("Test error")

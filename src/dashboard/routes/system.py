@@ -141,9 +141,7 @@ def _check_xgj_health() -> dict[str, Any]:
         xgj_cfg = sys_cfg.get("xianguanjia", {})
         xgj_app_key = str(xgj_cfg.get("app_key", "") or os.environ.get("XGJ_APP_KEY", ""))
         xgj_app_secret = str(xgj_cfg.get("app_secret", "") or os.environ.get("XGJ_APP_SECRET", ""))
-        xgj_base = str(
-            xgj_cfg.get("base_url", "") or os.environ.get("XGJ_BASE_URL", "https://open.goofish.pro")
-        )
+        xgj_base = str(xgj_cfg.get("base_url", "") or os.environ.get("XGJ_BASE_URL", "https://open.goofish.pro"))
         if not xgj_app_key or not xgj_app_secret:
             return {"ok": False, "message": "AppKey 或 AppSecret 未配置"}
         from src.dashboard_server import _test_xgj_connection

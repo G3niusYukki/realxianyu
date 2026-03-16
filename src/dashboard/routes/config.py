@@ -144,15 +144,17 @@ def handle_intent_rules(ctx: RouteContext) -> None:
             entry["source"] = "custom"
         result.append(entry)
     for keyword, reply in kw_replies.items():
-        result.append({
-            "name": f"legacy_{keyword}",
-            "keywords": [keyword],
-            "reply": reply,
-            "priority": 30,
-            "categories": [],
-            "phase": "",
-            "source": "keyword",
-        })
+        result.append(
+            {
+                "name": f"legacy_{keyword}",
+                "keywords": [keyword],
+                "reply": reply,
+                "priority": 30,
+                "categories": [],
+                "phase": "",
+                "source": "keyword",
+            }
+        )
     ctx.send_json({"ok": True, "rules": result})
 
 
@@ -168,19 +170,21 @@ def handle_manual_mode_get(ctx: RouteContext) -> None:
     timeout = int(get_config().get_section("messages", {}).get("manual_mode_timeout", 3600))
     store = ManualModeStore(os.path.join("data", "manual_mode.db"), timeout_seconds=timeout)
     sessions = store.list_active()
-    ctx.send_json({
-        "ok": True,
-        "sessions": [
-            {
-                "session_id": s.session_id,
-                "enabled": s.enabled,
-                "updated_at": s.updated_at,
-                "expires_at": s.expires_at,
-            }
-            for s in sessions
-        ],
-        "timeout_seconds": timeout,
-    })
+    ctx.send_json(
+        {
+            "ok": True,
+            "sessions": [
+                {
+                    "session_id": s.session_id,
+                    "enabled": s.enabled,
+                    "updated_at": s.updated_at,
+                    "expires_at": s.expires_at,
+                }
+                for s in sessions
+            ],
+            "timeout_seconds": timeout,
+        }
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -242,6 +246,7 @@ def handle_manual_mode_post(ctx: RouteContext) -> None:
     sid = str(body.get("session_id", "")).strip()
     if not sid:
         from src.dashboard_server import _error_payload
+
         ctx.send_json(_error_payload("session_id required"), status=400)
         return
     enabled = body.get("enabled", True)
@@ -250,10 +255,12 @@ def handle_manual_mode_post(ctx: RouteContext) -> None:
     timeout = int(get_config().get_section("messages", {}).get("manual_mode_timeout", 3600))
     store = ManualModeStore(os.path.join("data", "manual_mode.db"), timeout_seconds=timeout)
     state = store.set_state(sid, bool(enabled))
-    ctx.send_json({
-        "ok": True,
-        "session_id": state.session_id,
-        "enabled": state.enabled,
-        "updated_at": state.updated_at,
-        "expires_at": state.expires_at,
-    })
+    ctx.send_json(
+        {
+            "ok": True,
+            "session_id": state.session_id,
+            "enabled": state.enabled,
+            "updated_at": state.updated_at,
+            "expires_at": state.expires_at,
+        }
+    )

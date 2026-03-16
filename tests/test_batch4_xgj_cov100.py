@@ -216,6 +216,7 @@ class TestOpenPlatformClient:
 
     def _make_client(self):
         from src.integrations.xianguanjia.open_platform_client import OpenPlatformClient
+
         return OpenPlatformClient(
             base_url="https://test.api",
             app_key="testkey",
@@ -364,6 +365,7 @@ class TestVirtualSupplyClient:
 
     def test_post_exception(self):
         from src.integrations.xianguanjia.virtual_supply_client import VirtualSupplyClient
+
         client = VirtualSupplyClient(
             base_url="https://test.api",
             app_id="1",
@@ -383,9 +385,11 @@ class TestSigning:
     def test_body_md5_none(self):
         result = _body_md5(None)
         from hashlib import md5
+
         assert result == md5(b"").hexdigest()
 
     def test_body_md5_string(self):
         result = _body_md5("hello")
         from hashlib import md5
+
         assert result == md5(b"hello").hexdigest()

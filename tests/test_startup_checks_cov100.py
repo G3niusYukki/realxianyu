@@ -58,44 +58,44 @@ class TestIsProductionEnv:
 class TestCheckQuoteMockGuard:
     def test_prod_allow_mock_critical(self):
         mock_config = MagicMock()
-        mock_config.get_section.return_value = {
-            "providers": {"remote": {"allow_mock": True}}
-        }
-        with patch("src.core.config.get_config", return_value=mock_config), \
-             patch("src.core.startup_checks._is_production_env", return_value=True):
+        mock_config.get_section.return_value = {"providers": {"remote": {"allow_mock": True}}}
+        with (
+            patch("src.core.config.get_config", return_value=mock_config),
+            patch("src.core.startup_checks._is_production_env", return_value=True),
+        ):
             result = check_quote_mock_guard()
             assert result.passed is False
             assert result.critical is True
 
     def test_nonprod_allow_mock_warning(self):
         mock_config = MagicMock()
-        mock_config.get_section.return_value = {
-            "providers": {"remote": {"allow_mock": True}}
-        }
-        with patch("src.core.config.get_config", return_value=mock_config), \
-             patch("src.core.startup_checks._is_production_env", return_value=False):
+        mock_config.get_section.return_value = {"providers": {"remote": {"allow_mock": True}}}
+        with (
+            patch("src.core.config.get_config", return_value=mock_config),
+            patch("src.core.startup_checks._is_production_env", return_value=False),
+        ):
             result = check_quote_mock_guard()
             assert result.passed is False
             assert result.critical is False
 
     def test_prod_mock_disabled(self):
         mock_config = MagicMock()
-        mock_config.get_section.return_value = {
-            "providers": {"remote": {"allow_mock": False}}
-        }
-        with patch("src.core.config.get_config", return_value=mock_config), \
-             patch("src.core.startup_checks._is_production_env", return_value=True):
+        mock_config.get_section.return_value = {"providers": {"remote": {"allow_mock": False}}}
+        with (
+            patch("src.core.config.get_config", return_value=mock_config),
+            patch("src.core.startup_checks._is_production_env", return_value=True),
+        ):
             result = check_quote_mock_guard()
             assert result.passed is True
             assert result.critical is True
 
     def test_nonprod_mock_disabled(self):
         mock_config = MagicMock()
-        mock_config.get_section.return_value = {
-            "providers": {"remote": {"allow_mock": False}}
-        }
-        with patch("src.core.config.get_config", return_value=mock_config), \
-             patch("src.core.startup_checks._is_production_env", return_value=False):
+        mock_config.get_section.return_value = {"providers": {"remote": {"allow_mock": False}}}
+        with (
+            patch("src.core.config.get_config", return_value=mock_config),
+            patch("src.core.startup_checks._is_production_env", return_value=False),
+        ):
             result = check_quote_mock_guard()
             assert result.passed is True
             assert result.critical is False

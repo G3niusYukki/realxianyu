@@ -214,7 +214,9 @@ async def test_analytics_and_report_missing(tmp_path):
     await svc.log_operation("PUBLISH", "pid", details={"x": 1})
     await svc.add_product("p", "t", 9, "c", "a")
     await svc.update_product_status("p", "active")
-    logs = await svc.get_operation_logs(operation_type="PUBLISH", start_date=datetime(2000, 1, 1), end_date=datetime(2999, 1, 1))
+    logs = await svc.get_operation_logs(
+        operation_type="PUBLISH", start_date=datetime(2000, 1, 1), end_date=datetime(2999, 1, 1)
+    )
     assert logs
 
     m = await svc.get_monthly_report(year=2024, month=12)
@@ -225,11 +227,15 @@ async def test_analytics_and_report_missing(tmp_path):
 
     rg = ReportGenerator()
     rg.analytics = svc
-    summary = rg._generate_summary({"new_listings": 1, "polished_count": 1, "total_views": 1, "total_wants": 101, "total_sales": 1})
+    summary = rg._generate_summary(
+        {"new_listings": 1, "polished_count": 1, "total_views": 1, "total_wants": 101, "total_sales": 1}
+    )
     assert "擦亮了" in summary
     weekly = rg._generate_weekly_insights({"summary": {"total_wants": 101, "new_listings": 1, "polished_count": 1}})
     assert weekly["highlights"]
-    monthly = rg._generate_monthly_insights({"summary": {"total_revenue": 1200, "total_sold": 11}, "top_categories": [{"category": "数码"}]})
+    monthly = rg._generate_monthly_insights(
+        {"summary": {"total_revenue": 1200, "total_sold": 11}, "top_categories": [{"category": "数码"}]}
+    )
     assert len(monthly["highlights"]) >= 3
     md = ReportFormatter.to_markdown({"report_type": "daily", "period": {"date": "2024-01-01"}})
     assert "**Date:**" in md

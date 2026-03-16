@@ -120,7 +120,9 @@ async def test_scheduler_execute_polish_publish_metrics_branches(monkeypatch: py
     assert res_publish["success"] is True
     assert "Published 1/2 items" in res_publish["message"]
 
-    monkeypatch.setattr("src.modules.accounts.scheduler.create_browser_client", AsyncMock(side_effect=BrowserError("x")))
+    monkeypatch.setattr(
+        "src.modules.accounts.scheduler.create_browser_client", AsyncMock(side_effect=BrowserError("x"))
+    )
     res_publish_err = await scheduler._execute_publish({"listings": [{"title": "t"}]})
     assert res_publish_err["error_code"] == "BROWSER_CONNECT_FAILED"
 
@@ -224,9 +226,7 @@ async def test_monitor_paths(temp_dir, monkeypatch: pytest.MonkeyPatch) -> None:
     assert await monitor.resolve_alert(alert.alert_id) is True
     assert await monitor.resolve_alert("missing") is False
 
-    monitor._alerts = [
-        Alert(level="warning", source="publish_failure", details={}) for _ in range(6)
-    ]
+    monitor._alerts = [Alert(level="warning", source="publish_failure", details={}) for _ in range(6)]
 
     triggered = {"n": 0}
 
@@ -378,10 +378,14 @@ async def test_data_visualizer_async_and_exporter_paths(temp_dir, monkeypatch: p
 
     monkeypatch.setattr(report_gen, "ReportFormatter", FakeFormatter)
 
-    path_md = await ChartExporter.export_report({"report_type": "daily"}, format="markdown", filepath=str(temp_dir / "r"))
+    path_md = await ChartExporter.export_report(
+        {"report_type": "daily"}, format="markdown", filepath=str(temp_dir / "r")
+    )
     assert path_md.endswith(".md")
 
-    path_json = await ChartExporter.export_report({"report_type": "daily"}, format="json", filepath=str(temp_dir / "r2"))
+    path_json = await ChartExporter.export_report(
+        {"report_type": "daily"}, format="json", filepath=str(temp_dir / "r2")
+    )
     assert path_json.endswith(".json")
 
     path_txt = await ChartExporter.export_report({"report_type": "daily"}, format="text", filepath=str(temp_dir / "r3"))
@@ -419,7 +423,7 @@ def test_dashboard_handler_read_json_and_multipart() -> None:
     h = _build_handler("/")
 
     h.headers = {"Content-Length": "7"}
-    h.rfile = io.BytesIO(b"{\"a\":1}")
+    h.rfile = io.BytesIO(b'{"a":1}')
     assert h._read_json_body() == {"a": 1}
 
     h.headers = {"Content-Length": "x"}

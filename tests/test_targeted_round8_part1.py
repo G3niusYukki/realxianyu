@@ -90,7 +90,6 @@ async def test_cli_listing_commands_and_main_paths(monkeypatch):
     assert "Specify --all" in payloads[3]["error"]
 
 
-
 @pytest.mark.asyncio
 async def test_cli_messages_and_module_more_branches(monkeypatch):
     out = []
@@ -119,10 +118,22 @@ async def test_cli_messages_and_module_more_branches(monkeypatch):
     monkeypatch.setattr("src.cli._resolve_workflow_state", lambda _s: SimpleNamespace(value="quoted"))
 
     await cli.cmd_messages(argparse.Namespace(action="workflow-stats", workflow_db="db", window_minutes=11))
-    await cli.cmd_messages(argparse.Namespace(action="workflow-transition", session_id="s1", stage="quoted", workflow_db="db", force_state=False))
-    await cli.cmd_messages(argparse.Namespace(action="workflow-transition", session_id=None, stage=None, workflow_db="db", force_state=False))
+    await cli.cmd_messages(
+        argparse.Namespace(
+            action="workflow-transition", session_id="s1", stage="quoted", workflow_db="db", force_state=False
+        )
+    )
+    await cli.cmd_messages(
+        argparse.Namespace(
+            action="workflow-transition", session_id=None, stage=None, workflow_db="db", force_state=False
+        )
+    )
     monkeypatch.setattr("src.cli._resolve_workflow_state", lambda _s: None)
-    await cli.cmd_messages(argparse.Namespace(action="workflow-transition", session_id="s1", stage="bad", workflow_db="db", force_state=False))
+    await cli.cmd_messages(
+        argparse.Namespace(
+            action="workflow-transition", session_id="s1", stage="bad", workflow_db="db", force_state=False
+        )
+    )
 
     class MsgSvc:
         def __init__(self, controller=None):
@@ -233,26 +244,52 @@ async def test_cli_messages_and_module_more_branches(monkeypatch):
 
     monkeypatch.setattr("src.cli._module_process_status", lambda _t: {"alive": False})
     monkeypatch.setattr("src.cli._start_background_module", lambda target, args: {"target": target, "started": True})
-    monkeypatch.setattr("src.cli._stop_background_module", lambda target, timeout_seconds=0: {"target": target, "stopped": True})
+    monkeypatch.setattr(
+        "src.cli._stop_background_module", lambda target, timeout_seconds=0: {"target": target, "stopped": True}
+    )
     monkeypatch.setattr("src.cli._module_logs", lambda target, tail_lines=10: {"target": target, "lines": ["x"]})
     monkeypatch.setattr("src.cli._clear_module_runtime_state", lambda target: {"target": target, "removed": [target]})
     monkeypatch.setattr("src.cli._start_presales_module", lambda args: asyncio.sleep(0, result={"target": "presales"}))
-    monkeypatch.setattr("src.cli._start_operations_module", lambda args: asyncio.sleep(0, result={"target": "operations"}))
-    monkeypatch.setattr("src.cli._start_aftersales_module", lambda args: asyncio.sleep(0, result={"target": "aftersales"}))
+    monkeypatch.setattr(
+        "src.cli._start_operations_module", lambda args: asyncio.sleep(0, result={"target": "operations"})
+    )
+    monkeypatch.setattr(
+        "src.cli._start_aftersales_module", lambda args: asyncio.sleep(0, result={"target": "aftersales"})
+    )
 
     await cli.cmd_module(argparse.Namespace(action="status", target="all", **args_common))
     await cli.cmd_module(argparse.Namespace(action="status", target="presales", **args_common))
     with pytest.raises(SystemExit):
-        await cli.cmd_module(argparse.Namespace(action="start", target="operations", background=True, mode="once", **args_common))
-    await cli.cmd_module(argparse.Namespace(action="start", target="presales", background=True, mode="daemon", **args_common))
-    await cli.cmd_module(argparse.Namespace(action="start", target="presales", background=False, mode="daemon", **args_common))
-    await cli.cmd_module(argparse.Namespace(action="start", target="operations", background=False, mode="daemon", **args_common))
-    await cli.cmd_module(argparse.Namespace(action="start", target="aftersales", background=False, mode="daemon", **args_common))
-    await cli.cmd_module(argparse.Namespace(action="stop", target="all", background=False, mode="daemon", **args_common))
-    await cli.cmd_module(argparse.Namespace(action="restart", target="all", background=False, mode="daemon", **args_common))
-    await cli.cmd_module(argparse.Namespace(action="recover", target="all", background=False, mode="daemon", **args_common))
-    await cli.cmd_module(argparse.Namespace(action="logs", target="all", background=False, mode="daemon", **args_common))
-    await cli.cmd_module(argparse.Namespace(action="unknown", target="all", background=False, mode="daemon", **args_common))
+        await cli.cmd_module(
+            argparse.Namespace(action="start", target="operations", background=True, mode="once", **args_common)
+        )
+    await cli.cmd_module(
+        argparse.Namespace(action="start", target="presales", background=True, mode="daemon", **args_common)
+    )
+    await cli.cmd_module(
+        argparse.Namespace(action="start", target="presales", background=False, mode="daemon", **args_common)
+    )
+    await cli.cmd_module(
+        argparse.Namespace(action="start", target="operations", background=False, mode="daemon", **args_common)
+    )
+    await cli.cmd_module(
+        argparse.Namespace(action="start", target="aftersales", background=False, mode="daemon", **args_common)
+    )
+    await cli.cmd_module(
+        argparse.Namespace(action="stop", target="all", background=False, mode="daemon", **args_common)
+    )
+    await cli.cmd_module(
+        argparse.Namespace(action="restart", target="all", background=False, mode="daemon", **args_common)
+    )
+    await cli.cmd_module(
+        argparse.Namespace(action="recover", target="all", background=False, mode="daemon", **args_common)
+    )
+    await cli.cmd_module(
+        argparse.Namespace(action="logs", target="all", background=False, mode="daemon", **args_common)
+    )
+    await cli.cmd_module(
+        argparse.Namespace(action="unknown", target="all", background=False, mode="daemon", **args_common)
+    )
 
     assert any("Unknown workflow stage" in str(x.get("error", "")) for x in out if isinstance(x, dict))
     assert any(x.get("action") == "logs" for x in out if isinstance(x, dict))
@@ -300,7 +337,9 @@ async def test_ws_messagepack_branches_and_preflight_cookie_merge(ws_enabled, mo
 
 @pytest.mark.asyncio
 async def test_ws_fetch_token_success_and_run_timeout_recv_exception(ws_enabled, monkeypatch):
-    t = _ws_transport({"heartbeat_interval_seconds": 1, "heartbeat_timeout_seconds": 0, "reconnect_delay_seconds": 0.01})
+    t = _ws_transport(
+        {"heartbeat_interval_seconds": 1, "heartbeat_timeout_seconds": 0, "reconnect_delay_seconds": 0.01}
+    )
 
     async def preflight_ok():
         return True
@@ -370,7 +409,9 @@ async def test_ws_fetch_token_success_and_run_timeout_recv_exception(ws_enabled,
 
 @pytest.mark.asyncio
 async def test_ws_auth_hold_false_wait_path(ws_enabled, monkeypatch):
-    t = _ws_transport({"auth_hold_until_cookie_update": False, "auth_failure_backoff_seconds": 0.01, "reconnect_delay_seconds": 0.01})
+    t = _ws_transport(
+        {"auth_hold_until_cookie_update": False, "auth_failure_backoff_seconds": 0.01, "reconnect_delay_seconds": 0.01}
+    )
 
     async def connect(*_a, **_k):
         raise BrowserError("HTTP 401 forbidden")

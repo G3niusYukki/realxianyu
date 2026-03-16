@@ -457,9 +457,7 @@ class GoofishWsTransport:
         fp_poll_interval = 120.0
         fp_last_poll = 0.0
         fp_not_configured = False
-        self.logger.info(
-            "进入 Cookie 更新等待循环 (检测: env/config, CookieCloud, 指纹浏览器)"
-        )
+        self.logger.info("进入 Cookie 更新等待循环 (检测: env/config, CookieCloud, 指纹浏览器)")
         while not self._stop_event.is_set():
             if self._cookie_changed.is_set():
                 self._cookie_changed.clear()
@@ -1029,7 +1027,9 @@ class GoofishWsTransport:
         for k in dead:
             self._seen_event.pop(k, None)
         self._cleanup_bot_sigs()
-        stale_cache = [k for k, (ts, _) in self._recent_msgs_cache.items() if (now - ts) > self._RECENT_MSGS_CACHE_TTL * 4]
+        stale_cache = [
+            k for k, (ts, _) in self._recent_msgs_cache.items() if (now - ts) > self._RECENT_MSGS_CACHE_TTL * 4
+        ]
         for k in stale_cache:
             self._recent_msgs_cache.pop(k, None)
 
@@ -1045,9 +1045,7 @@ class GoofishWsTransport:
             if not self.is_bot_sent(chat_id, text):
                 try:
                     self._manual_mode_store.set_state(chat_id, True)
-                    self.logger.info(
-                        f"[人工介入] 检测到卖家手动消息: session={chat_id}, text={text[:30]}"
-                    )
+                    self.logger.info(f"[人工介入] 检测到卖家手动消息: session={chat_id}, text={text[:30]}")
                 except Exception as exc:
                     self.logger.warning(f"[人工介入] set_state failed: session={chat_id}, err={exc}")
             return
@@ -1232,9 +1230,7 @@ class GoofishWsTransport:
                         slider_enabled = bool(slider_cfg.get("enabled")) if isinstance(slider_cfg, dict) else False
 
                         if slider_enabled:
-                            self.logger.warning(
-                                f"RGV587 风控检测 ({self._rgv587_consecutive})，立即尝试滑块恢复..."
-                            )
+                            self.logger.warning(f"RGV587 风控检测 ({self._rgv587_consecutive})，立即尝试滑块恢复...")
                             self._send_risk_control_notification()
                             recovered = await self._try_slider_recovery()
                             if recovered:
@@ -1453,7 +1449,9 @@ class GoofishWsTransport:
         headers = self._base_headers()
         try:
             async with httpx.AsyncClient(
-                timeout=8.0, headers=headers, cookies=self.cookies,
+                timeout=8.0,
+                headers=headers,
+                cookies=self.cookies,
             ) as client:
                 resp = await client.post(
                     f"https://h5api.m.goofish.com/h5/{api}/{version}/",

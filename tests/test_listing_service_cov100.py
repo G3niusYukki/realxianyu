@@ -11,8 +11,10 @@ from src.modules.listing.service import ListingService
 
 def _make_service(**kwargs):
     """Create ListingService with mocked dependencies."""
-    with patch("src.modules.listing.service.get_compliance_guard") as mock_cg, \
-         patch("src.modules.listing.service.get_config") as mock_gc:
+    with (
+        patch("src.modules.listing.service.get_compliance_guard") as mock_cg,
+        patch("src.modules.listing.service.get_config") as mock_gc,
+    ):
         mock_cg.return_value = MagicMock()
         mock_config = MagicMock()
         mock_config.browser = {"delay": {"min": 0.001, "max": 0.002}}
@@ -230,9 +232,7 @@ class TestExecutePublish:
         controller.new_page.return_value = "page1"
         controller.execute_script.return_value = "https://goofish.com/success/12345"
         svc = _make_service(controller=controller)
-        product_id, _product_url = await svc._execute_publish(
-            _make_listing(images=["img.jpg"], tags=["全新"])
-        )
+        product_id, _product_url = await svc._execute_publish(_make_listing(images=["img.jpg"], tags=["全新"]))
         assert product_id == "12345"
         controller.close_page.assert_called_once()
 
@@ -243,6 +243,7 @@ class TestExecutePublish:
         controller.execute_script.return_value = "https://goofish.com/other"
         svc = _make_service(controller=controller)
         from src.core.error_handler import BrowserError
+
         with pytest.raises(BrowserError):
             await svc._execute_publish(_make_listing(images=[]))
 
@@ -319,6 +320,7 @@ class TestStepVerifySuccess:
         controller.execute_script.return_value = "https://goofish.com/other"
         svc = _make_service(controller=controller)
         from src.core.error_handler import BrowserError
+
         with pytest.raises(BrowserError):
             await svc._step_verify_success("page1")
 

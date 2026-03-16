@@ -84,7 +84,7 @@ def _has_display() -> bool:
 
 
 def _get_slider_config(config: dict[str, Any] | None) -> dict[str, Any]:
-    ws_cfg = (config or {})
+    ws_cfg = config or {}
     slider_cfg = ws_cfg.get("slider_auto_solve", {})
     if not isinstance(slider_cfg, dict):
         slider_cfg = {}
@@ -230,15 +230,18 @@ async def _find_slider_in_frames(page: Any) -> tuple[Any, Any, str] | None:
     return None
 
 
-async def _wait_for_nc_inside_baxia(
-    page: Any, frame: Any, dialog_el: Any
-) -> tuple[Any, Any, str] | None:
+async def _wait_for_nc_inside_baxia(page: Any, frame: Any, dialog_el: Any) -> tuple[Any, Any, str] | None:
     """Wait for the NC slider component to load inside a baxia-dialog.
 
     The NC component loads asynchronously via JS, so the container div
     appears before the slider button. We poll a few times to catch it.
     """
-    nc_inner_selectors = [*NC_SLIDER_SELECTORS, ".baxia-dialog .btn_slide", ".baxia-dialog [class*='slide']", ".baxia-dialog span[class*='btn']"]
+    nc_inner_selectors = [
+        *NC_SLIDER_SELECTORS,
+        ".baxia-dialog .btn_slide",
+        ".baxia-dialog [class*='slide']",
+        ".baxia-dialog span[class*='btn']",
+    ]
 
     for wait_round in range(4):
         if wait_round > 0:
@@ -252,7 +255,8 @@ async def _wait_for_nc_inside_baxia(
                     if el and await el.is_visible():
                         logger.info(
                             "Baxia dialog: found NC button via '%s' (wait_round=%d)",
-                            sel, wait_round,
+                            sel,
+                            wait_round,
                         )
                         return f, el, "nc"
                 except Exception:
@@ -265,7 +269,9 @@ async def _wait_for_nc_inside_baxia(
                 iframe_src = await iframe_el.get_attribute("src") or ""
                 logger.info(
                     "Baxia dialog: found iframe name='%s' src='%s' (wait_round=%d)",
-                    iframe_name, iframe_src[:100], wait_round,
+                    iframe_name,
+                    iframe_src[:100],
+                    wait_round,
                 )
                 for f in page.frames:
                     if f.name == iframe_name or (iframe_src and iframe_src in (f.url or "")):
@@ -435,7 +441,14 @@ async def _try_nc_fallback_inside_puzzle(page: Any, frame: Any) -> bool:
     """
     logger.info("Puzzle fallback: searching for NC-style slider inside dialog...")
 
-    nc_broad_selectors = [*NC_SLIDER_SELECTORS, ".baxia-dialog .btn_slide", ".baxia-dialog [class*='slide']", ".baxia-dialog span[class*='btn']", ".baxia-dialog [class*='nc']", "span[class*='btn_slide']"]
+    nc_broad_selectors = [
+        *NC_SLIDER_SELECTORS,
+        ".baxia-dialog .btn_slide",
+        ".baxia-dialog [class*='slide']",
+        ".baxia-dialog span[class*='btn']",
+        ".baxia-dialog [class*='nc']",
+        "span[class*='btn_slide']",
+    ]
 
     all_frames = [frame] + [f for f in page.frames if f != frame]
 
@@ -483,8 +496,12 @@ async def _try_nc_fallback_inside_puzzle(page: Any, frame: Any) -> bool:
                 for d in draggables[:5]:
                     logger.info(
                         "  <%s id='%s' class='%s' cursor='%s' %dx%d>",
-                        d.get("tag"), d.get("id"), str(d.get("cls", ""))[:60],
-                        d.get("cursor"), d.get("w", 0), d.get("h", 0),
+                        d.get("tag"),
+                        d.get("id"),
+                        str(d.get("cls", ""))[:60],
+                        d.get("cursor"),
+                        d.get("w", 0),
+                        d.get("h", 0),
                     )
 
                 best = draggables[0]
@@ -595,6 +612,7 @@ async def _solve_puzzle_slider(page: Any, frame: Any, slider_el: Any) -> bool:
                 return False
         else:
             import httpx
+
             async with httpx.AsyncClient(timeout=10) as client:
                 bg_resp = await client.get(bg_url)
                 sl_resp = await client.get(sl_url)
@@ -708,6 +726,7 @@ _CDP_PORTS = [9222, 9223, 9224]
 async def _try_connect_cdp(pw: Any, _log: Any) -> tuple[Any, Any, bool] | None:
     """Try connecting to an already-running Chrome via CDP."""
     import socket
+
     for port in _CDP_PORTS:
         s = socket.socket()
         s.settimeout(0.5)

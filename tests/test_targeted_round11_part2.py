@@ -49,7 +49,7 @@ def test_dashboard_read_json_and_payload_helpers() -> None:
     h.rfile = io.BytesIO(b"bad{")
     assert h._read_json_body() == {}
 
-    assert ds._extract_json_payload("prefix {\"a\":1} suffix") == {"a": 1}
+    assert ds._extract_json_payload('prefix {"a":1} suffix') == {"a": 1}
     assert ds._extract_json_payload("junk") is None
 
 

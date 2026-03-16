@@ -45,7 +45,9 @@ def test_extract_chat_event_guards_for_non_dict_body_and_missing_fields() -> Non
 
 
 @pytest.mark.asyncio
-async def test_wait_for_cookie_update_forever_sleeps_then_stops(ws_enabled: None, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_wait_for_cookie_update_forever_sleeps_then_stops(
+    ws_enabled: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
     t = _transport({"cookie_watch_interval_seconds": 1})
     t.cookie_supplier = lambda: t.cookie_text
 
@@ -63,7 +65,9 @@ async def test_wait_for_cookie_update_forever_sleeps_then_stops(ws_enabled: None
 
 
 @pytest.mark.asyncio
-async def test_fetch_token_auth_fail_logs_preflight_retry_error(ws_enabled: None, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_fetch_token_auth_fail_logs_preflight_retry_error(
+    ws_enabled: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
     t = _transport({"token_max_attempts": 1})
 
     async def fake_preflight() -> bool:

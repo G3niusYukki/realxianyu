@@ -14,8 +14,14 @@ from src.modules.quote.cost_table import FREIGHT_COURIERS, CostTableRepository, 
 from src.modules.quote.models import QuoteRequest, QuoteResult
 
 SERVICE_CATEGORIES = [
-    "线上快递", "线下快递", "线上快运", "线下快运",
-    "同城寄", "电动车", "分销", "商家寄件",
+    "线上快递",
+    "线下快递",
+    "线上快运",
+    "线下快运",
+    "同城寄",
+    "电动车",
+    "分销",
+    "商家寄件",
 ]
 
 DEFAULT_MARKUP_RULE: dict[str, float] = {
@@ -145,9 +151,7 @@ class CostTableMarkupQuoteProvider(IQuoteProvider):
 
         # 新的三层计价
         if self.category_markup:
-            first_add, extra_add = _resolve_category_markup(
-                self.category_markup, category, row.courier
-            )
+            first_add, extra_add = _resolve_category_markup(self.category_markup, category, row.courier)
             first_discount, extra_discount = _resolve_xianyu_discount_value(
                 self.xianyu_discount_rules, category, row.courier
             )
@@ -313,9 +317,7 @@ class ApiCostMarkupQuoteProvider(IQuoteProvider):
         category = "线上快运" if is_freight else "线上快递"
 
         if self.category_markup:
-            first_add, extra_add = _resolve_category_markup(
-                self.category_markup, category, courier
-            )
+            first_add, extra_add = _resolve_category_markup(self.category_markup, category, courier)
             first_discount, extra_discount = _resolve_xianyu_discount_value(
                 self.xianyu_discount_rules, category, courier
             )

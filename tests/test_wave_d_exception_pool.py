@@ -90,4 +90,8 @@ def test_wave_d_exception_pool_reoccurrence_updates_occurrence_and_transition(te
 
     assert len(transitions) == 2
     assert transitions[0][0] is None and transitions[0][1] == "open" and transitions[0][2] == "exception_created"
-    assert transitions[1][0] == "investigating" and transitions[1][1] == "open" and transitions[1][2] == "exception_reoccurred"
+    assert (
+        transitions[1][0] == "investigating"
+        and transitions[1][1] == "open"
+        and transitions[1][2] == "exception_reoccurred"
+    )

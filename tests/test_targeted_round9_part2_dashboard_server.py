@@ -29,7 +29,7 @@ def _handler(path: str = "/") -> DashboardHandler:
 def test_extract_json_payload_branches() -> None:
     assert _extract_json_payload("") is None
     assert _extract_json_payload('{"a":1}') == {"a": 1}
-    assert _extract_json_payload("prefix {\"b\":2} suffix") == {"b": 2}
+    assert _extract_json_payload('prefix {"b":2} suffix') == {"b": 2}
     assert _extract_json_payload("xx [1,2,3] yy") == [1, 2, 3]
     assert _extract_json_payload("not-json") is None
 
@@ -212,7 +212,9 @@ def test_run_server_startup_lines_and_main(monkeypatch: pytest.MonkeyPatch, temp
 
     called = {}
     monkeypatch.setattr(ds, "parse_args", lambda: SimpleNamespace(host="h", port=9, db_path="d"))
-    monkeypatch.setattr(ds, "run_server", lambda host, port, db_path: called.update({"host": host, "port": port, "db": db_path}))
+    monkeypatch.setattr(
+        ds, "run_server", lambda host, port, db_path: called.update({"host": host, "port": port, "db": db_path})
+    )
     ds.main()
     assert called == {"host": "h", "port": 9, "db": "d"}
 
@@ -245,7 +247,9 @@ def test_repo_and_cookie_low_level_branches(monkeypatch: pytest.MonkeyPatch, tem
 
     assert ops._extract_cookie_pairs_from_json("") == []
     assert ops._extract_cookie_pairs_from_json('{"name":"cookie2","value":"v"}')
-    assert ops._extract_cookie_pairs_from_json('{"cookies":[{"name":"_tb_token_","value":"t"}],"items":[{"key":"unb","value":"1"}],"x":1}')
+    assert ops._extract_cookie_pairs_from_json(
+        '{"cookies":[{"name":"_tb_token_","value":"t"}],"items":[{"key":"unb","value":"1"}],"x":1}'
+    )
 
     assert ops._is_allowed_cookie_domain(".example.com") is False
     assert ops._extract_cookie_pairs_from_header("") == []
@@ -321,7 +325,12 @@ def test_markup_and_file_import_branches(monkeypatch: pytest.MonkeyPatch, temp_d
             self.table_dir = table_dir
 
         def _iter_xlsx_rows(self, _p):
-            return {"s1": [["快递公司", "首重溢价(普通)", "首重溢价(会员)", "续重溢价(普通)", "续重溢价(会员)"], ["圆通", 0.1, 0.2, 0.3, 0.4]]}
+            return {
+                "s1": [
+                    ["快递公司", "首重溢价(普通)", "首重溢价(会员)", "续重溢价(普通)", "续重溢价(会员)"],
+                    ["圆通", 0.1, 0.2, 0.3, 0.4],
+                ]
+            }
 
         def get_stats(self, max_files=1):
             _ = max_files
@@ -337,11 +346,16 @@ def test_markup_and_file_import_branches(monkeypatch: pytest.MonkeyPatch, temp_d
     assert fmt == "image_ocr" and "圆通" in parsed
 
     monkeypatch.setattr(ops, "_parse_markup_rules_from_xlsx_bytes", lambda _b: {})
-    monkeypatch.setattr(ops, "_infer_markup_rules_from_route_table", lambda _n, _b: {"圆通": dict(ds.DEFAULT_MARKUP_RULES["default"])})
+    monkeypatch.setattr(
+        ops, "_infer_markup_rules_from_route_table", lambda _n, _b: {"圆通": dict(ds.DEFAULT_MARKUP_RULES["default"])}
+    )
     parsed2, fmt2 = ops._parse_markup_rules_from_file("a.xlsx", b"x")
     assert fmt2 == "route_cost_infer" and "圆通" in parsed2
 
-    _parsed3, fmt3 = ops._parse_markup_rules_from_file("a.json", "[{\"name\":\"圆通\",\"normal_first_add\":1,\"member_first_add\":1,\"normal_extra_add\":1,\"member_extra_add\":1}]".encode())
+    _parsed3, fmt3 = ops._parse_markup_rules_from_file(
+        "a.json",
+        '[{"name":"圆通","normal_first_add":1,"member_first_add":1,"normal_extra_add":1,"member_extra_add":1}]'.encode(),
+    )
     assert fmt3 == "json"
 
     with pytest.raises(ValueError):
@@ -358,9 +372,13 @@ def test_markup_and_file_import_branches(monkeypatch: pytest.MonkeyPatch, temp_d
     norm = ops._normalize_markup_rules({"": {}, "A": {"normal_first_add": "2"}})
     assert "default" in norm and "A" in norm
 
-    monkeypatch.setattr(ds, "get_config", lambda: SimpleNamespace(reload=lambda *_a, **_k: (_ for _ in ()).throw(RuntimeError("boom"))))
+    monkeypatch.setattr(
+        ds, "get_config", lambda: SimpleNamespace(reload=lambda *_a, **_k: (_ for _ in ()).throw(RuntimeError("boom")))
+    )
     ops2 = ds.MimicOps(project_root=temp_dir, module_console=ds.ModuleConsole(project_root=temp_dir))
-    ok = ops2.save_markup_rules({"A": {"normal_first_add": 1, "member_first_add": 1, "normal_extra_add": 1, "member_extra_add": 1}})
+    ok = ops2.save_markup_rules(
+        {"A": {"normal_first_add": 1, "member_first_add": 1, "normal_extra_add": 1, "member_extra_add": 1}}
+    )
     assert ok["success"] is True
 
 
@@ -368,7 +386,11 @@ def test_service_status_and_auto_fix_extra_branches(temp_dir) -> None:
     class Console:
         def status(self, window_minutes=60, limit=20):
             _ = (window_minutes, limit)
-            return {"alive_count": 1, "total_modules": 3, "modules": {"presales": {"process": {"alive": True}, "sla": {}, "workflow": {}}}}
+            return {
+                "alive_count": 1,
+                "total_modules": 3,
+                "modules": {"presales": {"process": {"alive": True}, "sla": {}, "workflow": {}}},
+            }
 
         def control(self, action: str, target: str):
             return {"ok": True, "action": action, "target": target}
@@ -379,15 +401,27 @@ def test_service_status_and_auto_fix_extra_branches(temp_dir) -> None:
 
     ops = ds.MimicOps(project_root=temp_dir, module_console=Console())
     # make risk text map to specific token errors
-    ops._risk_control_status_from_logs = lambda target="presales", tail_lines=300: {"level": "warning", "signals": ["websocket http 400 rgv587 token api failed"], "last_event": "x"}  # type: ignore[assignment]
+    ops._risk_control_status_from_logs = lambda target="presales", tail_lines=300: {
+        "level": "warning",
+        "signals": ["websocket http 400 rgv587 token api failed"],
+        "last_event": "x",
+    }  # type: ignore[assignment]
     ops.route_stats = lambda: {"stats": {"courier_details": {}}}  # type: ignore[assignment]
-    ops.get_cookie = lambda: {"success": True, "cookie": "unb=1001; cookie2=v; _tb_token_=t; sgcookie=s; _m_h5_tk=a; _m_h5_tk_enc=b", "length": 10}  # type: ignore[assignment]
+    ops.get_cookie = lambda: {
+        "success": True,
+        "cookie": "unb=1001; cookie2=v; _tb_token_=t; sgcookie=s; _m_h5_tk=a; _m_h5_tk_enc=b",
+        "length": 10,
+    }  # type: ignore[assignment]
 
     s = ops.service_status()
     assert s["token_error"] in {"RGV587_SERVER_BUSY", "TOKEN_API_FAILED", "WS_HTTP_400"}
 
     assert ops.service_recover("bad")["success"] is False
 
-    ops.service_status = lambda: {"service_status": "suspended", "cookie_update_required": False, "xianyu_connected": False}  # type: ignore[assignment]
+    ops.service_status = lambda: {
+        "service_status": "suspended",
+        "cookie_update_required": False,
+        "xianyu_connected": False,
+    }  # type: ignore[assignment]
     auto = ops.service_auto_fix()
     assert "resume_service" in auto["actions"]

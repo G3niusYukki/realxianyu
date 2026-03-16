@@ -76,7 +76,9 @@ def test_ws_live_decode_and_extract_guard_paths(monkeypatch):
     with pytest.raises(ValueError):
         MessagePackDecoder(b"\xc4\x02a").decode()
 
-    monkeypatch.setattr("src.modules.messages.ws_live.base64.b64decode", lambda _t: (_ for _ in ()).throw(ValueError("x")))
+    monkeypatch.setattr(
+        "src.modules.messages.ws_live.base64.b64decode", lambda _t: (_ for _ in ()).throw(ValueError("x"))
+    )
     monkeypatch.setattr(
         "src.modules.messages.ws_live.base64.urlsafe_b64decode", lambda _t: (_ for _ in ()).throw(ValueError("y"))
     )
@@ -118,7 +120,7 @@ def test_cost_table_controlled_branches(tmp_path: Path):
 def test_dashboard_helpers_more_paths():
     assert ds._safe_int("x", default=7, min_value=1, max_value=10) == 7
     assert ds._safe_int("99", default=7, min_value=1, max_value=10) == 10
-    assert ds._extract_json_payload("prefix {\"a\": 1} suffix") == {"a": 1}
+    assert ds._extract_json_payload('prefix {"a": 1} suffix') == {"a": 1}
     assert ds._extract_json_payload("xx") is None
 
     async def _coro():

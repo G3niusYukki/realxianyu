@@ -198,7 +198,9 @@ def test_record_after_sales_followup_event(temp_dir) -> None:
 
 def test_order_physical_delivery_prefers_xianguanjia_shipping(temp_dir) -> None:
     api = Mock()
-    api.list_express_companies = Mock(return_value=Mock(ok=True, data=[{"express_code": "YTO", "express_name": "圆通"}]))
+    api.list_express_companies = Mock(
+        return_value=Mock(ok=True, data=[{"express_code": "YTO", "express_name": "圆通"}])
+    )
     api.delivery_order = Mock(return_value=Mock(ok=True))
 
     service = OrderFulfillmentService(db_path=str(temp_dir / "orders_ship.db"), shipping_api_client=api)
@@ -250,7 +252,9 @@ def test_order_physical_delivery_falls_back_when_shipping_info_incomplete(temp_d
 
 def test_order_callback_triggers_auto_delivery_for_paid_physical_order(temp_dir) -> None:
     api = Mock()
-    api.list_express_companies = Mock(return_value=Mock(ok=True, data=[{"express_code": "YTO", "express_name": "圆通"}]))
+    api.list_express_companies = Mock(
+        return_value=Mock(ok=True, data=[{"express_code": "YTO", "express_name": "圆通"}])
+    )
     api.delivery_order = Mock(return_value=Mock(ok=True))
 
     service = OrderFulfillmentService(db_path=str(temp_dir / "orders_callback.db"), shipping_api_client=api)
@@ -296,7 +300,9 @@ def test_order_callback_upserts_without_auto_delivery_when_disabled(temp_dir) ->
 
 def test_order_callback_external_event_id_is_idempotent(temp_dir) -> None:
     api = Mock()
-    api.list_express_companies = Mock(return_value=Mock(ok=True, data=[{"express_code": "YTO", "express_name": "圆通"}]))
+    api.list_express_companies = Mock(
+        return_value=Mock(ok=True, data=[{"express_code": "YTO", "express_name": "圆通"}])
+    )
     api.delivery_order = Mock(return_value=Mock(ok=True))
 
     service = OrderFulfillmentService(db_path=str(temp_dir / "orders_callback_idempotent.db"), shipping_api_client=api)

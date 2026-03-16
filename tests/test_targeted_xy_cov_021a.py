@@ -94,7 +94,9 @@ def test_risk_control_status_handles_read_error_and_recovery_signals(monkeypatch
 
     from datetime import datetime as _dt
     from datetime import timedelta as _td
+
     _now = _dt.now()
+
     def _ts(m):
         return (_now - _td(minutes=m)).strftime("%Y-%m-%d %H:%M:%S")
 

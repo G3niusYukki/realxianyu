@@ -30,6 +30,7 @@ class TestReadText:
     async def test_ocr_reader_async(self):
         async def async_reader(b):
             return "async ocr text"
+
         recognizer = RegexTicketRecognizer(ocr_reader=async_reader)
         text = await recognizer._read_text(b"image data")
         assert text == "async ocr text"

@@ -103,7 +103,9 @@ def test_media_validate_image_unreadable_file(tmp_path: Path):
     bad_png = tmp_path / "bad.png"
     bad_png.write_text("not an image", encoding="utf-8")
 
-    svc = MediaService(config={"supported_formats": ["png"], "max_image_size": 1024 * 1024, "watermark": {"enabled": False}})
+    svc = MediaService(
+        config={"supported_formats": ["png"], "max_image_size": 1024 * 1024, "watermark": {"enabled": False}}
+    )
     ok, msg = svc.validate_image(str(bad_png))
 
     assert ok is False

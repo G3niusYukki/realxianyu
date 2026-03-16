@@ -107,7 +107,9 @@ class TestResolveFulfillmentStatus:
         assert VirtualGoodsCallbackService._resolve_fulfillment_status("refunded", "") == "fulfilled"
 
     def test_previous_fulfilled(self):
-        assert VirtualGoodsCallbackService._resolve_fulfillment_status("paid_waiting_delivery", "fulfilled") == "fulfilled"
+        assert (
+            VirtualGoodsCallbackService._resolve_fulfillment_status("paid_waiting_delivery", "fulfilled") == "fulfilled"
+        )
 
     def test_previous_failed(self):
         assert VirtualGoodsCallbackService._resolve_fulfillment_status("paid_waiting_delivery", "failed") == "failed"
@@ -234,6 +236,7 @@ class TestProcess:
     def test_claimed_verify_failed(self, _mock):
         store = _make_store()
         call_count = [0]
+
         def side_effect(cb_id):
             call_count[0] += 1
             if call_count[0] == 1:
@@ -253,6 +256,7 @@ class TestProcess:
                 "payload_json": '{"xianyu_order_id": "o1"}',
                 "event_kind": "order",
             }
+
         store.get_callback.side_effect = side_effect
         svc = _make_service(
             store=store,
@@ -274,7 +278,7 @@ class TestProcess:
             "verify_passed": 1,
             "processed": 0,
             "verify_error": "",
-            "payload_json": '{}',
+            "payload_json": "{}",
             "event_kind": "order",
         }
         svc = _make_service(

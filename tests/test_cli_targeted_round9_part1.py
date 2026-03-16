@@ -75,7 +75,11 @@ async def test_listing_related_cmds_and_ai(monkeypatch):
     monkeypatch.setattr("src.modules.content.service.ContentService", ContentService)
     monkeypatch.setattr("src.cli._json_out", lambda d: out.append(d))
 
-    await cli.cmd_publish(argparse.Namespace(title="t", description="d", price=1, original_price=2, category="c", images=["a"], tags=["x"]))
+    await cli.cmd_publish(
+        argparse.Namespace(
+            title="t", description="d", price=1, original_price=2, category="c", images=["a"], tags=["x"]
+        )
+    )
     await cli.cmd_polish(argparse.Namespace(all=True, max=3, id=None))
     await cli.cmd_polish(argparse.Namespace(all=False, max=3, id="p2"))
     await cli.cmd_polish(argparse.Namespace(all=False, max=3, id=None))
@@ -156,14 +160,30 @@ async def test_cmd_messages_full_branches(monkeypatch):
     monkeypatch.setattr("src.cli._json_out", lambda d: out.append(d))
 
     await cli.cmd_messages(argparse.Namespace(action="workflow-stats", workflow_db="db", window_minutes=10))
-    await cli.cmd_messages(argparse.Namespace(action="workflow-transition", session_id=None, stage="ordered", workflow_db="db", force_state=False))
-    await cli.cmd_messages(argparse.Namespace(action="workflow-transition", session_id="s1", stage="ordered", workflow_db="db", force_state=False))
+    await cli.cmd_messages(
+        argparse.Namespace(
+            action="workflow-transition", session_id=None, stage="ordered", workflow_db="db", force_state=False
+        )
+    )
+    await cli.cmd_messages(
+        argparse.Namespace(
+            action="workflow-transition", session_id="s1", stage="ordered", workflow_db="db", force_state=False
+        )
+    )
     await cli.cmd_messages(argparse.Namespace(action="list-unread", limit=1))
     await cli.cmd_messages(argparse.Namespace(action="reply", session_id=None, text="x"))
     await cli.cmd_messages(argparse.Namespace(action="reply", session_id="ok", text="hi"))
     await cli.cmd_messages(argparse.Namespace(action="auto-reply", limit=2, dry_run=True))
-    await cli.cmd_messages(argparse.Namespace(action="auto-workflow", workflow_db="db", interval=1, limit=3, daemon=False, dry_run=True, max_loops=2))
-    await cli.cmd_messages(argparse.Namespace(action="auto-workflow", workflow_db="db", interval=1, limit=3, daemon=True, dry_run=False, max_loops=2))
+    await cli.cmd_messages(
+        argparse.Namespace(
+            action="auto-workflow", workflow_db="db", interval=1, limit=3, daemon=False, dry_run=True, max_loops=2
+        )
+    )
+    await cli.cmd_messages(
+        argparse.Namespace(
+            action="auto-workflow", workflow_db="db", interval=1, limit=3, daemon=True, dry_run=False, max_loops=2
+        )
+    )
 
     assert out[0]["workflow"]["wf"] == 1
     assert "Specify --session-id and --stage" in out[1]["error"]
@@ -206,9 +226,26 @@ async def test_cmd_automation_and_doctor_edges(monkeypatch):
     monkeypatch.setattr("src.cli._json_out", lambda d: out.append(d))
 
     await cli.cmd_automation(argparse.Namespace(action="status", config_path="x"))
-    await cli.cmd_automation(argparse.Namespace(action="setup", config_path="x", enable_feishu=True, feishu_webhook="", poll_interval=1, scan_limit=2, claim_limit=3, reply_target_seconds=4, notify_on_start=False, disable_notify_on_alert=False, disable_notify_recovery=False, heartbeat_minutes=5))
+    await cli.cmd_automation(
+        argparse.Namespace(
+            action="setup",
+            config_path="x",
+            enable_feishu=True,
+            feishu_webhook="",
+            poll_interval=1,
+            scan_limit=2,
+            claim_limit=3,
+            reply_target_seconds=4,
+            notify_on_start=False,
+            disable_notify_on_alert=False,
+            disable_notify_recovery=False,
+            heartbeat_minutes=5,
+        )
+    )
     with pytest.raises(SystemExit):
-        await cli.cmd_automation(argparse.Namespace(action="test-feishu", config_path="x", feishu_webhook="", message="ok"))
+        await cli.cmd_automation(
+            argparse.Namespace(action="test-feishu", config_path="x", feishu_webhook="", message="ok")
+        )
 
     assert out[0]["status"] == "ok"
     assert out[1]["feishu_enabled"] is True
@@ -220,12 +257,25 @@ async def test_cmd_automation_and_doctor_edges(monkeypatch):
 @pytest.mark.asyncio
 async def test_cmd_module_actions(monkeypatch):
     out: list[dict] = []
-    monkeypatch.setattr("src.core.doctor.run_doctor", lambda **_k: {"summary": {}, "checks": [], "next_steps": [], "ready": True})
-    monkeypatch.setattr("src.cli._module_check_summary", lambda target, doctor_report: {"target": target, "runtime": "auto", "ready": target != "operations", "blockers": [{"name": "x"}] if target == "operations" else []})
+    monkeypatch.setattr(
+        "src.core.doctor.run_doctor", lambda **_k: {"summary": {}, "checks": [], "next_steps": [], "ready": True}
+    )
+    monkeypatch.setattr(
+        "src.cli._module_check_summary",
+        lambda target, doctor_report: {
+            "target": target,
+            "runtime": "auto",
+            "ready": target != "operations",
+            "blockers": [{"name": "x"}] if target == "operations" else [],
+        },
+    )
     monkeypatch.setattr("src.cli._module_process_status", lambda target: {"alive": target == "presales"})
     monkeypatch.setattr("src.cli._module_logs", lambda target, tail_lines=80: {"target": target, "lines": [tail_lines]})
     monkeypatch.setattr("src.cli._start_background_module", lambda target, args: {"target": target, "started": True})
-    monkeypatch.setattr("src.cli._stop_background_module", lambda target, timeout_seconds=6.0: {"target": target, "stopped": True, "timeout": timeout_seconds})
+    monkeypatch.setattr(
+        "src.cli._stop_background_module",
+        lambda target, timeout_seconds=6.0: {"target": target, "stopped": True, "timeout": timeout_seconds},
+    )
     monkeypatch.setattr("src.cli._clear_module_runtime_state", lambda target: {"target": target, "removed": ["x"]})
 
     async def sp(_args):
@@ -271,7 +321,9 @@ async def test_cmd_module_actions(monkeypatch):
     monkeypatch.setattr("src.cli._json_out", lambda d: out.append(d))
 
     await cli.cmd_module(argparse.Namespace(action="check", target="all", skip_gateway=False, strict=False))
-    await cli.cmd_module(argparse.Namespace(action="status", target="all", workflow_db=None, window_minutes=10, orders_db="db", limit=5))
+    await cli.cmd_module(
+        argparse.Namespace(action="status", target="all", workflow_db=None, window_minutes=10, orders_db="db", limit=5)
+    )
     await cli.cmd_module(argparse.Namespace(action="logs", target="all", tail_lines=5))
     await cli.cmd_module(argparse.Namespace(action="stop", target="all", stop_timeout=3.0))
     await cli.cmd_module(argparse.Namespace(action="restart", target="all", stop_timeout=3.0))

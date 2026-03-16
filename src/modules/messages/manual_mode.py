@@ -133,12 +133,14 @@ class ManualModeStore:
             if expires_at is not None and float(expires_at) <= now_ts:
                 self._upsert(row["session_id"], False, now_ts)
                 continue
-            result.append(ManualModeState(
-                session_id=row["session_id"],
-                enabled=True,
-                updated_at=float(row["updated_at"]),
-                expires_at=float(expires_at) if expires_at is not None else None,
-            ))
+            result.append(
+                ManualModeState(
+                    session_id=row["session_id"],
+                    enabled=True,
+                    updated_at=float(row["updated_at"]),
+                    expires_at=float(expires_at) if expires_at is not None else None,
+                )
+            )
         return result
 
     def process_message(self, session_id: str, message: str, *, now: float | None = None) -> ManualModeResult:

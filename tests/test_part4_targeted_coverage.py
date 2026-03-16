@@ -108,6 +108,7 @@ async def test_ws_fetch_token_paths(monkeypatch):
 
     t._token = "cached"
     import time as _t
+
     t._token_ts = _t.time()
     assert await t._fetch_token() == "cached"
 
@@ -122,6 +123,7 @@ async def test_ws_send_reg_ack_and_queue_behaviors(monkeypatch):
     monkeypatch.setattr("src.modules.messages.ws_live.websockets", object())
     t = GoofishWsTransport(cookie_text="unb=10001; _m_h5_tk=token_a_123", config={"max_queue_size": 1})
     import asyncio
+
     t._queue = asyncio.Queue(maxsize=1)
 
     class WS:

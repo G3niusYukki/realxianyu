@@ -16,16 +16,12 @@ def svc(tmp_path):
 
 class TestDecideTargetPrice:
     def test_buyer_not_lower(self):
-        result = PriceExecutionService.decide_target_price(
-            from_price=100.0, buyer_offer_price=120.0, min_price=80.0
-        )
+        result = PriceExecutionService.decide_target_price(from_price=100.0, buyer_offer_price=120.0, min_price=80.0)
         assert result["reason"] == "buyer_offer_not_lower"
         assert result["target_price"] == 100.0
 
     def test_buyer_equal(self):
-        result = PriceExecutionService.decide_target_price(
-            from_price=100.0, buyer_offer_price=100.0, min_price=80.0
-        )
+        result = PriceExecutionService.decide_target_price(from_price=100.0, buyer_offer_price=100.0, min_price=80.0)
         assert result["reason"] == "buyer_offer_not_lower"
 
 
@@ -72,9 +68,7 @@ class TestPriceScopeFor:
         assert PriceExecutionService._price_scope_for({}) == "product"
 
     def test_strategy_scope(self):
-        assert PriceExecutionService._price_scope_for(
-            {"strategy": {"price_scope": "order"}}
-        ) == "order"
+        assert PriceExecutionService._price_scope_for({"strategy": {"price_scope": "order"}}) == "order"
 
 
 class TestAwaitIfNeeded:

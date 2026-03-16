@@ -6,11 +6,7 @@ from src.modules.ticketing import RegexTicketRecognizer, StaticTicketProvider, T
 
 
 def test_ticketing_flow_builds_listing_and_purchase() -> None:
-    text = (
-        "影院：万达影城五角场店\n"
-        "场次：2026-03-05 19:30\n"
-        "座位：5排6座、5排7座\n"
-    )
+    text = "影院：万达影城五角场店\n场次：2026-03-05 19:30\n座位：5排6座、5排7座\n"
 
     recognizer = RegexTicketRecognizer()
     provider = StaticTicketProvider(provider_name="maoyan", default_face_value=39.9, default_channel_price=35.0)
@@ -33,11 +29,7 @@ def test_ticketing_flow_builds_listing_and_purchase() -> None:
 
 
 def test_ticketing_two_stage_reply_uses_structured_output() -> None:
-    text = (
-        "影院：万达影城五角场店\n"
-        "场次：2026-03-05 19:30\n"
-        "座位：5排6座、5排7座\n"
-    )
+    text = "影院：万达影城五角场店\n场次：2026-03-05 19:30\n座位：5排6座、5排7座\n"
     service = TicketingService(
         recognizer=RegexTicketRecognizer(),
         provider=StaticTicketProvider(provider_name="maoyan", default_face_value=39.9, default_channel_price=35.0),

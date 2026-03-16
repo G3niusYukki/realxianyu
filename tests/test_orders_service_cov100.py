@@ -37,21 +37,15 @@ class TestBuildShippingApiClient:
 
 class TestExtractShippingInfo:
     def test_direct(self):
-        result = OrderFulfillmentService._extract_shipping_info(
-            {"shipping_info": {"addr": "A"}}, {}
-        )
+        result = OrderFulfillmentService._extract_shipping_info({"shipping_info": {"addr": "A"}}, {})
         assert result == {"addr": "A"}
 
     def test_nested(self):
-        result = OrderFulfillmentService._extract_shipping_info(
-            {"shipping": {"addr": "B"}}, {}
-        )
+        result = OrderFulfillmentService._extract_shipping_info({"shipping": {"addr": "B"}}, {})
         assert result == {"addr": "B"}
 
     def test_from_snapshot(self):
-        result = OrderFulfillmentService._extract_shipping_info(
-            {}, {"shipping_info": {"addr": "C"}}
-        )
+        result = OrderFulfillmentService._extract_shipping_info({}, {"shipping_info": {"addr": "C"}})
         assert result == {"addr": "C"}
 
     def test_empty(self):
@@ -133,7 +127,9 @@ class TestUpsertOrder:
     def test_idempotent_no_change(self, tmp_path):
         svc = _make_service(tmp_path)
         svc.upsert_order("o1", "已付款", session_id="s1", item_type="virtual", quote_snapshot={})
-        order = svc.upsert_order("o1", "已付款", session_id="s1", item_type="virtual", quote_snapshot={}, idempotent=True)
+        order = svc.upsert_order(
+            "o1", "已付款", session_id="s1", item_type="virtual", quote_snapshot={}, idempotent=True
+        )
         assert order["order_id"] == "o1"
 
 
@@ -208,28 +204,20 @@ class TestExtractOpenPlatformPayload:
             OrderFulfillmentService._extract_open_platform_payload(resp, path="test")
 
     def test_dict_with_code_success(self):
-        result = OrderFulfillmentService._extract_open_platform_payload(
-            {"code": 0, "data": {"x": 1}}, path="test"
-        )
+        result = OrderFulfillmentService._extract_open_platform_payload({"code": 0, "data": {"x": 1}}, path="test")
         assert result == {"x": 1}
 
     def test_dict_with_code_failure(self):
         with pytest.raises(ValueError, match="bad"):
-            OrderFulfillmentService._extract_open_platform_payload(
-                {"code": 1, "msg": "bad"}, path="test"
-            )
+            OrderFulfillmentService._extract_open_platform_payload({"code": 1, "msg": "bad"}, path="test")
 
     def test_dict_with_code_failure_message_key(self):
         with pytest.raises(ValueError, match="error msg"):
-            OrderFulfillmentService._extract_open_platform_payload(
-                {"code": 2, "message": "error msg"}, path="test"
-            )
+            OrderFulfillmentService._extract_open_platform_payload({"code": 2, "message": "error msg"}, path="test")
 
     def test_dict_with_code_failure_no_msg(self):
         with pytest.raises(ValueError, match="test failed"):
-            OrderFulfillmentService._extract_open_platform_payload(
-                {"code": 3}, path="test"
-            )
+            OrderFulfillmentService._extract_open_platform_payload({"code": 3}, path="test")
 
     def test_plain_response(self):
         result = OrderFulfillmentService._extract_open_platform_payload("hello", path="test")
@@ -318,9 +306,7 @@ class TestShipViaXianguanjia:
     def test_dry_run(self, tmp_path):
         svc = _make_service(tmp_path)
         svc.shipping_api_client = MagicMock()
-        detail, err = svc._ship_via_xianguanjia(
-            "o1", {"waybill_no": "W1", "express_code": "SF"}, True
-        )
+        detail, err = svc._ship_via_xianguanjia("o1", {"waybill_no": "W1", "express_code": "SF"}, True)
         assert detail["dry_run"] is True
         assert err is None
 
@@ -363,9 +349,7 @@ class TestShipViaXianguanjia:
         delivery_resp.ok = True
         mock_client.delivery_order.return_value = delivery_resp
         svc.shipping_api_client = mock_client
-        detail, err = svc._ship_via_xianguanjia(
-            "o1", {"waybill_no": "W1", "express_name": "圆通"}, False
-        )
+        detail, err = svc._ship_via_xianguanjia("o1", {"waybill_no": "W1", "express_name": "圆通"}, False)
         assert detail is not None
         assert err is None
 
@@ -398,8 +382,12 @@ class TestDeliver:
         delivery_resp.ok = True
         mock_client.delivery_order.return_value = delivery_resp
         svc.shipping_api_client = mock_client
-        svc.upsert_order("o1", "已付款", item_type="physical",
-                         quote_snapshot={"shipping_info": {"waybill_no": "W1", "express_code": "SF"}})
+        svc.upsert_order(
+            "o1",
+            "已付款",
+            item_type="physical",
+            quote_snapshot={"shipping_info": {"waybill_no": "W1", "express_code": "SF"}},
+        )
         result = svc.deliver("o1")
         assert result["handled"] is True
 
@@ -408,8 +396,12 @@ class TestDeliver:
         mock_client = MagicMock()
         mock_client.delivery_order.side_effect = Exception("boom")
         svc.shipping_api_client = mock_client
-        svc.upsert_order("o1", "已付款", item_type="physical",
-                         quote_snapshot={"shipping_info": {"waybill_no": "W1", "express_code": "SF"}})
+        svc.upsert_order(
+            "o1",
+            "已付款",
+            item_type="physical",
+            quote_snapshot={"shipping_info": {"waybill_no": "W1", "express_code": "SF"}},
+        )
         result = svc.deliver("o1")
         assert result["handled"] is True
         assert result["delivery"]["channel"] == "manual_fallback"
@@ -447,10 +439,12 @@ class TestSyncOpenPlatformListOrders:
         mock_client = MagicMock()
         resp = MagicMock()
         resp.ok = True
-        resp.data = {"list": [
-            {"order_no": "o1", "order_status": 12},
-            {"order_no": "o2", "order_status": 22},
-        ]}
+        resp.data = {
+            "list": [
+                {"order_no": "o1", "order_status": 12},
+                {"order_no": "o2", "order_status": 22},
+            ]
+        }
         mock_client.list_orders.return_value = resp
         result = svc.sync_open_platform_list_orders(mock_client)
         assert result["success"] is True

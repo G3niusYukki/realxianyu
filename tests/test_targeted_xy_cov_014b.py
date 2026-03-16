@@ -12,7 +12,15 @@ from src.modules.quote.excel_import import ExcelAdaptiveImporter
 
 @pytest.mark.asyncio
 async def test_error_handler_targeted_uncovered_branches():
-    obj = type("Obj", (), {"logger": type("L", (), {"warning": lambda *a, **k: None, "error": lambda *a, **k: None, "debug": lambda *a, **k: None})()})()
+    obj = type(
+        "Obj",
+        (),
+        {
+            "logger": type(
+                "L", (), {"warning": lambda *a, **k: None, "error": lambda *a, **k: None, "debug": lambda *a, **k: None}
+            )()
+        },
+    )()
 
     @handle_controller_errors(default_return="x", raise_on_error=True)
     async def raise_http_error(self):

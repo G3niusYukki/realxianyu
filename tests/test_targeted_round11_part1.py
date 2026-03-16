@@ -53,7 +53,14 @@ def test_cli_module_helpers_runtime_files_and_commands(tmp_path, monkeypatch):
     cmd = cli._build_module_start_command("presales", args)
     assert "--claim-limit" in cmd and "--workflow-db" in cmd and "--dry-run" in cmd
 
-    args2 = _ns(init_default_tasks=True, skip_polish=True, skip_metrics=True, polish_max_items=8, polish_cron="* * * * *", metrics_cron="0 * * * *")
+    args2 = _ns(
+        init_default_tasks=True,
+        skip_polish=True,
+        skip_metrics=True,
+        polish_max_items=8,
+        polish_cron="* * * * *",
+        metrics_cron="0 * * * *",
+    )
     cmd2 = cli._build_module_start_command("operations", args2)
     assert "--init-default-tasks" in cmd2 and "--skip-polish" in cmd2 and "--metrics-cron" in cmd2
 
@@ -129,7 +136,9 @@ def test_ws_messagepack_more_tags():
 
 @pytest.mark.asyncio
 async def test_ws_preflight_and_run_typeerror_fallback(ws_enabled, monkeypatch):
-    t = GoofishWsTransport(cookie_text="unb=1; _m_h5_tk=tk_1", config={"heartbeat_interval_seconds": 0, "heartbeat_timeout_seconds": 0})
+    t = GoofishWsTransport(
+        cookie_text="unb=1; _m_h5_tk=tk_1", config={"heartbeat_interval_seconds": 0, "heartbeat_timeout_seconds": 0}
+    )
 
     class Cookie:
         def __init__(self, n, v):
@@ -157,11 +166,15 @@ async def test_ws_preflight_and_run_typeerror_fallback(ws_enabled, monkeypatch):
         async def __aexit__(self, *a):
             return False
 
-    monkeypatch.setattr("src.modules.messages.ws_live.httpx.AsyncClient", lambda **_k: Ctx({"content": {"success": True}}))
+    monkeypatch.setattr(
+        "src.modules.messages.ws_live.httpx.AsyncClient", lambda **_k: Ctx({"content": {"success": True}})
+    )
     ok = await t._preflight_has_login()
     assert ok is True and "newk" in t.cookies
 
-    monkeypatch.setattr("src.modules.messages.ws_live.httpx.AsyncClient", lambda **_k: Ctx({"content": {"success": False}}))
+    monkeypatch.setattr(
+        "src.modules.messages.ws_live.httpx.AsyncClient", lambda **_k: Ctx({"content": {"success": False}})
+    )
     assert await t._preflight_has_login() is False
 
     calls = {"n": 0}

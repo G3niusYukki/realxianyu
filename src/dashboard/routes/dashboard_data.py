@@ -82,9 +82,7 @@ def handle_logs_files(ctx: RouteContext) -> None:
 @get("/api/logs/content")
 def handle_logs_content(ctx: RouteContext) -> None:
     file_name = ctx.query_str("file", "").strip()
-    tail = _safe_int(
-        (ctx.query.get("tail") or ["200"])[0], default=200, min_value=1, max_value=5000
-    )
+    tail = _safe_int((ctx.query.get("tail") or ["200"])[0], default=200, min_value=1, max_value=5000)
     page_raw = (ctx.query.get("page") or [None])[0]
     size_raw = (ctx.query.get("size") or [None])[0]
     search = ctx.query_str("search", "").strip()
@@ -92,14 +90,21 @@ def handle_logs_content(ctx: RouteContext) -> None:
     if page_raw is not None or size_raw is not None or search:
         page = _safe_int(
             str(page_raw) if page_raw is not None else None,
-            default=1, min_value=1, max_value=100000,
+            default=1,
+            min_value=1,
+            max_value=100000,
         )
         size = _safe_int(
             str(size_raw) if size_raw is not None else None,
-            default=100, min_value=10, max_value=2000,
+            default=100,
+            min_value=10,
+            max_value=2000,
         )
         payload = ctx.mimic_ops.read_log_content(
-            file_name=file_name, page=page, size=size, search=search,
+            file_name=file_name,
+            page=page,
+            size=size,
+            search=search,
         )
     else:
         payload = ctx.mimic_ops.read_log_content(file_name=file_name, tail=tail)
@@ -121,9 +126,7 @@ def handle_logs_realtime_stream(ctx: RouteContext) -> None:
     abstraction for SSE support.
     """
     file_name = ctx.query_str("file", "presales").strip()
-    tail = _safe_int(
-        (ctx.query.get("tail") or ["200"])[0], default=200, min_value=1, max_value=1000
-    )
+    tail = _safe_int((ctx.query.get("tail") or ["200"])[0], default=200, min_value=1, max_value=1000)
 
     ctx.send_response(200)
     ctx.send_header("Content-Type", "text/event-stream; charset=utf-8")
@@ -135,11 +138,7 @@ def handle_logs_realtime_stream(ctx: RouteContext) -> None:
     try:
         for _ in range(180):
             payload = ctx.mimic_ops.read_log_content(file_name=file_name, tail=tail)
-            lines = (
-                payload.get("lines", [])
-                if payload.get("success")
-                else [payload.get("error", "log not found")]
-            )
+            lines = payload.get("lines", []) if payload.get("success") else [payload.get("error", "log not found")]
             text = "\n".join(lines)
             if text != last:
                 event = json.dumps(

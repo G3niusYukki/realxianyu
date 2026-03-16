@@ -64,7 +64,9 @@ async def test_handle_sync_calls_push(ws_enabled, monkeypatch):
         "body": {
             "syncPushPackage": {
                 "data": [
-                    {"data": "eyIxIjp7IjIiOiJjMUBnb29maXNoIiwiNSI6MSwiMTAiOnsiY29udGVudCI6ImhpIiwiZnJvbVVzZXJJZCI6InUxIiwic2VuZGVyTmljayI6Im4ifX19"}
+                    {
+                        "data": "eyIxIjp7IjIiOiJjMUBnb29maXNoIiwiNSI6MSwiMTAiOnsiY29udGVudCI6ImhpIiwiZnJvbVVzZXJJZCI6InUxIiwic2VuZGVyTmljayI6Im4ifX19"
+                    }
                 ]
             }
         }

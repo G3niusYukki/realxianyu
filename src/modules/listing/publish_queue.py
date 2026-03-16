@@ -302,8 +302,11 @@ class PublishQueue:
 
             frame_id = random.choice(frames) if frames else "grid_paper"
             from .image_generator import generate_frame_images
+
             local_images = await generate_frame_images(
-                frame_id=frame_id, category=category, params=frame_params,
+                frame_id=frame_id,
+                category=category,
+                params=frame_params,
             )
             used_layers = {}
 
@@ -371,6 +374,7 @@ class PublishQueue:
             item_frame = item.frame_id
 
         from .image_generator import generate_frame_images
+
         local_images = await generate_frame_images(
             frame_id=item_frame,
             category=item.category,

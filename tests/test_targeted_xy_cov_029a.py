@@ -12,7 +12,9 @@ def _ops(temp_dir):
     return MimicOps(project_root=temp_dir, module_console=ModuleConsole(project_root=temp_dir))
 
 
-def test_recovery_advice_default_and_update_cookie_empty_and_recover_failed(monkeypatch: pytest.MonkeyPatch, temp_dir) -> None:
+def test_recovery_advice_default_and_update_cookie_empty_and_recover_failed(
+    monkeypatch: pytest.MonkeyPatch, temp_dir
+) -> None:
     ops = _ops(temp_dir)
 
     assert ops._recovery_advice("something-unknown") == "监控中，请刷新状态查看最新结果。"
@@ -102,7 +104,9 @@ def test_import_cookie_plugin_files_no_files_and_skip_no_hint_keys(temp_dir) -> 
     assert any("parsed but missing known keys" in x for x in bad["details"])
 
 
-def test_import_cookie_plugin_files_zip_edge_cases_and_non_import_file(monkeypatch: pytest.MonkeyPatch, temp_dir) -> None:
+def test_import_cookie_plugin_files_zip_edge_cases_and_non_import_file(
+    monkeypatch: pytest.MonkeyPatch, temp_dir
+) -> None:
     ops = _ops(temp_dir)
 
     parse_calls: list[str] = []

@@ -340,6 +340,7 @@ def test_random_delay_and_init_cookie_env(monkeypatch, patch_cfg):
     assert c.random_delay() == 1.5
     assert c._cookies_seed == "env_cookie=v"
 
+
 @pytest.mark.asyncio
 async def test_extra_uncovered_branches(monkeypatch, patch_cfg):
     monkeypatch.delenv("XIANYU_COOKIE_1", raising=False)

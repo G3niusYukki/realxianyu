@@ -157,11 +157,25 @@ def _sync_system_config_to_yaml(sys_config: dict[str, Any]) -> None:
         custom_rules = ar.get("custom_intent_rules")
         if isinstance(custom_rules, list):
             msgs["intent_rules"] = [
-                {k: v for k, v in r.items() if k in (
-                    "name", "keywords", "reply", "patterns", "priority",
-                    "categories", "needs_human", "human_reason", "phase", "skip_reply",
-                )}
-                for r in custom_rules if isinstance(r, dict) and r.get("name")
+                {
+                    k: v
+                    for k, v in r.items()
+                    if k
+                    in (
+                        "name",
+                        "keywords",
+                        "reply",
+                        "patterns",
+                        "priority",
+                        "categories",
+                        "needs_human",
+                        "human_reason",
+                        "phase",
+                        "skip_reply",
+                    )
+                }
+                for r in custom_rules
+                if isinstance(r, dict) and r.get("name")
             ]
             changed = True
 
@@ -2442,15 +2456,17 @@ class MimicOps:
         for r in rows:
             meta = json.loads(r["metadata"]) if r["metadata"] else {}
             payload = job_map.get(r["session_id"], {})
-            logs.append({
-                "id": str(r["id"]),
-                "session_id": r["session_id"],
-                "buyer_message": meta.get("buyer_message") or payload.get("last_message", ""),
-                "reply_text": meta.get("reply_text") or audit_map.get(r["session_id"], ""),
-                "intent": "quote" if meta.get("quote") else meta.get("intent", "auto_reply"),
-                "item_title": meta.get("peer_name") or payload.get("peer_name", ""),
-                "replied_at": r["created_at"],
-            })
+            logs.append(
+                {
+                    "id": str(r["id"]),
+                    "session_id": r["session_id"],
+                    "buyer_message": meta.get("buyer_message") or payload.get("last_message", ""),
+                    "reply_text": meta.get("reply_text") or audit_map.get(r["session_id"], ""),
+                    "intent": "quote" if meta.get("quote") else meta.get("intent", "auto_reply"),
+                    "item_title": meta.get("peer_name") or payload.get("peer_name", ""),
+                    "replied_at": r["created_at"],
+                }
+            )
         return logs
 
     def get_reply_templates(self) -> dict[str, Any]:
@@ -3118,7 +3134,6 @@ class MimicOps:
             "markup_rules": normalized,
         }
 
-
     def get_pricing_config(self) -> dict[str, Any]:
         """读取 YAML 中的 markup_categories 和 xianyu_discount。"""
         setup = QuoteSetupService(config_path=str(self.config_path))
@@ -3129,8 +3144,14 @@ class MimicOps:
             "markup_categories": quote_cfg.get("markup_categories", {}),
             "xianyu_discount": quote_cfg.get("xianyu_discount", {}),
             "service_categories": [
-                "线上快递", "线下快递", "线上快运", "线下快运",
-                "同城寄", "电动车", "分销", "商家寄件",
+                "线上快递",
+                "线下快递",
+                "线上快运",
+                "线下快运",
+                "同城寄",
+                "电动车",
+                "分销",
+                "商家寄件",
             ],
             "updated_at": _now_iso(),
         }
@@ -3160,6 +3181,7 @@ class MimicOps:
 
     def _get_cost_table_repo(self):
         from src.modules.quote.cost_table import CostTableRepository
+
         if self._cost_table_repo is None:
             self._cost_table_repo = CostTableRepository(table_dir=str(self._quote_dir()))
         return self._cost_table_repo
@@ -3395,7 +3417,9 @@ class MimicOps:
         self._risk_log_cache_ts = now
         return result
 
-    def _risk_control_status_from_logs_uncached(self, target: str = "presales", tail_lines: int = 300) -> dict[str, Any]:
+    def _risk_control_status_from_logs_uncached(
+        self, target: str = "presales", tail_lines: int = 300
+    ) -> dict[str, Any]:
         fp = self._module_runtime_log(target)
         _empty = {
             "last_event": "",
@@ -4531,23 +4555,16 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
             # --- Route dispatch (decorator-registered routes) ---
             _ctx = RouteContext(
-                _handler=self, path=path,
+                _handler=self,
+                path=path,
                 query=query,
             )
             if dispatch_get(path, _ctx):
                 return
 
-
-
             if path in {"/", "/cookie", "/test", "/logs", "/logs/realtime"}:
                 self._serve_spa_file(path)
                 return
-
-
-
-
-
-
 
             # ---------- vendor static files (Chart.js etc.) ----------
             if path.startswith("/vendor/"):
@@ -4620,13 +4637,12 @@ class DashboardHandler(BaseHTTPRequestHandler):
         try:
             # --- Route dispatch (decorator-registered routes) ---
             _ctx = RouteContext(
-                _handler=self, path=path,
+                _handler=self,
+                path=path,
                 query=parse_qs(parsed.query),
             )
             if dispatch_put(path, _ctx):
                 return
-
-
 
             self._send_json(_error_payload("Not Found", code="NOT_FOUND"), status=404)
         except Exception as e:
@@ -4637,7 +4653,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
         path = parsed.path
         try:
             _ctx = RouteContext(
-                _handler=self, path=path,
+                _handler=self,
+                path=path,
                 query=parse_qs(parsed.query),
             )
             if dispatch_delete(path, _ctx):
@@ -4655,23 +4672,14 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 self._handle_cookie_cloud(path[len("/cookie-cloud") :].rstrip("/") or "/", method="POST")
                 return
 
-
             # --- Route dispatch (decorator-registered routes) ---
             _ctx = RouteContext(
-                _handler=self, path=path,
+                _handler=self,
+                path=path,
                 query=parse_qs(urlparse(self.path).query),
             )
             if dispatch_post(path, _ctx):
                 return
-
-
-
-
-
-
-
-
-
 
             self._send_json(_error_payload("Not Found", code="NOT_FOUND"), status=404)
         except Exception as e:  # pragma: no cover - safety net

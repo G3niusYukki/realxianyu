@@ -4,7 +4,9 @@ from src.modules.virtual_goods.service import VirtualGoodsService
 
 
 def test_wave_d_mapping_crud_and_status_persistence(temp_dir) -> None:
-    svc = VirtualGoodsService(db_path=str(temp_dir / "wave_d_mapping_flow.db"), config={"xianguanjia": {"app_key": "ak", "app_secret": "as"}})
+    svc = VirtualGoodsService(
+        db_path=str(temp_dir / "wave_d_mapping_flow.db"), config={"xianguanjia": {"app_key": "ak", "app_secret": "as"}}
+    )
 
     created = svc.upsert_listing_product_mapping(
         xianyu_product_id="xp-1",

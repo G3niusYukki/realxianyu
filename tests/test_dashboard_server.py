@@ -545,6 +545,7 @@ def test_dashboard_home_contains_risk_control_rows() -> None:
 def _recent_ts(minutes_ago: int = 5) -> str:
     """Generate a log timestamp within the risk signal window."""
     from datetime import datetime, timedelta
+
     dt = datetime.now() - timedelta(minutes=minutes_ago)
     return dt.strftime("%Y-%m-%d %H:%M:%S")
 

@@ -280,13 +280,15 @@ class TestParseRule:
 
     def test_full_rule(self):
         engine = _make_engine()
-        rule = engine._parse_rule({
-            "name": "r1",
-            "reply": "Hi",
-            "keywords": ["hello"],
-            "patterns": [r"\d+"],
-            "priority": 50,
-        })
+        rule = engine._parse_rule(
+            {
+                "name": "r1",
+                "reply": "Hi",
+                "keywords": ["hello"],
+                "patterns": [r"\d+"],
+                "priority": 50,
+            }
+        )
         assert rule.name == "r1"
         assert rule.priority == 50
 

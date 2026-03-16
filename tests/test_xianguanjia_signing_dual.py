@@ -37,8 +37,7 @@ def test_sign_virtual_supply_request_matches_doc_formula_with_comma() -> None:
 
     body_md5 = hashlib.md5(body.encode("utf-8")).hexdigest()
     plain = (
-        "677859093659717,wK63PxlOBaY9NoqMksLeZySzGIW25ifA,"
-        f"{body_md5},1724414553,1001,o9wl81dncmvby3ijpq7eur456zhgtaxs"
+        f"677859093659717,wK63PxlOBaY9NoqMksLeZySzGIW25ifA,{body_md5},1724414553,1001,o9wl81dncmvby3ijpq7eur456zhgtaxs"
     )
     expected = hashlib.md5(plain.encode("utf-8")).hexdigest()
     assert sign == expected

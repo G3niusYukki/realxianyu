@@ -209,10 +209,14 @@ def test_cost_table_rows_header_and_cell_paths(tmp_path):
     assert records[0].courier == "圆通"
     assert records[0].throw_ratio == 6000.0
 
-    cell_s_no_text = ET.fromstring('<c xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" t="s"><v/></c>')
+    cell_s_no_text = ET.fromstring(
+        '<c xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" t="s"><v/></c>'
+    )
     assert repo._read_cell_value(cell_s_no_text, ["a"]) == ""
 
-    cell_s_bad_idx = ET.fromstring('<c xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" t="s"><v>9</v></c>')
+    cell_s_bad_idx = ET.fromstring(
+        '<c xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" t="s"><v>9</v></c>'
+    )
     assert repo._read_cell_value(cell_s_bad_idx, ["a"]) == ""
 
     cell_plain = ET.fromstring('<c xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><v>12.5</v></c>')

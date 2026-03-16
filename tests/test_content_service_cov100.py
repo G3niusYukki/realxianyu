@@ -25,10 +25,12 @@ def svc():
         "cache_max_entries": 200,
         "task_switches": {},
     }
-    with patch("src.modules.content.service.get_config") as mock_cfg, \
-         patch("src.modules.content.service.get_compliance_guard") as mock_comp, \
-         patch("src.modules.content.service.OpenAI") as mock_openai, \
-         patch("src.modules.content.service.AsyncOpenAI"):
+    with (
+        patch("src.modules.content.service.get_config") as mock_cfg,
+        patch("src.modules.content.service.get_compliance_guard") as mock_comp,
+        patch("src.modules.content.service.OpenAI") as mock_openai,
+        patch("src.modules.content.service.AsyncOpenAI"),
+    ):
         mock_cfg.return_value.ai = config
         mock_comp.return_value = MagicMock()
         mock_comp.return_value.mode = "strict"
@@ -48,11 +50,13 @@ def svc():
 
 class TestGenerateListingFromCategory:
     def test_ai_returns_valid_json(self, svc):
-        valid_response = json.dumps({
-            "title": "测试标题很长足够",
-            "description": "这是一段测试描述文案",
-            "features": ["卖点1", "卖点2"],
-        })
+        valid_response = json.dumps(
+            {
+                "title": "测试标题很长足够",
+                "description": "这是一段测试描述文案",
+                "features": ["卖点1", "卖点2"],
+            }
+        )
         svc._call_ai = MagicMock(return_value=valid_response)
         result = svc.generate_listing_from_category("express", {"price": 10})
         assert result["title"] == "测试标题很长足够"
@@ -62,50 +66,60 @@ class TestGenerateListingFromCategory:
 
     def test_ai_returns_non_dict(self, svc):
         svc._call_ai = MagicMock(return_value='"just a string"')
-        svc.generate_listing_content = MagicMock(return_value={
-            "title": "fallback title",
-            "description": "fallback desc",
-            "compliance": {},
-        })
+        svc.generate_listing_content = MagicMock(
+            return_value={
+                "title": "fallback title",
+                "description": "fallback desc",
+                "compliance": {},
+            }
+        )
         result = svc.generate_listing_from_category("recharge")
         assert result["title"] == "fallback title"
 
     def test_ai_returns_invalid_json(self, svc):
         svc._call_ai = MagicMock(return_value="not json at all {{{")
-        svc.generate_listing_content = MagicMock(return_value={
-            "title": "fallback",
-            "description": "",
-            "compliance": {},
-        })
+        svc.generate_listing_content = MagicMock(
+            return_value={
+                "title": "fallback",
+                "description": "",
+                "compliance": {},
+            }
+        )
         result = svc.generate_listing_from_category("exchange")
         assert result["title"] == "fallback"
 
     def test_ai_returns_none(self, svc):
         svc._call_ai = MagicMock(return_value=None)
-        svc.generate_listing_content = MagicMock(return_value={
-            "title": "fb",
-            "description": "fb desc",
-            "compliance": {},
-        })
+        svc.generate_listing_content = MagicMock(
+            return_value={
+                "title": "fb",
+                "description": "fb desc",
+                "compliance": {},
+            }
+        )
         result = svc.generate_listing_from_category("game")
         assert result["title"] == "fb"
 
     def test_features_not_list(self, svc):
-        valid_response = json.dumps({
-            "title": "标题",
-            "description": "描述",
-            "features": "not a list",
-        })
+        valid_response = json.dumps(
+            {
+                "title": "标题",
+                "description": "描述",
+                "features": "not a list",
+            }
+        )
         svc._call_ai = MagicMock(return_value=valid_response)
         result = svc.generate_listing_from_category("account")
         assert result["features"] == []
 
     def test_custom_name_and_extra_info(self, svc):
-        valid_response = json.dumps({
-            "title": "custom title",
-            "description": "desc",
-            "features": [],
-        })
+        valid_response = json.dumps(
+            {
+                "title": "custom title",
+                "description": "desc",
+                "features": [],
+            }
+        )
         svc._call_ai = MagicMock(return_value=valid_response)
         result = svc.generate_listing_from_category(
             "movie_ticket",
@@ -115,11 +129,13 @@ class TestGenerateListingFromCategory:
 
     def test_unknown_category_uses_category_as_name(self, svc):
         svc._call_ai = MagicMock(return_value=None)
-        svc.generate_listing_content = MagicMock(return_value={
-            "title": "unknown_cat",
-            "description": "",
-            "compliance": {},
-        })
+        svc.generate_listing_content = MagicMock(
+            return_value={
+                "title": "unknown_cat",
+                "description": "",
+                "compliance": {},
+            }
+        )
         result = svc.generate_listing_from_category("unknown_category")
         assert "title" in result
 

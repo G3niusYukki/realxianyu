@@ -182,7 +182,7 @@ async def test_examples_demo_browser_smoke(monkeypatch, capsys):
     assert await mod.demo_element_operations() is True
 
     async def _boom():
-        raise RuntimeError('boom')
+        raise RuntimeError("boom")
 
     monkeypatch.setattr(mod, "demo_browser_connection", _boom)
     await mod.main()
@@ -287,7 +287,7 @@ async def test_examples_advanced_and_analytics_smoke(monkeypatch, capsys):
     await adv.demo_distribution()
     await adv.demo_skill_usage()
     await adv.main()
-    assert await adv.MockLLM().chat('hello world')
+    assert await adv.MockLLM().chat("hello world")
 
     async def boom():
         raise RuntimeError("x")

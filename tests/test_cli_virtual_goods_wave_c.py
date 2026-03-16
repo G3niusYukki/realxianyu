@@ -133,9 +133,7 @@ async def test_virtual_goods_inspect(monkeypatch):
     monkeypatch.setattr("src.modules.virtual_goods.service.VirtualGoodsService", _VGServiceStub)
     monkeypatch.setattr("src.cli._json_out", lambda data: out.append(data))
 
-    await cli.cmd_virtual_goods(
-        argparse.Namespace(action="inspect", db_path="/tmp/vg.db", event_id="9", order_id="o9")
-    )
+    await cli.cmd_virtual_goods(argparse.Namespace(action="inspect", db_path="/tmp/vg.db", event_id="9", order_id="o9"))
 
     payload = out[-1]
     assert payload["ok"] is True

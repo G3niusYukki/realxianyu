@@ -33,7 +33,9 @@ class TestGenerateProductImages:
     @pytest.mark.asyncio
     async def test_default_params_list(self, tmp_path):
         with patch("src.modules.listing.image_generator.render_template", return_value="<html>ok</html>"):
-            with patch("src.modules.listing.image_generator._render_html_to_png", new_callable=AsyncMock) as mock_render:
+            with patch(
+                "src.modules.listing.image_generator._render_html_to_png", new_callable=AsyncMock
+            ) as mock_render:
                 result = await generate_product_images(category="express", output_dir=tmp_path)
                 assert mock_render.call_count == 1
                 assert len(result) == 1
@@ -41,16 +43,22 @@ class TestGenerateProductImages:
     @pytest.mark.asyncio
     async def test_multiple_params(self, tmp_path):
         with patch("src.modules.listing.image_generator.render_template", return_value="<html>ok</html>"):
-            with patch("src.modules.listing.image_generator._render_html_to_png", new_callable=AsyncMock) as mock_render:
+            with patch(
+                "src.modules.listing.image_generator._render_html_to_png", new_callable=AsyncMock
+            ) as mock_render:
                 params_list = [{"title": "A"}, {"title": "B"}]
-                result = await generate_product_images(category="recharge", params_list=params_list, output_dir=tmp_path)
+                result = await generate_product_images(
+                    category="recharge", params_list=params_list, output_dir=tmp_path
+                )
                 assert mock_render.call_count == 2
                 assert len(result) == 2
 
     @pytest.mark.asyncio
     async def test_render_failure(self, tmp_path):
         with patch("src.modules.listing.image_generator.render_template", return_value="<html>ok</html>"):
-            with patch("src.modules.listing.image_generator._render_html_to_png", new_callable=AsyncMock) as mock_render:
+            with patch(
+                "src.modules.listing.image_generator._render_html_to_png", new_callable=AsyncMock
+            ) as mock_render:
                 mock_render.side_effect = Exception("render failed")
                 result = await generate_product_images(category="game", params_list=[{}], output_dir=tmp_path)
                 assert result == []

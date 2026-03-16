@@ -6,7 +6,9 @@ from src.modules.virtual_goods.service import VirtualGoodsService
 
 
 def _service(temp_dir):
-    return VirtualGoodsService(db_path=str(temp_dir / "wave_c_service.db"), config={"xianguanjia": {"app_key": "ak", "app_secret": "as"}})
+    return VirtualGoodsService(
+        db_path=str(temp_dir / "wave_c_service.db"), config={"xianguanjia": {"app_key": "ak", "app_secret": "as"}}
+    )
 
 
 def _seed_order(service: VirtualGoodsService, order_id: str, *, manual_takeover: bool = False):
@@ -82,7 +84,9 @@ def test_wave_c_set_manual_takeover_write_via_service(temp_dir):
 def test_wave_c_timeout_scan_writes_callback_and_order_state(temp_dir):
     svc = _service(temp_dir)
     _seed_order(svc, "o-wave-c-3")
-    cbid = _seed_callback(svc, event_id="evt-wave-c-3", dedupe_key="dk-wave-c-3", order_id="o-wave-c-3", event_kind="unknown")
+    cbid = _seed_callback(
+        svc, event_id="evt-wave-c-3", dedupe_key="dk-wave-c-3", order_id="o-wave-c-3", event_kind="unknown"
+    )
 
     out = svc.run_timeout_scan(timeout_seconds=0, limit=10)
     assert out["ok"] is True

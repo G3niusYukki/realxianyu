@@ -66,13 +66,17 @@ def test_parse_markup_rules_from_file_xls_rows_and_route_infer(monkeypatch: pyte
     import sys
 
     monkeypatch.setitem(sys.modules, "pandas", _FakePd)
-    monkeypatch.setattr(ops, "_parse_markup_rules_from_rows", lambda rows: {"圆通": {"normal_first_add": 1.0}} if rows else {})
+    monkeypatch.setattr(
+        ops, "_parse_markup_rules_from_rows", lambda rows: {"圆通": {"normal_first_add": 1.0}} if rows else {}
+    )
     parsed, fmt = ops._parse_markup_rules_from_file("rules.xls", b"xls-bytes")
     assert fmt == "excel"
     assert "圆通" in parsed
 
     monkeypatch.setattr(ops, "_parse_markup_rules_from_rows", lambda _rows: {})
-    monkeypatch.setattr(ops, "_infer_markup_rules_from_route_table", lambda _f, _d: {"default": {"normal_first_add": 0.5}})
+    monkeypatch.setattr(
+        ops, "_infer_markup_rules_from_route_table", lambda _f, _d: {"default": {"normal_first_add": 0.5}}
+    )
     inferred, fmt2 = ops._parse_markup_rules_from_file("rules.xls", b"xls-bytes")
     assert fmt2 == "route_cost_infer"
     assert inferred["default"]["normal_first_add"] == 0.5
@@ -88,7 +92,9 @@ def test_parse_markup_rules_from_file_csv_json_text_branch(temp_dir) -> None:
     assert parsed["default"]["normal_first_add"] == 0.66
 
 
-def test_import_markup_files_covers_skip_exception_and_empty_log_branch(monkeypatch: pytest.MonkeyPatch, temp_dir) -> None:
+def test_import_markup_files_covers_skip_exception_and_empty_log_branch(
+    monkeypatch: pytest.MonkeyPatch, temp_dir
+) -> None:
     ops = MimicOps(project_root=temp_dir, module_console=ModuleConsole(project_root=temp_dir))
 
     zip_buf = io.BytesIO()

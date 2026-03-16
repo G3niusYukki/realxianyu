@@ -30,23 +30,21 @@ class TestIListingService:
     @pytest.mark.asyncio
     async def test_create_listing_method_exists(self):
         """测试create_listing方法存在"""
-        assert hasattr(IListingService, 'create_listing')
+        assert hasattr(IListingService, "create_listing")
 
     @pytest.mark.asyncio
     async def test_batch_create_listings_method_exists(self):
         """测试batch_create_listings方法存在"""
-        assert hasattr(IListingService, 'batch_create_listings')
+        assert hasattr(IListingService, "batch_create_listings")
 
     def test_all_methods_abstract(self):
         """测试所有方法都是抽象的"""
         import inspect
-        methods = [
-            'create_listing', 'batch_create_listings', 'update_listing',
-            'delete_listing', 'get_my_listings'
-        ]
+
+        methods = ["create_listing", "batch_create_listings", "update_listing", "delete_listing", "get_my_listings"]
         for method in methods:
             method_obj = getattr(IListingService, method)
-            assert hasattr(method_obj, '__isabstractmethod__'), f"{method} should be abstract"
+            assert hasattr(method_obj, "__isabstractmethod__"), f"{method} should be abstract"
 
 
 class TestIContentService:
@@ -59,11 +57,11 @@ class TestIContentService:
 
     def test_generate_title_method_exists(self):
         """测试generate_title方法存在"""
-        assert hasattr(IContentService, 'generate_title')
+        assert hasattr(IContentService, "generate_title")
 
     def test_generate_description_method_exists(self):
         """测试generate_description方法存在"""
-        assert hasattr(IContentService, 'generate_description')
+        assert hasattr(IContentService, "generate_description")
 
 
 class TestIMediaService:
@@ -76,11 +74,11 @@ class TestIMediaService:
 
     def test_resize_image_method_exists(self):
         """测试resize_image方法存在"""
-        assert hasattr(IMediaService, 'resize_image_for_xianyu')
+        assert hasattr(IMediaService, "resize_image_for_xianyu")
 
     def test_batch_process_method_exists(self):
         """测试batch_process方法存在"""
-        assert hasattr(IMediaService, 'batch_process_images')
+        assert hasattr(IMediaService, "batch_process_images")
 
 
 class TestIOperationsService:
@@ -94,12 +92,12 @@ class TestIOperationsService:
     @pytest.mark.asyncio
     async def test_batch_polish_method_exists(self):
         """测试batch_polish方法存在"""
-        assert hasattr(IOperationsService, 'batch_polish')
+        assert hasattr(IOperationsService, "batch_polish")
 
     @pytest.mark.asyncio
     async def test_batch_update_price_method_exists(self):
         """测试batch_update_price方法存在"""
-        assert hasattr(IOperationsService, 'batch_update_price')
+        assert hasattr(IOperationsService, "batch_update_price")
 
 
 class TestIAnalyticsService:
@@ -113,17 +111,17 @@ class TestIAnalyticsService:
     @pytest.mark.asyncio
     async def test_log_operation_method_exists(self):
         """测试log_operation方法存在"""
-        assert hasattr(IAnalyticsService, 'log_operation')
+        assert hasattr(IAnalyticsService, "log_operation")
 
     @pytest.mark.asyncio
     async def test_get_dashboard_stats_method_exists(self):
         """测试get_dashboard_stats方法存在"""
-        assert hasattr(IAnalyticsService, 'get_dashboard_stats')
+        assert hasattr(IAnalyticsService, "get_dashboard_stats")
 
     @pytest.mark.asyncio
     async def test_get_trend_data_method_exists(self):
         """测试get_trend_data方法存在"""
-        assert hasattr(IAnalyticsService, 'get_trend_data')
+        assert hasattr(IAnalyticsService, "get_trend_data")
 
 
 class TestIAccountsService:
@@ -136,15 +134,15 @@ class TestIAccountsService:
 
     def test_get_accounts_method_exists(self):
         """测试get_accounts方法存在"""
-        assert hasattr(IAccountsService, 'get_accounts')
+        assert hasattr(IAccountsService, "get_accounts")
 
     def test_get_cookie_method_exists(self):
         """测试get_cookie方法存在"""
-        assert hasattr(IAccountsService, 'get_cookie')
+        assert hasattr(IAccountsService, "get_cookie")
 
     def test_update_account_stats_method_exists(self):
         """测试update_account_stats方法存在"""
-        assert hasattr(IAccountsService, 'update_account_stats')
+        assert hasattr(IAccountsService, "update_account_stats")
 
 
 class TestISchedulerService:
@@ -158,16 +156,16 @@ class TestISchedulerService:
     @pytest.mark.asyncio
     async def test_start_method_exists(self):
         """测试start方法存在"""
-        assert hasattr(ISchedulerService, 'start')
+        assert hasattr(ISchedulerService, "start")
 
     @pytest.mark.asyncio
     async def test_stop_method_exists(self):
         """测试stop方法存在"""
-        assert hasattr(ISchedulerService, 'stop')
+        assert hasattr(ISchedulerService, "stop")
 
     def test_create_task_method_exists(self):
         """测试create_task方法存在"""
-        assert hasattr(ISchedulerService, 'create_task')
+        assert hasattr(ISchedulerService, "create_task")
 
 
 class TestIMonitorService:
@@ -181,17 +179,17 @@ class TestIMonitorService:
     @pytest.mark.asyncio
     async def test_raise_alert_method_exists(self):
         """测试raise_alert方法存在"""
-        assert hasattr(IMonitorService, 'raise_alert')
+        assert hasattr(IMonitorService, "raise_alert")
 
     @pytest.mark.asyncio
     async def test_resolve_alert_method_exists(self):
         """测试resolve_alert方法存在"""
-        assert hasattr(IMonitorService, 'resolve_alert')
+        assert hasattr(IMonitorService, "resolve_alert")
 
     @pytest.mark.asyncio
     async def test_get_active_alerts_method_exists(self):
         """测试get_active_alerts方法存在"""
-        assert hasattr(IMonitorService, 'get_active_alerts')
+        assert hasattr(IMonitorService, "get_active_alerts")
 
 
 class TestInterfaceCompliance:
@@ -200,9 +198,14 @@ class TestInterfaceCompliance:
     def test_all_interfaces_have_documentation(self):
         """测试所有接口都有文档"""
         interfaces = [
-            IListingService, IContentService, IMediaService,
-            IOperationsService, IAnalyticsService, IAccountsService,
-            ISchedulerService, IMonitorService
+            IListingService,
+            IContentService,
+            IMediaService,
+            IOperationsService,
+            IAnalyticsService,
+            IAccountsService,
+            ISchedulerService,
+            IMonitorService,
         ]
 
         for interface in interfaces:
@@ -213,20 +216,26 @@ class TestInterfaceCompliance:
     def test_all_methods_have_documentation(self):
         """测试所有方法都有文档"""
         interfaces = [
-            IListingService, IContentService, IMediaService,
-            IOperationsService, IAnalyticsService, IAccountsService,
-            ISchedulerService, IMonitorService
+            IListingService,
+            IContentService,
+            IMediaService,
+            IOperationsService,
+            IAnalyticsService,
+            IAccountsService,
+            ISchedulerService,
+            IMonitorService,
         ]
 
         for interface in interfaces:
             for name in dir(interface):
-                if not name.startswith('_') and callable(getattr(interface, name)):
+                if not name.startswith("_") and callable(getattr(interface, name)):
                     method = getattr(interface, name)
-                    if hasattr(method, '__isabstractmethod__'):
+                    if hasattr(method, "__isabstractmethod__"):
                         doc = method.__doc__
                         assert doc is not None, f"{interface.__name__}.{name} should have docstring"
-                        assert 'Args:' in doc or 'Returns:' in doc, \
+                        assert "Args:" in doc or "Returns:" in doc, (
                             f"{interface.__name__}.{name} docstring should document args/returns"
+                        )
 
 
 class MockListingService(IListingService):
@@ -263,6 +272,7 @@ class TestMockImplementation:
         service = MockListingService()
 
         from src.modules.listing.models import Listing
+
         listing = Listing(**sample_listing_data)
 
         result = await service.create_listing(listing)

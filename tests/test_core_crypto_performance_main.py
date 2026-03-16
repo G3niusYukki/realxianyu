@@ -159,4 +159,3 @@ def test_main_and_module_entry(monkeypatch):
     monkeypatch.setattr("asyncio.run", _fake_run)
     m.run()
     assert hit["n"] == 1
-

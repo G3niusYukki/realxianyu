@@ -51,9 +51,13 @@ def test_mimic_ops_order_callback_auto_ships_when_enabled(tmp_path, monkeypatch)
     )
 
     fake_api = Mock()
-    fake_api.list_express_companies = Mock(return_value=Mock(ok=True, data=[{"express_code": "YTO", "express_name": "圆通"}]))
+    fake_api.list_express_companies = Mock(
+        return_value=Mock(ok=True, data=[{"express_code": "YTO", "express_name": "圆通"}])
+    )
     fake_api.delivery_order = Mock(return_value=Mock(ok=True))
-    monkeypatch.setattr("src.modules.orders.service.OrderFulfillmentService._build_shipping_api_client", lambda self: fake_api)
+    monkeypatch.setattr(
+        "src.modules.orders.service.OrderFulfillmentService._build_shipping_api_client", lambda self: fake_api
+    )
 
     out = ops.handle_order_callback(
         {

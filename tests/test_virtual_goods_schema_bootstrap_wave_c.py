@@ -31,7 +31,9 @@ def test_wave_c_migrations_create_event_tables_on_upgrade_path(temp_dir) -> None
         base_sql = Path("database/migrations/20260306_wave_b1_virtual_goods_tables.sql").read_text(encoding="utf-8")
         conn.executescript(base_sql)
 
-        conn.executescript(Path("database/migrations/20260306_wave_c_manual_takeover_events.sql").read_text(encoding="utf-8"))
+        conn.executescript(
+            Path("database/migrations/20260306_wave_c_manual_takeover_events.sql").read_text(encoding="utf-8")
+        )
         conn.executescript(Path("database/migrations/20260306_wave_c_order_events.sql").read_text(encoding="utf-8"))
 
         tables = {

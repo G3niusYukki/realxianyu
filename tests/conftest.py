@@ -156,7 +156,7 @@ def sample_listing_data():
         "category": "数码手机",
         "images": ["test_image1.jpg", "test_image2.jpg"],
         "tags": ["苹果", "iPhone", "全新"],
-        "features": ["256GB", "原装", "国行"]
+        "features": ["256GB", "原装", "国行"],
     }
 
 
@@ -175,20 +175,8 @@ def sample_images(temp_dir):
 def sample_account_data():
     """示例账号数据"""
     return [
-        {
-            "id": "account_1",
-            "name": "主账号",
-            "cookie": "test_cookie_1_abcdefg",
-            "priority": 1,
-            "enabled": True
-        },
-        {
-            "id": "account_2",
-            "name": "副账号",
-            "cookie": "test_cookie_2_abcdefg",
-            "priority": 2,
-            "enabled": True
-        }
+        {"id": "account_1", "name": "主账号", "cookie": "test_cookie_1_abcdefg", "priority": 1, "enabled": True},
+        {"id": "account_2", "name": "副账号", "cookie": "test_cookie_2_abcdefg", "priority": 2, "enabled": True},
     ]
 
 
@@ -196,27 +184,9 @@ def sample_account_data():
 def sample_metrics_data():
     """示例指标数据"""
     return [
-        {
-            "date": "2024-01-01",
-            "views": 100,
-            "wants": 10,
-            "sales": 2,
-            "inquiries": 15
-        },
-        {
-            "date": "2024-01-02",
-            "views": 120,
-            "wants": 12,
-            "sales": 3,
-            "inquiries": 18
-        },
-        {
-            "date": "2024-01-03",
-            "views": 90,
-            "wants": 8,
-            "sales": 1,
-            "inquiries": 12
-        }
+        {"date": "2024-01-01", "views": 100, "wants": 10, "sales": 2, "inquiries": 15},
+        {"date": "2024-01-02", "views": 120, "wants": 12, "sales": 3, "inquiries": 18},
+        {"date": "2024-01-03", "views": 90, "wants": 8, "sales": 1, "inquiries": 12},
     ]
 
 
@@ -249,7 +219,7 @@ def create_mock_listing(**kwargs):
         "description": "Test Description",
         "price": 100.0,
         "category": "General",
-        "images": []
+        "images": [],
     }
     defaults.update(kwargs)
 
@@ -264,7 +234,7 @@ def create_mock_publish_result(success=True, **kwargs):
         "success": success,
         "product_id": "test_product_id" if success else None,
         "product_url": "https://test.url/product/test_product_id" if success else None,
-        "error_message": None if success else "Test error"
+        "error_message": None if success else "Test error",
     }
     defaults.update(kwargs)
 
@@ -297,6 +267,7 @@ def async_return(value):
 
 def async_raise(exc):
     """创建抛出异常的协程"""
+
     async def coro():
         raise exc
 
@@ -307,13 +278,10 @@ def skip_if_no_browser():
     """如果浏览器不可用则跳过测试"""
     return pytest.mark.skipif(
         not os.getenv("BROWSER_TEST", "false").lower() == "true",
-        reason="Browser tests disabled (set BROWSER_TEST=true to enable)"
+        reason="Browser tests disabled (set BROWSER_TEST=true to enable)",
     )
 
 
 def skip_if_no_ai():
     """如果AI服务不可用则跳过测试"""
-    return pytest.mark.skipif(
-        not os.getenv("AI_API_KEY"),
-        reason="AI tests disabled (set AI_API_KEY to enable)"
-    )
+    return pytest.mark.skipif(not os.getenv("AI_API_KEY"), reason="AI tests disabled (set AI_API_KEY to enable)")

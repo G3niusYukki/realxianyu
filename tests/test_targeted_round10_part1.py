@@ -51,7 +51,9 @@ async def test_cli_sla_benchmark_and_orders_missing(monkeypatch):
     out = []
     monkeypatch.setattr("src.cli._json_out", lambda d: out.append(d))
     for act in ["after-sales", "takeover", "resume", "trace"]:
-        await cli.cmd_orders(argparse.Namespace(action=act, db_path=None, order_id=None, issue_type=None, dry_run=False))
+        await cli.cmd_orders(
+            argparse.Namespace(action=act, db_path=None, order_id=None, issue_type=None, dry_run=False)
+        )
     assert all(item["error"] == "Specify --order-id" for item in out)
 
 
@@ -127,7 +129,10 @@ async def test_cli_module_start_ops_and_aftersales(monkeypatch):
 
     monkeypatch.setattr("src.modules.accounts.scheduler.TaskType", TaskType)
     monkeypatch.setattr("src.modules.accounts.scheduler.Scheduler", Scheduler)
-    monkeypatch.setattr("src.core.config.get_config", lambda: SimpleNamespace(get_section=lambda *_a, **_k: {"polish": {}, "metrics": {}}))
+    monkeypatch.setattr(
+        "src.core.config.get_config",
+        lambda: SimpleNamespace(get_section=lambda *_a, **_k: {"polish": {}, "metrics": {}}),
+    )
 
     b = argparse.Namespace(
         init_default_tasks=True,
@@ -180,7 +185,10 @@ async def test_cli_module_start_ops_and_aftersales(monkeypatch):
     assert "missing_session_id" in reasons and "sent" in reasons
 
     monkeypatch.setattr("src.modules.messages.service.MessagesService", lambda controller=None: MsgReply())
-    monkeypatch.setattr("src.cli._run_aftersales_once", AsyncMock(return_value={"total_cases": 1, "success_cases": 1, "failed_cases": 0}))
+    monkeypatch.setattr(
+        "src.cli._run_aftersales_once",
+        AsyncMock(return_value={"total_cases": 1, "success_cases": 1, "failed_cases": 0}),
+    )
 
     dargs = argparse.Namespace(mode="once", dry_run=True, max_loops=1, interval=0, orders_db="x")
     once = await cli._start_aftersales_module(dargs)
@@ -205,7 +213,12 @@ async def test_ws_live_run_preflight_and_fetch_retry(monkeypatch):
     monkeypatch.setattr("src.modules.messages.ws_live.websockets", WSModule())
     t = ws_live.GoofishWsTransport(
         cookie_text="unb=10001; _m_h5_tk=tk_1; cookie2=c2",
-        config={"token_max_attempts": 2, "heartbeat_interval_seconds": 1, "heartbeat_timeout_seconds": 1, "auth_hold_until_cookie_update": False},
+        config={
+            "token_max_attempts": 2,
+            "heartbeat_interval_seconds": 1,
+            "heartbeat_timeout_seconds": 1,
+            "auth_hold_until_cookie_update": False,
+        },
     )
 
     class Ck:
@@ -243,8 +256,10 @@ async def test_ws_live_run_preflight_and_fetch_retry(monkeypatch):
 
                 async def post(self, *_a, **_k):
                     calls["n"] += 1
+
                     class R:
                         cookies = {}
+
                         def json(self_inner):
                             if calls["n"] == 1:
                                 return {"ret": ["FAIL_SYS_TEMP::x"]}
@@ -273,7 +288,13 @@ async def test_ws_live_run_preflight_and_fetch_retry(monkeypatch):
             self.step += 1
             if self.step == 1:
                 payload = base64_json({"1": {"2": "c1@goofish", "10": {"reminderContent": "hi", "senderUserId": "u2"}}})
-                return json.dumps({"code": 200, "headers": {"mid": "m1", "sid": "s"}, "body": {"syncPushPackage": {"data": [{"data": payload}]}}})
+                return json.dumps(
+                    {
+                        "code": 200,
+                        "headers": {"mid": "m1", "sid": "s"},
+                        "body": {"syncPushPackage": {"data": [{"data": payload}]}},
+                    }
+                )
             t._stop_event.set()
             raise asyncio.TimeoutError
 

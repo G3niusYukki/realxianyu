@@ -77,8 +77,9 @@ class ConcreteOperationsService(IOperationsService):
 
 
 class ConcreteAnalyticsService(IAnalyticsService):
-    async def log_operation(self, operation_type, product_id=None, account_id=None,
-                            details=None, status="success", error_message=None):
+    async def log_operation(
+        self, operation_type, product_id=None, account_id=None, details=None, status="success", error_message=None
+    ):
         return 1
 
     async def get_dashboard_stats(self):
@@ -132,8 +133,7 @@ class ConcreteSchedulerService(ISchedulerService):
 
 
 class ConcreteMonitorService(IMonitorService):
-    async def raise_alert(self, alert_type, title, message, source="",
-                          details=None, auto_resolve=False):
+    async def raise_alert(self, alert_type, title, message, source="", details=None, auto_resolve=False):
         return {"id": "a1"}
 
     async def resolve_alert(self, alert_id):

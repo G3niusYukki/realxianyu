@@ -19,7 +19,9 @@ def ws_enabled(monkeypatch):
 
 
 def _transport():
-    return GoofishWsTransport(cookie_text="unb=10001; _m_h5_tk=token_a_123; cookie2=a", config={"token_max_attempts": 1})
+    return GoofishWsTransport(
+        cookie_text="unb=10001; _m_h5_tk=token_a_123; cookie2=a", config={"token_max_attempts": 1}
+    )
 
 
 @pytest.mark.asyncio

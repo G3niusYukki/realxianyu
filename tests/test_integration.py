@@ -166,11 +166,7 @@ class TestModelsIntegration:
         """测试发布结果模型集成"""
         from src.modules.listing.models import PublishResult
 
-        result = PublishResult(
-            success=True,
-            product_id="test_id",
-            product_url="https://test.url/product/test_id"
-        )
+        result = PublishResult(success=True, product_id="test_id", product_url="https://test.url/product/test_id")
         assert result.success is True
         assert result.product_id == "test_id"
         assert result.error_message is None
@@ -186,16 +182,14 @@ class TestDatabaseIntegration:
         from src.modules.analytics.service import AnalyticsService
 
         db_path = temp_dir / "test.db"
-        config = {
-            "path": str(db_path),
-            "max_connections": 5
-        }
+        config = {"path": str(db_path), "max_connections": 5}
 
         AnalyticsService(config=config)
         assert db_path.exists()
 
         # 验证表已创建
         import aiosqlite
+
         async with aiosqlite.connect(str(db_path)) as db:
             tables = await db.execute("SELECT name FROM sqlite_master WHERE type='table'")
             table_names = [row[0] for row in await tables.fetchall()]
@@ -210,9 +204,7 @@ class TestDatabaseIntegration:
         from src.modules.analytics.service import AnalyticsService
 
         db_path = temp_dir / "test_log.db"
-        config = {
-            "path": str(db_path)
-        }
+        config = {"path": str(db_path)}
 
         service = AnalyticsService(config=config)
 
@@ -221,17 +213,14 @@ class TestDatabaseIntegration:
             product_id="test_product",
             account_id="test_account",
             details={"title": "Test Product"},
-            status="success"
+            status="success",
         )
 
         assert log_id > 0
 
         # 验证日志已记录
         async with aiosqlite.connect(str(db_path)) as db:
-            cursor = await db.execute(
-                "SELECT * FROM operation_logs WHERE id = ?",
-                (log_id,)
-            )
+            cursor = await db.execute("SELECT * FROM operation_logs WHERE id = ?", (log_id,))
             row = await cursor.fetchone()
             assert row is not None
             assert row[1] == "publish"  # operation_type
@@ -258,10 +247,7 @@ class TestPerformanceIntegration:
 
         tasks = [
             service.log_operation(
-                operation_type=f"operation_{i}",
-                product_id=f"product_{i}",
-                account_id="test_account",
-                status="success"
+                operation_type=f"operation_{i}", product_id=f"product_{i}", account_id="test_account", status="success"
             )
             for i in range(100)
         ]

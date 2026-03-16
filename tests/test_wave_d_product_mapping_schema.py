@@ -23,10 +23,7 @@ def test_wave_d_listing_product_mappings_constraints_and_indexes(temp_dir) -> No
 
     conn = sqlite3.connect(db_path)
     try:
-        columns = {
-            row[1]: row[2]
-            for row in conn.execute("PRAGMA table_info(listing_product_mappings)").fetchall()
-        }
+        columns = {row[1]: row[2] for row in conn.execute("PRAGMA table_info(listing_product_mappings)").fetchall()}
         assert "xianyu_product_id" in columns
         assert "internal_listing_id" in columns
         assert "supply_goods_no" in columns
@@ -90,7 +87,9 @@ def test_wave_d_listing_product_mappings_migration_upgrades_old_schema(temp_dir)
                 ('p-2',NULL,'g-2',0,'2026-03-06T00:01:00Z','2026-03-06T00:01:00Z');
             """
         )
-        conn.executescript(Path("database/migrations/20260306_wave_d_listing_product_mappings.sql").read_text(encoding="utf-8"))
+        conn.executescript(
+            Path("database/migrations/20260306_wave_d_listing_product_mappings.sql").read_text(encoding="utf-8")
+        )
 
         rows = conn.execute(
             "SELECT xianyu_product_id, internal_listing_id, mapping_status FROM listing_product_mappings ORDER BY xianyu_product_id"

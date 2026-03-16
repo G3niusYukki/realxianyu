@@ -60,18 +60,22 @@ async def test_listing_service_branches(mock_controller):
     svc = ListingService(controller=mock_controller)
 
     mock_api = Mock()
-    mock_api.create_product = Mock(return_value=SimpleNamespace(
-        ok=True,
-        data={"xianyu_product_id": "abc"},
-        error_message=None,
-        error_code=None,
-        to_dict=lambda: {"ok": True, "data": {"xianyu_product_id": "abc"}},
-    ))
-    mock_api.list_products = Mock(return_value=SimpleNamespace(
-        ok=True,
-        data={"list": [{"id": 1}, {"id": 2}, {"id": 3}]},
-        error_message=None,
-    ))
+    mock_api.create_product = Mock(
+        return_value=SimpleNamespace(
+            ok=True,
+            data={"xianyu_product_id": "abc"},
+            error_message=None,
+            error_code=None,
+            to_dict=lambda: {"ok": True, "data": {"xianyu_product_id": "abc"}},
+        )
+    )
+    mock_api.list_products = Mock(
+        return_value=SimpleNamespace(
+            ok=True,
+            data={"list": [{"id": 1}, {"id": 2}, {"id": 3}]},
+            error_message=None,
+        )
+    )
     svc._build_open_platform_client = Mock(return_value=mock_api)
 
     svc.compliance = Mock(
@@ -90,7 +94,9 @@ async def test_listing_service_branches(mock_controller):
     assert blocked.success is False
 
     svc.compliance.evaluate_content = Mock(return_value={"warn": False, "blocked": False, "message": "ok", "hits": []})
-    svc.compliance.evaluate_publish_rate = AsyncMock(return_value={"warn": True, "blocked": True, "message": "too fast"})
+    svc.compliance.evaluate_publish_rate = AsyncMock(
+        return_value={"warn": True, "blocked": True, "message": "too fast"}
+    )
     rate_block = await svc.create_listing(listing)
     assert rate_block.success is False
 
@@ -280,8 +286,16 @@ async def test_monitor_health_scheduler_and_analytics(temp_dir, monkeypatch: pyt
     assert product["report_type"] == "product"
     assert compare["report_type"] == "comparison"
 
-    md = ReportFormatter.to_markdown({"report_type": "daily", "generated_at": "x", "operations": {"a": 1}, "summary": {"b": 2}})
-    sk = ReportFormatter.to_slack({"report_type": "daily", "period": {"date": "2025-01-01"}, "summary": {"total_views": 1, "total_wants": 2, "total_sales": 3}})
+    md = ReportFormatter.to_markdown(
+        {"report_type": "daily", "generated_at": "x", "operations": {"a": 1}, "summary": {"b": 2}}
+    )
+    sk = ReportFormatter.to_slack(
+        {
+            "report_type": "daily",
+            "period": {"date": "2025-01-01"},
+            "summary": {"total_views": 1, "total_wants": 2, "total_sales": 3},
+        }
+    )
     assert "# Daily Report" in md
     assert "📊" in sk
 
@@ -294,6 +308,8 @@ async def test_monitor_health_scheduler_and_analytics(temp_dir, monkeypatch: pyt
     assert "📊" in (await vz.generate_metrics_dashboard())
     assert isinstance(await vz.generate_weekly_trend(weeks=1), str)
 
-    rpath = await ChartExporter.export_report({"report_type": "daily", "summary": {"a": 1}}, format="markdown", filepath=str(temp_dir / "rep"))
+    rpath = await ChartExporter.export_report(
+        {"report_type": "daily", "summary": {"a": 1}}, format="markdown", filepath=str(temp_dir / "rep")
+    )
     assert Path(rpath).exists()
     assert "每日运营摘要" in (await ChartExporter.export_daily_summary(format="text"))

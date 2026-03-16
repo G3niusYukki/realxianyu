@@ -138,7 +138,9 @@ async def test_quote_engine_remote_only_success_resets_circuit():
 
 @pytest.mark.asyncio
 async def test_quote_engine_api_parallel_api_done_with_exception_falls_back(monkeypatch):
-    e = AutoQuoteEngine({"mode": "api_cost_plus_markup", "api_fallback_to_table_parallel": True, "api_prefer_max_wait_seconds": 0.01})
+    e = AutoQuoteEngine(
+        {"mode": "api_cost_plus_markup", "api_fallback_to_table_parallel": True, "api_prefer_max_wait_seconds": 0.01}
+    )
 
     async def api_fail_late(_req, timeout_ms=0):
         await asyncio.sleep(0.02)

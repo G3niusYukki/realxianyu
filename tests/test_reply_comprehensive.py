@@ -62,7 +62,9 @@ def call_api(message: str, session_id: str = "") -> dict:
         payload["session_id"] = session_id
     data = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(
-        API_URL, data=data, headers={"Content-Type": "application/json"},
+        API_URL,
+        data=data,
+        headers={"Content-Type": "application/json"},
     )
     try:
         with urllib.request.urlopen(req, timeout=API_TIMEOUT) as resp:
@@ -92,7 +94,7 @@ def check_case(tc: TestCase) -> TestResult:
     if resp.get("_timeout"):
         if tc.allow_ai:
             return TestResult(tc.category, tc.message, True, "", "TIMEOUT(ai ok)")
-        return TestResult(tc.category, tc.message, False, "API call", f"TIMEOUT: {resp.get('_error','')}")
+        return TestResult(tc.category, tc.message, False, "API call", f"TIMEOUT: {resp.get('_error', '')}")
 
     detail = resp.get("detail", {})
     reply = resp.get("reply", "")
@@ -119,7 +121,11 @@ def check_case(tc: TestCase) -> TestResult:
                 failures.append(f"reply missing '{kw}'")
 
     if tc.expect_reply_not_contains:
-        checks = tc.expect_reply_not_contains if isinstance(tc.expect_reply_not_contains, list) else [tc.expect_reply_not_contains]
+        checks = (
+            tc.expect_reply_not_contains
+            if isinstance(tc.expect_reply_not_contains, list)
+            else [tc.expect_reply_not_contains]
+        )
         for kw in checks:
             if kw in reply:
                 failures.append(f"reply should NOT contain '{kw}'")
@@ -128,7 +134,9 @@ def check_case(tc: TestCase) -> TestResult:
         failures.append(f"expect no reply but got: {reply[:40]}")
 
     if failures:
-        return TestResult(tc.category, tc.message, False, "; ".join(failures), f"rule={rule} skipped={skipped}", reply[:60])
+        return TestResult(
+            tc.category, tc.message, False, "; ".join(failures), f"rule={rule} skipped={skipped}", reply[:60]
+        )
     return TestResult(tc.category, tc.message, True, "", f"rule={rule}", reply[:60])
 
 
@@ -137,7 +145,7 @@ def check_session(st: SessionTest) -> list[TestResult]:
     sid = f"session_{uuid.uuid4().hex[:8]}"
     for i, step in enumerate(st.steps):
         resp = call_api(step.message, sid)
-        label = f"[{st.name}#{i+1}] {step.message[:30]}"
+        label = f"[{st.name}#{i + 1}] {step.message[:30]}"
 
         if resp.get("_timeout"):
             results.append(TestResult(st.category, label, False, "API", "TIMEOUT"))
@@ -161,13 +169,21 @@ def check_session(st: SessionTest) -> list[TestResult]:
             failures.append(f"expect is_quote={step.expect_is_quote} got {detail.get('is_quote')}")
 
         if step.expect_reply_contains:
-            checks = step.expect_reply_contains if isinstance(step.expect_reply_contains, list) else [step.expect_reply_contains]
+            checks = (
+                step.expect_reply_contains
+                if isinstance(step.expect_reply_contains, list)
+                else [step.expect_reply_contains]
+            )
             for kw in checks:
                 if kw not in reply:
                     failures.append(f"reply missing '{kw}'")
 
         if step.expect_reply_not_contains:
-            checks = step.expect_reply_not_contains if isinstance(step.expect_reply_not_contains, list) else [step.expect_reply_not_contains]
+            checks = (
+                step.expect_reply_not_contains
+                if isinstance(step.expect_reply_not_contains, list)
+                else [step.expect_reply_not_contains]
+            )
             for kw in checks:
                 if kw in reply:
                     failures.append(f"reply should NOT contain '{kw}'")
@@ -176,7 +192,9 @@ def check_session(st: SessionTest) -> list[TestResult]:
             failures.append(f"expect phase={step.expect_phase} got {phase}")
 
         if failures:
-            results.append(TestResult(st.category, label, False, "; ".join(failures), f"rule={rule} phase={phase}", reply[:60]))
+            results.append(
+                TestResult(st.category, label, False, "; ".join(failures), f"rule={rule} phase={phase}", reply[:60])
+            )
         else:
             results.append(TestResult(st.category, label, True, "", f"rule={rule} phase={phase}", reply[:60]))
     return results
@@ -195,7 +213,6 @@ STATELESS_TESTS: list[TestCase] = [
     TestCase("售前问候", "运费查一下", expect_is_quote=True),
     TestCase("售前问候", "怎么收费的", expect_is_quote=True, allow_ai=True),
     TestCase("售前问候", "邮费多少", expect_is_quote=True),
-
     # === 2. 报价请求 (15) ===
     TestCase("报价请求", "广东-浙江 3kg", expect_is_quote=True, expect_reply_not_contains="寄件城市"),
     TestCase("报价请求", "北京-上海 2kg 40x30x20cm", expect_is_quote=True),
@@ -212,7 +229,6 @@ STATELESS_TESTS: list[TestCase] = [
     TestCase("报价请求", "帮我看看杭州发深圳要多少", expect_rule=["any"], allow_ai=True),
     TestCase("报价请求", "从北京寄到广州5公斤", expect_is_quote=True),
     TestCase("报价请求", "上海到武汉 3斤", expect_is_quote=True),
-
     # === 3. 京东/顺丰 (8) ===
     TestCase("京东顺丰", "有顺丰吗", expect_rule="express_sf_jd", expect_reply_contains="小橙序"),
     TestCase("京东顺丰", "京东快递多少钱", expect_rule="express_sf_jd"),
@@ -222,7 +238,6 @@ STATELESS_TESTS: list[TestCase] = [
     TestCase("京东顺丰", "京东快递", expect_rule="express_sf_jd"),
     TestCase("京东顺丰", "改成顺丰快递", expect_rule="express_sf_jd"),
     TestCase("京东顺丰", "顺丰比这个快吗", expect_rule="express_sf_jd"),
-
     # === 4. 下单流程 + 兑换码 (13) ===
     TestCase("下单流程", "怎么买", expect_rule="express_buying_process"),
     TestCase("下单流程", "怎么拍", expect_rule="express_buying_process"),
@@ -237,7 +252,6 @@ STATELESS_TESTS: list[TestCase] = [
     TestCase("下单流程", "什么小程序", expect_rule="express_xiaochengxu_explain"),
     TestCase("下单流程", "小橙序搜不到", expect_rule=["express_xiaochengxu_explain", "any"], allow_ai=True),
     TestCase("下单流程", "在哪搜", expect_rule="express_xiaochengxu_explain"),
-
     # === 5. 售后问题 (15) ===
     TestCase("售后问题", "到哪了", expect_rule="express_tracking_query"),
     TestCase("售后问题", "快递到哪了", expect_rule="express_tracking_query"),
@@ -254,7 +268,6 @@ STATELESS_TESTS: list[TestCase] = [
     TestCase("售后问题", "还没到", expect_rule="express_not_arrived"),
     TestCase("售后问题", "东西少了", expect_rule="express_not_arrived"),
     TestCase("售后问题", "没收到码", expect_rule="express_code_not_received"),
-
     # === 6. 系统通知 (12) ===
     TestCase("系统通知", "请双方沟通及时确认价格", expect_skipped=True),
     TestCase("系统通知", "修改价格", expect_skipped=True),
@@ -268,7 +281,6 @@ STATELESS_TESTS: list[TestCase] = [
     TestCase("系统通知", "请确认价格与协商一致，并在24小时内付款", expect_skipped=True),
     TestCase("系统通知", "我已修改价格，等待你付款", expect_skipped=True),
     TestCase("系统通知", "我已修改价格，等待你付款\n请确认价格与协商一致，并在24小时内付款", expect_skipped=True),
-
     # === 7. 售后规则补充 (8) ===
     TestCase("售后规则", "怎么预约", expect_rule="express_how_to_schedule"),
     TestCase("售后规则", "预约取件", expect_rule="express_how_to_schedule"),
@@ -278,7 +290,6 @@ STATELESS_TESTS: list[TestCase] = [
     TestCase("售后规则", "转人工", expect_rule="express_human_request"),
     TestCase("售后规则", "抓紧", expect_rule="express_hurry"),
     TestCase("售后规则", "快点发", expect_rule="express_hurry"),
-
     # === 8. 买家情绪/决策 (10) ===
     TestCase("买家情绪", "算了", expect_rule="buyer_decline"),
     TestCase("买家情绪", "不用了", expect_rule="buyer_decline"),
@@ -290,7 +301,6 @@ STATELESS_TESTS: list[TestCase] = [
     TestCase("买家情绪", "收到", expect_rule="buyer_acknowledgment"),
     TestCase("买家情绪", "谢谢", expect_rule="buyer_acknowledgment"),
     TestCase("买家情绪", "哦哦", expect_rule="buyer_acknowledgment"),
-
     # === 9. 特殊物品/限制 (12) ===
     TestCase("特殊物品", "能寄电池吗", expect_rule="express_restricted"),
     TestCase("特殊物品", "化妆品能发吗", expect_rule=["express_restricted", "express_food_liquid"]),
@@ -304,7 +314,6 @@ STATELESS_TESTS: list[TestCase] = [
     TestCase("特殊物品", "能匿名寄吗", expect_rule="express_anonymous"),
     TestCase("特殊物品", "多久能到", expect_rule="express_eta"),
     TestCase("特殊物品", "什么快递", expect_rule="express_which_courier"),
-
     # === 10. 低文化水平/非标表达 (12) ===
     TestCase("低文化水平", "5单1kg的要多少", expect_is_quote=True),
     TestCase("低文化水平", "这样办理寄件的？", expect_rule=["express_buying_process", "any"], allow_ai=True),
@@ -318,19 +327,22 @@ STATELESS_TESTS: list[TestCase] = [
     TestCase("低文化水平", "北京~焦作市", expect_is_quote=True),
     TestCase("低文化水平", "广东省内2kg什么价格", expect_is_quote=True),
     TestCase("低文化水平", "啥时候能到啊", expect_rule="express_eta"),
-
     # === 11. 边界情况 (10) ===
     TestCase("边界情况", "图片", expect_rule="buyer_acknowledgment"),
     TestCase("边界情况", "语音", expect_rule="buyer_acknowledgment"),
     TestCase("边界情况", "。", expect_rule=["buyer_acknowledgment", "any"], allow_ai=True),
     TestCase("边界情况", "？？？", expect_rule=["any"], allow_ai=True),
-    TestCase("边界情况", "寄件人：广西玉林市北流市西埌镇海洋广告，赖东13687858373 收件人:李生 13828026985 广东省江门市鹤山市雅瑶镇穗鹤二手车城信威汽车 3.5kg电线", expect_is_quote=True, allow_ai=True),
+    TestCase(
+        "边界情况",
+        "寄件人：广西玉林市北流市西埌镇海洋广告，赖东13687858373 收件人:李生 13828026985 广东省江门市鹤山市雅瑶镇穗鹤二手车城信威汽车 3.5kg电线",
+        expect_is_quote=True,
+        allow_ai=True,
+    ),
     TestCase("边界情况", "真的能寄这么便宜？", expect_rule="express_trust"),
     TestCase("边界情况", "不接单了？", expect_rule="express_network"),
     TestCase("边界情况", "下单失败怎么办", expect_rule="express_order_failed"),
     TestCase("边界情况", "余额在哪看", expect_rule="express_balance_view"),
     TestCase("边界情况", "地址在哪填", expect_rule="express_address_fill"),
-
     # === 12. 复合/交叉场景 (6) ===
     TestCase("复合场景", "只换了3.7", expect_rule="express_discount_complaint"),
     TestCase("复合场景", "余额少了怎么回事", expect_rule="express_discount_complaint"),
@@ -342,53 +354,72 @@ STATELESS_TESTS: list[TestCase] = [
 
 
 SESSION_TESTS: list[SessionTest] = [
-    SessionTest("会话阶段", "完整流程A", [
-        SessionStep("福建 黑龙江3kg", expect_is_quote=True, expect_reply_contains="报价"),
-        SessionStep("选韵达", expect_reply_contains="韵达"),
-        SessionStep("怎么买", expect_rule=["express_buying_process", "courier_locked"]),
-        SessionStep("我已拍下，待付款\n请双方沟通及时确认价格", expect_skipped=True),
-        SessionStep("我已付款，等待你发货\n请包装好商品，并按我在闲鱼上提供的地址发货", expect_skipped=True),
-        SessionStep("怎么预约", expect_rule="express_how_to_schedule", expect_reply_not_contains="报价"),
-    ]),
-
-    SessionTest("会话阶段", "售后催促B", [
-        SessionStep("广东-浙江 2kg", expect_is_quote=True),
-        SessionStep("选圆通", expect_reply_contains="圆通"),
-        SessionStep("我已拍下，待付款\n请双方沟通及时确认价格", expect_skipped=True),
-        SessionStep("我已付款，等待你发货\n请包装好商品，并按我在闲鱼上提供的地址发货", expect_skipped=True),
-        SessionStep("码呢", expect_rule="express_code_not_received", expect_reply_not_contains="报价"),
-        SessionStep("抓紧抓紧", expect_rule="express_hurry"),
-    ]),
-
-    SessionTest("会话阶段", "售后京东C", [
-        SessionStep("杭州到北京 1kg", expect_is_quote=True),
-        SessionStep("选申通", expect_reply_contains="申通"),
-        SessionStep("我已付款，等待你发货\n请包装好商品，并按我在闲鱼上提供的地址发货", expect_skipped=True),
-        SessionStep("给我改成京东快递吧", expect_rule="express_sf_jd", expect_reply_contains="小橙序"),
-        SessionStep("怎么补差价", expect_rule="express_supplement_pay"),
-    ]),
-
-    SessionTest("checkout上下文", "规则优先D", [
-        SessionStep("北京-上海 1kg", expect_is_quote=True),
-        SessionStep("韵达", expect_reply_contains="韵达"),
-        SessionStep("兑换码怎么使用", expect_rule="express_code_usage", expect_reply_not_contains="锁定"),
-        SessionStep("什么小程序", expect_rule="express_xiaochengxu_explain"),
-        SessionStep("京东快递", expect_rule="express_sf_jd"),
-    ]),
-
-    SessionTest("渐进信息", "分步提供E", [
-        SessionStep("寄件城市 贵州贵阳", expect_is_quote=True, expect_reply_contains="收件城市"),
-        SessionStep("收件城市 广东增城", expect_is_quote=True, expect_reply_contains="重量"),
-        SessionStep("1公斤以内", expect_is_quote=True, expect_reply_not_contains="寄件城市"),
-    ]),
-
-    SessionTest("系统通知会话", "通知不干扰F", [
-        SessionStep("广东-浙江 1kg", expect_is_quote=True),
-        SessionStep("选韵达", expect_reply_contains="韵达"),
-        SessionStep("未付款，买家关闭了订单", expect_skipped=True),
-        SessionStep("修改价格", expect_skipped=True),
-        SessionStep("你当前宝贝拍下未付款\n请在15分钟内付款", expect_skipped=True),
-    ]),
+    SessionTest(
+        "会话阶段",
+        "完整流程A",
+        [
+            SessionStep("福建 黑龙江3kg", expect_is_quote=True, expect_reply_contains="报价"),
+            SessionStep("选韵达", expect_reply_contains="韵达"),
+            SessionStep("怎么买", expect_rule=["express_buying_process", "courier_locked"]),
+            SessionStep("我已拍下，待付款\n请双方沟通及时确认价格", expect_skipped=True),
+            SessionStep("我已付款，等待你发货\n请包装好商品，并按我在闲鱼上提供的地址发货", expect_skipped=True),
+            SessionStep("怎么预约", expect_rule="express_how_to_schedule", expect_reply_not_contains="报价"),
+        ],
+    ),
+    SessionTest(
+        "会话阶段",
+        "售后催促B",
+        [
+            SessionStep("广东-浙江 2kg", expect_is_quote=True),
+            SessionStep("选圆通", expect_reply_contains="圆通"),
+            SessionStep("我已拍下，待付款\n请双方沟通及时确认价格", expect_skipped=True),
+            SessionStep("我已付款，等待你发货\n请包装好商品，并按我在闲鱼上提供的地址发货", expect_skipped=True),
+            SessionStep("码呢", expect_rule="express_code_not_received", expect_reply_not_contains="报价"),
+            SessionStep("抓紧抓紧", expect_rule="express_hurry"),
+        ],
+    ),
+    SessionTest(
+        "会话阶段",
+        "售后京东C",
+        [
+            SessionStep("杭州到北京 1kg", expect_is_quote=True),
+            SessionStep("选申通", expect_reply_contains="申通"),
+            SessionStep("我已付款，等待你发货\n请包装好商品，并按我在闲鱼上提供的地址发货", expect_skipped=True),
+            SessionStep("给我改成京东快递吧", expect_rule="express_sf_jd", expect_reply_contains="小橙序"),
+            SessionStep("怎么补差价", expect_rule="express_supplement_pay"),
+        ],
+    ),
+    SessionTest(
+        "checkout上下文",
+        "规则优先D",
+        [
+            SessionStep("北京-上海 1kg", expect_is_quote=True),
+            SessionStep("韵达", expect_reply_contains="韵达"),
+            SessionStep("兑换码怎么使用", expect_rule="express_code_usage", expect_reply_not_contains="锁定"),
+            SessionStep("什么小程序", expect_rule="express_xiaochengxu_explain"),
+            SessionStep("京东快递", expect_rule="express_sf_jd"),
+        ],
+    ),
+    SessionTest(
+        "渐进信息",
+        "分步提供E",
+        [
+            SessionStep("寄件城市 贵州贵阳", expect_is_quote=True, expect_reply_contains="收件城市"),
+            SessionStep("收件城市 广东增城", expect_is_quote=True, expect_reply_contains="重量"),
+            SessionStep("1公斤以内", expect_is_quote=True, expect_reply_not_contains="寄件城市"),
+        ],
+    ),
+    SessionTest(
+        "系统通知会话",
+        "通知不干扰F",
+        [
+            SessionStep("广东-浙江 1kg", expect_is_quote=True),
+            SessionStep("选韵达", expect_reply_contains="韵达"),
+            SessionStep("未付款，买家关闭了订单", expect_skipped=True),
+            SessionStep("修改价格", expect_skipped=True),
+            SessionStep("你当前宝贝拍下未付款\n请在15分钟内付款", expect_skipped=True),
+        ],
+    ),
 ]
 
 
@@ -408,9 +439,9 @@ def run_all():
         if not result.passed:
             if "TIMEOUT" in result.actual:
                 timeouts += 1
-            print(f"  FAIL [{tc.category}] \"{tc.message[:30]}\" -> {result.expected} | {result.actual}")
+            print(f'  FAIL [{tc.category}] "{tc.message[:30]}" -> {result.expected} | {result.actual}')
         if (i + 1) % 30 == 0:
-            print(f"  ... {i+1}/{len(STATELESS_TESTS)} done")
+            print(f"  ... {i + 1}/{len(STATELESS_TESTS)} done")
     stateless_pass = sum(1 for r in all_results if r.passed)
     print(f"  无状态测试完成: {stateless_pass}/{len(all_results)} 通过")
     if timeouts:
@@ -438,7 +469,7 @@ def run_all():
     failed = total - passed
 
     print("=" * 60)
-    print(f"  总测试: {total} | 通过: {passed} | 失败: {failed} | 通过率: {passed/total*100:.1f}%")
+    print(f"  总测试: {total} | 通过: {passed} | 失败: {failed} | 通过率: {passed / total * 100:.1f}%")
     print("=" * 60)
     print()
 
@@ -458,7 +489,7 @@ def run_all():
         print("失败明细:")
         for r in all_results:
             if not r.passed:
-                print(f"  [{r.category}] \"{r.message[:40]}\"")
+                print(f'  [{r.category}] "{r.message[:40]}"')
                 print(f"    问题: {r.expected}")
                 print(f"    实际: {r.actual}")
                 if r.reply_snippet:
@@ -470,5 +501,6 @@ def run_all():
 
 if __name__ == "__main__":
     import sys
+
     ok = run_all()
     sys.exit(0 if ok else 1)

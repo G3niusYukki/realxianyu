@@ -105,8 +105,22 @@ async def test_cmd_orders_actions(monkeypatch):
     monkeypatch.setattr("src.modules.orders.service.OrderFulfillmentService", S)
     monkeypatch.setattr("src.cli._json_out", lambda d: out.append(d))
 
-    await cli.cmd_orders(argparse.Namespace(action="upsert", order_id=None, status="paid", session_id=None, quote_fee=None, item_type=None, db_path=None))
-    await cli.cmd_orders(argparse.Namespace(action="upsert", order_id="o1", status="paid", session_id="s1", quote_fee=5.0, item_type="virtual", db_path=None))
+    await cli.cmd_orders(
+        argparse.Namespace(
+            action="upsert", order_id=None, status="paid", session_id=None, quote_fee=None, item_type=None, db_path=None
+        )
+    )
+    await cli.cmd_orders(
+        argparse.Namespace(
+            action="upsert",
+            order_id="o1",
+            status="paid",
+            session_id="s1",
+            quote_fee=5.0,
+            item_type="virtual",
+            db_path=None,
+        )
+    )
     await cli.cmd_orders(argparse.Namespace(action="deliver", order_id="o1", dry_run=True, db_path=None))
     await cli.cmd_orders(argparse.Namespace(action="after-sales", order_id="o1", issue_type="delay", db_path=None))
     await cli.cmd_orders(argparse.Namespace(action="takeover", order_id="o1", db_path=None))
@@ -206,7 +220,9 @@ async def test_cmd_compliance_doctor_quote_growth_automation(monkeypatch):
 
     monkeypatch.setattr("src.modules.compliance.center.ComplianceCenter", Center)
     monkeypatch.setattr("src.core.doctor.run_doctor", lambda **_k: {"ready": False, "summary": {"warning_failed": 1}})
-    monkeypatch.setattr("src.core.config.get_config", lambda: SimpleNamespace(get_section=lambda *_a, **_k: {"mode": "rule_only"}))
+    monkeypatch.setattr(
+        "src.core.config.get_config", lambda: SimpleNamespace(get_section=lambda *_a, **_k: {"mode": "rule_only"})
+    )
     monkeypatch.setattr("src.modules.quote.CostTableRepository", QuoteRepo)
     monkeypatch.setattr("src.modules.quote.QuoteSetupService", QuoteSetup)
     monkeypatch.setattr("src.modules.growth.service.GrowthService", Growth)
@@ -215,25 +231,83 @@ async def test_cmd_compliance_doctor_quote_growth_automation(monkeypatch):
     monkeypatch.setattr("src.cli._json_out", lambda d: out.append(d))
 
     await cli.cmd_compliance(argparse.Namespace(action="reload", policy_path="p", db_path="d"))
-    await cli.cmd_compliance(argparse.Namespace(action="check", content="x", actor="a", account_id="id", session_id="s", audit_action="send", policy_path="p", db_path="d"))
-    await cli.cmd_compliance(argparse.Namespace(action="replay", account_id="id", session_id="s", blocked_only=True, limit=1, policy_path="p", db_path="d"))
+    await cli.cmd_compliance(
+        argparse.Namespace(
+            action="check",
+            content="x",
+            actor="a",
+            account_id="id",
+            session_id="s",
+            audit_action="send",
+            policy_path="p",
+            db_path="d",
+        )
+    )
+    await cli.cmd_compliance(
+        argparse.Namespace(
+            action="replay", account_id="id", session_id="s", blocked_only=True, limit=1, policy_path="p", db_path="d"
+        )
+    )
 
     with pytest.raises(SystemExit):
         await cli.cmd_doctor(argparse.Namespace(skip_gateway=False, skip_quote=False, strict=True))
 
     await cli.cmd_quote(argparse.Namespace(action="health"))
-    await cli.cmd_quote(argparse.Namespace(action="candidates", origin_city="杭州", destination_city="上海", courier=None, limit=1))
-    await cli.cmd_quote(argparse.Namespace(action="setup", config_path="c", mode="m", origin_city="o", pricing_profile="p", cost_table_dir="d", cost_table_patterns="*.csv,*.xlsx", cost_api_url="", cost_api_key_env="KEY"))
+    await cli.cmd_quote(
+        argparse.Namespace(action="candidates", origin_city="杭州", destination_city="上海", courier=None, limit=1)
+    )
+    await cli.cmd_quote(
+        argparse.Namespace(
+            action="setup",
+            config_path="c",
+            mode="m",
+            origin_city="o",
+            pricing_profile="p",
+            cost_table_dir="d",
+            cost_table_patterns="*.csv,*.xlsx",
+            cost_api_url="",
+            cost_api_key_env="KEY",
+        )
+    )
 
-    await cli.cmd_growth(argparse.Namespace(action="set-strategy", strategy_type="price", version="v1", active=True, baseline=False, db_path=None))
+    await cli.cmd_growth(
+        argparse.Namespace(
+            action="set-strategy", strategy_type="price", version="v1", active=True, baseline=False, db_path=None
+        )
+    )
     await cli.cmd_growth(argparse.Namespace(action="rollback", strategy_type="price", db_path=None))
-    await cli.cmd_growth(argparse.Namespace(action="assign", experiment_id="e", subject_id="u", variants="A,B", version="v", db_path=None))
-    await cli.cmd_growth(argparse.Namespace(action="event", subject_id="u", stage="inquiry", experiment_id="e", variant="A", version="v", db_path=None))
+    await cli.cmd_growth(
+        argparse.Namespace(
+            action="assign", experiment_id="e", subject_id="u", variants="A,B", version="v", db_path=None
+        )
+    )
+    await cli.cmd_growth(
+        argparse.Namespace(
+            action="event", subject_id="u", stage="inquiry", experiment_id="e", variant="A", version="v", db_path=None
+        )
+    )
     await cli.cmd_growth(argparse.Namespace(action="funnel", days=3, bucket="day", db_path=None))
-    await cli.cmd_growth(argparse.Namespace(action="compare", experiment_id="e", from_stage="inquiry", to_stage="ordered", db_path=None))
+    await cli.cmd_growth(
+        argparse.Namespace(action="compare", experiment_id="e", from_stage="inquiry", to_stage="ordered", db_path=None)
+    )
 
     await cli.cmd_automation(argparse.Namespace(action="status", config_path="x"))
-    await cli.cmd_automation(argparse.Namespace(action="setup", config_path="x", enable_feishu=False, feishu_webhook="", poll_interval=1, scan_limit=2, claim_limit=3, reply_target_seconds=4, notify_on_start=True, disable_notify_on_alert=False, disable_notify_recovery=True, heartbeat_minutes=5))
+    await cli.cmd_automation(
+        argparse.Namespace(
+            action="setup",
+            config_path="x",
+            enable_feishu=False,
+            feishu_webhook="",
+            poll_interval=1,
+            scan_limit=2,
+            claim_limit=3,
+            reply_target_seconds=4,
+            notify_on_start=True,
+            disable_notify_on_alert=False,
+            disable_notify_recovery=True,
+            heartbeat_minutes=5,
+        )
+    )
     await cli.cmd_automation(argparse.Namespace(action="test-feishu", config_path="x", feishu_webhook="", message="hi"))
 
     assert out[0]["success"] is True
@@ -266,5 +340,9 @@ async def test_cmd_messages_workflow_transition_force(monkeypatch):
     monkeypatch.setattr("src.cli._resolve_workflow_state", lambda _s: SimpleNamespace(value="inquiry"))
     monkeypatch.setattr("src.cli._json_out", lambda d: out.append(d))
 
-    await cli.cmd_messages(argparse.Namespace(action="workflow-transition", session_id="s1", stage="inquiry", workflow_db="db", force_state=True))
+    await cli.cmd_messages(
+        argparse.Namespace(
+            action="workflow-transition", session_id="s1", stage="inquiry", workflow_db="db", force_state=True
+        )
+    )
     assert out[-1]["forced"] is True

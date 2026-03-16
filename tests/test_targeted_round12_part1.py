@@ -470,8 +470,12 @@ def test_startup_checks_and_service_container_extra(monkeypatch, tmp_path):
     monkeypatch.setattr(sc, "check_ai_config", lambda: sc.StartupCheckResult("AI服务", True, "ok", False))
     monkeypatch.setattr(sc, "check_cookies_configured", lambda: sc.StartupCheckResult("闲鱼Cookie", True, "ok", True))
     monkeypatch.setattr(sc, "check_cookie_expiration", lambda: sc.StartupCheckResult("Cookie有效性", True, "ok", False))
-    monkeypatch.setattr(sc, "check_gateway_reachable", lambda: sc.StartupCheckResult("Legacy Browser Gateway", False, "down", True))
-    monkeypatch.setattr(sc, "check_lite_browser_dependency", lambda: sc.StartupCheckResult("Lite 浏览器驱动", True, "ok", True))
+    monkeypatch.setattr(
+        sc, "check_gateway_reachable", lambda: sc.StartupCheckResult("Legacy Browser Gateway", False, "down", True)
+    )
+    monkeypatch.setattr(
+        sc, "check_lite_browser_dependency", lambda: sc.StartupCheckResult("Lite 浏览器驱动", True, "ok", True)
+    )
 
     skip_browser = sc.run_all_checks(skip_browser=True)
     assert all(item.name != "Legacy Browser Gateway" for item in skip_browser)
@@ -484,7 +488,9 @@ def test_startup_checks_and_service_container_extra(monkeypatch, tmp_path):
     assert any(item.name == "Lite 浏览器驱动" for item in lite_checks)
 
     monkeypatch.setattr(sc, "resolve_runtime_mode", lambda: "auto")
-    monkeypatch.setattr(sc, "check_gateway_reachable", lambda: sc.StartupCheckResult("Legacy Browser Gateway", False, "down", True))
+    monkeypatch.setattr(
+        sc, "check_gateway_reachable", lambda: sc.StartupCheckResult("Legacy Browser Gateway", False, "down", True)
+    )
     auto_checks = sc.run_all_checks(skip_browser=False)
     assert any(item.name == "Lite 浏览器驱动" for item in auto_checks)
 
@@ -563,7 +569,9 @@ async def test_browser_client_remaining_branches(monkeypatch):
     with pytest.raises(BrowserError):
         await c.new_page()
 
-    c._client = SimpleNamespace(post=AsyncMock(return_value=SimpleNamespace(status_code=200, json=lambda: {"ok": 1}, text="")))
+    c._client = SimpleNamespace(
+        post=AsyncMock(return_value=SimpleNamespace(status_code=200, json=lambda: {"ok": 1}, text=""))
+    )
     assert await c._act("x") == {"ok": 1}
 
     c._focus_tab = AsyncMock()

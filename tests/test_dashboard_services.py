@@ -34,8 +34,8 @@ from src.dashboard.repository import DashboardRepository
 # config_service
 # ---------------------------------------------------------------------------
 
-class TestConfigService:
 
+class TestConfigService:
     def test_read_write_roundtrip(self, tmp_path: Path):
         cfg_file = tmp_path / "server" / "data" / "system_config.json"
         with patch("src.dashboard.config_service._SYS_CONFIG_FILE", cfg_file):
@@ -120,6 +120,7 @@ class TestConfigService:
 # repository
 # ---------------------------------------------------------------------------
 
+
 def _create_test_db(db_path: str):
     conn = sqlite3.connect(db_path)
     conn.executescript("""
@@ -162,7 +163,6 @@ def _create_test_db(db_path: str):
 
 
 class TestDashboardRepository:
-
     @pytest.fixture
     def repo(self, tmp_path: Path) -> DashboardRepository:
         db = str(tmp_path / "test.db")
@@ -208,13 +208,13 @@ class TestDashboardRepository:
 # module_console
 # ---------------------------------------------------------------------------
 
-class TestExtractJsonPayload:
 
+class TestExtractJsonPayload:
     def test_valid_json_object(self):
         assert _extract_json_payload('{"ok": true}') == {"ok": True}
 
     def test_valid_json_array(self):
-        assert _extract_json_payload('[1, 2, 3]') == [1, 2, 3]
+        assert _extract_json_payload("[1, 2, 3]") == [1, 2, 3]
 
     def test_json_embedded_in_text(self):
         result = _extract_json_payload('some log output\n{"status":"running"}\nmore text')
@@ -231,7 +231,6 @@ class TestExtractJsonPayload:
 
 
 class TestModuleConsole:
-
     def test_module_targets_tuple(self):
         assert "presales" in MODULE_TARGETS
         assert "operations" in MODULE_TARGETS
@@ -275,8 +274,8 @@ class TestModuleConsole:
 # router
 # ---------------------------------------------------------------------------
 
-class TestRouter:
 
+class TestRouter:
     def setup_method(self):
         route_mod._GET_ROUTES.clear()
         route_mod._POST_ROUTES.clear()
@@ -284,19 +283,22 @@ class TestRouter:
 
     def test_get_decorator_registers(self):
         @route_mod.get("/test")
-        def handler(h): pass
+        def handler(h):
+            pass
 
         assert route_mod.dispatch_get("/test") is handler
 
     def test_post_decorator_registers(self):
         @route_mod.post("/submit")
-        def handler(h): pass
+        def handler(h):
+            pass
 
         assert route_mod.dispatch_post("/submit") is handler
 
     def test_put_decorator_registers(self):
         @route_mod.put("/update")
-        def handler(h): pass
+        def handler(h):
+            pass
 
         assert route_mod.dispatch_put("/update") is handler
 
@@ -307,10 +309,12 @@ class TestRouter:
 
     def test_all_routes_summary(self):
         @route_mod.get("/a")
-        def h1(h): pass
+        def h1(h):
+            pass
 
         @route_mod.post("/b")
-        def h2(h): pass
+        def h2(h):
+            pass
 
         summary = route_mod.all_routes()
         assert "/a" in summary["GET"]

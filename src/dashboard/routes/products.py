@@ -21,6 +21,7 @@ from src.dashboard.router import (
 def _run_async(coro: Any) -> Any:
     """Run an async coroutine synchronously (lazy import to avoid circular deps)."""
     from src.dashboard_server import _run_async as _ra
+
     return _ra(coro)
 
 
@@ -95,8 +96,12 @@ def handle_generated_image(ctx: RouteContext) -> None:
         return
     ext = resolved.suffix.lower()
     mime_map = {
-        ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
-        ".gif": "image/gif", ".webp": "image/webp", ".svg": "image/svg+xml",
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".gif": "image/gif",
+        ".webp": "image/webp",
+        ".svg": "image/svg+xml",
     }
     content_type = mime_map.get(ext, "application/octet-stream")
     data = resolved.read_bytes()
@@ -266,8 +271,11 @@ def handle_auto_publish_status(ctx: RouteContext) -> None:
     ap_cfg = _read_system_config().get("auto_publish", {})
     user_schedule = {}
     for k in (
-        "cold_start_days", "cold_start_daily_count", "steady_replace_count",
-        "max_active_listings", "steady_replace_metric",
+        "cold_start_days",
+        "cold_start_daily_count",
+        "steady_replace_count",
+        "max_active_listings",
+        "steady_replace_metric",
     ):
         if k in ap_cfg:
             user_schedule[k] = ap_cfg[k]
@@ -501,8 +509,11 @@ def handle_publish_queue_generate(ctx: RouteContext) -> None:
     ap_cfg = _read_system_config().get("auto_publish", {})
     user_schedule = {}
     for k in (
-        "cold_start_days", "cold_start_daily_count", "steady_replace_count",
-        "max_active_listings", "steady_replace_metric",
+        "cold_start_days",
+        "cold_start_daily_count",
+        "steady_replace_count",
+        "max_active_listings",
+        "steady_replace_metric",
     ):
         if k in ap_cfg:
             user_schedule[k] = ap_cfg[k]

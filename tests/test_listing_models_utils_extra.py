@@ -40,6 +40,7 @@ def test_load_listings_from_csv_success_and_bad_row(tmp_path, caplog):
     ).to_csv(csv_path, index=False)
 
     import logging
+
     with caplog.at_level(logging.WARNING):
         rows = load_listings_from_csv(str(csv_path))
     assert len(rows) == 1

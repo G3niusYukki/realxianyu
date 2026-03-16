@@ -120,8 +120,14 @@ async def test_scheduler_publish_metrics_and_cron(monkeypatch):
         return DummyClient()
 
     monkeypatch.setattr("src.modules.accounts.scheduler.create_browser_client", mk_client)
-    monkeypatch.setitem(__import__("sys").modules, "src.modules.listing.models", types.SimpleNamespace(Listing=DummyListing))
-    monkeypatch.setitem(__import__("sys").modules, "src.modules.listing.service", types.SimpleNamespace(ListingService=DummyListingService))
+    monkeypatch.setitem(
+        __import__("sys").modules, "src.modules.listing.models", types.SimpleNamespace(Listing=DummyListing)
+    )
+    monkeypatch.setitem(
+        __import__("sys").modules,
+        "src.modules.listing.service",
+        types.SimpleNamespace(ListingService=DummyListingService),
+    )
 
     ok = await s._execute_publish({"listings": [{"title": "a"}]})
     assert ok["success"] is True and len(ok["details"]) == 2
@@ -132,7 +138,11 @@ async def test_scheduler_publish_metrics_and_cron(monkeypatch):
         async def get_dashboard_stats(self):
             return {"x": 1}
 
-    monkeypatch.setitem(__import__("sys").modules, "src.modules.analytics.service", types.SimpleNamespace(AnalyticsService=DummyAnalytics))
+    monkeypatch.setitem(
+        __import__("sys").modules,
+        "src.modules.analytics.service",
+        types.SimpleNamespace(AnalyticsService=DummyAnalytics),
+    )
     mt = await s._execute_metrics({})
     assert mt["success"] is True and mt["stats"]["x"] == 1
 
@@ -173,7 +183,9 @@ async def test_monitor_paths(monkeypatch, tmp_path):
 
 @pytest.mark.asyncio
 async def test_operations_listing_media_content_analytics(monkeypatch, tmp_path):
-    monkeypatch.setattr("src.modules.operations.service.get_config", lambda: _Obj(browser={"delay": {"min": 0, "max": 0}}))
+    monkeypatch.setattr(
+        "src.modules.operations.service.get_config", lambda: _Obj(browser={"delay": {"min": 0, "max": 0}})
+    )
 
     async def no_sleep(*_):
         return None
@@ -201,6 +213,7 @@ async def test_operations_listing_media_content_analytics(monkeypatch, tmp_path)
     listing = Listing(title="t", description="d", price=1.0, images=["a.jpg"], category="General", tags=["9成新"])
 
     import types as _types
+
     mock_api = _Obj(
         create_product=lambda payload: _types.SimpleNamespace(
             ok=True,
@@ -249,5 +262,7 @@ async def test_operations_listing_media_content_analytics(monkeypatch, tmp_path)
     rep = await rg.generate_daily_report()
     assert rep["report_type"] == "daily"
     md = ReportFormatter.to_markdown({"report_type": "daily", "operations": {"a": 1}, "summary": {"b": 2}})
-    slack = ReportFormatter.to_slack({"report_type": "daily", "summary": {"total_wants": 1, "total_views": 2, "total_sales": 3}})
+    slack = ReportFormatter.to_slack(
+        {"report_type": "daily", "summary": {"total_wants": 1, "total_views": 2, "total_sales": 3}}
+    )
     assert "Report" in md and "📊" in slack

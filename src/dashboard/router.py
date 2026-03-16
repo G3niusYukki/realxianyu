@@ -96,9 +96,7 @@ class RouteContext:
         download_name: str | None = None,
     ) -> None:
         """Send a binary response."""
-        self._handler._send_bytes(
-            data, content_type, status=status, download_name=download_name
-        )
+        self._handler._send_bytes(data, content_type, status=status, download_name=download_name)
 
     # -- service accessors (injected via DashboardHandler class vars) ---------
 
@@ -281,7 +279,7 @@ def _dispatch(
         return True
     for pfx, param_name, handler in prefix_list:
         if path.startswith(pfx):
-            ctx.path_params[param_name] = path[len(pfx):]
+            ctx.path_params[param_name] = path[len(pfx) :]
             handler(ctx)
             return True
     return False

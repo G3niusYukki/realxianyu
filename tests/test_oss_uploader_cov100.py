@@ -103,11 +103,15 @@ class TestUpload:
     def test_upload_success_custom_domain(self, tmp_path):
         f = tmp_path / "img.png"
         f.write_bytes(b"\x89PNG")
-        u = OSSUploader({
-            "access_key_id": "a", "access_key_secret": "b",
-            "bucket": "c", "endpoint": "https://oss.example.com",
-            "custom_domain": "cdn.example.com",
-        })
+        u = OSSUploader(
+            {
+                "access_key_id": "a",
+                "access_key_secret": "b",
+                "bucket": "c",
+                "endpoint": "https://oss.example.com",
+                "custom_domain": "cdn.example.com",
+            }
+        )
         mock_bucket = MagicMock()
         u._bucket = mock_bucket
         url = u.upload(f)
@@ -117,10 +121,14 @@ class TestUpload:
     def test_upload_success_no_custom_domain(self, tmp_path):
         f = tmp_path / "img.jpg"
         f.write_bytes(b"\xff\xd8")
-        u = OSSUploader({
-            "access_key_id": "a", "access_key_secret": "b",
-            "bucket": "mybkt", "endpoint": "https://oss-cn-hangzhou.aliyuncs.com",
-        })
+        u = OSSUploader(
+            {
+                "access_key_id": "a",
+                "access_key_secret": "b",
+                "bucket": "mybkt",
+                "endpoint": "https://oss-cn-hangzhou.aliyuncs.com",
+            }
+        )
         mock_bucket = MagicMock()
         u._bucket = mock_bucket
         url = u.upload(f)
@@ -130,10 +138,14 @@ class TestUpload:
     def test_upload_no_extension(self, tmp_path):
         f = tmp_path / "noext"
         f.write_bytes(b"data")
-        u = OSSUploader({
-            "access_key_id": "a", "access_key_secret": "b",
-            "bucket": "bk", "endpoint": "https://oss.example.com",
-        })
+        u = OSSUploader(
+            {
+                "access_key_id": "a",
+                "access_key_secret": "b",
+                "bucket": "bk",
+                "endpoint": "https://oss.example.com",
+            }
+        )
         u._bucket = MagicMock()
         url = u.upload(f)
         assert url.endswith(".png") or "noext" not in url
@@ -146,10 +158,14 @@ class TestUploadBatch:
         f2 = tmp_path / "b.png"
         f2.write_bytes(b"\x89PNG")
 
-        u = OSSUploader({
-            "access_key_id": "a", "access_key_secret": "b",
-            "bucket": "bk", "endpoint": "https://oss.example.com",
-        })
+        u = OSSUploader(
+            {
+                "access_key_id": "a",
+                "access_key_secret": "b",
+                "bucket": "bk",
+                "endpoint": "https://oss.example.com",
+            }
+        )
         mock_bucket = MagicMock()
         mock_bucket.put_object_from_file.side_effect = [None, Exception("boom")]
         u._bucket = mock_bucket
@@ -157,9 +173,13 @@ class TestUploadBatch:
         assert len(urls) == 1
 
     def test_batch_empty(self):
-        u = OSSUploader({
-            "access_key_id": "a", "access_key_secret": "b",
-            "bucket": "bk", "endpoint": "https://oss.example.com",
-        })
+        u = OSSUploader(
+            {
+                "access_key_id": "a",
+                "access_key_secret": "b",
+                "bucket": "bk",
+                "endpoint": "https://oss.example.com",
+            }
+        )
         u._bucket = MagicMock()
         assert u.upload_batch([]) == []

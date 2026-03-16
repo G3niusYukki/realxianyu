@@ -242,18 +242,23 @@ def test_workflow_fail_job_updates_attempt_count_and_last_error(temp_dir) -> Non
     assert len(jobs) == 1
     job = jobs[0]
 
-    assert store.fail_job(
-        job_id=job.id,
-        error="upstream timeout",
-        max_attempts=3,
-        base_backoff_seconds=1,
-        expected_lease_until=job.lease_until,
-    ) is True
+    assert (
+        store.fail_job(
+            job_id=job.id,
+            error="upstream timeout",
+            max_attempts=3,
+            base_backoff_seconds=1,
+            expected_lease_until=job.lease_until,
+        )
+        is True
+    )
 
     conn = sqlite3.connect(temp_dir / "workflow_fail.db")
     conn.row_factory = sqlite3.Row
     try:
-        row = conn.execute("SELECT status, attempts, last_error, lease_until FROM workflow_jobs WHERE id=?", (job.id,)).fetchone()
+        row = conn.execute(
+            "SELECT status, attempts, last_error, lease_until FROM workflow_jobs WHERE id=?", (job.id,)
+        ).fetchone()
         assert row is not None
         assert row["status"] == "pending"
         assert int(row["attempts"]) == 1

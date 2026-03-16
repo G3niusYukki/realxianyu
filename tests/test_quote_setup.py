@@ -43,11 +43,7 @@ def test_apply_existing_config_backup_and_api_mode_updates(tmp_path: Path, monke
     """分支：已有配置触发备份；api 模式写入 cost_api_url/key；保留已有 markup_rules。"""
     cfg = tmp_path / "config.yaml"
     cfg.write_text(
-        "quote:\n"
-        "  markup_rules:\n"
-        "    default:\n"
-        "      normal_first_add: 9\n"
-        "      normal_extra_add: 8\n",
+        "quote:\n  markup_rules:\n    default:\n      normal_first_add: 9\n      normal_extra_add: 8\n",
         encoding="utf-8",
     )
 

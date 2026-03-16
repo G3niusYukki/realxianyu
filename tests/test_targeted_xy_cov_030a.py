@@ -65,7 +65,9 @@ def test_import_cookie_zip_read_exception_and_empty_parsed_cookie(monkeypatch: p
     assert any("zip read boom" in d for d in bad["details"])
 
     monkeypatch.setattr(ds.zipfile, "ZipFile", zipfile.ZipFile)
-    monkeypatch.setattr(ops, "parse_cookie_text", lambda _t: {"success": True, "cookie": "", "cookie_items": 1, "length": 0})
+    monkeypatch.setattr(
+        ops, "parse_cookie_text", lambda _t: {"success": True, "cookie": "", "cookie_items": 1, "length": 0}
+    )
     monkeypatch.setattr(ops, "_cookie_hint_hit_keys", lambda _t: ["_tb_token_"])
     empty_cookie = ops.import_cookie_plugin_files([("cookies.txt", b"_tb_token_=a")])
     assert empty_cookie["success"] is False
@@ -111,13 +113,22 @@ def test_markup_mapping_rows_and_file_parser_edges(monkeypatch: pytest.MonkeyPat
     row_parsed = ops._parse_markup_rules_from_rows(rows)
     assert row_parsed == {}
 
-    list_payload = [{"name": "   "}, {"carrier": "申通", "normal_first_add": 1, "member_first_add": 2, "normal_extra_add": 3, "member_extra_add": 4}]
+    list_payload = [
+        {"name": "   "},
+        {"carrier": "申通", "normal_first_add": 1, "member_first_add": 2, "normal_extra_add": 3, "member_extra_add": 4},
+    ]
     json_like = ops._parse_markup_rules_from_json_like(list_payload)
     assert "申通" in json_like
     assert ops._parse_markup_rules_from_json_like("x") == {}
 
     monkeypatch.setattr(ops, "_parse_markup_rules_from_xlsx_bytes", lambda _b: {})
-    monkeypatch.setattr(ops, "_infer_markup_rules_from_route_table", lambda _n, _b: {"YTO": {"normal_first_add": 1, "member_first_add": 1, "normal_extra_add": 1, "member_extra_add": 1}})
+    monkeypatch.setattr(
+        ops,
+        "_infer_markup_rules_from_route_table",
+        lambda _n, _b: {
+            "YTO": {"normal_first_add": 1, "member_first_add": 1, "normal_extra_add": 1, "member_extra_add": 1}
+        },
+    )
     inferred, fmt = ops._parse_markup_rules_from_file("x.xlsx", b"bin")
     assert fmt == "route_cost_infer"
     assert "YTO" in inferred
@@ -130,7 +141,10 @@ def test_markup_import_save_rules_and_logs_and_stream_finish(monkeypatch: pytest
     with zipfile.ZipFile(zbuf, "w") as zf:
         zf.writestr("d/", b"")
         zf.writestr(".__ignored.csv", b"x")
-        zf.writestr("a.json", b'{"YTO": {"normal_first_add": 1, "member_first_add": 2, "normal_extra_add": 3, "member_extra_add": 4}}')
+        zf.writestr(
+            "a.json",
+            b'{"YTO": {"normal_first_add": 1, "member_first_add": 2, "normal_extra_add": 3, "member_extra_add": 4}}',
+        )
 
     out = ops.import_markup_files([("rules.zip", zbuf.getvalue())])
     assert out["success"] is True

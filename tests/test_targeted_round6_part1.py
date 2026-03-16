@@ -96,15 +96,123 @@ async def test_cmd_analytics_accounts_orders_compliance_ai_quote_growth(monkeypa
             return {"order_id": order_id}
 
     monkeypatch.setattr("src.modules.orders.service.OrderFulfillmentService", Orders)
-    await cli.cmd_orders(argparse.Namespace(action="upsert", db_path=None, order_id=None, status=None, session_id=None, quote_fee=None, item_type=None, dry_run=False, issue_type=None))
-    await cli.cmd_orders(argparse.Namespace(action="upsert", db_path=None, order_id="o1", status="paid", session_id="s1", quote_fee=12, item_type="v", dry_run=False, issue_type=None))
-    await cli.cmd_orders(argparse.Namespace(action="deliver", db_path=None, order_id=None, status=None, session_id=None, quote_fee=None, item_type=None, dry_run=True, issue_type=None))
-    await cli.cmd_orders(argparse.Namespace(action="deliver", db_path=None, order_id="o1", status=None, session_id=None, quote_fee=None, item_type=None, dry_run=True, issue_type=None))
-    await cli.cmd_orders(argparse.Namespace(action="after-sales", db_path=None, order_id="o1", status=None, session_id=None, quote_fee=None, item_type=None, dry_run=False, issue_type="delay"))
-    await cli.cmd_orders(argparse.Namespace(action="takeover", db_path=None, order_id="ok", status=None, session_id=None, quote_fee=None, item_type=None, dry_run=False, issue_type=None))
-    await cli.cmd_orders(argparse.Namespace(action="resume", db_path=None, order_id="no", status=None, session_id=None, quote_fee=None, item_type=None, dry_run=False, issue_type=None))
-    await cli.cmd_orders(argparse.Namespace(action="trace", db_path=None, order_id="o1", status=None, session_id=None, quote_fee=None, item_type=None, dry_run=False, issue_type=None))
-    await cli.cmd_orders(argparse.Namespace(action="none", db_path=None, order_id=None, status=None, session_id=None, quote_fee=None, item_type=None, dry_run=False, issue_type=None))
+    await cli.cmd_orders(
+        argparse.Namespace(
+            action="upsert",
+            db_path=None,
+            order_id=None,
+            status=None,
+            session_id=None,
+            quote_fee=None,
+            item_type=None,
+            dry_run=False,
+            issue_type=None,
+        )
+    )
+    await cli.cmd_orders(
+        argparse.Namespace(
+            action="upsert",
+            db_path=None,
+            order_id="o1",
+            status="paid",
+            session_id="s1",
+            quote_fee=12,
+            item_type="v",
+            dry_run=False,
+            issue_type=None,
+        )
+    )
+    await cli.cmd_orders(
+        argparse.Namespace(
+            action="deliver",
+            db_path=None,
+            order_id=None,
+            status=None,
+            session_id=None,
+            quote_fee=None,
+            item_type=None,
+            dry_run=True,
+            issue_type=None,
+        )
+    )
+    await cli.cmd_orders(
+        argparse.Namespace(
+            action="deliver",
+            db_path=None,
+            order_id="o1",
+            status=None,
+            session_id=None,
+            quote_fee=None,
+            item_type=None,
+            dry_run=True,
+            issue_type=None,
+        )
+    )
+    await cli.cmd_orders(
+        argparse.Namespace(
+            action="after-sales",
+            db_path=None,
+            order_id="o1",
+            status=None,
+            session_id=None,
+            quote_fee=None,
+            item_type=None,
+            dry_run=False,
+            issue_type="delay",
+        )
+    )
+    await cli.cmd_orders(
+        argparse.Namespace(
+            action="takeover",
+            db_path=None,
+            order_id="ok",
+            status=None,
+            session_id=None,
+            quote_fee=None,
+            item_type=None,
+            dry_run=False,
+            issue_type=None,
+        )
+    )
+    await cli.cmd_orders(
+        argparse.Namespace(
+            action="resume",
+            db_path=None,
+            order_id="no",
+            status=None,
+            session_id=None,
+            quote_fee=None,
+            item_type=None,
+            dry_run=False,
+            issue_type=None,
+        )
+    )
+    await cli.cmd_orders(
+        argparse.Namespace(
+            action="trace",
+            db_path=None,
+            order_id="o1",
+            status=None,
+            session_id=None,
+            quote_fee=None,
+            item_type=None,
+            dry_run=False,
+            issue_type=None,
+        )
+    )
+    await cli.cmd_orders(
+        argparse.Namespace(
+            action="none",
+            db_path=None,
+            order_id=None,
+            status=None,
+            session_id=None,
+            quote_fee=None,
+            item_type=None,
+            dry_run=False,
+            issue_type=None,
+        )
+    )
 
     class Decision:
         def to_dict(self):
@@ -124,10 +232,62 @@ async def test_cmd_analytics_accounts_orders_compliance_ai_quote_growth(monkeypa
             return [{"id": 1}]
 
     monkeypatch.setattr("src.modules.compliance.center.ComplianceCenter", Compliance)
-    await cli.cmd_compliance(argparse.Namespace(action="reload", policy_path="p", db_path="d", content=None, actor=None, account_id=None, session_id=None, audit_action=None, blocked_only=False, limit=3))
-    await cli.cmd_compliance(argparse.Namespace(action="check", policy_path="p", db_path="d", content="x", actor="a", account_id="u", session_id="s", audit_action="message_send", blocked_only=False, limit=3))
-    await cli.cmd_compliance(argparse.Namespace(action="replay", policy_path="p", db_path="d", content=None, actor=None, account_id=None, session_id=None, audit_action=None, blocked_only=True, limit=2))
-    await cli.cmd_compliance(argparse.Namespace(action="what", policy_path="p", db_path="d", content=None, actor=None, account_id=None, session_id=None, audit_action=None, blocked_only=False, limit=2))
+    await cli.cmd_compliance(
+        argparse.Namespace(
+            action="reload",
+            policy_path="p",
+            db_path="d",
+            content=None,
+            actor=None,
+            account_id=None,
+            session_id=None,
+            audit_action=None,
+            blocked_only=False,
+            limit=3,
+        )
+    )
+    await cli.cmd_compliance(
+        argparse.Namespace(
+            action="check",
+            policy_path="p",
+            db_path="d",
+            content="x",
+            actor="a",
+            account_id="u",
+            session_id="s",
+            audit_action="message_send",
+            blocked_only=False,
+            limit=3,
+        )
+    )
+    await cli.cmd_compliance(
+        argparse.Namespace(
+            action="replay",
+            policy_path="p",
+            db_path="d",
+            content=None,
+            actor=None,
+            account_id=None,
+            session_id=None,
+            audit_action=None,
+            blocked_only=True,
+            limit=2,
+        )
+    )
+    await cli.cmd_compliance(
+        argparse.Namespace(
+            action="what",
+            policy_path="p",
+            db_path="d",
+            content=None,
+            actor=None,
+            account_id=None,
+            session_id=None,
+            audit_action=None,
+            blocked_only=False,
+            limit=2,
+        )
+    )
 
     class AI:
         def get_ai_cost_stats(self):
@@ -175,11 +335,86 @@ async def test_cmd_analytics_accounts_orders_compliance_ai_quote_growth(monkeypa
     monkeypatch.setattr("src.core.config.get_config", lambda: Cfg())
     monkeypatch.setattr("src.modules.quote.CostTableRepository", Repo)
     monkeypatch.setattr("src.modules.quote.QuoteSetupService", Setup)
-    await cli.cmd_quote(argparse.Namespace(action="health", origin_city=None, destination_city=None, courier=None, limit=2, config_path=None, cost_table_patterns=None, mode=None, pricing_profile=None, cost_table_dir=None, cost_api_url=None, cost_api_key_env=None))
-    await cli.cmd_quote(argparse.Namespace(action="candidates", origin_city=None, destination_city="上海", courier=None, limit=2, config_path=None, cost_table_patterns=None, mode=None, pricing_profile=None, cost_table_dir=None, cost_api_url=None, cost_api_key_env=None))
-    await cli.cmd_quote(argparse.Namespace(action="candidates", origin_city="杭州", destination_city="上海", courier="圆通", limit=2, config_path=None, cost_table_patterns=None, mode=None, pricing_profile=None, cost_table_dir=None, cost_api_url=None, cost_api_key_env=None))
-    await cli.cmd_quote(argparse.Namespace(action="setup", origin_city=None, destination_city=None, courier=None, limit=2, config_path="cfg", cost_table_patterns="*.xlsx,*.csv", mode="m", pricing_profile="p", cost_table_dir="dir", cost_api_url="u", cost_api_key_env="KEY"))
-    await cli.cmd_quote(argparse.Namespace(action="x", origin_city=None, destination_city=None, courier=None, limit=2, config_path=None, cost_table_patterns=None, mode=None, pricing_profile=None, cost_table_dir=None, cost_api_url=None, cost_api_key_env=None))
+    await cli.cmd_quote(
+        argparse.Namespace(
+            action="health",
+            origin_city=None,
+            destination_city=None,
+            courier=None,
+            limit=2,
+            config_path=None,
+            cost_table_patterns=None,
+            mode=None,
+            pricing_profile=None,
+            cost_table_dir=None,
+            cost_api_url=None,
+            cost_api_key_env=None,
+        )
+    )
+    await cli.cmd_quote(
+        argparse.Namespace(
+            action="candidates",
+            origin_city=None,
+            destination_city="上海",
+            courier=None,
+            limit=2,
+            config_path=None,
+            cost_table_patterns=None,
+            mode=None,
+            pricing_profile=None,
+            cost_table_dir=None,
+            cost_api_url=None,
+            cost_api_key_env=None,
+        )
+    )
+    await cli.cmd_quote(
+        argparse.Namespace(
+            action="candidates",
+            origin_city="杭州",
+            destination_city="上海",
+            courier="圆通",
+            limit=2,
+            config_path=None,
+            cost_table_patterns=None,
+            mode=None,
+            pricing_profile=None,
+            cost_table_dir=None,
+            cost_api_url=None,
+            cost_api_key_env=None,
+        )
+    )
+    await cli.cmd_quote(
+        argparse.Namespace(
+            action="setup",
+            origin_city=None,
+            destination_city=None,
+            courier=None,
+            limit=2,
+            config_path="cfg",
+            cost_table_patterns="*.xlsx,*.csv",
+            mode="m",
+            pricing_profile="p",
+            cost_table_dir="dir",
+            cost_api_url="u",
+            cost_api_key_env="KEY",
+        )
+    )
+    await cli.cmd_quote(
+        argparse.Namespace(
+            action="x",
+            origin_city=None,
+            destination_city=None,
+            courier=None,
+            limit=2,
+            config_path=None,
+            cost_table_patterns=None,
+            mode=None,
+            pricing_profile=None,
+            cost_table_dir=None,
+            cost_api_url=None,
+            cost_api_key_env=None,
+        )
+    )
 
     class Growth:
         def __init__(self, db_path):
@@ -210,18 +445,222 @@ async def test_cmd_analytics_accounts_orders_compliance_ai_quote_growth(monkeypa
             return [{"id": "exp1"}]
 
     monkeypatch.setattr("src.modules.growth.service.GrowthService", Growth)
-    await cli.cmd_growth(argparse.Namespace(action="set-strategy", db_path=None, strategy_type=None, version=None, active=False, baseline=False, experiment_id=None, subject_id=None, variants=None, stage=None, variant=None, days=7, bucket="day", limit=10))
-    await cli.cmd_growth(argparse.Namespace(action="set-strategy", db_path=None, strategy_type="s", version="v1", active=True, baseline=True, experiment_id=None, subject_id=None, variants=None, stage=None, variant=None, days=7, bucket="day", limit=10))
-    await cli.cmd_growth(argparse.Namespace(action="rollback", db_path=None, strategy_type=None, version=None, active=False, baseline=False, experiment_id=None, subject_id=None, variants=None, stage=None, variant=None, days=7, bucket="day", limit=10))
-    await cli.cmd_growth(argparse.Namespace(action="rollback", db_path=None, strategy_type="s", version=None, active=False, baseline=False, experiment_id=None, subject_id=None, variants=None, stage=None, variant=None, days=7, bucket="day", limit=10))
-    await cli.cmd_growth(argparse.Namespace(action="assign", db_path=None, strategy_type=None, version="v1", active=False, baseline=False, experiment_id=None, subject_id=None, variants="A,B", stage=None, variant=None, days=7, bucket="day", limit=10))
-    await cli.cmd_growth(argparse.Namespace(action="assign", db_path=None, strategy_type=None, version="v1", active=False, baseline=False, experiment_id="e1", subject_id="u1", variants="A,B", stage=None, variant=None, days=7, bucket="day", limit=10))
-    await cli.cmd_growth(argparse.Namespace(action="event", db_path=None, strategy_type=None, version="v1", active=False, baseline=False, experiment_id="e1", subject_id=None, variants="A,B", stage=None, variant="A", days=7, bucket="day", limit=10))
-    await cli.cmd_growth(argparse.Namespace(action="event", db_path=None, strategy_type=None, version="v1", active=False, baseline=False, experiment_id="e1", subject_id="u1", variants="A,B", stage="lead", variant="A", days=7, bucket="day", limit=10))
-    await cli.cmd_growth(argparse.Namespace(action="funnel", db_path=None, strategy_type=None, version=None, active=False, baseline=False, experiment_id=None, subject_id=None, variants=None, stage=None, variant=None, days=5, bucket="week", limit=10))
-    await cli.cmd_growth(argparse.Namespace(action="strategy-status", db_path=None, strategy_type="s", version=None, active=False, baseline=False, experiment_id=None, subject_id=None, variants=None, stage=None, variant=None, days=5, bucket="week", limit=10))
-    await cli.cmd_growth(argparse.Namespace(action="strategy-history", db_path=None, strategy_type="s", version=None, active=False, baseline=False, experiment_id=None, subject_id=None, variants=None, stage=None, variant=None, days=5, bucket="week", limit=10))
-    await cli.cmd_growth(argparse.Namespace(action="experiments", db_path=None, strategy_type=None, version=None, active=False, baseline=False, experiment_id=None, subject_id=None, variants=None, stage=None, variant=None, days=5, bucket="week", limit=10))
+    await cli.cmd_growth(
+        argparse.Namespace(
+            action="set-strategy",
+            db_path=None,
+            strategy_type=None,
+            version=None,
+            active=False,
+            baseline=False,
+            experiment_id=None,
+            subject_id=None,
+            variants=None,
+            stage=None,
+            variant=None,
+            days=7,
+            bucket="day",
+            limit=10,
+        )
+    )
+    await cli.cmd_growth(
+        argparse.Namespace(
+            action="set-strategy",
+            db_path=None,
+            strategy_type="s",
+            version="v1",
+            active=True,
+            baseline=True,
+            experiment_id=None,
+            subject_id=None,
+            variants=None,
+            stage=None,
+            variant=None,
+            days=7,
+            bucket="day",
+            limit=10,
+        )
+    )
+    await cli.cmd_growth(
+        argparse.Namespace(
+            action="rollback",
+            db_path=None,
+            strategy_type=None,
+            version=None,
+            active=False,
+            baseline=False,
+            experiment_id=None,
+            subject_id=None,
+            variants=None,
+            stage=None,
+            variant=None,
+            days=7,
+            bucket="day",
+            limit=10,
+        )
+    )
+    await cli.cmd_growth(
+        argparse.Namespace(
+            action="rollback",
+            db_path=None,
+            strategy_type="s",
+            version=None,
+            active=False,
+            baseline=False,
+            experiment_id=None,
+            subject_id=None,
+            variants=None,
+            stage=None,
+            variant=None,
+            days=7,
+            bucket="day",
+            limit=10,
+        )
+    )
+    await cli.cmd_growth(
+        argparse.Namespace(
+            action="assign",
+            db_path=None,
+            strategy_type=None,
+            version="v1",
+            active=False,
+            baseline=False,
+            experiment_id=None,
+            subject_id=None,
+            variants="A,B",
+            stage=None,
+            variant=None,
+            days=7,
+            bucket="day",
+            limit=10,
+        )
+    )
+    await cli.cmd_growth(
+        argparse.Namespace(
+            action="assign",
+            db_path=None,
+            strategy_type=None,
+            version="v1",
+            active=False,
+            baseline=False,
+            experiment_id="e1",
+            subject_id="u1",
+            variants="A,B",
+            stage=None,
+            variant=None,
+            days=7,
+            bucket="day",
+            limit=10,
+        )
+    )
+    await cli.cmd_growth(
+        argparse.Namespace(
+            action="event",
+            db_path=None,
+            strategy_type=None,
+            version="v1",
+            active=False,
+            baseline=False,
+            experiment_id="e1",
+            subject_id=None,
+            variants="A,B",
+            stage=None,
+            variant="A",
+            days=7,
+            bucket="day",
+            limit=10,
+        )
+    )
+    await cli.cmd_growth(
+        argparse.Namespace(
+            action="event",
+            db_path=None,
+            strategy_type=None,
+            version="v1",
+            active=False,
+            baseline=False,
+            experiment_id="e1",
+            subject_id="u1",
+            variants="A,B",
+            stage="lead",
+            variant="A",
+            days=7,
+            bucket="day",
+            limit=10,
+        )
+    )
+    await cli.cmd_growth(
+        argparse.Namespace(
+            action="funnel",
+            db_path=None,
+            strategy_type=None,
+            version=None,
+            active=False,
+            baseline=False,
+            experiment_id=None,
+            subject_id=None,
+            variants=None,
+            stage=None,
+            variant=None,
+            days=5,
+            bucket="week",
+            limit=10,
+        )
+    )
+    await cli.cmd_growth(
+        argparse.Namespace(
+            action="strategy-status",
+            db_path=None,
+            strategy_type="s",
+            version=None,
+            active=False,
+            baseline=False,
+            experiment_id=None,
+            subject_id=None,
+            variants=None,
+            stage=None,
+            variant=None,
+            days=5,
+            bucket="week",
+            limit=10,
+        )
+    )
+    await cli.cmd_growth(
+        argparse.Namespace(
+            action="strategy-history",
+            db_path=None,
+            strategy_type="s",
+            version=None,
+            active=False,
+            baseline=False,
+            experiment_id=None,
+            subject_id=None,
+            variants=None,
+            stage=None,
+            variant=None,
+            days=5,
+            bucket="week",
+            limit=10,
+        )
+    )
+    await cli.cmd_growth(
+        argparse.Namespace(
+            action="experiments",
+            db_path=None,
+            strategy_type=None,
+            version=None,
+            active=False,
+            baseline=False,
+            experiment_id=None,
+            subject_id=None,
+            variants=None,
+            stage=None,
+            variant=None,
+            days=5,
+            bucket="week",
+            limit=10,
+        )
+    )
 
     assert len(out) > 20
 
@@ -293,7 +732,9 @@ async def test_ws_live_more_branches(monkeypatch):
 
         async def recv(self):
             t._stop_event.set()
-            return json.dumps({"code": 200, "headers": {"mid": "m1", "sid": "s1", "app-key": "k", "ua": "u", "dt": "j"}})
+            return json.dumps(
+                {"code": 200, "headers": {"mid": "m1", "sid": "s1", "app-key": "k", "ua": "u", "dt": "j"}}
+            )
 
         async def close(self):
             return None

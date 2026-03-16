@@ -85,7 +85,9 @@ def test_startup_checks_runtime_python_and_auto_gateway_success(monkeypatch: pyt
     assert "需要 3.10+" in py.message
 
     monkeypatch.setattr(sc, "resolve_runtime_mode", lambda: "auto")
-    monkeypatch.setattr(sc, "check_gateway_reachable", lambda: sc.StartupCheckResult("Legacy Browser Gateway", True, "ok", True))
+    monkeypatch.setattr(
+        sc, "check_gateway_reachable", lambda: sc.StartupCheckResult("Legacy Browser Gateway", True, "ok", True)
+    )
     results = sc.run_all_checks(skip_browser=False)
     assert results[-1].name == "Legacy Browser Gateway"
     assert results[-1].passed is True
@@ -93,7 +95,9 @@ def test_startup_checks_runtime_python_and_auto_gateway_success(monkeypatch: pyt
 
 
 def test_media_service_targeted_branches(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
-    svc = MediaService(config={"watermark": {"enabled": False}, "supported_formats": ["jpg", "jpeg", "png"], "max_image_size": 10})
+    svc = MediaService(
+        config={"watermark": {"enabled": False}, "supported_formats": ["jpg", "jpeg", "png"], "max_image_size": 10}
+    )
 
     img = Image.new("RGB", (20, 20), (255, 0, 0))
     same = svc._smart_resize(img)
@@ -117,7 +121,9 @@ def test_media_service_targeted_branches(monkeypatch: pytest.MonkeyPatch, tmp_pa
 
     cmyk = tmp_path / "cmyk.jpg"
     Image.new("CMYK", (10, 10)).save(cmyk)
-    svc2 = MediaService(config={"supported_formats": ["jpg"], "max_image_size": 10_000_000, "watermark": {"enabled": False}})
+    svc2 = MediaService(
+        config={"supported_formats": ["jpg"], "max_image_size": 10_000_000, "watermark": {"enabled": False}}
+    )
     ok2, msg2 = svc2.validate_image(str(cmyk))
     assert ok2 is False
     assert msg2 == "不支持CMYK色彩模式"

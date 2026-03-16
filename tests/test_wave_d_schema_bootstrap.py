@@ -14,10 +14,7 @@ def test_wave_d_bootstrap_init_db_creates_new_tables(temp_dir) -> None:
 
     conn = sqlite3.connect(db_path)
     try:
-        tables = {
-            row[0]
-            for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
-        }
+        tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
         assert "listing_product_mappings" in tables
         assert "ops_funnel_stage_daily" in tables
         assert "ops_item_daily_snapshot" in tables
@@ -31,17 +28,35 @@ def test_wave_d_bootstrap_init_db_creates_new_tables(temp_dir) -> None:
 def _build_wave_d_migration_db(db_path: Path) -> None:
     conn = sqlite3.connect(db_path)
     try:
-        conn.executescript(Path("database/migrations/20260306_wave_b1_virtual_goods_tables.sql").read_text(encoding="utf-8"))
-        conn.executescript(Path("database/migrations/20260306_wave_b4_callbacks_lease_and_dims.sql").read_text(encoding="utf-8"))
-        conn.executescript(Path("database/migrations/20260306_wave_c_manual_takeover_events.sql").read_text(encoding="utf-8"))
+        conn.executescript(
+            Path("database/migrations/20260306_wave_b1_virtual_goods_tables.sql").read_text(encoding="utf-8")
+        )
+        conn.executescript(
+            Path("database/migrations/20260306_wave_b4_callbacks_lease_and_dims.sql").read_text(encoding="utf-8")
+        )
+        conn.executescript(
+            Path("database/migrations/20260306_wave_c_manual_takeover_events.sql").read_text(encoding="utf-8")
+        )
         conn.executescript(Path("database/migrations/20260306_wave_c_order_events.sql").read_text(encoding="utf-8"))
 
-        conn.executescript(Path("database/migrations/20260306_wave_d_listing_product_mappings.sql").read_text(encoding="utf-8"))
-        conn.executescript(Path("database/migrations/20260306_wave_d_ops_funnel_stage_daily.sql").read_text(encoding="utf-8"))
-        conn.executescript(Path("database/migrations/20260306_wave_d_ops_item_daily_snapshot.sql").read_text(encoding="utf-8"))
-        conn.executescript(Path("database/migrations/20260306_wave_d_ops_exception_pool.sql").read_text(encoding="utf-8"))
-        conn.executescript(Path("database/migrations/20260306_wave_d_ops_exception_transition_log.sql").read_text(encoding="utf-8"))
-        conn.executescript(Path("database/migrations/20260306_wave_d_ops_fulfillment_eff_daily.sql").read_text(encoding="utf-8"))
+        conn.executescript(
+            Path("database/migrations/20260306_wave_d_listing_product_mappings.sql").read_text(encoding="utf-8")
+        )
+        conn.executescript(
+            Path("database/migrations/20260306_wave_d_ops_funnel_stage_daily.sql").read_text(encoding="utf-8")
+        )
+        conn.executescript(
+            Path("database/migrations/20260306_wave_d_ops_item_daily_snapshot.sql").read_text(encoding="utf-8")
+        )
+        conn.executescript(
+            Path("database/migrations/20260306_wave_d_ops_exception_pool.sql").read_text(encoding="utf-8")
+        )
+        conn.executescript(
+            Path("database/migrations/20260306_wave_d_ops_exception_transition_log.sql").read_text(encoding="utf-8")
+        )
+        conn.executescript(
+            Path("database/migrations/20260306_wave_d_ops_fulfillment_eff_daily.sql").read_text(encoding="utf-8")
+        )
         conn.commit()
     finally:
         conn.close()
@@ -66,7 +81,19 @@ def test_wave_d_migrations_upgrade_path_and_service_queries(temp_dir) -> None:
         )
         conn.execute(
             "INSERT INTO ops_exception_pool(xianyu_order_id,event_kind,exception_code,severity,status,first_seen_at,last_seen_at,occurrence_count,detail_json,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
-            ("o-1", "unknown_kind", "unknown_event_kind", "P1", "open", "2026-03-06T00:00:00Z", "2026-03-06T00:00:00Z", 1, json.dumps({"k": 1}), "2026-03-06T00:00:00Z", "2026-03-06T00:00:00Z"),
+            (
+                "o-1",
+                "unknown_kind",
+                "unknown_event_kind",
+                "P1",
+                "open",
+                "2026-03-06T00:00:00Z",
+                "2026-03-06T00:00:00Z",
+                1,
+                json.dumps({"k": 1}),
+                "2026-03-06T00:00:00Z",
+                "2026-03-06T00:00:00Z",
+            ),
         )
         conn.commit()
     finally:
@@ -133,7 +160,9 @@ def test_wave_d_fresh_bootstrap_and_migrations_are_schema_isomorphic_for_ops_tab
 
 
 def test_wave_d_unknown_event_kind_goes_to_exception_pool(temp_dir) -> None:
-    svc = VirtualGoodsService(db_path=str(temp_dir / "wave_d_unknown.db"), config={"xianguanjia": {"app_key": "ak", "app_secret": "as"}})
+    svc = VirtualGoodsService(
+        db_path=str(temp_dir / "wave_d_unknown.db"), config={"xianguanjia": {"app_key": "ak", "app_secret": "as"}}
+    )
 
     svc.store.upsert_order(xianyu_order_id="o-wave-d-1", order_status="paid_waiting_delivery")
     svc.store.insert_callback(

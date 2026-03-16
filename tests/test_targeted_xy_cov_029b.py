@@ -60,6 +60,7 @@ async def test_fetch_token_non_success_break_and_default_fail(monkeypatch):
                 async def post(self, *_a, **_k):
                     class _R:
                         cookies = {}
+
                         def json(self):
                             return {"ret": ["FAIL_BIZ::plain"]}
 

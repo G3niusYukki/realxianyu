@@ -43,12 +43,8 @@ def test_cost_table_normalize_location_via_geo_alias(monkeypatch) -> None:
 
 
 def test_cost_table_read_cell_value_out_of_range_and_invalid_index() -> None:
-    c_out = ET.fromstring(
-        '<c xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" t="s"><v>3</v></c>'
-    )
-    c_bad = ET.fromstring(
-        '<c xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" t="s"><v>NaN</v></c>'
-    )
+    c_out = ET.fromstring('<c xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" t="s"><v>3</v></c>')
+    c_bad = ET.fromstring('<c xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" t="s"><v>NaN</v></c>')
 
     assert CostTableRepository._read_cell_value(c_out, ["only0"]) == ""
     assert CostTableRepository._read_cell_value(c_bad, ["only0"]) == ""

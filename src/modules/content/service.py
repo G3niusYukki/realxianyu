@@ -95,6 +95,7 @@ class ContentService:
             try:
                 import json as _json
                 from pathlib import Path
+
                 _sys_path = Path("data/system_config.json")
                 if _sys_path.exists():
                     _sys_data = _json.loads(_sys_path.read_text("utf-8"))

@@ -82,9 +82,7 @@ def test_extract_chat_event_with_int_keys() -> None:
 
 def test_ws_transport_cookie_hot_reload() -> None:
     _ensure_event_loop()
-    holder = {
-        "cookie": "unb=10001; _m_h5_tk=token_a_123; cookie2=a; _tb_token_=t; sgcookie=s"
-    }
+    holder = {"cookie": "unb=10001; _m_h5_tk=token_a_123; cookie2=a; _tb_token_=t; sgcookie=s"}
 
     transport = GoofishWsTransport(
         cookie_text=holder["cookie"],
@@ -104,7 +102,9 @@ def test_ws_transport_cookie_hot_reload() -> None:
 
 def test_ws_transport_auth_error_marker() -> None:
     assert GoofishWsTransport._is_auth_related_error(Exception("Token API failed: ['FAIL_SYS_USER_VALIDATE']")) is True
-    assert GoofishWsTransport._is_auth_related_error(Exception("server rejected WebSocket connection: HTTP 400")) is True
+    assert (
+        GoofishWsTransport._is_auth_related_error(Exception("server rejected WebSocket connection: HTTP 400")) is True
+    )
     assert GoofishWsTransport._is_auth_related_error(Exception("network reset by peer")) is False
 
 

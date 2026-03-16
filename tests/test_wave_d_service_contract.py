@@ -131,7 +131,10 @@ def test_wave_d_open_platform_client_protocol_only_no_business_router() -> None:
 
 
 def test_wave_d_inspect_order_accepts_order_id_and_returns_drilldown_fields(temp_dir) -> None:
-    svc = VirtualGoodsService(db_path=str(temp_dir / "wave_d_inspect_contract.db"), config={"xianguanjia": {"app_key": "ak", "app_secret": "as"}})
+    svc = VirtualGoodsService(
+        db_path=str(temp_dir / "wave_d_inspect_contract.db"),
+        config={"xianguanjia": {"app_key": "ak", "app_secret": "as"}},
+    )
     svc.store.upsert_order(
         xianyu_order_id="o-contract-1",
         order_status="paid_waiting_delivery",
