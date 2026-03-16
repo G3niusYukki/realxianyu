@@ -731,3 +731,120 @@ class TestProductsRoutes:
         mock_ctx.json_body.return_value = {"apiPath": "/invalid/path"}
         orders.handle_xgj_proxy(mock_ctx)
         mock_ctx.send_json.assert_called_once()
+
+    def test_handle_import_routes_exception(self):
+        """Test /api/import-routes route with exception."""
+        mock_ctx = MagicMock()
+        mock_ctx.multipart_files.side_effect = Exception("parse error")
+        quote.handle_import_routes(mock_ctx)
+        call_args = mock_ctx.send_json.call_args
+        assert call_args[0][0]["success"] is False
+
+    def test_handle_import_markup_exception(self):
+        """Test /api/import-markup route with exception."""
+        mock_ctx = MagicMock()
+        mock_ctx.multipart_files.side_effect = Exception("parse error")
+        quote.handle_import_markup(mock_ctx)
+        call_args = mock_ctx.send_json.call_args
+        assert call_args[0][0]["success"] is False
+
+    def test_handle_save_template_failure(self):
+        """Test /api/save-template route with failure."""
+        mock_ctx = MagicMock()
+        mock_ctx.json_body.return_value = {"weight_template": "W", "volume_template": "V"}
+        mock_ctx.mimic_ops.save_template.return_value = {"success": False}
+        quote.handle_save_template(mock_ctx)
+        call_args = mock_ctx.send_json.call_args
+        assert call_args[1]["status"] == 400
+
+    def test_handle_save_markup_rules_failure(self):
+        """Test /api/save-markup-rules route with failure."""
+        mock_ctx = MagicMock()
+        mock_ctx.json_body.return_value = {"markup_rules": []}
+        mock_ctx.mimic_ops.save_markup_rules.return_value = {"success": False}
+        quote.handle_save_markup_rules(mock_ctx)
+        call_args = mock_ctx.send_json.call_args
+        assert call_args[1]["status"] == 400
+
+    def test_handle_module_status_error(self):
+        """Test /api/module/status route with error."""
+        mock_ctx = MagicMock()
+        mock_ctx.query_int.side_effect = lambda key, default=0, min_val=0, max_val=0: {
+            ("window", 60, 1, 10080): 10,
+            ("limit", 20, 1, 200): 20,
+        }.get((key, default, min_val, max_val), default)
+        mock_ctx.module_console.status.return_value = {"error": "test error"}
+        system.handle_module_status(mock_ctx)
+        call_args = mock_ctx.send_json.call_args
+        assert call_args[1]["status"] == 500
+
+    def test_handle_module_check_error(self):
+        """Test /api/module/check route with error."""
+        mock_ctx = MagicMock()
+        mock_ctx.query_bool.return_value = False
+        mock_ctx.module_console.check.return_value = {"error": "test error"}
+        system.handle_module_check(mock_ctx)
+        call_args = mock_ctx.send_json.call_args
+        assert call_args[1]["status"] == 500
+
+    def test_handle_module_logs_error(self):
+        """Test /api/module/logs route with error."""
+        mock_ctx = MagicMock()
+        mock_ctx.query_str.return_value = "presales"
+        mock_ctx.query_int.return_value = 50
+        mock_ctx.module_console.logs.return_value = {"error": "test error"}
+        system.handle_module_logs(mock_ctx)
+        call_args = mock_ctx.send_json.call_args
+        assert call_args[1]["status"] == 500
+
+    def test_handle_module_control_error(self):
+        """Test /api/module/control route with error."""
+        mock_ctx = MagicMock()
+        mock_ctx.json_body.return_value = {"action": "stop", "target": "all"}
+        mock_ctx.module_console.control.return_value = {"error": "test error"}
+        system.handle_module_control(mock_ctx)
+        call_args = mock_ctx.send_json.call_args
+        assert call_args[1]["status"] == 400
+
+    def test_handle_service_control_failure(self):
+        """Test /api/service/control route with failure."""
+        mock_ctx = MagicMock()
+        mock_ctx.json_body.return_value = {"action": "stop"}
+        mock_ctx.mimic_ops.service_control.return_value = {"success": False}
+        system.handle_service_control(mock_ctx)
+        call_args = mock_ctx.send_json.call_args
+        assert call_args[1]["status"] == 400
+
+    def test_handle_service_recover_failure(self):
+        """Test /api/service/recover route with failure."""
+        mock_ctx = MagicMock()
+        mock_ctx.json_body.return_value = {"target": "presales"}
+        mock_ctx.mimic_ops.service_recover.return_value = {"success": False}
+        system.handle_service_recover(mock_ctx)
+        call_args = mock_ctx.send_json.call_args
+        assert call_args[1]["status"] == 400
+
+    def test_handle_service_auto_fix_failure(self):
+        """Test /api/service/auto-fix route with failure."""
+        mock_ctx = MagicMock()
+        mock_ctx.mimic_ops.service_auto_fix.return_value = {"success": False}
+        system.handle_service_auto_fix(mock_ctx)
+        call_args = mock_ctx.send_json.call_args
+        assert call_args[1]["status"] == 400
+
+    def test_handle_reset_database_failure(self):
+        """Test /api/reset-database route with failure."""
+        mock_ctx = MagicMock()
+        mock_ctx.json_body.return_value = {"type": "orders"}
+        mock_ctx.mimic_ops.reset_database.return_value = {"success": False}
+        system.handle_reset_database(mock_ctx)
+        call_args = mock_ctx.send_json.call_args
+        assert call_args[1]["status"] == 400
+
+    def test_handle_dashboard_failure(self):
+        """Test /api/dashboard route with failure."""
+        mock_ctx = MagicMock()
+        mock_ctx.mimic_ops.get_dashboard_readonly_aggregate.return_value = {"success": False}
+        dashboard_data.handle_dashboard(mock_ctx)
+        call_args = mock_ctx.send_json.call_args
+        assert call_args[1]["status"] == 400
