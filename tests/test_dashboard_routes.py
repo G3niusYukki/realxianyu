@@ -131,9 +131,9 @@ class TestQuoteRoutes:
     def test_handle_query_route_cost(self):
         """Test /api/query-route-cost route."""
         mock_ctx = MagicMock()
-        mock_ctx.mimic_ops.query_route_cost.return_value = {"cost": 10.0}
+        mock_ctx.mimic_ops.query_route_cost.return_value = {"cost": 10.0, "success": True}
         quote.handle_query_route_cost(mock_ctx)
-        mock_ctx.send_json.assert_called_once_with({"cost": 10.0}, status=200)
+        mock_ctx.send_json.assert_called_once_with({"cost": 10.0, "success": True}, status=200)
 
     def test_handle_query_route_cost_error(self):
         """Test /api/query-route-cost route with error."""
