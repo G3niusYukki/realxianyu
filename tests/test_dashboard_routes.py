@@ -695,7 +695,7 @@ class TestProductsRoutes:
     def test_handle_auto_publish_status(self):
         """Test /api/auto-publish/status route."""
         mock_ctx = MagicMock()
-        with patch("src.dashboard.routes.products.AutoPublishScheduler") as mock_scheduler:
+        with patch("src.modules.listing.scheduler.AutoPublishScheduler") as mock_scheduler:
             mock_sched = MagicMock()
             mock_sched.get_status.return_value = {"enabled": True}
             mock_scheduler.return_value = mock_sched
