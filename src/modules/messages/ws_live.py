@@ -672,13 +672,12 @@ class GoofishWsTransport:
                     try:
                         hl_ok = await self._preflight_has_login()
                         if hl_ok and self.cookies.get("_m_h5_tk"):
-                            self.logger.info(
-                                "hasLogin 补全 _m_h5_tk 成功，WS 即将重连"
-                            )
+                            self.logger.info("hasLogin 补全 _m_h5_tk 成功，WS 即将重连")
                             self._session_peer.clear()
                             self._seen_event.clear()
                             try:
                                 from src.core.notify import send_system_notification
+
                                 send_system_notification(
                                     "【闲鱼自动化】✅ hasLogin 补全 _m_h5_tk 成功\nCookie 已自动恢复，WS 即将重连",
                                     event="risk_control",

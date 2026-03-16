@@ -955,10 +955,7 @@ async def try_slider_recovery(
                     if _has_login_cookies(all_cookies):
                         cookie_str = _extract_goofish_cookies(all_cookies)
                         if cookie_str:
-                            cookie_keys = {
-                                p.split("=")[0].strip()
-                                for p in cookie_str.split(";") if "=" in p
-                            }
+                            cookie_keys = {p.split("=")[0].strip() for p in cookie_str.split(";") if "=" in p}
                             if "_m_h5_tk" in cookie_keys:
                                 _log.info("Slider recovery: no slider found, complete cookies detected")
                                 return {"cookie": cookie_str}
@@ -968,9 +965,7 @@ async def try_slider_recovery(
                                 "Reloading page to trigger slider/token..."
                             )
                             try:
-                                await page.reload(
-                                    wait_until="domcontentloaded", timeout=15000
-                                )
+                                await page.reload(wait_until="domcontentloaded", timeout=15000)
                                 await asyncio.sleep(5)
                             except Exception as reload_exc:
                                 _log.info(f"Page reload failed: {reload_exc}")
