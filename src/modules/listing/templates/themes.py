@@ -127,6 +127,53 @@ THEMES: dict[str, dict] = {
         "labels": "手游/端游/Steam/通用",
         "tagline": "正规渠道 · 快速到账 · 专业客服",
     },
+    "freight": {
+        "primary": "#1d4ed8",
+        "primary_light": "#60a5fa",
+        "primary_dark": "#1e40af",
+        "accent": "#f59e0b",
+        "bg": "#eff6ff",
+        "bg_alt": "#dbeafe",
+        "text": "#1e3a5f",
+        "text_light": "#ffffff",
+        "badge": "大件快运",
+        "headline": "大件物流 越重越便宜",
+        "sub_headline": "全国上门取件 30kg起",
+        "labels": "家具/电器/行李/搬家",
+        "tagline": "上门取件 · 越重越划算 · 大件专属",
+        "variants": [
+            {
+                "headline": "家具电器 全国可寄",
+                "sub_headline": "大件物流 免费上门取件",
+                "labels": "沙发/床垫/冰箱/洗衣机/空调",
+                "tagline": "30kg起步 · 越重越划算 · 全国可寄",
+            },
+            {
+                "headline": "搬家行李 上门取件",
+                "sub_headline": "毕业寄 搬家寄 全国可发",
+                "labels": "行李箱/打包袋/纸箱/家具",
+                "tagline": "免费上门 · 安全送达 · 价格实惠",
+            },
+            {
+                "headline": "大件低至1元/公斤",
+                "sub_headline": "越重越划算 全国上门取件",
+                "labels": "家具/电器/健身器材/行李",
+                "tagline": "30kg起 · 上门取件 · 大件专属",
+            },
+            {
+                "headline": "健身器材 大件运输",
+                "sub_headline": "跑步机椭圆机 全国可寄",
+                "labels": "跑步机/椭圆机/哑铃/器械",
+                "tagline": "专业物流 · 上门取件 · 安全送达",
+            },
+            {
+                "headline": "寄大件 找我们",
+                "sub_headline": "30kg起步 越重单价越低",
+                "labels": "家具/家电/行李/搬家/器材",
+                "tagline": "全国可寄 · 免费上门 · 在线秒回",
+            },
+        ],
+    },
 }
 
 

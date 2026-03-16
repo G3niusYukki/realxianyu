@@ -119,13 +119,12 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     },
     {
         "name": "express_large",
-        "keywords": ["搬家", "毕业寄", "大件"],
+        "keywords": ["搬家", "毕业寄", "大件", "家具", "电器", "冰箱", "洗衣机", "床垫", "沙发", "跑步机", "行李托运"],
         "exclude_patterns": [r"搬家袋", r"搬家.*打包"],
-        "reply": "大件/搬家物品需要人工确认方案~ 方便告诉我包裹的大概尺寸和重量吗？我帮您核算最优价格~",
+        "reply": "大件/搬家物品可以走快运，越重越划算~ 告诉我 寄件地-收件地-重量（kg），我帮您查最优价格！",
         "priority": 45,
-        "categories": ["express"],
-        "needs_human": True,
-        "human_reason": "大件需人工对接德邦",
+        "categories": ["express", "freight"],
+        "needs_human": False,
         "phase": "presale",
     },
     # ============================================================
