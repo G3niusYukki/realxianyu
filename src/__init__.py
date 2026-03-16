@@ -5,7 +5,7 @@ Xianyu Automation Tool
 API-first 闲鱼自动化运营工具
 """
 
-__version__ = "7.2.0"
+__version__ = "7.3.0"
 __author__ = "Project Team"
 
 from .core.browser_client import BrowserClient
