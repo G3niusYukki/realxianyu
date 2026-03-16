@@ -6,8 +6,8 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from src.core.error_handler import BrowserError
 from src.core import browser_client as bc
+from src.core.error_handler import BrowserError
 from src.modules.messages.ws_live import GoofishWsTransport
 from src.modules.quote.models import QuoteRequest
 from src.modules.quote.route import contains_match, normalize_location, normalize_request_route, route_candidates

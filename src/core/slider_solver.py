@@ -903,7 +903,7 @@ async def try_slider_recovery(
                 for p in pages:
                     if "goofish.com" in (p.url or ""):
                         page = p
-                        _log.info(f"Slider recovery: navigating existing tab to IM page")
+                        _log.info("Slider recovery: navigating existing tab to IM page")
                         try:
                             await page.goto(_GOOFISH_IM_URL, wait_until="domcontentloaded", timeout=30000)
                         except Exception as nav_exc:

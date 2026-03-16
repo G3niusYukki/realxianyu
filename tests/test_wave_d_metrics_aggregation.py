@@ -14,7 +14,7 @@ def _svc(temp_dir) -> VirtualGoodsService:
 def test_wave_d_aggregate_metrics_use_ops_tables_and_include_unknown_event_kind(temp_dir) -> None:
     svc = _svc(temp_dir)
 
-    with svc._connect() as conn:  # noqa: SLF001 - test fixture insertion
+    with svc._connect() as conn:
         conn.execute(
             "INSERT INTO ops_funnel_stage_daily(stat_date,stage,xianyu_product_id,xianyu_listing_id,metric_count,updated_at) VALUES(?,?,?,?,?,?)",
             ("2026-03-06", "paid", "p-1", "l-1", 4, "2026-03-06T00:00:00Z"),

@@ -71,7 +71,7 @@ class TestIsTimeoutError:
         assert _is_timeout_error(TimeoutError()) is True
 
     def test_socket_timeout(self):
-        assert _is_timeout_error(socket.timeout()) is True
+        assert _is_timeout_error(TimeoutError()) is True
 
     def test_httpx_timeout(self):
         assert _is_timeout_error(httpx.TimeoutException("t")) is True

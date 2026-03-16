@@ -16,11 +16,11 @@ import re
 import subprocess
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Any
-from collections.abc import Callable
 
 from src.core.logger import get_logger
 
@@ -214,6 +214,7 @@ class CookieGrabber:
         try:
             import hashlib
             import json
+
             import httpx
 
             url = f"{host.rstrip('/')}/get/{uuid}"
@@ -283,8 +284,8 @@ class CookieGrabber:
             import json
             from hashlib import md5 as _md5
 
-            from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
             from cryptography.hazmat.primitives import padding as sym_padding
+            from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
             raw = base64.b64decode(encrypted)
 

@@ -6,11 +6,11 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
+import src.dashboard.routes  # ensure routes are registered for tests
 import src.dashboard_server as ds
 from src.dashboard_server import DashboardHandler
-import src.dashboard.routes  # ensure routes are registered for tests
 from src.modules.accounts.monitor import Monitor
-from src.modules.accounts.scheduler import Scheduler, Task, TaskType, TaskStatus
+from src.modules.accounts.scheduler import Scheduler, Task, TaskStatus, TaskType
 
 
 def _handler(path: str = "/") -> DashboardHandler:
@@ -75,7 +75,8 @@ def test_dashboard_risk_control_status_variants(temp_dir) -> None:
     log_path = ops._module_runtime_log("presales")
     log_path.parent.mkdir(parents=True, exist_ok=True)
 
-    from datetime import datetime as _dt, timedelta as _td
+    from datetime import datetime as _dt
+    from datetime import timedelta as _td
     _now = _dt.now()
     _ts = lambda m: (_now - _td(minutes=m)).strftime("%Y-%m-%d %H:%M:%S")
 

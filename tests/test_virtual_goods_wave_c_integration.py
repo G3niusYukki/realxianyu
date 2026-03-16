@@ -4,7 +4,6 @@ import json
 
 from src.modules.virtual_goods.service import VirtualGoodsService
 
-
 CONTRACT_KEYS = {"ok", "action", "code", "message", "data", "metrics", "errors", "ts"}
 
 

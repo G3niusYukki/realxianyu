@@ -13,23 +13,22 @@ import json
 import sqlite3
 import tempfile
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
+from src.dashboard import router as route_mod
 from src.dashboard.config_service import (
-    read_system_config,
-    write_system_config,
-    mask_sensitive,
-    update_config,
-    CONFIG_SECTIONS,
     _ALLOWED_CONFIG_SECTIONS,
     _SENSITIVE_CONFIG_KEYS,
+    CONFIG_SECTIONS,
+    mask_sensitive,
+    read_system_config,
+    update_config,
+    write_system_config,
 )
+from src.dashboard.module_console import MODULE_TARGETS, ModuleConsole, _extract_json_payload
 from src.dashboard.repository import DashboardRepository
-from src.dashboard.module_console import ModuleConsole, MODULE_TARGETS, _extract_json_payload
-from src.dashboard import router as route_mod
-
 
 # ---------------------------------------------------------------------------
 # config_service

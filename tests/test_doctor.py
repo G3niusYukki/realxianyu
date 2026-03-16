@@ -10,11 +10,11 @@ from src.core.startup_checks import StartupCheckResult
 def test_doctor_report_not_ready_when_critical_check_fails(monkeypatch) -> None:
     monkeypatch.setattr(
         "src.core.doctor.run_all_checks",
-        lambda skip_browser=False: [  # noqa: ARG005
+        lambda skip_browser=False: [
             StartupCheckResult("Legacy Browser Gateway", False, "无法连接", critical=True),
         ],
     )
-    monkeypatch.setattr("src.core.doctor._extra_checks", lambda skip_quote=False: [])  # noqa: ARG005
+    monkeypatch.setattr("src.core.doctor._extra_checks", lambda skip_quote=False: [])
 
     report = run_doctor(skip_gateway=False, skip_quote=True)
 
@@ -26,13 +26,13 @@ def test_doctor_report_not_ready_when_critical_check_fails(monkeypatch) -> None:
 def test_doctor_report_ready_with_warning_only(monkeypatch) -> None:
     monkeypatch.setattr(
         "src.core.doctor.run_all_checks",
-        lambda skip_browser=False: [  # noqa: ARG005
+        lambda skip_browser=False: [
             StartupCheckResult("Python版本", True, "ok", critical=True),
         ],
     )
     monkeypatch.setattr(
         "src.core.doctor._extra_checks",
-        lambda skip_quote=False: [  # noqa: ARG005
+        lambda skip_quote=False: [
             {
                 "name": "AI服务",
                 "passed": False,
@@ -72,7 +72,7 @@ def test_extra_checks_contains_dashboard_daemon_status(monkeypatch) -> None:
             return json.dumps({"service_status": "running"}).encode("utf-8")
 
     monkeypatch.setattr(doctor, "get_config", lambda: _Cfg())
-    monkeypatch.setattr(doctor, "_check_port_open", lambda port, host="127.0.0.1", timeout=0.3: True)  # noqa: ARG005
+    monkeypatch.setattr(doctor, "_check_port_open", lambda port, host="127.0.0.1", timeout=0.3: True)
     monkeypatch.setattr(doctor.urllib.request, "urlopen", lambda *args, **kwargs: _Resp())
 
     checks = doctor._extra_checks(skip_quote=True)
@@ -94,7 +94,7 @@ def test_extra_checks_dashboard_daemon_status_failed_when_port_closed(monkeypatc
     monkeypatch.setattr(
         doctor,
         "_check_port_open",
-        lambda port, host="127.0.0.1", timeout=0.3: False,  # noqa: ARG005
+        lambda port, host="127.0.0.1", timeout=0.3: False,
     )
 
     checks = doctor._extra_checks(skip_quote=True)

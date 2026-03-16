@@ -7,7 +7,6 @@ import httpx
 from src.integrations.xianguanjia.models import XianGuanJiaResponse
 from src.integrations.xianguanjia.virtual_supply_client import VirtualSupplyClient
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 

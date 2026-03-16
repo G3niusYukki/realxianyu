@@ -24,7 +24,7 @@ def test_build_sign_matches_doc_formula_without_merchant() -> None:
     )
 
     body_md5 = hashlib.md5(body.encode("utf-8")).hexdigest()
-    expected = hashlib.md5(f"A1B2C3D4{body_md5}1740380565356SECRET".encode("utf-8")).hexdigest()
+    expected = hashlib.md5(f"A1B2C3D4{body_md5}1740380565356SECRET".encode()).hexdigest()
     assert sign == expected
 
 

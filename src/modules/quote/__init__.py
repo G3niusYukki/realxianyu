@@ -15,6 +15,7 @@ from .providers import (
 from .setup import QuoteSetupService
 
 __all__ = [
+    "SERVICE_CATEGORIES",
     "ApiCostMarkupQuoteProvider",
     "AutoQuoteEngine",
     "CostRecord",
@@ -27,5 +28,4 @@ __all__ = [
     "QuoteSetupService",
     "RemoteQuoteProvider",
     "RuleTableQuoteProvider",
-    "SERVICE_CATEGORIES",
 ]

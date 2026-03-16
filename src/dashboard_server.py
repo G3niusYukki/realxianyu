@@ -9,6 +9,7 @@ import gzip as _gzip_mod
 import hashlib
 import io
 import json
+import logging
 import mimetypes
 import os
 import re
@@ -25,21 +26,15 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
-import logging
-
 import yaml
 
 from src.core.config import get_config
-from src.dashboard.repository import DashboardRepository, LiveDashboardDataSource
-from src.dashboard.module_console import ModuleConsole, MODULE_TARGETS
-from src.dashboard.router import RouteContext, dispatch_get, dispatch_post, dispatch_put, dispatch_delete
 from src.dashboard.config_service import (
     read_system_config as _read_system_config,
-    write_system_config as _write_system_config,
-    CONFIG_SECTIONS as _CONFIG_SECTIONS,
-    _ALLOWED_CONFIG_SECTIONS,
-    _SENSITIVE_CONFIG_KEYS,
 )
+from src.dashboard.module_console import MODULE_TARGETS, ModuleConsole
+from src.dashboard.repository import DashboardRepository, LiveDashboardDataSource
+from src.dashboard.router import RouteContext, dispatch_delete, dispatch_get, dispatch_post, dispatch_put
 from src.modules.messages.service import MessagesService
 from src.modules.quote.cost_table import CostTableRepository, normalize_courier_name
 from src.modules.quote.setup import DEFAULT_MARKUP_RULES, QuoteSetupService
@@ -665,8 +660,8 @@ class MimicOps:
     def _auto_modify_price_sync(self, order_no: str, push_payload: dict[str, Any], apm_cfg: dict[str, Any]) -> None:
         """Background thread: look up quote and modify order price."""
         try:
-            from src.modules.quote.ledger import get_quote_ledger
             from src.integrations.xianguanjia.open_platform_client import OpenPlatformClient
+            from src.modules.quote.ledger import get_quote_ledger
 
             settings = self._get_xianguanjia_settings()
             if not settings["configured"]:
@@ -3989,9 +3984,9 @@ def _get_embedded_html(name: str) -> str:
     from src.dashboard.embedded_html import (
         DASHBOARD_HTML,
         MIMIC_COOKIE_HTML,
-        MIMIC_TEST_HTML,
         MIMIC_LOGS_HTML,
         MIMIC_LOGS_REALTIME_HTML,
+        MIMIC_TEST_HTML,
     )
 
     return {
@@ -4079,9 +4074,10 @@ class DashboardHandler(BaseHTTPRequestHandler):
             return
 
         import httpx
+
         from src.integrations.xianguanjia.signing import (
-            sign_open_platform_request,
             sign_business_request,
+            sign_open_platform_request,
         )
 
         try:
@@ -4154,6 +4150,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
         """生成自动上架预览。"""
         try:
             import asyncio
+
             from src.modules.listing.auto_publish import AutoPublishService
 
             service = AutoPublishService(config=self.mimic_ops._xianguanjia_service_config())
@@ -4174,8 +4171,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 return {"ok": False, "error": "自动上架未启用，请在设置中开启"}
 
             import asyncio
-            from src.modules.listing.auto_publish import AutoPublishService
+
             from src.integrations.xianguanjia.open_platform_client import OpenPlatformClient
+            from src.modules.listing.auto_publish import AutoPublishService
 
             cfg = self.mimic_ops._xianguanjia_service_config().get("xianguanjia", {})
             app_key = str(cfg.get("app_key", "")).strip()
@@ -4684,8 +4682,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
 
 def run_server(host: str = "127.0.0.1", port: int = 8091, db_path: str | None = None) -> None:
-    import src.dashboard.routes  # noqa: F401 — trigger route registration
     import signal
+
+    import src.dashboard.routes  # noqa: F401 — trigger route registration
 
     config = get_config()
     resolved_db = db_path or config.database.get("path", "data/agent.db")

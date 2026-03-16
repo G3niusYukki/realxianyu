@@ -276,8 +276,8 @@ class TestDoctor:
                         assert web_check[0]["passed"] is True
 
     def test_cookie_health_check_exception(self):
-        from src.core.doctor import _extra_checks
         import src.core.cookie_health as ch_mod
+        from src.core.doctor import _extra_checks
 
         def raise_on_init(*args, **kwargs):
             raise RuntimeError("import fail")

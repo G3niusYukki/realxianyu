@@ -5,8 +5,8 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from src.modules.operations.service import OperationsService
 import src.modules.quote.cost_table as ct
+from src.modules.operations.service import OperationsService
 from src.modules.quote.cost_table import CostRecord, CostTableRepository
 
 

@@ -19,7 +19,7 @@ def test_open_platform_sign_formula() -> None:
         body=body,
     )
     body_md5 = hashlib.md5(body.encode("utf-8")).hexdigest()
-    expected = hashlib.md5(f"A1B2C3D4,{body_md5},1740380565,SECRET".encode("utf-8")).hexdigest()
+    expected = hashlib.md5(f"A1B2C3D4,{body_md5},1740380565,SECRET".encode()).hexdigest()
     assert sign == expected
 
 
@@ -38,7 +38,7 @@ def test_virtual_supply_sign_formula() -> None:
         (
             "677859093659717,wK63PxlOBaY9NoqMksLeZySzGIW25ifA,"
             f"{body_md5},1724414553,1001,o9wl81dncmvby3ijpq7eur456zhgtaxs"
-        ).encode("utf-8")
+        ).encode()
     ).hexdigest()
     assert sign == expected
 

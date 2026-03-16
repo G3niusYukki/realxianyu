@@ -153,8 +153,8 @@ class TestReplyEngineProcessMessage:
         engine._dedup = None
         engine._bargain_tracker = None
         try:
-            from src.modules.messages.dedup import MessageDedup
             from src.modules.messages.bargain_tracker import BargainTracker
+            from src.modules.messages.dedup import MessageDedup
             engine._dedup = MessageDedup(db_path=str(tmp_path / "d.db"))
             engine._bargain_tracker = BargainTracker(db_path=str(tmp_path / "b.db"))
         except Exception:

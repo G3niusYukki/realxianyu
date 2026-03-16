@@ -2,7 +2,7 @@
 
 import asyncio
 
-from src.modules.ticketing import RegexTicketRecognizer, StaticTicketProvider, TicketPricingPolicy, TicketingService
+from src.modules.ticketing import RegexTicketRecognizer, StaticTicketProvider, TicketingService, TicketPricingPolicy
 
 
 def test_ticketing_flow_builds_listing_and_purchase() -> None:
@@ -60,7 +60,7 @@ def test_ticketing_two_stage_reply_falls_back_to_manual_review_when_confidence_l
         pricing=TicketPricingPolicy(),
         review_confidence_threshold=0.99,
     )
-    selection = asyncio.run(service.recognize("影院：万达影城\n场次：2026-03-05 19:30\n座位：5排6座\n".encode("utf-8")))
+    selection = asyncio.run(service.recognize("影院：万达影城\n场次：2026-03-05 19:30\n座位：5排6座\n".encode()))
 
     selection.confidence = 0.5
 

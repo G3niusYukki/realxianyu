@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-import pytest
 from unittest.mock import AsyncMock
+
+import pytest
 
 from src.core.browser_client import BrowserClient, BrowserState, _create_gateway_client, _create_lite_client
 from src.core.error_handler import BrowserError

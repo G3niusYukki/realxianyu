@@ -79,7 +79,7 @@ DEFAULT_COURIER_LOCK_TEMPLATE = (
 )
 
 
-_active_service: "MessagesService | None" = None
+_active_service: MessagesService | None = None
 
 
 class MessagesService:
@@ -514,7 +514,7 @@ class MessagesService:
             weight_parts.append(f"按 {float(billing_w):.1f}kg 计费")
             lines.append(" | ".join(weight_parts))
 
-        def _format_courier_line(index: int, courier_name: str, result: "QuoteResult") -> str:
+        def _format_courier_line(index: int, courier_name: str, result: QuoteResult) -> str:
             exp = result.explain if isinstance(result.explain, dict) else {}
             bw = float(exp.get("billing_weight_kg") or billing_w or 0)
             base_w = float(exp.get("base_weight", 1.0))

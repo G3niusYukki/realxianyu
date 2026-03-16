@@ -12,6 +12,7 @@ class TestXianGuanJiaClientModule:
 
     def test_import_emits_deprecation_warning(self):
         import importlib
+
         import src.modules.orders.xianguanjia as mod
         old_classes = {
             name: getattr(mod, name)
@@ -73,7 +74,7 @@ class TestXianGuanJiaClientModule:
         assert query["merchantId"] == "m1"
 
     def test_post_http_error(self):
-        from src.modules.orders.xianguanjia import XianGuanJiaClient, XianGuanJiaAPIError
+        from src.modules.orders.xianguanjia import XianGuanJiaAPIError, XianGuanJiaClient
         client = XianGuanJiaClient(app_key="key", app_secret="secret")
         mock_resp = MagicMock()
         mock_resp.status_code = 500
@@ -82,7 +83,7 @@ class TestXianGuanJiaClientModule:
                 client._post("/test", {})
 
     def test_post_invalid_response(self):
-        from src.modules.orders.xianguanjia import XianGuanJiaClient, XianGuanJiaAPIError
+        from src.modules.orders.xianguanjia import XianGuanJiaAPIError, XianGuanJiaClient
         client = XianGuanJiaClient(app_key="key", app_secret="secret")
         mock_resp = MagicMock()
         mock_resp.status_code = 200
@@ -92,7 +93,7 @@ class TestXianGuanJiaClientModule:
                 client._post("/test", {})
 
     def test_post_business_error(self):
-        from src.modules.orders.xianguanjia import XianGuanJiaClient, XianGuanJiaAPIError
+        from src.modules.orders.xianguanjia import XianGuanJiaAPIError, XianGuanJiaClient
         client = XianGuanJiaClient(app_key="key", app_secret="secret")
         mock_resp = MagicMock()
         mock_resp.status_code = 200

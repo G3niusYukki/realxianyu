@@ -224,7 +224,7 @@ def test_dashboard_handler_multipart_and_stream_and_entrypoints(monkeypatch: pyt
         "Content-Type: text/plain\r\n\r\n"
         "hello\r\n"
         f"--{boundary}--\r\n"
-    ).encode("utf-8")
+    ).encode()
     mime = b"Content-Type: multipart/form-data; boundary=" + boundary.encode() + b"\r\nMIME-Version: 1.0\r\n\r\n"
     h.headers = {
         "Content-Type": f"multipart/form-data; boundary={boundary}",

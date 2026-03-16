@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 
-from src.modules.accounts.service import AccountHealth, AccountStatus, AccountsService
+from src.modules.accounts.service import AccountHealth, AccountsService, AccountStatus
 
 
 def _cfg(accounts):

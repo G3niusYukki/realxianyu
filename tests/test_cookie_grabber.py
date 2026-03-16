@@ -1,18 +1,19 @@
 """Tests for cookie_grabber module."""
 
-import pytest
 from unittest.mock import Mock
 
+import pytest
+
 from src.core.cookie_grabber import (
-    GrabStage,
+    _AUTH_COOKIES,
+    _GOOFISH_DOMAINS,
+    _LOGIN_TIMEOUT_MS,
+    _MY_PAGE_URL,
+    _SESSION_COOKIES,
+    _WEAK_LOGIN_COOKIES,
     GrabProgress,
     GrabResult,
-    _GOOFISH_DOMAINS,
-    _MY_PAGE_URL,
-    _LOGIN_TIMEOUT_MS,
-    _AUTH_COOKIES,
-    _WEAK_LOGIN_COOKIES,
-    _SESSION_COOKIES,
+    GrabStage,
 )
 
 
@@ -105,7 +106,7 @@ class TestCookieGrabber:
 
 class TestCookieAutoRefresher:
     def test_class_exists(self):
-        from src.core.cookie_grabber import CookieAutoRefresher, AutoRefreshStatus
+        from src.core.cookie_grabber import AutoRefreshStatus, CookieAutoRefresher
 
         assert CookieAutoRefresher is not None
         assert AutoRefreshStatus is not None

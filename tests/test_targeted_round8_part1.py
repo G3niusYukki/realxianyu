@@ -311,7 +311,7 @@ async def test_ws_fetch_token_success_and_run_timeout_recv_exception(ws_enabled,
         async def __aenter__(self):
             class C:
                 cookies = SimpleNamespace(jar=[])
-                
+
                 async def post(self, *_a, **_k):
                     class R:
                         def json(self):

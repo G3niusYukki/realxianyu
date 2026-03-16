@@ -9,7 +9,6 @@ from urllib.parse import parse_qs, urlparse
 
 from src.dashboard.router import RouteContext, get, post
 
-
 # ---------------------------------------------------------------------------
 # GET /api/virtual-goods/metrics
 # ---------------------------------------------------------------------------
@@ -105,6 +104,7 @@ def handle_orders_remind(ctx: RouteContext) -> None:
         if template_text:
             try:
                 import asyncio
+
                 from src.modules.messages.service import MessagesService
 
                 msgs_cfg = {}
@@ -225,6 +225,7 @@ def handle_xgj_test_connection(ctx: RouteContext) -> None:
 @post("/api/xgj/proxy")
 def handle_xgj_proxy(ctx: RouteContext) -> None:
     import logging
+
     from src.dashboard.config_service import read_system_config as _read_system_config
 
     logger = logging.getLogger(__name__)
@@ -248,7 +249,7 @@ def handle_xgj_proxy(ctx: RouteContext) -> None:
         return
     payload_str = json.dumps(req_body, ensure_ascii=False)
     ts = str(int(time.time()))
-    from src.integrations.xianguanjia.signing import sign_open_platform_request, sign_business_request
+    from src.integrations.xianguanjia.signing import sign_business_request, sign_open_platform_request
 
     if mode == "business" and seller_id:
         sign = sign_business_request(

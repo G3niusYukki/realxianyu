@@ -5,7 +5,13 @@ from pathlib import Path
 
 import pytest
 
-from src.modules.quote.cost_table import CostRecord, CostTableRepository, normalize_courier_name, normalize_location_name, region_of_location
+from src.modules.quote.cost_table import (
+    CostRecord,
+    CostTableRepository,
+    normalize_courier_name,
+    normalize_location_name,
+    region_of_location,
+)
 from src.modules.quote.engine import AutoQuoteEngine
 from src.modules.quote.models import QuoteRequest
 from src.modules.quote.providers import (

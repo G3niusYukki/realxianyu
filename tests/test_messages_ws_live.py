@@ -7,7 +7,12 @@ import sys
 
 import httpx
 
-from src.modules.messages.ws_live import GoofishWsTransport, decode_sync_payload, extract_chat_event, parse_cookie_header
+from src.modules.messages.ws_live import (
+    GoofishWsTransport,
+    decode_sync_payload,
+    extract_chat_event,
+    parse_cookie_header,
+)
 
 
 def _ensure_event_loop():

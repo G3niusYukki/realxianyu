@@ -67,7 +67,7 @@ def call_api(message: str, session_id: str = "") -> dict:
     try:
         with urllib.request.urlopen(req, timeout=API_TIMEOUT) as resp:
             return json.loads(resp.read())
-    except (urllib.error.URLError, socket.timeout, TimeoutError) as e:
+    except (urllib.error.URLError, TimeoutError) as e:
         return {"_timeout": True, "_error": str(e), "reply": "", "detail": {}}
 
 

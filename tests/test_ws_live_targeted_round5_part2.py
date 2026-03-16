@@ -195,9 +195,9 @@ async def test_fetch_token_cached_and_missing_access_token_retry(ws_enabled, mon
                 # Mock client.cookies.jar for _absorb_set_cookies
                 class _Cookies:
                     jar = []
-                
+
                 cookies = _Cookies()
-                
+
                 async def post(self, *_a, **_k):
                     class _R:
                         def json(self):

@@ -1,0 +1,12 @@
+.git
+.pytest_cache
+.ruff_cache
+.coverage
+__pycache__
+dist
+venv
+*.pyc
+*.pyo
+*.pyd
+Thumbs.db
+.DS_Store

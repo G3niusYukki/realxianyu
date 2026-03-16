@@ -119,7 +119,7 @@ def test_handler_send_helpers_and_multipart_paths() -> None:
         "Content-Type: text/plain\r\n\r\n"
         "hello\r\n"
         f"--{boundary}--\r\n"
-    ).encode("utf-8")
+    ).encode()
     h2.headers = {
         "Content-Type": f"multipart/form-data; boundary={boundary}",
         "Content-Length": str(len(payload)),
@@ -341,7 +341,7 @@ def test_markup_and_file_import_branches(monkeypatch: pytest.MonkeyPatch, temp_d
     parsed2, fmt2 = ops._parse_markup_rules_from_file("a.xlsx", b"x")
     assert fmt2 == "route_cost_infer" and "圆通" in parsed2
 
-    parsed3, fmt3 = ops._parse_markup_rules_from_file("a.json", "[{\"name\":\"圆通\",\"normal_first_add\":1,\"member_first_add\":1,\"normal_extra_add\":1,\"member_extra_add\":1}]".encode("utf-8"))
+    parsed3, fmt3 = ops._parse_markup_rules_from_file("a.json", "[{\"name\":\"圆通\",\"normal_first_add\":1,\"member_first_add\":1,\"normal_extra_add\":1,\"member_extra_add\":1}]".encode())
     assert fmt3 == "json"
 
     with pytest.raises(ValueError):

@@ -20,7 +20,7 @@ def test_sign_open_platform_request_matches_formula_with_comma_separator() -> No
     )
 
     body_md5 = hashlib.md5(body.encode("utf-8")).hexdigest()
-    expected = hashlib.md5(f"A1B2C3D4,{body_md5},1740380565356,SECRET".encode("utf-8")).hexdigest()
+    expected = hashlib.md5(f"A1B2C3D4,{body_md5},1740380565356,SECRET".encode()).hexdigest()
     assert sign == expected
 
 

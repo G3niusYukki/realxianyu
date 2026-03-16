@@ -1,21 +1,22 @@
 """Tests for slider_solver module."""
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock
 import platform
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
 
 from src.core.slider_solver import (
-    _has_display,
-    _get_slider_config,
-    generate_human_trajectory,
+    _AUTH_COOKIES,
+    _GOOFISH_DOMAINS,
+    _GOOFISH_IM_URL,
+    _SLIDER_GONE_SELECTORS,
     NC_SLIDER_SELECTORS,
+    NC_SUCCESS_MARKERS,
     NC_TRACK_SELECTORS,
     PUZZLE_SELECTORS,
-    NC_SUCCESS_MARKERS,
-    _SLIDER_GONE_SELECTORS,
-    _AUTH_COOKIES,
-    _GOOFISH_IM_URL,
-    _GOOFISH_DOMAINS,
+    _get_slider_config,
+    _has_display,
+    generate_human_trajectory,
 )
 
 

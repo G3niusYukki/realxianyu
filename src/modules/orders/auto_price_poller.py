@@ -282,8 +282,9 @@ class AutoPricePoller:
                     continue
 
                 import asyncio
-                from src.modules.messages.service import MessagesService
+
                 from src.core.config import get_config
+                from src.modules.messages.service import MessagesService
 
                 msgs_cfg = {}
                 try:

@@ -69,9 +69,10 @@ class TestCostTableUncovered:
         assert len(records) == 1
 
     def test_read_text_file_fallback_encoding(self):
-        from src.modules.quote.cost_table import CostTableRepository
         import tempfile
         from pathlib import Path
+
+        from src.modules.quote.cost_table import CostTableRepository
         content = "快递公司,始发地,目的地,首重,续重\n圆通,北京,上海,5,2"
         with tempfile.NamedTemporaryFile(suffix=".csv", delete=False, mode="wb") as f:
             f.write(content.encode("gb18030"))
@@ -84,9 +85,10 @@ class TestCostTableUncovered:
             path.unlink()
 
     def test_read_text_file_undecodable(self):
-        from src.modules.quote.cost_table import CostTableRepository
         import tempfile
         from pathlib import Path
+
+        from src.modules.quote.cost_table import CostTableRepository
         with tempfile.NamedTemporaryFile(suffix=".csv", delete=False, mode="wb") as f:
             f.write(bytes(range(128, 256)) * 10)
             f.flush()
@@ -125,7 +127,7 @@ class TestQuoteProviders:
         assert await d.health_check() is True
 
     async def test_remote_provider_api_request_fails(self):
-        from src.modules.quote.providers import RemoteQuoteProvider, QuoteProviderError
+        from src.modules.quote.providers import QuoteProviderError, RemoteQuoteProvider
         provider = RemoteQuoteProvider(api_url="https://test.api")
         req = QuoteRequest(origin="北京", destination="上海", weight=1.0)
         mock_client = AsyncMock()
@@ -137,7 +139,7 @@ class TestQuoteProviders:
                 await provider.get_quote(req)
 
     async def test_remote_provider_api_http_error(self):
-        from src.modules.quote.providers import RemoteQuoteProvider, QuoteProviderError
+        from src.modules.quote.providers import QuoteProviderError, RemoteQuoteProvider
         provider = RemoteQuoteProvider(api_url="https://test.api")
         req = QuoteRequest(origin="北京", destination="上海", weight=1.0)
         mock_resp = MagicMock()
@@ -151,7 +153,7 @@ class TestQuoteProviders:
                 await provider.get_quote(req)
 
     async def test_remote_provider_api_invalid_json(self):
-        from src.modules.quote.providers import RemoteQuoteProvider, QuoteProviderError
+        from src.modules.quote.providers import QuoteProviderError, RemoteQuoteProvider
         provider = RemoteQuoteProvider(api_url="https://test.api")
         req = QuoteRequest(origin="北京", destination="上海", weight=1.0)
         mock_resp = MagicMock()
@@ -166,7 +168,7 @@ class TestQuoteProviders:
                 await provider.get_quote(req)
 
     async def test_remote_provider_api_missing_fee(self):
-        from src.modules.quote.providers import RemoteQuoteProvider, QuoteProviderError
+        from src.modules.quote.providers import QuoteProviderError, RemoteQuoteProvider
         provider = RemoteQuoteProvider(api_url="https://test.api")
         req = QuoteRequest(origin="北京", destination="上海", weight=1.0)
         mock_resp = MagicMock()

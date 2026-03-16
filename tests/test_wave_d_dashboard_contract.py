@@ -1,10 +1,9 @@
 from __future__ import annotations
 
+import inspect
 from types import SimpleNamespace
 
 import pytest
-
-import inspect
 
 from src.dashboard.embedded_html import DASHBOARD_HTML
 from src.dashboard_server import DashboardHandler, MimicOps

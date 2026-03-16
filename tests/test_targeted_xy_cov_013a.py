@@ -56,7 +56,7 @@ async def test_ws_live_fetch_token_preflight_and_retry_branches(ws_enabled, monk
 
     class CM:
         cookies = SimpleNamespace(jar=[])
-        
+
         async def __aenter__(self):
             return self
 
@@ -182,9 +182,9 @@ def test_cost_table_targeted_helpers_and_branches(tmp_path):
         def group(_idx):
             return "x"
 
-    import src.modules.quote.cost_table as ct
-
     from unittest.mock import patch
+
+    import src.modules.quote.cost_table as ct
 
     with patch.object(ct.re, "search", return_value=_FakeMatch()):
         assert repo._to_float("will-hit-value-error") is None

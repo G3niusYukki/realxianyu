@@ -4,10 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import time as _time_mod
-from typing import Any
 
 from src.dashboard.router import RouteContext, get, post
-
 
 # ---------------------------------------------------------------------------
 # GET /api/replies

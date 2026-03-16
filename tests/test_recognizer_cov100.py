@@ -37,7 +37,7 @@ class TestReadText:
     @pytest.mark.asyncio
     async def test_ocr_reader_returns_empty_fallback_bytes(self):
         recognizer = RegexTicketRecognizer(ocr_reader=lambda b: "")
-        text = await recognizer._read_text("影院: 万达\n时间: 2024-01-01 14:00\n座位: 3排5座".encode("utf-8"))
+        text = await recognizer._read_text("影院: 万达\n时间: 2024-01-01 14:00\n座位: 3排5座".encode())
         assert "影院" in text
 
     @pytest.mark.asyncio
@@ -49,7 +49,7 @@ class TestReadText:
     @pytest.mark.asyncio
     async def test_bytes_decode_success(self):
         recognizer = RegexTicketRecognizer()
-        text = await recognizer._read_text("影院: test\n时间: 2024-01-01 14:00\n座位: 3排5座".encode("utf-8"))
+        text = await recognizer._read_text("影院: test\n时间: 2024-01-01 14:00\n座位: 3排5座".encode())
         assert "影院" in text
 
 

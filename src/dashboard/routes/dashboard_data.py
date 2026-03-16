@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import time
 from datetime import datetime
-from typing import Any
 
 from src.dashboard.router import RouteContext, get
 

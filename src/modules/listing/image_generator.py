@@ -16,8 +16,8 @@ from typing import Any
 
 from src.core.logger import get_logger
 
-from .templates import render_template, list_templates
-from .templates.registry import render_by_frame, render_by_composition, list_frames_metadata
+from .templates import list_templates, render_template
+from .templates.registry import list_frames_metadata, render_by_composition, render_by_frame
 
 logger = get_logger()
 
@@ -126,6 +126,7 @@ async def generate_brand_images(
         List of local PNG file paths.
     """
     from itertools import combinations
+
     from .brand_assets import BrandAssetManager
 
     mgr = BrandAssetManager()

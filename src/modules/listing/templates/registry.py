@@ -7,8 +7,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from .themes import THEMES, get_theme
 from .frames import list_frames, render_frame
+from .themes import THEMES, get_theme
 
 
 def list_all_templates() -> list[dict[str, Any]]:

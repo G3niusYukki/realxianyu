@@ -3,15 +3,14 @@
 from __future__ import annotations
 
 import os
-from unittest.mock import AsyncMock
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
+from src.modules.compliance.center import ComplianceDecision
 from src.modules.listing.service import ListingService, XianyuSelectors
 from src.modules.media.service import MediaService
 from src.modules.messages.service import MessagesService
-from src.modules.compliance.center import ComplianceDecision
 from src.modules.operations.service import OperationsService
 
 

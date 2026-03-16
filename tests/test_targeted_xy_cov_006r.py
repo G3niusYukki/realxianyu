@@ -1,10 +1,10 @@
 from __future__ import annotations
 
+import time
 import zipfile
 from pathlib import Path
 from types import SimpleNamespace
 from xml.etree import ElementTree as ET
-import time
 
 import pytest
 

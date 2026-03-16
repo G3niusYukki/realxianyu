@@ -10,11 +10,10 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, TYPE_CHECKING
-from urllib.parse import parse_qs, urlparse
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from src.dashboard_server import DashboardHandler
+    pass
 
 # ---------------------------------------------------------------------------
 # RouteContext — structured request context passed to route handlers

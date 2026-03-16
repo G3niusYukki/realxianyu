@@ -72,11 +72,11 @@ async def test_feishu_notifier_send_non_2xx_and_exception(monkeypatch) -> None:
     """分支：非2xx返回 False；异常捕获返回 False。"""
 
     class _BadStatusClient(_DummyClient):
-        async def post(self, url, json):  # noqa: ARG002
+        async def post(self, url, json):
             return _DummyResponse(500)
 
     class _ErrorClient(_DummyClient):
-        async def post(self, url, json):  # noqa: ARG002
+        async def post(self, url, json):
             raise RuntimeError("boom")
 
     monkeypatch.setattr("src.modules.messages.notifications.httpx.AsyncClient", _BadStatusClient)

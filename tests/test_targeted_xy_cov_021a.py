@@ -92,7 +92,8 @@ def test_risk_control_status_handles_read_error_and_recovery_signals(monkeypatch
     assert broken["level"] == "unknown"
     assert "读取失败" in broken["label"]
 
-    from datetime import datetime as _dt, timedelta as _td
+    from datetime import datetime as _dt
+    from datetime import timedelta as _td
     _now = _dt.now()
     _ts = lambda m: (_now - _td(minutes=m)).strftime("%Y-%m-%d %H:%M:%S")
 
