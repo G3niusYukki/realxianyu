@@ -295,6 +295,43 @@ class TestDashboardDataRoutes:
         mock_ctx._handler._legacy_dashboard_payload.assert_called_once()
         mock_ctx.send_json.assert_called_once()
 
+    def test_handle_dashboard(self):
+        """Test /api/dashboard route."""
+        mock_ctx = MagicMock()
+        mock_ctx.mimic_ops.get_dashboard_readonly_aggregate.return_value = {"success": True, "data": {}}
+        dashboard_data.handle_dashboard(mock_ctx)
+        mock_ctx.send_json.assert_called_once()
+
+    def test_handle_logs_files(self):
+        """Test /api/logs/files route."""
+        mock_ctx = MagicMock()
+        mock_ctx.mimic_ops.list_log_files.return_value = {"files": []}
+        dashboard_data.handle_logs_files(mock_ctx)
+        mock_ctx.send_json.assert_called_once_with({"files": []})
+
+    def test_handle_logs_content_tail(self):
+        """Test /api/logs/content route with tail."""
+        mock_ctx = MagicMock()
+        mock_ctx.query_str.return_value = "presales"
+        mock_ctx.query.get.return_value = ["100"]
+        mock_ctx.mimic_ops.read_log_content.return_value = {"success": True, "lines": []}
+        dashboard_data.handle_logs_content(mock_ctx)
+        mock_ctx.send_json.assert_called_once()
+
+    def test_handle_logs_content_paginated(self):
+        """Test /api/logs/content route with pagination."""
+        mock_ctx = MagicMock()
+        mock_ctx.query_str.return_value = "presales"
+        mock_ctx.query.get.side_effect = lambda key, default=None: {
+            "page": ["1"],
+            "size": ["50"],
+            "search": ["error"],
+            "tail": None,
+        }.get(key, default)
+        mock_ctx.mimic_ops.read_log_content.return_value = {"success": True, "lines": []}
+        dashboard_data.handle_logs_content(mock_ctx)
+        mock_ctx.send_json.assert_called_once()
+
 
 class TestMessagesRoutes:
     """Test messages routes."""
