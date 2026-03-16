@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 
 import src.dashboard.routes
-from src.dashboard.routes import quote, system, dashboard_data, messages, config, cookie
+from src.dashboard.routes import quote, system, dashboard_data, messages, config, cookie, orders, products
 
 
 class TestQuoteRoutes:
@@ -446,4 +446,199 @@ class TestCookieRoutes:
         mock_ctx.mimic_ops.diagnose_cookie.return_value = {"grade": "可用"}
         mock_ctx.mimic_ops._cookie_domain_filter_stats.return_value = {"domains": []}
         cookie.handle_cookie_validate(mock_ctx)
+        mock_ctx.send_json.assert_called_once()
+
+
+class TestOrdersRoutes:
+    """Test orders routes."""
+
+    def test_handle_virtual_goods_metrics_success(self):
+        """Test /api/virtual-goods/metrics route success."""
+        mock_ctx = MagicMock()
+        mock_ctx.mimic_ops.get_virtual_goods_metrics.return_value = {"success": True, "data": {}}
+        orders.handle_virtual_goods_metrics(mock_ctx)
+        mock_ctx.send_json.assert_called_once()
+
+    def test_handle_virtual_goods_metrics_fallback(self):
+        """Test /api/virtual-goods/metrics route with fallback."""
+        mock_ctx = MagicMock()
+        del mock_ctx.mimic_ops.get_virtual_goods_metrics
+        mock_ctx.mimic_ops.get_dashboard_readonly_aggregate.return_value = {"success": True, "sections": {}}
+        orders.handle_virtual_goods_metrics(mock_ctx)
+        mock_ctx.send_json.assert_called_once()
+
+    def test_handle_virtual_goods_inspect_order_get(self):
+        """Test GET /api/virtual-goods/inspect-order route."""
+        mock_ctx = MagicMock()
+        mock_ctx.query_str.return_value = "order123"
+        mock_ctx.mimic_ops.inspect_virtual_goods_order.return_value = {"success": True}
+        orders.handle_virtual_goods_inspect_order_get(mock_ctx)
+        mock_ctx.mimic_ops.inspect_virtual_goods_order.assert_called_once_with("order123")
+
+    def test_handle_xgj_settings(self):
+        """Test /api/xgj/settings route."""
+        mock_ctx = MagicMock()
+        mock_ctx.json_body.return_value = {"app_key": "test"}
+        mock_ctx.mimic_ops.save_xianguanjia_settings.return_value = {"success": True}
+        orders.handle_xgj_settings(mock_ctx)
+        mock_ctx.send_json.assert_called_once()
+
+    def test_handle_xgj_retry_price(self):
+        """Test /api/xgj/retry-price route."""
+        mock_ctx = MagicMock()
+        mock_ctx.json_body.return_value = {"order_id": "123"}
+        mock_ctx.mimic_ops.retry_xianguanjia_price.return_value = {"success": True}
+        orders.handle_xgj_retry_price(mock_ctx)
+        mock_ctx.send_json.assert_called_once()
+
+    def test_handle_xgj_retry_ship(self):
+        """Test /api/xgj/retry-ship route."""
+        mock_ctx = MagicMock()
+        mock_ctx.json_body.return_value = {"order_id": "123"}
+        mock_ctx.mimic_ops.retry_xianguanjia_delivery.return_value = {"success": True}
+        orders.handle_xgj_retry_ship(mock_ctx)
+        mock_ctx.send_json.assert_called_once()
+
+    def test_handle_orders_callback(self):
+        """Test /api/orders/callback route."""
+        mock_ctx = MagicMock()
+        mock_ctx.json_body.return_value = {"event": "test"}
+        mock_ctx.mimic_ops.handle_order_callback.return_value = {"success": True}
+        orders.handle_orders_callback(mock_ctx)
+        mock_ctx.send_json.assert_called_once()
+
+    def test_handle_virtual_goods_inspect_order_post(self):
+        """Test POST /api/virtual-goods/inspect-order route."""
+        mock_ctx = MagicMock()
+        mock_ctx.json_body.return_value = {"order_id": "order123"}
+        mock_ctx.mimic_ops.inspect_virtual_goods_order.return_value = {"success": True}
+        orders.handle_virtual_goods_inspect_order_post(mock_ctx)
+        mock_ctx.send_json.assert_called_once()
+
+    def test_handle_xgj_test_connection_missing_params(self):
+        """Test /api/xgj/test-connection route with missing params."""
+        mock_ctx = MagicMock()
+        mock_ctx.json_body.return_value = {"app_key": "", "app_secret": ""}
+        orders.handle_xgj_test_connection(mock_ctx)
+        mock_ctx.send_json.assert_called_once_with({"ok": False, "message": "AppKey 或 AppSecret 未填写"})
+
+
+class TestProductsRoutes:
+    """Test products routes."""
+
+    @patch("src.dashboard.routes.products.list_templates")
+    @patch("src.dashboard.routes.products.list_frames")
+    def test_handle_listing_templates(self, mock_list_frames, mock_list_templates):
+        """Test /api/listing/templates route."""
+        mock_ctx = MagicMock()
+        mock_list_templates.return_value = [{"id": 1}]
+        mock_list_frames.return_value = [{"id": 2}]
+        products.handle_listing_templates(mock_ctx)
+        mock_ctx.send_json.assert_called_once()
+
+    @patch("src.dashboard.routes.products.list_frames")
+    def test_handle_listing_frames(self, mock_list_frames):
+        """Test /api/listing/frames route."""
+        mock_ctx = MagicMock()
+        mock_list_frames.return_value = [{"id": 1}]
+        products.handle_listing_frames(mock_ctx)
+        mock_ctx.send_json.assert_called_once()
+
+    @patch("src.dashboard.routes.products.Path.is_file")
+    def test_handle_listing_thumbnails(self, mock_is_file):
+        """Test /api/listing/thumbnails route."""
+        mock_ctx = MagicMock()
+        mock_ctx.query_str.return_value = "express"
+        mock_is_file.return_value = True
+        with patch("src.dashboard.routes.products.list_frames") as mock_list_frames:
+            mock_list_frames.return_value = [{"id": "frame1"}]
+            products.handle_listing_thumbnails(mock_ctx)
+        mock_ctx.send_json.assert_called_once()
+
+    def test_handle_generated_image_missing_path(self):
+        """Test /api/generated-image route with missing path."""
+        mock_ctx = MagicMock()
+        mock_ctx.query_str.return_value = ""
+        products.handle_generated_image(mock_ctx)
+        mock_ctx.send_json.assert_called_once()
+
+    def test_handle_composition_layers(self):
+        """Test /api/composition/layers route."""
+        mock_ctx = MagicMock()
+        with patch("src.dashboard.routes.products.list_all_options") as mock_list:
+            mock_list.return_value = {"layouts": []}
+            products.handle_composition_layers(mock_ctx)
+        mock_ctx.send_json.assert_called_once()
+
+    @patch("src.dashboard.routes.products.BrandAssetManager")
+    def test_handle_brand_assets_grouped(self, mock_mgr_class):
+        """Test /api/brand-assets/grouped route."""
+        mock_ctx = MagicMock()
+        mock_mgr = MagicMock()
+        mock_mgr.get_brands_grouped.return_value = {"category": []}
+        mock_mgr_class.return_value = mock_mgr
+        products.handle_brand_assets_grouped(mock_ctx)
+        mock_ctx.send_json.assert_called_once()
+
+    @patch("src.dashboard.routes.products.BrandAssetManager")
+    def test_handle_brand_assets(self, mock_mgr_class):
+        """Test /api/brand-assets route."""
+        mock_ctx = MagicMock()
+        mock_mgr = MagicMock()
+        mock_mgr.list_assets.return_value = [{"id": 1}]
+        mock_mgr_class.return_value = mock_mgr
+        products.handle_brand_assets(mock_ctx)
+        mock_ctx.send_json.assert_called_once()
+
+    def test_handle_brand_assets_file_invalid(self):
+        """Test /api/brand-assets/file route with invalid filename."""
+        mock_ctx = MagicMock()
+        mock_ctx.path_params.get.return_value = "../etc/passwd"
+        products.handle_brand_assets_file(mock_ctx)
+        mock_ctx.send_json.assert_called_once()
+
+    def test_handle_brand_assets_file_not_found(self):
+        """Test /api/brand-assets/file route with file not found."""
+        mock_ctx = MagicMock()
+        mock_ctx.path_params.get.return_value = "test.png"
+        with patch("src.dashboard.routes.products.Path.is_file") as mock_is_file:
+            mock_is_file.return_value = False
+            products.handle_brand_assets_file(mock_ctx)
+        mock_ctx.send_json.assert_called_once()
+
+    def test_handle_publish_queue_update_missing_id(self):
+        """Test PUT /api/publish-queue route with missing id."""
+        mock_ctx = MagicMock()
+        mock_ctx.path_params.get.return_value = ""
+        products.handle_publish_queue_update(mock_ctx)
+        mock_ctx.send_json.assert_called_once()
+
+    def test_handle_publish_queue_delete_missing_id(self):
+        """Test DELETE /api/publish-queue route with missing id."""
+        mock_ctx = MagicMock()
+        mock_ctx.path_params.get.return_value = ""
+        products.handle_publish_queue_delete(mock_ctx)
+        mock_ctx.send_json.assert_called_once()
+
+    def test_handle_brand_assets_delete_missing_id(self):
+        """Test DELETE /api/brand-assets route with missing id."""
+        mock_ctx = MagicMock()
+        mock_ctx.path_params.get.return_value = ""
+        products.handle_brand_assets_delete(mock_ctx)
+        mock_ctx.send_json.assert_called_once()
+
+    def test_handle_listing_preview(self):
+        """Test /api/listing/preview route."""
+        mock_ctx = MagicMock()
+        mock_ctx.json_body.return_value = {"title": "test"}
+        mock_ctx._handler._handle_listing_preview.return_value = {"ok": True}
+        products.handle_listing_preview(mock_ctx)
+        mock_ctx.send_json.assert_called_once()
+
+    def test_handle_listing_publish(self):
+        """Test /api/listing/publish route."""
+        mock_ctx = MagicMock()
+        mock_ctx.json_body.return_value = {"title": "test"}
+        mock_ctx._handler._handle_listing_publish.return_value = {"ok": True}
+        products.handle_listing_publish(mock_ctx)
         mock_ctx.send_json.assert_called_once()
