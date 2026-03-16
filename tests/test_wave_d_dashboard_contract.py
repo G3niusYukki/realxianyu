@@ -231,13 +231,20 @@ def test_wave_d_inspect_unknown_event_kind_must_enter_exception_pool(monkeypatch
 
 
 def test_wave_d_dashboard_legacy_endpoints_are_service_aggregated_only() -> None:
-    source = inspect.getsource(DashboardHandler.do_GET)
-    assert "get_dashboard_readonly_aggregate" in source
-    assert "virtual_goods_service.get_dashboard_metrics" in source
-    assert "self.repo.get_summary" not in source
-    assert "self.repo.get_trend" not in source
-    assert "self.repo.get_recent_operations" not in source
-    assert "self.repo.get_top_products" not in source
+    # Check that do_GET uses the new router dispatch pattern
+    do_get_source = inspect.getsource(DashboardHandler.do_GET)
+    assert "dispatch_get" in do_get_source
+    # Route handlers should not directly access repo in do_GET method
+    assert "self.repo.get_summary" not in do_get_source
+    assert "self.repo.get_trend" not in do_get_source
+    assert "self.repo.get_recent_operations" not in do_get_source
+    assert "self.repo.get_top_products" not in do_get_source
+
+    # Check that route handlers use service aggregation (via ctx.mimic_ops)
+    from src.dashboard.routes import dashboard_data
+
+    dashboard_data_source = inspect.getsource(dashboard_data)
+    assert "get_dashboard_readonly_aggregate" in dashboard_data_source
 
 
 def test_wave_d_ui_no_raw_json_and_has_five_sections() -> None:

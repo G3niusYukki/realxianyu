@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
+import src.dashboard.routes  # ensure routes are registered for tests
 from src.core.browser_client import BrowserError
 from src.dashboard_server import DashboardHandler
 from src.modules.accounts.monitor import Alert, AlertLevel, Monitor

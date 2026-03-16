@@ -99,6 +99,8 @@ def test_dashboard_risk_control_status_variants(temp_dir) -> None:
         ),
         encoding="utf-8",
     )
+    # Clear cache to test fresh log parsing
+    ops._risk_log_cache = None
     recovered = ops._risk_control_status_from_logs("presales", tail_lines=300)
     assert recovered["level"] == "normal"
     assert recovered["label"] == "已恢复连接"

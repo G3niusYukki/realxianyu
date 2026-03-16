@@ -7,6 +7,7 @@ from unittest.mock import Mock
 
 import pytest
 
+import src.dashboard.routes  # ensure routes are registered for tests
 import src.dashboard_server as ds
 from src.dashboard_server import DashboardHandler, MimicOps, ModuleConsole
 

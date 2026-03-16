@@ -117,6 +117,8 @@ def test_risk_control_status_handles_read_error_and_recovery_signals(monkeypatch
     )
 
     monkeypatch.setattr(ops, "_module_runtime_log", lambda _target: runtime_log)
+    # Clear cache to test fresh log parsing
+    ops._risk_log_cache = None
     recovered = ops._risk_control_status_from_logs()
     assert recovered["level"] == "normal"
     assert recovered["label"] == "已恢复连接"

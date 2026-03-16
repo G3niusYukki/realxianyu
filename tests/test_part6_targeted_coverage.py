@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
+import src.dashboard.routes  # ensure routes are registered for tests
 from src.dashboard_server import DashboardHandler, main, parse_args, run_server
 from src.modules.accounts.monitor import HealthChecker, Monitor
 from src.modules.accounts.scheduler import Scheduler, TaskType
