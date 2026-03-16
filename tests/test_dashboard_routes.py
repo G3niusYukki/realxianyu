@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 
 import src.dashboard.routes
-from src.dashboard.routes import quote, system, dashboard_data, messages
+from src.dashboard.routes import quote, system, dashboard_data, messages, config, cookie
 
 
 class TestQuoteRoutes:
@@ -321,3 +321,131 @@ class TestMessagesRoutes:
         mock_ctx.json_body.return_value = {"channel": "feishu"}  # missing webhook_url
         messages.handle_notifications_test(mock_ctx)
         mock_ctx.send_json.assert_called_once_with({"ok": False, "error": "缺少 channel 或 webhook_url"}, status=400)
+
+    def test_handle_ai_test_missing_params(self):
+        """Test /api/ai/test route with missing params."""
+        mock_ctx = MagicMock()
+        mock_ctx.json_body.return_value = {"api_key": "", "base_url": ""}
+        messages.handle_ai_test(mock_ctx)
+        mock_ctx.send_json.assert_called_once_with({"ok": False, "message": "请填写 API Key 和 API 地址"})
+
+
+class TestConfigRoutes:
+    """Test config routes."""
+
+    @patch("src.dashboard.routes.config._read_system_config")
+    def test_handle_config_get(self, mock_read_config):
+        """Test /api/config GET route."""
+        mock_ctx = MagicMock()
+        mock_read_config.return_value = {"ai": {"api_key": "test"}}
+        config.handle_config_get(mock_ctx)
+        mock_ctx.send_json.assert_called_once()
+
+    @patch("src.dashboard.routes.config._read_system_config")
+    def test_handle_config_sections(self, mock_read_config):
+        """Test /api/config/sections route."""
+        mock_ctx = MagicMock()
+        config.handle_config_sections(mock_ctx)
+        mock_ctx.send_json.assert_called_once()
+        call_args = mock_ctx.send_json.call_args[0][0]
+        assert "sections" in call_args
+
+    @patch("src.dashboard.routes.config._read_system_config")
+    def test_handle_setup_progress(self, mock_read_config):
+        """Test /api/config/setup-progress route."""
+        mock_ctx = MagicMock()
+        mock_read_config.return_value = {
+            "store": {"category": "test"},
+            "xianguanjia": {"app_key": "test"},
+            "ai": {"api_key": "test"},
+            "oss": {"access_key_id": "test"},
+            "auto_reply": {"default_reply": "test"},
+            "notifications": {"feishu_enabled": True},
+        }
+        config.handle_setup_progress(mock_ctx)
+        mock_ctx.send_json.assert_called_once()
+        call_args = mock_ctx.send_json.call_args[0][0]
+        assert "overall_percent" in call_args
+
+    @patch("src.dashboard.routes.config._read_system_config")
+    def test_handle_intent_rules(self, mock_read_config):
+        """Test /api/intent-rules route."""
+        mock_ctx = MagicMock()
+        mock_read_config.return_value = {"auto_reply": {}}
+        config.handle_intent_rules(mock_ctx)
+        mock_ctx.send_json.assert_called_once()
+        call_args = mock_ctx.send_json.call_args[0][0]
+        assert "rules" in call_args
+
+    @patch("src.dashboard.routes.config._read_system_config")
+    @patch("src.dashboard.routes.config._write_system_config")
+    @patch("src.dashboard.routes.config._sync_system_config_to_yaml")
+    @patch("src.dashboard.routes.config.get_config")
+    def test_handle_config_post(self, mock_get_config, mock_sync, mock_write, mock_read):
+        """Test /api/config POST route."""
+        mock_ctx = MagicMock()
+        mock_ctx.json_body.return_value = {"ai": {"api_key": "test123"}}
+        mock_read.return_value = {}
+        config.handle_config_post(mock_ctx)
+        mock_ctx.send_json.assert_called_once()
+
+
+class TestCookieRoutes:
+    """Test cookie routes."""
+
+    def test_handle_get_cookie(self):
+        """Test /api/get-cookie route."""
+        mock_ctx = MagicMock()
+        mock_ctx.mimic_ops.get_cookie.return_value = {"cookie": "test"}
+        cookie.handle_get_cookie(mock_ctx)
+        mock_ctx.send_json.assert_called_once_with({"cookie": "test"})
+
+    @patch("src.dashboard.routes.cookie.Path.is_file")
+    @patch("src.dashboard.routes.cookie.Path.read_bytes")
+    def test_handle_download_cookie_plugin(self, mock_read_bytes, mock_is_file):
+        """Test /api/download-cookie-plugin route."""
+        mock_ctx = MagicMock()
+        mock_ctx.mimic_ops.export_cookie_plugin_bundle.return_value = (b"zip data", "plugin.zip")
+        cookie.handle_download_cookie_plugin(mock_ctx)
+        mock_ctx.send_bytes.assert_called_once()
+
+    def test_handle_download_cookie_plugin_not_found(self):
+        """Test /api/download-cookie-plugin route with file not found."""
+        mock_ctx = MagicMock()
+        mock_ctx.mimic_ops.export_cookie_plugin_bundle.side_effect = FileNotFoundError("Plugin not found")
+        cookie.handle_download_cookie_plugin(mock_ctx)
+        mock_ctx.send_json.assert_called_once()
+
+    def test_handle_update_cookie(self):
+        """Test /api/update-cookie route."""
+        mock_ctx = MagicMock()
+        mock_ctx.json_body.return_value = {"cookie": "test_cookie"}
+        mock_ctx.mimic_ops.update_cookie.return_value = {"success": True}
+        cookie.handle_update_cookie(mock_ctx)
+        mock_ctx.mimic_ops.update_cookie.assert_called_once_with("test_cookie", auto_recover=True)
+        mock_ctx.send_json.assert_called_once()
+
+    def test_handle_parse_cookie(self):
+        """Test /api/parse-cookie route."""
+        mock_ctx = MagicMock()
+        mock_ctx.json_body.return_value = {"text": "cookie_data"}
+        mock_ctx.mimic_ops.parse_cookie_text.return_value = {"success": True}
+        cookie.handle_parse_cookie(mock_ctx)
+        mock_ctx.send_json.assert_called_once()
+
+    def test_handle_cookie_diagnose(self):
+        """Test /api/cookie-diagnose route."""
+        mock_ctx = MagicMock()
+        mock_ctx.json_body.return_value = {"text": "cookie_data"}
+        mock_ctx.mimic_ops.diagnose_cookie.return_value = {"success": True}
+        cookie.handle_cookie_diagnose(mock_ctx)
+        mock_ctx.send_json.assert_called_once()
+
+    def test_handle_cookie_validate(self):
+        """Test /api/cookie/validate route."""
+        mock_ctx = MagicMock()
+        mock_ctx.json_body.return_value = {"cookie": "test"}
+        mock_ctx.mimic_ops.diagnose_cookie.return_value = {"grade": "可用"}
+        mock_ctx.mimic_ops._cookie_domain_filter_stats.return_value = {"domains": []}
+        cookie.handle_cookie_validate(mock_ctx)
+        mock_ctx.send_json.assert_called_once()
