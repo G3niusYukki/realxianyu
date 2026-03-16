@@ -380,13 +380,13 @@ class TestConfigRoutes:
     @patch("src.dashboard.routes.config._read_system_config")
     @patch("src.dashboard.routes.config._write_system_config")
     @patch("src.dashboard.routes.config.get_config")
-    def test_handle_config_post(self, mock_get_config, mock_write, mock_read):
+    @patch("src.dashboard_server._sync_system_config_to_yaml")
+    def test_handle_config_post(self, mock_sync, mock_get_config, mock_write, mock_read):
         """Test /api/config POST route."""
         mock_ctx = MagicMock()
         mock_ctx.json_body.return_value = {"ai": {"api_key": "test123"}}
         mock_read.return_value = {}
-        with patch("src.dashboard.routes.config._sync_system_config_to_yaml"):
-            config.handle_config_post(mock_ctx)
+        config.handle_config_post(mock_ctx)
         mock_ctx.send_json.assert_called_once()
 
 
