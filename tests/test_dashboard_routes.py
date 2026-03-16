@@ -526,8 +526,8 @@ class TestOrdersRoutes:
 class TestProductsRoutes:
     """Test products routes."""
 
-    @patch("src.dashboard.routes.products.list_templates")
-    @patch("src.dashboard.routes.products.list_frames")
+    @patch("src.modules.listing.templates.list_templates")
+    @patch("src.modules.listing.templates.frames.list_frames")
     def test_handle_listing_templates(self, mock_list_frames, mock_list_templates):
         """Test /api/listing/templates route."""
         mock_ctx = MagicMock()
@@ -536,7 +536,7 @@ class TestProductsRoutes:
         products.handle_listing_templates(mock_ctx)
         mock_ctx.send_json.assert_called_once()
 
-    @patch("src.dashboard.routes.products.list_frames")
+    @patch("src.modules.listing.templates.frames.list_frames")
     def test_handle_listing_frames(self, mock_list_frames):
         """Test /api/listing/frames route."""
         mock_ctx = MagicMock()
@@ -550,7 +550,7 @@ class TestProductsRoutes:
         mock_ctx = MagicMock()
         mock_ctx.query_str.return_value = "express"
         mock_is_file.return_value = True
-        with patch("src.dashboard.routes.products.list_frames") as mock_list_frames:
+        with patch("src.modules.listing.templates.frames.list_frames") as mock_list_frames:
             mock_list_frames.return_value = [{"id": "frame1"}]
             products.handle_listing_thumbnails(mock_ctx)
         mock_ctx.send_json.assert_called_once()
@@ -565,12 +565,12 @@ class TestProductsRoutes:
     def test_handle_composition_layers(self):
         """Test /api/composition/layers route."""
         mock_ctx = MagicMock()
-        with patch("src.dashboard.routes.products.list_all_options") as mock_list:
+        with patch("src.modules.listing.templates.compositor.list_all_options") as mock_list:
             mock_list.return_value = {"layouts": []}
             products.handle_composition_layers(mock_ctx)
         mock_ctx.send_json.assert_called_once()
 
-    @patch("src.dashboard.routes.products.BrandAssetManager")
+    @patch("src.modules.listing.brand_assets.BrandAssetManager")
     def test_handle_brand_assets_grouped(self, mock_mgr_class):
         """Test /api/brand-assets/grouped route."""
         mock_ctx = MagicMock()
@@ -580,7 +580,7 @@ class TestProductsRoutes:
         products.handle_brand_assets_grouped(mock_ctx)
         mock_ctx.send_json.assert_called_once()
 
-    @patch("src.dashboard.routes.products.BrandAssetManager")
+    @patch("src.modules.listing.brand_assets.BrandAssetManager")
     def test_handle_brand_assets(self, mock_mgr_class):
         """Test /api/brand-assets route."""
         mock_ctx = MagicMock()
