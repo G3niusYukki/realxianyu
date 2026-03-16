@@ -132,6 +132,7 @@ class CostTableMarkupQuoteProvider(IQuoteProvider):
             destination=request.destination,
             courier=requested_courier,
             limit=8,
+            weight=request.weight,
         )
         if not candidates:
             raise QuoteProviderError(

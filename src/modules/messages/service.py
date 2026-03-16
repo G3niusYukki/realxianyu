@@ -419,6 +419,7 @@ class MessagesService:
                     destination=request.destination,
                     courier=None,
                     limit=max(24, self.quote_reply_max_couriers * 8),
+                    weight=request.weight,
                 )
                 for row in rows:
                     name = str(getattr(row, "courier", "") or "").strip()

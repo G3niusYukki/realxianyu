@@ -257,6 +257,7 @@ class CostTableRepository:
         destination: str,
         courier: str | None = None,
         limit: int = 24,
+        weight: float | None = None,
     ) -> list[CostRecord]:
         self._reload_if_needed()
         if not self._records:
@@ -276,7 +277,7 @@ class CostTableRepository:
             else:
                 exact = self._index_route.get((origin_key, destination_key), [])
             if exact:
-                return self._sort_candidates(exact)[:limit]
+                return self._sort_candidates(exact, weight=weight)[:limit]
 
         # Level 3: 包含匹配
         if courier_norm:
@@ -290,7 +291,7 @@ class CostTableRepository:
             if contains_match(origin_norm, destination_norm, record.origin, record.destination)
         ]
         if fuzzy:
-            return self._sort_candidates(fuzzy)[:limit]
+            return self._sort_candidates(fuzzy, weight=weight)[:limit]
 
         # 兜底：保留旧的 destination 索引相似度
         destination_keys = [key[1] for key in route_candidates(origin_norm, destination_norm, self.geo_resolver)]
@@ -386,10 +387,19 @@ class CostTableRepository:
             self._index_courier_destination.setdefault((courier, destination), []).append(record)
 
     @staticmethod
-    def _sort_candidates(records: list[CostRecord]) -> list[CostRecord]:
-        sorted_records = sorted(
-            records, key=lambda r: (r.first_cost + r.extra_cost, r.first_cost, r.extra_cost, r.courier)
-        )
+    def _sort_candidates(records: list[CostRecord], weight: float | None = None) -> list[CostRecord]:
+        if weight is not None and weight > 0:
+            def _total_cost(r: CostRecord) -> float:
+                extra_w = max(0.0, weight - r.base_weight)
+                return r.first_cost + extra_w * r.extra_cost
+
+            sorted_records = sorted(
+                records, key=lambda r: (_total_cost(r), r.extra_cost, r.first_cost, r.courier)
+            )
+        else:
+            sorted_records = sorted(
+                records, key=lambda r: (r.first_cost + r.extra_cost, r.first_cost, r.extra_cost, r.courier)
+            )
         seen: set[str] = set()
         deduped: list[CostRecord] = []
         for r in sorted_records:
