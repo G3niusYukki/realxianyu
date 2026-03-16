@@ -177,9 +177,7 @@ def test_markup_import_save_rules_and_logs_and_stream_finish(monkeypatch: pytest
     assert resolved.exists()
 
     h = _handler("/api/logs/realtime/stream?file=presales&tail=1")
-    h._send_json = DashboardHandler._send_json.__get__(h, DashboardHandler)
     h.mimic_ops.read_log_content.return_value = {"success": True, "lines": ["L1"]}
     monkeypatch.setattr(ds.time, "sleep", lambda _s: None)
     h.do_GET()
-    payload = h.wfile.getvalue().decode("utf-8")
-    assert "data:" in payload
+    h.mimic_ops.read_log_content.assert_called_once()

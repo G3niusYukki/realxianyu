@@ -450,7 +450,8 @@ def test_dashboard_handler_read_json_and_multipart() -> None:
         ("/api/status", "_send_json"),
         ("/api/get-cookie", "_send_json"),
         ("/api/route-stats", "_send_json"),
-        ("/api/export-routes", "_send_bytes"),
+        # Note: /api/export-routes uses ctx.send_bytes() which calls _handler._send_bytes
+        # Tested separately below
         ("/api/get-template?default=true", "_send_json"),
         ("/api/get-markup-rules", "_send_json"),
         ("/api/logs/files", "_send_json"),
@@ -470,7 +471,6 @@ def test_dashboard_handler_do_get_routes(path: str, expected: str) -> None:
     h.mimic_ops.service_status.return_value = {"ok": True}
     h.mimic_ops.get_cookie.return_value = {"ok": True}
     h.mimic_ops.route_stats.return_value = {"ok": True}
-    h.mimic_ops.export_routes_zip.return_value = (b"zip", "a.zip")
     h.mimic_ops.get_template.return_value = {"ok": True}
     h.mimic_ops.get_markup_rules.return_value = {"ok": True}
     h.mimic_ops.list_log_files.return_value = {"ok": True}
@@ -478,6 +478,20 @@ def test_dashboard_handler_do_get_routes(path: str, expected: str) -> None:
 
     h.do_GET()
     assert getattr(h, expected).called
+
+
+def test_dashboard_handler_export_routes() -> None:
+    """Test /api/export-routes specifically as it uses send_bytes."""
+    h = _build_handler("/api/export-routes")
+    # Set up the mock to return bytes data
+    h.mimic_ops.export_routes_zip.return_value = (b"zip content", "routes.zip")
+
+    h.do_GET()
+
+    # The route should be dispatched and send_bytes should be called
+    h.mimic_ops.export_routes_zip.assert_called_once()
+    # Verify _send_bytes was called (via ctx.send_bytes)
+    h._send_bytes.assert_called_once()
 
 
 def test_dashboard_handler_do_get_error_paths() -> None:

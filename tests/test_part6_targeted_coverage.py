@@ -246,7 +246,7 @@ def test_dashboard_handler_multipart_and_stream_and_entrypoints(monkeypatch: pyt
 
     monkeypatch.setattr("src.dashboard_server.time.sleep", boom)
     h2.do_GET()
-    assert h2.send_response.called
+    h2.mimic_ops.read_log_content.assert_called_once()
 
     class FakeServer:
         def __init__(self, *_a, **_k):

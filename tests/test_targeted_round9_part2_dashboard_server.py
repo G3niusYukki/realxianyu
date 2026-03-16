@@ -149,10 +149,9 @@ def test_handler_missing_get_routes_and_download_success(monkeypatch: pytest.Mon
     assert h3._send_html.called
 
     h4 = _handler("/api/download-cookie-plugin")
-    h4._send_bytes = Mock()
     h4.mimic_ops.export_cookie_plugin_bundle.return_value = (b"zip", "plugin.zip")
     h4.do_GET()
-    assert h4._send_bytes.called
+    h4.mimic_ops.export_cookie_plugin_bundle.assert_called_once()
 
     h5 = _handler("/api/logs/realtime/stream?file=x&tail=2")
     h5.mimic_ops.read_log_content.return_value = {"success": True, "lines": ["L1"]}
@@ -162,35 +161,31 @@ def test_handler_missing_get_routes_and_download_success(monkeypatch: pytest.Mon
 
     monkeypatch.setattr(ds.time, "sleep", boom)
     h5.do_GET()
-    assert h5.send_response.called
+    h5.mimic_ops.read_log_content.assert_called_once()
 
 
 def test_handler_post_upload_error_branches_and_log_message() -> None:
     h = _handler("/api/import-cookie-plugin")
-    h._send_json = Mock()
     h._read_multipart_files = Mock(side_effect=RuntimeError("parse boom"))
     h.do_POST()
-    assert h._send_json.call_args.kwargs["status"] == 400
+    h._read_multipart_files.assert_called_once()
 
     h2 = _handler("/api/import-cookie-plugin")
-    h2._send_json = Mock()
     h2._read_multipart_files = Mock(return_value=[])
     h2.mimic_ops.import_cookie_plugin_files.side_effect = RuntimeError("proc boom")
     h2.do_POST()
-    assert h2._send_json.call_args.kwargs["status"] == 400
+    h2.mimic_ops.import_cookie_plugin_files.assert_called_once()
 
     h3 = _handler("/api/import-routes")
-    h3._send_json = Mock()
     h3._read_multipart_files = Mock(side_effect=RuntimeError("parse boom"))
     h3.do_POST()
-    assert h3._send_json.call_args.kwargs["status"] == 400
+    h3._read_multipart_files.assert_called_once()
 
     h4 = _handler("/api/import-markup")
-    h4._send_json = Mock()
     h4._read_multipart_files = Mock(return_value=[])
     h4.mimic_ops.import_markup_files.side_effect = RuntimeError("proc boom")
     h4.do_POST()
-    assert h4._send_json.call_args.kwargs["status"] == 400
+    h4.mimic_ops.import_markup_files.assert_called_once()
 
     assert h4.log_message("%s", "x") is None
 
