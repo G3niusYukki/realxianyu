@@ -20,7 +20,11 @@ def render(params: dict[str, Any], theme: dict[str, str]) -> str:
     brand_items = params.get("brand_items", [])
 
     grid = brand_grid_html(
-        brand_items, shape="rounded_square", size=140, gap=24, max_cols=4,
+        brand_items,
+        shape="rounded_square",
+        size=140,
+        gap=24,
+        max_cols=4,
     )
 
     label_pills = ""
@@ -29,11 +33,11 @@ def render(params: dict[str, Any], theme: dict[str, str]) -> str:
         if lbl:
             label_pills += (
                 f'<span style="background-color:#f1f5f9;padding:12px 30px;'
-                f'border-radius:999px;font-size:32px;font-weight:700;'
+                f"border-radius:999px;font-size:32px;font-weight:700;"
                 f'color:#475569;">{e(lbl)}</span>\n'
             )
 
-    body = f'''
+    body = f"""
 <div style="width:1080px;height:1080px;background-color:#e2e8f0;padding:60px;
     display:flex;flex-direction:column;justify-content:center;">
 
@@ -81,6 +85,6 @@ def render(params: dict[str, Any], theme: dict[str, str]) -> str:
             ✓ {tagline}
         </div>
     </div>
-</div>'''
+</div>"""
 
     return wrap_page(body, bg="#e2e8f0")

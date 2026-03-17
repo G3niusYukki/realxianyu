@@ -332,6 +332,7 @@ class GoofishWsTransport:
         self._on_manual_takeover: Any | None = None
 
         from src.modules.messages.bot_sig_store import BotSigStore
+
         self._bot_sig_store = BotSigStore()
         self._bot_sent_sigs: dict[str, float] = self._bot_sig_store._cache
         self._BOT_SIG_TTL = 7200.0
@@ -475,9 +476,7 @@ class GoofishWsTransport:
         wait_start = time.time()
         escalation_notified = False
         escalation_timeout = float(self.config.get("cookie_wait_escalation_timeout_seconds", 10 * 60))
-        self.logger.info(
-            "进入 Cookie 更新等待循环 (检测: env/config, CookieCloud, 指纹浏览器, 闲管家IM, rookiepy)"
-        )
+        self.logger.info("进入 Cookie 更新等待循环 (检测: env/config, CookieCloud, 指纹浏览器, 闲管家IM, rookiepy)")
         while not self._stop_event.is_set():
             if self._cookie_changed.is_set():
                 self._cookie_changed.clear()
@@ -488,11 +487,10 @@ class GoofishWsTransport:
             if not escalation_notified and (now - wait_start) >= escalation_timeout:
                 escalation_notified = True
                 elapsed_min = int((now - wait_start) / 60)
-                self.logger.warning(
-                    f"Cookie 等待已超过 {elapsed_min} 分钟，所有自动恢复手段未成功"
-                )
+                self.logger.warning(f"Cookie 等待已超过 {elapsed_min} 分钟，所有自动恢复手段未成功")
                 try:
                     from src.core.notify import send_system_notification
+
                     send_system_notification(
                         f"【闲鱼自动化】⚠️ Cookie 等待已超 {elapsed_min} 分钟\n"
                         "所有自动恢复手段均未成功（CookieCloud/闲管家IM/浏览器DB/滑块验证）。\n"
@@ -538,10 +536,11 @@ class GoofishWsTransport:
         """Poll CookieCloud for fresh cookies. Returns True=applied, False=no change, None=not configured."""
         try:
             from src.core.cookie_grabber import CookieGrabber
-            loop = asyncio.get_running_loop()
+
+            asyncio.get_running_loop()
             grabber = CookieGrabber()
 
-            host = os.environ.get("COOKIE_CLOUD_HOST", "").strip()
+            os.environ.get("COOKIE_CLOUD_HOST", "").strip()
             uuid_val = os.environ.get("COOKIE_CLOUD_UUID", "").strip()
             pwd = os.environ.get("COOKIE_CLOUD_PASSWORD", "").strip()
             if not uuid_val or not pwd:
@@ -580,7 +579,7 @@ class GoofishWsTransport:
             return False
 
         try:
-            from src.core.goofish_im_cookie import read_goofish_im_cookies, merge_cookies
+            from src.core.goofish_im_cookie import merge_cookies, read_goofish_im_cookies
         except ImportError:
             return False
 
@@ -593,9 +592,7 @@ class GoofishWsTransport:
             return False
 
         if result.get("low_ttl_warning"):
-            self.logger.warning(
-                f"goofish_im refresh: using low-TTL cookie (urgent={urgent})"
-            )
+            self.logger.warning(f"goofish_im refresh: using low-TTL cookie (urgent={urgent})")
 
         existing_cookie = os.environ.get("XIANYU_COOKIE_1", "") or self.cookie_text
         merged = merge_cookies(result["cookies"], existing_cookie)
@@ -632,6 +629,7 @@ class GoofishWsTransport:
 
         try:
             from src.core.cookie_grabber import CookieGrabber
+
             if not CookieGrabber._has_session_fields(new_cookie):
                 self.logger.info("Active cookie refresh: missing session fields, trying Playwright enrichment...")
                 grabber = CookieGrabber()
@@ -689,6 +687,7 @@ class GoofishWsTransport:
             if not cc_uuid or not cc_pwd:
                 try:
                     from src.dashboard.config_service import read_system_config
+
                     cc_cfg = read_system_config().get("cookie_cloud", {})
                     if isinstance(cc_cfg, dict):
                         cc_uuid = cc_uuid or str(cc_cfg.get("cookie_cloud_uuid", "")).strip()
@@ -720,12 +719,11 @@ class GoofishWsTransport:
     _last_cookie_applied_at: float = 0.0
     _SLIDER_RECOVERY_COOLDOWN = 60.0
 
-    def _record_slider_events(
-        self, result: dict[str, Any], trigger_source: str
-    ) -> None:
+    def _record_slider_events(self, result: dict[str, Any], trigger_source: str) -> None:
         """Persist slider attempt data to SliderEventStore."""
         try:
             from src.core.slider_store import SliderEventStore
+
             store = SliderEventStore.get_instance()
 
             prev_ts = store.get_last_cookie_apply_ts()
@@ -751,10 +749,9 @@ class GoofishWsTransport:
             for att in attempts:
                 cookie_applied = bool(result.get("cookie")) and att is attempts[-1]
                 cookie_str = result.get("cookie") or ""
-                cookie_keys = {
-                    p.split("=")[0].strip()
-                    for p in cookie_str.split(";") if "=" in p
-                } if cookie_str else set()
+                cookie_keys = (
+                    {p.split("=")[0].strip() for p in cookie_str.split(";") if "=" in p} if cookie_str else set()
+                )
 
                 store.record_event(
                     trigger_source=trigger_source,
@@ -827,6 +824,7 @@ class GoofishWsTransport:
                     self._seen_event.clear()
                     try:
                         from src.core.notify import send_system_notification
+
                         send_system_notification(
                             "【闲鱼自动化】✅ 风控滑块验证已通过\nCookie 已自动恢复，WS 即将重连",
                             event="risk_control",
@@ -846,14 +844,13 @@ class GoofishWsTransport:
                 try:
                     hl_ok = await self._preflight_has_login()
                     if hl_ok and self.cookies.get("_m_h5_tk"):
-                        self.logger.info(
-                            "hasLogin 补全 _m_h5_tk 成功，WS 即将重连"
-                        )
+                        self.logger.info("hasLogin 补全 _m_h5_tk 成功，WS 即将重连")
                         self._last_cookie_applied_at = time.time()
                         self._session_peer.clear()
                         self._seen_event.clear()
                         try:
                             from src.core.notify import send_system_notification
+
                             send_system_notification(
                                 "【闲鱼自动化】✅ hasLogin 补全 _m_h5_tk 成功\nCookie 已自动恢复，WS 即将重连",
                                 event="risk_control",
@@ -867,6 +864,7 @@ class GoofishWsTransport:
 
             try:
                 from src.core.notify import send_system_notification
+
                 send_system_notification(
                     "【闲鱼自动化】⚠️ 滑块页面无验证码，但提取的 Cookie 不完整\n"
                     "缺少字段: " + ", ".join(sorted(missing)) + "\n"
@@ -913,7 +911,7 @@ class GoofishWsTransport:
 
     def _dedup_cookies(self) -> None:
         """去除 self.cookies 中的重复项并重建 cookie_text。
-        
+
         对齐 XianyuAutoAgent 的 clear_duplicate_cookies() 逻辑。
         """
         deduped: dict[str, str] = {}
@@ -1100,7 +1098,9 @@ class GoofishWsTransport:
             data = {"data": data_val}
             try:
                 async with httpx.AsyncClient(
-                    timeout=12.0, headers=headers, cookies=self.cookies,
+                    timeout=12.0,
+                    headers=headers,
+                    cookies=self.cookies,
                 ) as client:
                     resp = await client.post(
                         "https://h5api.m.goofish.com/h5/mtop.taobao.idlemessage.pc.login.token/1.0/",
@@ -1222,7 +1222,9 @@ class GoofishWsTransport:
         for k in dead:
             self._seen_event.pop(k, None)
         self._cleanup_bot_sigs()
-        stale_cache = [k for k, (ts, _) in self._recent_msgs_cache.items() if (now - ts) > self._RECENT_MSGS_CACHE_TTL * 4]
+        stale_cache = [
+            k for k, (ts, _) in self._recent_msgs_cache.items() if (now - ts) > self._RECENT_MSGS_CACHE_TTL * 4
+        ]
         for k in stale_cache:
             self._recent_msgs_cache.pop(k, None)
 
@@ -1316,9 +1318,7 @@ class GoofishWsTransport:
                             self._on_manual_takeover(chat_id, True)
                         except Exception:
                             pass
-                    self.logger.info(
-                        f"[人工介入] 检测到卖家手动消息: session={chat_id}, text={text[:30]}"
-                    )
+                    self.logger.info(f"[人工介入] 检测到卖家手动消息: session={chat_id}, text={text[:30]}")
                 except Exception as exc:
                     self.logger.warning(f"[人工介入] set_state failed: session={chat_id}, err={exc}")
             return
@@ -1403,7 +1403,9 @@ class GoofishWsTransport:
                 continue
             event = extract_chat_event(decoded)
             if event:
-                self.logger.info(f"WS chat event: chat={event.get('chat_id','?')}, sender={event.get('sender_user_id','?')}, text={event.get('text','')[:50]}")
+                self.logger.info(
+                    f"WS chat event: chat={event.get('chat_id', '?')}, sender={event.get('sender_user_id', '?')}, text={event.get('text', '')[:50]}"
+                )
                 await self._push_event(event)
             else:
                 top_keys = list(decoded.keys())[:6] if isinstance(decoded, dict) else type(decoded).__name__
@@ -1484,9 +1486,7 @@ class GoofishWsTransport:
                     if (now - self._last_im_refresh_at) >= im_refresh_interval:
                         ttl = self._m_h5_tk_seconds_until_expiry()
                         if ttl is not None and ttl < 900:
-                            self.logger.info(
-                                f"_m_h5_tk TTL={ttl:.0f}s < 900s, proactive IM refresh"
-                            )
+                            self.logger.info(f"_m_h5_tk TTL={ttl:.0f}s < 900s, proactive IM refresh")
                             if await self._try_goofish_im_refresh():
                                 self._last_im_refresh_at = now
                                 self.logger.info("Proactive IM cookie refresh succeeded")
@@ -1505,8 +1505,8 @@ class GoofishWsTransport:
                                 ttl_after = self._m_h5_tk_seconds_until_expiry()
                                 self.logger.info(
                                     f"hasLogin heartbeat succeeded, _m_h5_tk TTL={ttl_after:.0f}s"
-                                    if ttl_after is not None else
-                                    "hasLogin heartbeat succeeded"
+                                    if ttl_after is not None
+                                    else "hasLogin heartbeat succeeded"
                                 )
                             else:
                                 self.logger.debug("hasLogin heartbeat: server returned non-success")
@@ -1542,16 +1542,12 @@ class GoofishWsTransport:
                         slider_cfg = self.config.get("slider_auto_solve", {})
                         slider_enabled = bool(slider_cfg.get("enabled")) if isinstance(slider_cfg, dict) else False
 
-                        self.logger.warning(
-                            f"RGV587 风控检测 ({self._rgv587_consecutive})，尝试恢复..."
-                        )
+                        self.logger.warning(f"RGV587 风控检测 ({self._rgv587_consecutive})，尝试恢复...")
 
                         if self._rgv587_consecutive <= 2 and await self._try_goofish_im_refresh(urgent=True):
                             self._connect_failures = 0
                             rgv_backoff = 30.0 * self._rgv587_consecutive
-                            self.logger.info(
-                                f"闲管家IM Cookie刷新成功，退避 {rgv_backoff:.0f}s 后重试 WS 连接"
-                            )
+                            self.logger.info(f"闲管家IM Cookie刷新成功，退避 {rgv_backoff:.0f}s 后重试 WS 连接")
                             await asyncio.sleep(rgv_backoff)
                             continue
 
@@ -1761,9 +1757,7 @@ class GoofishWsTransport:
             "contentType": 1,
             "text": {"text": str(text or "")},
         }
-        content_b64 = base64.b64encode(
-            json.dumps(payload_inner, ensure_ascii=False).encode("utf-8")
-        ).decode("utf-8")
+        content_b64 = base64.b64encode(json.dumps(payload_inner, ensure_ascii=False).encode("utf-8")).decode("utf-8")
         data_dict = {
             "uuid": generate_uuid(),
             "cid": cid,
@@ -1832,7 +1826,9 @@ class GoofishWsTransport:
         headers = self._base_headers()
         try:
             async with httpx.AsyncClient(
-                timeout=8.0, headers=headers, cookies=self.cookies,
+                timeout=8.0,
+                headers=headers,
+                cookies=self.cookies,
             ) as client:
                 resp = await client.post(
                     f"https://h5api.m.goofish.com/h5/{api}/{version}/",

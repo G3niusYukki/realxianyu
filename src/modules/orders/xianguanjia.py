@@ -77,6 +77,7 @@ class XianGuanJiaClient:
         merchant_query_key: str = "merchantId",
     ) -> None:
         import warnings
+
         warnings.warn(
             "XianGuanJiaClient is deprecated. "
             "Use integrations.xianguanjia.open_platform_client.OpenPlatformClient instead.",

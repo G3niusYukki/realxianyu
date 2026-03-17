@@ -26,10 +26,7 @@ def _discover() -> None:
 
 def list_frames() -> list[dict[str, Any]]:
     _discover()
-    return [
-        {k: v for k, v in f.items() if k != "render"}
-        for f in _FRAMES.values()
-    ]
+    return [{k: v for k, v in f.items() if k != "render"} for f in _FRAMES.values()]
 
 
 def get_frame(frame_id: str) -> dict[str, Any] | None:

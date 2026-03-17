@@ -19,6 +19,7 @@ def _font_face_css() -> str:
     """生成 @font-face 声明，使用阿里巴巴普惠体 Heavy。"""
     if _FONT_PATH.exists():
         from src.modules.listing.brand_assets import file_to_data_uri
+
         uri = file_to_data_uri(_FONT_PATH)
     else:
         uri = ""
@@ -69,10 +70,14 @@ def brand_grid_html(
         name = e(item.get("name", ""))
         name_font = max(14, size // 8)
         name_el = (
-            f'<span style="font-size:{name_font}px;font-weight:700;color:{name_color};'
-            f'margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'
-            f'max-width:{size + 20}px;letter-spacing:0.5px;">{name}</span>'
-        ) if show_name and name else ""
+            (
+                f'<span style="font-size:{name_font}px;font-weight:700;color:{name_color};'
+                f"margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"
+                f'max-width:{size + 20}px;letter-spacing:0.5px;">{name}</span>'
+            )
+            if show_name and name
+            else ""
+        )
 
         border_css = f"border:2px solid {border_color};" if border_color != "transparent" else ""
         bg_css = f"background:{bg_color};" if bg_color != "transparent" else ""
@@ -80,9 +85,9 @@ def brand_grid_html(
         items_html += (
             f'<div style="display:flex;flex-direction:column;align-items:center;gap:4px;">'
             f'<img src="{src}" alt="{name}" style="width:{size}px;height:{size}px;'
-            f'object-fit:cover;border-radius:{radius};{border_css}{bg_css}'
+            f"object-fit:cover;border-radius:{radius};{border_css}{bg_css}"
             f'overflow:hidden;">'
-            f'{name_el}</div>\n'
+            f"{name_el}</div>\n"
         )
 
     return (
@@ -125,7 +130,7 @@ def brand_price_list_html(
 def wrap_page(body: str, *, width: int = 1080, height: int = 1080, bg: str = "#ffffff") -> str:
     """将 body 内容包裹成完整 HTML 页面，内置粗体字体声明。"""
     font_face = _font_face_css()
-    return f'''<!DOCTYPE html>
+    return f"""<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
@@ -142,7 +147,7 @@ body {{
 <body>
 {body}
 </body>
-</html>'''
+</html>"""
 
 
 def sample_brand_items() -> list[dict[str, str]]:
@@ -169,10 +174,12 @@ def sample_brand_items() -> list[dict[str, str]]:
 def _placeholder_logo_svg(code: str, name: str) -> str:
     """生成占位 Logo SVG（无需外部图片文件）。"""
     import hashlib
+
     h = int(hashlib.md5(code.encode()).hexdigest()[:6], 16) % 360
     color = f"hsl({h}, 65%, 40%)"
     bg = f"hsl({h}, 50%, 88%)"
     from urllib.parse import quote
+
     svg = (
         f'<svg xmlns="http://www.w3.org/2000/svg" width="150" height="150" viewBox="0 0 150 150">'
         f'<circle cx="75" cy="75" r="75" fill="{bg}"/>'
@@ -181,4 +188,4 @@ def _placeholder_logo_svg(code: str, name: str) -> str:
         f'<text x="75" y="95" text-anchor="middle" font-size="16" font-weight="700" '
         f'fill="{color}" font-family="PingFang SC,sans-serif">{name}</text></svg>'
     )
-    return quote(svg, safe='')
+    return quote(svg, safe="")

@@ -31,12 +31,8 @@ class QuoteReplyComposer:
         self.quote_reply_max_couriers = quote_reply_max_couriers
         self.logger = _logger
         self._freight_needs_city = False
-        self.freight_courier_priority: list[str] = list(
-            quote_config.get("freight_courier_priority") or []
-        )
-        self.volume_divisor_default: float = float(
-            quote_config.get("volume_divisor_default") or 8000
-        )
+        self.freight_courier_priority: list[str] = list(quote_config.get("freight_courier_priority") or [])
+        self.volume_divisor_default: float = float(quote_config.get("volume_divisor_default") or 8000)
 
     @staticmethod
     def format_eta_days(minutes: int | float | None) -> str:
@@ -123,17 +119,11 @@ class QuoteReplyComposer:
             first_exp = ok_pairs[0][1].explain if isinstance(ok_pairs[0][1].explain, dict) else {}
             billing_w = float(first_exp.get("billing_weight_kg") or request.weight or 0)
             if billing_w < 20:
-                ok_pairs = [
-                    p for p in ok_pairs
-                    if (p[1].explain or {}).get("service_type") != "freight"
-                ]
+                ok_pairs = [p for p in ok_pairs if (p[1].explain or {}).get("service_type") != "freight"]
             else:
                 geo = GeoResolver()
                 if geo.is_province_level(request.origin) or geo.is_province_level(request.destination):
-                    ok_pairs = [
-                        p for p in ok_pairs
-                        if (p[1].explain or {}).get("service_type") != "freight"
-                    ]
+                    ok_pairs = [p for p in ok_pairs if (p[1].explain or {}).get("service_type") != "freight"]
                     self._freight_needs_city = True
 
         ok_pairs.sort(key=lambda item: (float(item[1].total_fee), str(item[0])))
@@ -201,7 +191,11 @@ class QuoteReplyComposer:
             bw_val = float(billing_w or 0)
             cheapest_freight = freight_rows[0][1]
             unit_price = float(cheapest_freight.total_fee) / bw_val if bw_val > 0 else 0
-            freight_header = f"大件快运方案（首重30kg起，低至{unit_price:.1f}元/kg）：" if unit_price > 0 else "大件快运方案（首重30kg起）："
+            freight_header = (
+                f"大件快运方案（首重30kg起，低至{unit_price:.1f}元/kg）："
+                if unit_price > 0
+                else "大件快运方案（首重30kg起）："
+            )
             lines.append(freight_header)
             for i, (name, result) in enumerate(freight_rows, 1):
                 lines.append(_format_courier_line(i, name, result))
@@ -224,8 +218,14 @@ class QuoteReplyComposer:
             if divisor is not None and float(divisor) > 0:
                 div_val = int(divisor) if float(divisor) == int(float(divisor)) else float(divisor)
             else:
-                div_val = int(self.volume_divisor_default) if self.volume_divisor_default == int(self.volume_divisor_default) else self.volume_divisor_default
-            lines.append(f"温馨提示：以上按实际重量计算，如包裹体积较大（体积重=长×宽×高/{div_val}），快递按较大值计费，届时可能需补差价哦~")
+                div_val = (
+                    int(self.volume_divisor_default)
+                    if self.volume_divisor_default == int(self.volume_divisor_default)
+                    else self.volume_divisor_default
+                )
+            lines.append(
+                f"温馨提示：以上按实际重量计算，如包裹体积较大（体积重=长×宽×高/{div_val}），快递按较大值计费，届时可能需补差价哦~"
+            )
 
         for _, r in quote_rows:
             exp = r.explain if isinstance(r.explain, dict) else {}
@@ -240,11 +240,11 @@ class QuoteReplyComposer:
                 break
 
         if self._freight_needs_city:
-            lines.append(
-                "大件快运报价需精确到市-市才准确，麻烦提供具体城市（如：广州到杭州），帮您查快运价格哦~"
-            )
+            lines.append("大件快运报价需精确到市-市才准确，麻烦提供具体城市（如：广州到杭州），帮您查快运价格哦~")
 
-        lines.append("新用户福利：以上为首单优惠价（每个手机号限一次）~ 若已使用过小程序，则按正常价计费，后续可直接在小程序下单，无需再走闲鱼，正常价也比自寄便宜5折起~")
+        lines.append(
+            "新用户福利：以上为首单优惠价（每个手机号限一次）~ 若已使用过小程序，则按正常价计费，后续可直接在小程序下单，无需再走闲鱼，正常价也比自寄便宜5折起~"
+        )
         return "\n".join(lines)
 
     def persist_to_ledger(
@@ -274,9 +274,10 @@ class QuoteReplyComposer:
 
             if not quote_rows:
                 self.logger.warning(
-                    "persist_to_ledger: quote_rows empty, skipping persist "
-                    "(session=%s, peer=%s, meta_keys=%s)",
-                    session_id, peer_name, list(quote_meta.keys()),
+                    "persist_to_ledger: quote_rows empty, skipping persist (session=%s, peer=%s, meta_keys=%s)",
+                    session_id,
+                    peer_name,
+                    list(quote_meta.keys()),
                 )
                 return
 

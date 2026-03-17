@@ -422,7 +422,11 @@ class WorkflowStore:
             return inserted
 
     def enqueue_delayed_job(
-        self, session_id: str, stage: str, delay_seconds: int, payload: dict[str, Any] | None = None,
+        self,
+        session_id: str,
+        stage: str,
+        delay_seconds: int,
+        payload: dict[str, Any] | None = None,
     ) -> bool:
         if not session_id:
             return False
@@ -753,6 +757,7 @@ class WorkflowWorker:
         manual_timeout = int(self.config.get("manual_mode_timeout", 600))
         manual_resume = int(self.config.get("manual_mode_resume_seconds", 300))
         from src.modules.messages.manual_mode import ManualModeStore
+
         self._manual_mode_store = ManualModeStore(
             os.path.join("data", "manual_mode.db"),
             timeout_seconds=manual_timeout,
@@ -818,9 +823,7 @@ class WorkflowWorker:
 
         unread_session_ids = {str(s.get("session_id", "")) for s in current_unread}
         if job.session_id in unread_session_ids:
-            self.logger.info(
-                f"quote_nudge skipped (buyer replied): session_id={job.session_id}"
-            )
+            self.logger.info(f"quote_nudge skipped (buyer replied): session_id={job.session_id}")
             return
 
         session_data = self.store.get_session(job.session_id)
@@ -832,23 +835,17 @@ class WorkflowWorker:
                 WorkflowState.CLOSED.value,
                 WorkflowState.MANUAL.value,
             ):
-                self.logger.info(
-                    f"quote_nudge skipped (state={state_val}): session_id={job.session_id}"
-                )
+                self.logger.info(f"quote_nudge skipped (state={state_val}): session_id={job.session_id}")
                 return
 
         nudge_text = random.choice(QUOTE_NUDGE_TEMPLATES)
         if dry_run:
-            self.logger.info(
-                f"quote_nudge dry_run: session_id={job.session_id}, text={nudge_text[:30]}"
-            )
+            self.logger.info(f"quote_nudge dry_run: session_id={job.session_id}, text={nudge_text[:30]}")
             return
 
         try:
             sent = await self.message_service.reply_to_session(job.session_id, nudge_text)
-            self.logger.info(
-                f"quote_nudge sent={'ok' if sent else 'fail'}: session_id={job.session_id}"
-            )
+            self.logger.info(f"quote_nudge sent={'ok' if sent else 'fail'}: session_id={job.session_id}")
             if sent:
                 self.store.transition_state(
                     session_id=job.session_id,
@@ -888,9 +885,7 @@ class WorkflowWorker:
         claimed = self.store.claim_jobs(limit=self.claim_limit, lease_seconds=self.lease_seconds)
 
         if unread or enqueued or claimed:
-            self.logger.info(
-                f"run_once: unread={len(unread)} enqueued={enqueued} claimed={len(claimed)}"
-            )
+            self.logger.info(f"run_once: unread={len(unread)} enqueued={enqueued} claimed={len(claimed)}")
 
         success = 0
         failed = 0
@@ -924,9 +919,7 @@ class WorkflowWorker:
                     continue
 
                 msg_preview = str(job.payload.get("last_message", ""))[:40]
-                self.logger.info(
-                    f"process_session start: session_id={job.session_id}, msg={msg_preview}"
-                )
+                self.logger.info(f"process_session start: session_id={job.session_id}, msg={msg_preview}")
                 start = time.perf_counter()
                 detail = await self.message_service.process_session(
                     job.payload,
@@ -1011,9 +1004,7 @@ class WorkflowWorker:
                     self.logger.warning(f"workflow complete skipped due to lease mismatch: job_id={job.id}")
             except Exception as exc:
                 failed += 1
-                self.logger.warning(
-                    f"process_session failed: session_id={job.session_id}, error={exc}"
-                )
+                self.logger.warning(f"process_session failed: session_id={job.session_id}, error={exc}")
                 failed_ok = self.store.fail_job(
                     job_id=job.id,
                     error=str(exc),

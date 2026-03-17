@@ -18,6 +18,7 @@ def _migrate_config_if_needed() -> None:
     """One-time migration: move system_config.json from server/data/ to data/."""
     if _OLD_SYS_CONFIG_FILE.exists() and not _SYS_CONFIG_FILE.exists():
         import shutil
+
         _SYS_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
         shutil.move(str(_OLD_SYS_CONFIG_FILE), str(_SYS_CONFIG_FILE))
         logger.info("Migrated system_config.json from server/data/ to data/")
@@ -310,9 +311,28 @@ CONFIG_SECTIONS: list[dict[str, Any]] = [
                 "label": "行业类型",
                 "type": "select",
                 "options": [
-                    "99", "2", "1", "3", "9", "25", "24", "22",
-                    "20", "17", "18", "21", "27", "28", "30",
-                    "8", "16", "19", "29", "31", "33", "23",
+                    "99",
+                    "2",
+                    "1",
+                    "3",
+                    "9",
+                    "25",
+                    "24",
+                    "22",
+                    "20",
+                    "17",
+                    "18",
+                    "21",
+                    "27",
+                    "28",
+                    "30",
+                    "8",
+                    "16",
+                    "19",
+                    "29",
+                    "31",
+                    "33",
+                    "23",
                 ],
                 "default": "99",
                 "labels": {
@@ -372,8 +392,20 @@ CONFIG_SECTIONS: list[dict[str, Any]] = [
                 },
                 "hint": "商品成色，普通商品可选全新/准新/X新，品牌捡漏有更多选项",
             },
-            {"key": "default_price", "label": "默认价格(元)", "type": "number", "default": 1, "hint": "队列无单独定价时使用此价格，单位元（如 9.9）"},
-            {"key": "default_express_fee", "label": "默认运费(元)", "type": "number", "default": 0, "hint": "0 表示包邮，单位元（如 8 表示运费8元）"},
+            {
+                "key": "default_price",
+                "label": "默认价格(元)",
+                "type": "number",
+                "default": 1,
+                "hint": "队列无单独定价时使用此价格，单位元（如 9.9）",
+            },
+            {
+                "key": "default_express_fee",
+                "label": "默认运费(元)",
+                "type": "number",
+                "default": 0,
+                "hint": "0 表示包邮，单位元（如 8 表示运费8元）",
+            },
             {"key": "default_stock", "label": "默认库存", "type": "number", "default": 1},
             {
                 "key": "shipping_region",
@@ -383,8 +415,18 @@ CONFIG_SECTIONS: list[dict[str, Any]] = [
                 "regions": SHIPPING_REGIONS,
                 "hint": "选择发货所在的省/市/区",
             },
-            {"key": "service_support", "label": "商品服务", "type": "text", "hint": "可选。如需标记七天无理由退货(SDR)等服务承诺，填入对应编码"},
-            {"key": "outer_id", "label": "商家编码", "type": "text", "hint": "可选。自定义编码用于与你的 ERP 系统关联商品，最长 64 字符"},
+            {
+                "key": "service_support",
+                "label": "商品服务",
+                "type": "text",
+                "hint": "可选。如需标记七天无理由退货(SDR)等服务承诺，填入对应编码",
+            },
+            {
+                "key": "outer_id",
+                "label": "商家编码",
+                "type": "text",
+                "hint": "可选。自定义编码用于与你的 ERP 系统关联商品，最长 64 字符",
+            },
             {
                 "key": "product_callback_url",
                 "label": "商品回调地址",
@@ -875,6 +917,7 @@ def update_config(updates: dict[str, Any]) -> dict[str, Any]:
     write_system_config(current)
     try:
         from src.core.config import get_config
+
         get_config().reload()
     except Exception:
         pass

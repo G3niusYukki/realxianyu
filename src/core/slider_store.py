@@ -9,7 +9,6 @@ from __future__ import annotations
 import os
 import sqlite3
 import threading
-import time
 from datetime import datetime, timezone
 from typing import Any
 
@@ -113,15 +112,14 @@ class SliderEventStore:
     def get_last_cookie_apply_ts(self) -> str | None:
         """Get the trigger_ts of the last event where cookie was applied."""
         row = self._conn.execute(
-            "SELECT trigger_ts FROM slider_events "
-            "WHERE cookie_applied = 1 ORDER BY id DESC LIMIT 1"
+            "SELECT trigger_ts FROM slider_events WHERE cookie_applied = 1 ORDER BY id DESC LIMIT 1"
         ).fetchone()
         return row["trigger_ts"] if row else None
 
     def get_stats(self, hours: int = 24) -> dict[str, Any]:
         """Get slider stats for the last N hours."""
         conn = self._conn
-        cutoff = datetime.now(timezone.utc).isoformat()
+        datetime.now(timezone.utc).isoformat()
 
         rows = conn.execute(
             "SELECT * FROM slider_events WHERE created_at >= datetime('now', ?)",

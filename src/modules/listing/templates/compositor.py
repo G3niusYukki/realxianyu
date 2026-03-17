@@ -32,10 +32,6 @@ def compose(
 
     各参数为 None 时随机选择。
     """
-    from .layers import (  # noqa: ensure registration
-        LAYOUT_REGISTRY as _lr,
-        MODIFIER_REGISTRY as _mr,
-    )
 
     params = params or {}
     theme = theme or {}
@@ -64,8 +60,10 @@ def compose(
         mod_entry = get_modifier(kind, mod_id)
         if mod_entry is None and mod_id:
             mod_id = random.choice(
-                color_scheme_keys if kind == "color_scheme"
-                else decoration_keys if kind == "decoration"
+                color_scheme_keys
+                if kind == "color_scheme"
+                else decoration_keys
+                if kind == "decoration"
                 else title_style_keys
             )
             chosen[kind] = mod_id
@@ -102,7 +100,7 @@ def compose(
     extra_css = "\n".join(merged_css_parts)
     overlay_html = "\n".join(merged_overlay)
 
-    html = f'''<!DOCTYPE html>
+    html = f"""<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
@@ -128,7 +126,7 @@ body {{
 {layout_out.body_html}
 {overlay_html}
 </body>
-</html>'''
+</html>"""
 
     return html, chosen
 

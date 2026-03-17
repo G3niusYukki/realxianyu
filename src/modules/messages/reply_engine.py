@@ -53,6 +53,7 @@ def get_word_replacements() -> dict[str, str]:
     """从 system_config.json 动态读取敏感词替换映射。"""
     try:
         from src.dashboard.config_service import read_system_config
+
         cfg = read_system_config()
         replacement = cfg.get("sensitive_words", {}).get("xiaochengxu", _DEFAULT_XIAOCHENGXU_REPLACEMENT)
     except Exception:
@@ -62,6 +63,7 @@ def get_word_replacements() -> dict[str, str]:
         "小程序": replacement,
     }
 
+
 DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     # ============================================================
     # 真通用规则（任何品类都适用，priority=100）
@@ -69,8 +71,18 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     {
         "name": "platform_safety",
         "keywords": [
-            "靠谱吗", "安全", "担保", "骗子", "走平台",
-            "正规的吗", "不会是骗子", "靠谱不", "可信吗", "正规吗", "可靠吗", "真的吗",
+            "靠谱吗",
+            "安全",
+            "担保",
+            "骗子",
+            "走平台",
+            "正规的吗",
+            "不会是骗子",
+            "靠谱不",
+            "可信吗",
+            "正规吗",
+            "可靠吗",
+            "真的吗",
             "骗人",
         ],
         "reply": "放心哦，全程走闲鱼平台交易，按平台规则下单确认，双方都有保障~",
@@ -78,12 +90,22 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     {
         "name": "price_bargain",
         "keywords": [
-            "最低", "便宜", "优惠", "少点", "能便宜",
-            "太贵了", "贵了", "打折", "折扣", "降价", "再低", "能再少", "打个折",
+            "最低",
+            "便宜",
+            "优惠",
+            "少点",
+            "能便宜",
+            "太贵了",
+            "贵了",
+            "打折",
+            "折扣",
+            "降价",
+            "再低",
+            "能再少",
+            "打个折",
         ],
         "reply": "亲，这个价格已经比自寄便宜5折起了~ 首单还有额外折扣，发我路线和重量查一下具体能省多少~",
     },
-
     # ============================================================
     # 快递售前 — 需人工介入（priority=45，先于普通售前匹配）
     # AI 回复引导客户去小程序联系客服
@@ -118,7 +140,6 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
         "needs_human": False,
         "phase": "presale",
     },
-
     # ============================================================
     # 快递售后 — 引导小程序客服（priority=48）
     # needs_human=True 仅做日志统计，不触发闲鱼转人工
@@ -183,9 +204,17 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     {
         "name": "system_notification_ignore",
         "keywords": [
-            "蚂蚁森林", "能量可领", "去兑换", "去发货", "去处理",
-            "请双方沟通", "请确认价格", "修改价格",
-            "等待你付款", "请包装好商品", "按我在闲鱼上提供的地址发货",
+            "蚂蚁森林",
+            "能量可领",
+            "去兑换",
+            "去发货",
+            "去处理",
+            "请双方沟通",
+            "请确认价格",
+            "修改价格",
+            "等待你付款",
+            "请包装好商品",
+            "按我在闲鱼上提供的地址发货",
         ],
         "reply": "",
         "priority": 47,
@@ -204,8 +233,21 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     {
         "name": "express_discount_complaint",
         "keywords": [
-            "只换了", "换少了", "余额少", "金额不对", "金额少了", "优惠没了", "没有优惠", "首单优惠",
-            "钱少了", "不一样", "搞错了", "变贵了", "说好的", "怎么变了", "为什么贵了",
+            "只换了",
+            "换少了",
+            "余额少",
+            "金额不对",
+            "金额少了",
+            "优惠没了",
+            "没有优惠",
+            "首单优惠",
+            "钱少了",
+            "不一样",
+            "搞错了",
+            "变贵了",
+            "说好的",
+            "怎么变了",
+            "为什么贵了",
         ],
         "reply": "亲，小程序每个手机号仅限一次首单优惠~ 如果之前用过（包括在其他店铺），这次按正常价计费。不过正常价也比自己寄便宜5折起哦~ 如有疑问可在小程序点击「联系客服」咨询~",
         "priority": 48,
@@ -304,15 +346,28 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
         "human_reason": "揽收需协调快递公司",
         "phase": "aftersale",
     },
-
     # ============================================================
     # 快递售前 — AI 自动回复（priority=50）
     # ============================================================
     {
         "name": "express_availability",
         "keywords": [
-            "在吗", "还在", "有货吗", "有吗", "你好", "您好",
-            "在不在", "老板在吗", "有人吗", "嗨", "亲", "hello", "hi", "哈喽", "在么", "老板",
+            "在吗",
+            "还在",
+            "有货吗",
+            "有吗",
+            "你好",
+            "您好",
+            "在不在",
+            "老板在吗",
+            "有人吗",
+            "嗨",
+            "亲",
+            "hello",
+            "hi",
+            "哈喽",
+            "在么",
+            "老板",
         ],
         "reply": "在的亲~ 您是从哪里寄到哪里呢？告诉我城市和重量帮您查最优价~",
         "priority": 50,
@@ -322,8 +377,18 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     {
         "name": "express_xiaochengxu_explain",
         "keywords": [
-            "什么小程序", "小程序是什么", "什么是小程序", "啥小程序", "哪个小程序",
-            "搜不到小程序", "搜不到", "搜什么名字", "小程序叫什么", "在哪搜", "找不到小程序", "微信搜不到",
+            "什么小程序",
+            "小程序是什么",
+            "什么是小程序",
+            "啥小程序",
+            "哪个小程序",
+            "搜不到小程序",
+            "搜不到",
+            "搜什么名字",
+            "小程序叫什么",
+            "在哪搜",
+            "找不到小程序",
+            "微信搜不到",
         ],
         "reply": "小程序就是搜索「商达人快递上门取件」的小程序哦~ 付款后系统自动发兑换码给您，用兑换码在小程序兑换余额，然后填地址选快递下单就行~",
         "priority": 50,
@@ -333,9 +398,21 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     {
         "name": "express_buying_process",
         "keywords": [
-            "怎么买", "怎么拍", "怎么下单", "怎么操作", "怎么卖",
-            "直接拍", "拍哪个", "怎么付款", "拍完", "怎么弄", "怎么搞", "流程",
-            "改价", "不让付款", "不能付款",
+            "怎么买",
+            "怎么拍",
+            "怎么下单",
+            "怎么操作",
+            "怎么卖",
+            "直接拍",
+            "拍哪个",
+            "怎么付款",
+            "拍完",
+            "怎么弄",
+            "怎么搞",
+            "流程",
+            "改价",
+            "不让付款",
+            "不能付款",
         ],
         "reply": "先拍下链接不付款 → 我帮您改价 → 付款后系统自动发兑换码 → 到小程序用兑换码兑换余额后下单寄快递~",
         "priority": 50,
@@ -345,8 +422,16 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     {
         "name": "express_code_usage",
         "keywords": [
-            "怎么用", "怎么使用", "兑换码", "怎么兑换", "余额怎么",
-            "码收到了", "收到码", "然后呢", "下一步", "拿到码",
+            "怎么用",
+            "怎么使用",
+            "兑换码",
+            "怎么兑换",
+            "余额怎么",
+            "码收到了",
+            "收到码",
+            "然后呢",
+            "下一步",
+            "拿到码",
         ],
         "reply": "在小程序搜索「商达人快递上门取件」→ 右下角「我的」→「兑换优惠」输入兑换码 → 返回首页填写地址选快递 → 用余额支付下单~",
         "priority": 49,
@@ -371,7 +456,18 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     },
     {
         "name": "express_pickup",
-        "keywords": ["上门取件", "取件时间", "快递员来", "啥时候取", "来取", "来收", "取件", "什么时候取", "上门取", "上门收"],
+        "keywords": [
+            "上门取件",
+            "取件时间",
+            "快递员来",
+            "啥时候取",
+            "来取",
+            "来收",
+            "取件",
+            "什么时候取",
+            "上门取",
+            "上门收",
+        ],
         "reply": "下单后联系快递员沟通好上门取件时间就行啦~ 也可以搜索「商达人」小程序预约上门取件哦~",
         "priority": 50,
         "categories": ["express"],
@@ -396,11 +492,26 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     {
         "name": "express_sf_jd",
         "keywords": [
-            "有顺丰吗", "顺丰还有", "有京东吗", "京东还有",
-            "顺丰", "京东", "京东快递", "京东物流",
-            "改成京东", "改成顺丰", "换京东", "换顺丰",
-            "发京东", "走京东", "用京东", "要京东",
-            "发顺丰", "走顺丰", "用顺丰", "要顺丰",
+            "有顺丰吗",
+            "顺丰还有",
+            "有京东吗",
+            "京东还有",
+            "顺丰",
+            "京东",
+            "京东快递",
+            "京东物流",
+            "改成京东",
+            "改成顺丰",
+            "换京东",
+            "换顺丰",
+            "发京东",
+            "走京东",
+            "用京东",
+            "要京东",
+            "发顺丰",
+            "走顺丰",
+            "用顺丰",
+            "要顺丰",
         ],
         "reply": "闲鱼特价渠道暂时没有顺丰/京东哦~ 不过在小程序内可以直接下单顺丰/京东，价格也比其他平台更优惠~",
         "priority": 46,
@@ -482,7 +593,19 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     },
     {
         "name": "express_restricted",
-        "keywords": ["能发吗", "可以寄吗", "能寄吗", "能寄不", "能不能寄", "能不能发", "能发不", "寄电池", "寄刀", "寄手机", "寄数码"],
+        "keywords": [
+            "能发吗",
+            "可以寄吗",
+            "能寄吗",
+            "能寄不",
+            "能不能寄",
+            "能不能发",
+            "能发不",
+            "寄电池",
+            "寄刀",
+            "寄手机",
+            "寄数码",
+        ],
         "reply": "刀具、易燃品、电池、生鲜、数码产品暂时不支持寄送呢~ 具体可以问我帮您确认~",
         "priority": 50,
         "categories": ["express"],
@@ -539,7 +662,7 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     {
         "name": "express_order_find",
         "keywords": ["找不到订单", "订单在哪"],
-        "reply": "在小程序下方第二个按钮\"订单\"里查看就可以了~",
+        "reply": '在小程序下方第二个按钮"订单"里查看就可以了~',
         "priority": 50,
         "categories": ["express"],
         "phase": "presale",
@@ -579,11 +702,21 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     {
         "name": "express_anonymous",
         "keywords": [
-            "隐藏信息", "匿名寄", "匿名发货",
-            "个人信息", "隐私面单", "面单隐私",
-            "不显示信息", "隐藏个人", "面单不显示",
-            "隐私发货", "隐私寄", "保护隐私",
-            "手机号显示", "会泄露", "看到我号码",
+            "隐藏信息",
+            "匿名寄",
+            "匿名发货",
+            "个人信息",
+            "隐私面单",
+            "面单隐私",
+            "不显示信息",
+            "隐藏个人",
+            "面单不显示",
+            "隐私发货",
+            "隐私寄",
+            "保护隐私",
+            "手机号显示",
+            "会泄露",
+            "看到我号码",
         ],
         "reply": "亲，现在主流快递都默认使用隐私面单啦~ 手机号自动脱敏（隐藏6位以上），地址也会隐藏详细门牌号，个人信息会受到保护的哦~",
         "priority": 50,
@@ -593,8 +726,18 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     {
         "name": "express_eta",
         "keywords": [
-            "多久到", "几天到", "几天能到", "什么时候能到", "隔天能到", "明天能到",
-            "多长时间", "要几天", "能到吗", "省内要几天", "多久能到", "啥时候能到",
+            "多久到",
+            "几天到",
+            "几天能到",
+            "什么时候能到",
+            "隔天能到",
+            "明天能到",
+            "多长时间",
+            "要几天",
+            "能到吗",
+            "省内要几天",
+            "多久能到",
+            "啥时候能到",
         ],
         "reply": "正常地区一般1-3天到~ 偏远地区会稍慢一些哦~",
         "priority": 50,
@@ -616,7 +759,6 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
         "priority": 100,
         "phase": "presale",
     },
-
     # ============================================================
     # 简短确认 — 静默不回复（priority=95）
     # max_length=6 限制仅短消息触发，避免长消息中包含"谢谢"等被误静默
@@ -624,9 +766,28 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     {
         "name": "buyer_acknowledgment",
         "keywords": [
-            "哦", "嗯", "ok", "好的", "好吧", "收到", "知道了", "明白了",
-            "了解", "懂了", "行", "得嘞", "好嘞", "谢谢", "感谢", "谢了",
-            "好的谢谢", "谢谢老板", "感谢老板", "好", "图片", "语音",
+            "哦",
+            "嗯",
+            "ok",
+            "好的",
+            "好吧",
+            "收到",
+            "知道了",
+            "明白了",
+            "了解",
+            "懂了",
+            "行",
+            "得嘞",
+            "好嘞",
+            "谢谢",
+            "感谢",
+            "谢了",
+            "好的谢谢",
+            "谢谢老板",
+            "感谢老板",
+            "好",
+            "图片",
+            "语音",
         ],
         "reply": "",
         "priority": 95,
@@ -634,7 +795,6 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
         "phase": "presale",
         "max_length": 6,
     },
-
     # ============================================================
     # 快递售后补充规则（priority=48）
     # ============================================================
@@ -648,7 +808,17 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     },
     {
         "name": "express_tracking_query",
-        "keywords": ["到哪了", "快递到哪", "物流信息", "单号是多少", "快递单号", "物流查询", "查快递", "怎么查", "到哪里了"],
+        "keywords": [
+            "到哪了",
+            "快递到哪",
+            "物流信息",
+            "单号是多少",
+            "快递单号",
+            "物流查询",
+            "查快递",
+            "怎么查",
+            "到哪里了",
+        ],
         "reply": "亲，在小程序「订单」里可以查看物流信息哦~ 也可以在对应快递公司官方小程序输入单号查询~",
         "priority": 48,
         "categories": ["express"],
@@ -656,7 +826,17 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     },
     {
         "name": "express_not_arrived",
-        "keywords": ["还没到", "没收到", "退回来了", "退回了", "被退回", "签收了但", "显示签收", "少了一件", "东西少了"],
+        "keywords": [
+            "还没到",
+            "没收到",
+            "退回来了",
+            "退回了",
+            "被退回",
+            "签收了但",
+            "显示签收",
+            "少了一件",
+            "东西少了",
+        ],
         "reply": "亲，物流问题建议在小程序点击「联系客服」反馈，客服会帮您跟快递公司协调处理的~",
         "priority": 48,
         "categories": ["express"],
@@ -674,7 +854,6 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
         "human_reason": "余额退回需人工处理",
         "phase": "aftersale",
     },
-
     # ============================================================
     # 快递售前补充规则（priority=50）
     # ============================================================
@@ -1120,11 +1299,18 @@ class ReplyStrategyEngine:
         max_length = int(raw_rule.get("max_length", 0))
 
         return IntentRule(
-            name=name, reply=reply, keywords=keywords,
-            patterns=patterns, exclude_patterns=exclude_patterns,
-            priority=priority, categories=categories,
-            needs_human=needs_human, human_reason=human_reason, phase=phase,
-            skip_reply=skip_reply, max_length=max_length,
+            name=name,
+            reply=reply,
+            keywords=keywords,
+            patterns=patterns,
+            exclude_patterns=exclude_patterns,
+            priority=priority,
+            categories=categories,
+            needs_human=needs_human,
+            human_reason=human_reason,
+            phase=phase,
+            skip_reply=skip_reply,
+            max_length=max_length,
         )
 
     def _build_legacy_keyword_rules(self, keyword_replies: dict[str, str]) -> list[IntentRule]:
@@ -1153,6 +1339,7 @@ class ReplyStrategyEngine:
         text = (text or "").strip().lower()
         try:
             from zhconv import convert
+
             text = convert(text, "zh-cn")
         except ImportError:
             pass

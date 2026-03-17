@@ -172,7 +172,9 @@ class AutoPricePoller:
         max_age = int(apm_cfg.get("max_quote_age_seconds", _MAX_QUOTE_AGE_DEFAULT))
         ledger = get_quote_ledger()
         quote = ledger.find_by_buyer(
-            buyer_nick, item_id=item_id, max_age_seconds=max_age,
+            buyer_nick,
+            item_id=item_id,
+            max_age_seconds=max_age,
             sender_user_id=buyer_eid,
         )
 
@@ -182,7 +184,8 @@ class AutoPricePoller:
                 logger.info(
                     "AutoPricePoller: no quote for buyer=%s order=%s, "
                     "fallback=use_listing_price — accepting at current price",
-                    buyer_nick, order_no,
+                    buyer_nick,
+                    order_no,
                 )
                 self._processed[order_no] = time.time()
                 return
@@ -207,7 +210,7 @@ class AutoPricePoller:
             logger.debug("AutoPricePoller: no valid fee in quote for order=%s", order_no)
             return
 
-        target_price_cents = int(round(float(target_fee) * 100))
+        target_price_cents = round(float(target_fee) * 100)
         express_fee_cents = int(float(apm_cfg.get("default_express_fee", 0)) * 100)
 
         if target_price_cents == total_amount and total_amount > 0:
@@ -216,21 +219,27 @@ class AutoPricePoller:
             return
 
         try:
-            modify_resp = client.modify_order_price({
-                "order_no": order_no,
-                "order_price": target_price_cents,
-                "express_fee": express_fee_cents,
-            })
+            modify_resp = client.modify_order_price(
+                {
+                    "order_no": order_no,
+                    "order_price": target_price_cents,
+                    "express_fee": express_fee_cents,
+                }
+            )
             if modify_resp.ok:
                 logger.info(
                     "AutoPricePoller: SUCCESS order=%s from=%d to=%d (express=%d)",
-                    order_no, total_amount, target_price_cents, express_fee_cents,
+                    order_no,
+                    total_amount,
+                    target_price_cents,
+                    express_fee_cents,
                 )
                 self._processed[order_no] = time.time()
             else:
                 logger.warning(
                     "AutoPricePoller: FAILED order=%s error=%s",
-                    order_no, modify_resp.error_message,
+                    order_no,
+                    modify_resp.error_message,
                 )
         except Exception:
             logger.error("AutoPricePoller: modify_order_price error for order=%s", order_no, exc_info=True)
@@ -287,8 +296,9 @@ class AutoPricePoller:
                     continue
 
                 import asyncio
-                from src.modules.messages.service import MessagesService
+
                 from src.core.config import get_config
+                from src.modules.messages.service import MessagesService
 
                 msgs_cfg = {}
                 try:

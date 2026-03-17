@@ -9,6 +9,7 @@ import gzip as _gzip_mod
 import hashlib
 import io
 import json
+import logging
 import mimetypes
 import os
 import re
@@ -25,21 +26,15 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
-import logging
-
 import yaml
 
 from src.core.config import get_config
-from src.dashboard.repository import DashboardRepository, LiveDashboardDataSource
-from src.dashboard.module_console import ModuleConsole, MODULE_TARGETS
-from src.dashboard.router import RouteContext, dispatch_get, dispatch_post, dispatch_put, dispatch_delete
 from src.dashboard.config_service import (
     read_system_config as _read_system_config,
-    write_system_config as _write_system_config,
-    CONFIG_SECTIONS as _CONFIG_SECTIONS,
-    _ALLOWED_CONFIG_SECTIONS,
-    _SENSITIVE_CONFIG_KEYS,
 )
+from src.dashboard.module_console import MODULE_TARGETS, ModuleConsole
+from src.dashboard.repository import DashboardRepository, LiveDashboardDataSource
+from src.dashboard.router import RouteContext, dispatch_delete, dispatch_get, dispatch_post, dispatch_put
 from src.modules.messages.service import MessagesService
 from src.modules.quote.cost_table import CostTableRepository, normalize_courier_name
 from src.modules.quote.setup import DEFAULT_MARKUP_RULES, QuoteSetupService
@@ -162,11 +157,25 @@ def _sync_system_config_to_yaml(sys_config: dict[str, Any]) -> None:
         custom_rules = ar.get("custom_intent_rules")
         if isinstance(custom_rules, list):
             msgs["intent_rules"] = [
-                {k: v for k, v in r.items() if k in (
-                    "name", "keywords", "reply", "patterns", "priority",
-                    "categories", "needs_human", "human_reason", "phase", "skip_reply",
-                )}
-                for r in custom_rules if isinstance(r, dict) and r.get("name")
+                {
+                    k: v
+                    for k, v in r.items()
+                    if k
+                    in (
+                        "name",
+                        "keywords",
+                        "reply",
+                        "patterns",
+                        "priority",
+                        "categories",
+                        "needs_human",
+                        "human_reason",
+                        "phase",
+                        "skip_reply",
+                    )
+                }
+                for r in custom_rules
+                if isinstance(r, dict) and r.get("name")
             ]
             changed = True
 
@@ -496,17 +505,23 @@ class MimicOps:
         # env 为空时从 system_config 回退；用于 SystemConfig 写入 system_config.json 但 .env 未同步的场景
         app_key = (settings["app_key"] or "").strip() or str(xgj_sys.get("app_key", "")).strip()
         app_secret = (settings["app_secret"] or "").strip() or str(xgj_sys.get("app_secret", "")).strip()
-        base_url = (settings["base_url"] or "").strip() or str(xgj_sys.get("base_url", "")).strip() or "https://open.goofish.pro"
+        base_url = (
+            (settings["base_url"] or "").strip()
+            or str(xgj_sys.get("base_url", "")).strip()
+            or "https://open.goofish.pro"
+        )
         merchant_id = (settings["merchant_id"] or "").strip() or str(xgj_sys.get("merchant_id", "")).strip() or None
 
         merged_xgj = dict(xgj_sys)
-        merged_xgj.update({
-            "enabled": bool(app_key and app_secret),
-            "app_key": app_key,
-            "app_secret": app_secret,
-            "merchant_id": merchant_id or None,
-            "base_url": base_url,
-        })
+        merged_xgj.update(
+            {
+                "enabled": bool(app_key and app_secret),
+                "app_key": app_key,
+                "app_secret": app_secret,
+                "merchant_id": merchant_id or None,
+                "base_url": base_url,
+            }
+        )
 
         result: dict[str, Any] = {"xianguanjia": merged_xgj}
         oss_cfg = sys_cfg.get("oss")
@@ -660,8 +675,8 @@ class MimicOps:
     def _auto_modify_price_sync(self, order_no: str, push_payload: dict[str, Any], apm_cfg: dict[str, Any]) -> None:
         """Background thread: look up quote and modify order price."""
         try:
-            from src.modules.quote.ledger import get_quote_ledger
             from src.integrations.xianguanjia.open_platform_client import OpenPlatformClient
+            from src.modules.quote.ledger import get_quote_ledger
 
             settings = self._get_xianguanjia_settings()
             if not settings["configured"]:
@@ -692,7 +707,9 @@ class MimicOps:
             max_age = int(apm_cfg.get("max_quote_age_seconds", 7200))
             ledger = get_quote_ledger()
             quote = ledger.find_by_buyer(
-                buyer_nick, item_id=item_id, max_age_seconds=max_age,
+                buyer_nick,
+                item_id=item_id,
+                max_age_seconds=max_age,
                 sender_user_id=buyer_eid,
             )
 
@@ -702,12 +719,15 @@ class MimicOps:
                     logger.info(
                         "Auto-price-modify: no quote for buyer=%s order=%s, "
                         "fallback=use_listing_price — accepting at current price",
-                        buyer_nick, order_no,
+                        buyer_nick,
+                        order_no,
                     )
                     return
                 logger.info(
                     "Auto-price-modify: no matching quote for buyer=%s order=%s, fallback=%s",
-                    buyer_nick, order_no, fallback,
+                    buyer_nick,
+                    order_no,
+                    fallback,
                 )
                 return
 
@@ -727,7 +747,7 @@ class MimicOps:
                 logger.info("Auto-price-modify: no valid fee in quote for order=%s", order_no)
                 return
 
-            target_price_cents = int(round(float(target_fee) * 100))
+            target_price_cents = round(float(target_fee) * 100)
             express_fee_cents = int(float(apm_cfg.get("default_express_fee", 0)) * 100)
 
             if target_price_cents == total_amount:
@@ -834,7 +854,7 @@ class MimicOps:
         product_id = payload.get("product_id")
         task_type = payload.get("task_type")
         task_result = payload.get("task_result")
-        item_id = payload.get("item_id")
+        payload.get("item_id")
         err_code = payload.get("err_code", "")
         err_msg = payload.get("err_msg", "")
         product_status = payload.get("product_status")
@@ -1529,7 +1549,11 @@ class MimicOps:
                     return (
                         "触发平台风控（RGV587），系统正在自动尝试滑块验证...\n"
                         "如自动验证失败，会弹出浏览器窗口，请手动完成滑块拖动。\n"
-                        + ("CookieCloud 即时同步已启用，验证后秒级恢复。" if cc else "验证后请手动复制 Cookie 粘贴保存。")
+                        + (
+                            "CookieCloud 即时同步已启用，验证后秒级恢复。"
+                            if cc
+                            else "验证后请手动复制 Cookie 粘贴保存。"
+                        )
                     )
                 if cc:
                     return (
@@ -1557,9 +1581,8 @@ class MimicOps:
                 return "连接通道异常，请先点“售前一键恢复”；若持续失败再更新 Cookie。"
             if t in ("RGV587", "RGV587_SERVER_BUSY"):
                 if slider_auto:
-                    return (
-                        "触发平台风控，系统正在自动尝试滑块验证。"
-                        + (" CookieCloud 即时同步已启用，验证后秒级恢复。" if cc else "")
+                    return "触发平台风控，系统正在自动尝试滑块验证。" + (
+                        " CookieCloud 即时同步已启用，验证后秒级恢复。" if cc else ""
                     )
                 if cc:
                     return (
@@ -1620,6 +1643,7 @@ class MimicOps:
         }
         try:
             from src.modules.messages.ws_live import notify_ws_cookie_changed
+
             notify_ws_cookie_changed()
         except Exception:
             pass
@@ -1957,6 +1981,7 @@ class MimicOps:
         self._set_env_value("XIANYU_COOKIE_1", cookie_text)
         try:
             from src.modules.messages.ws_live import notify_ws_cookie_changed
+
             notify_ws_cookie_changed()
         except Exception:
             pass
@@ -2459,15 +2484,17 @@ class MimicOps:
         for r in rows:
             meta = json.loads(r["metadata"]) if r["metadata"] else {}
             payload = job_map.get(r["session_id"], {})
-            logs.append({
-                "id": str(r["id"]),
-                "session_id": r["session_id"],
-                "buyer_message": meta.get("buyer_message") or payload.get("last_message", ""),
-                "reply_text": meta.get("reply_text") or audit_map.get(r["session_id"], ""),
-                "intent": "quote" if meta.get("quote") else meta.get("intent", "auto_reply"),
-                "item_title": meta.get("peer_name") or payload.get("peer_name", ""),
-                "replied_at": r["created_at"],
-            })
+            logs.append(
+                {
+                    "id": str(r["id"]),
+                    "session_id": r["session_id"],
+                    "buyer_message": meta.get("buyer_message") or payload.get("last_message", ""),
+                    "reply_text": meta.get("reply_text") or audit_map.get(r["session_id"], ""),
+                    "intent": "quote" if meta.get("quote") else meta.get("intent", "auto_reply"),
+                    "item_title": meta.get("peer_name") or payload.get("peer_name", ""),
+                    "replied_at": r["created_at"],
+                }
+            )
         return logs
 
     def get_reply_templates(self) -> dict[str, Any]:
@@ -3135,7 +3162,6 @@ class MimicOps:
             "markup_rules": normalized,
         }
 
-
     def get_pricing_config(self) -> dict[str, Any]:
         """读取 YAML 中的 markup_categories、xianyu_discount、抛比和大件运力优先级。"""
         setup = QuoteSetupService(config_path=str(self.config_path))
@@ -3149,8 +3175,14 @@ class MimicOps:
             "volume_divisors": quote_cfg.get("volume_divisors", {}),
             "freight_courier_priority": quote_cfg.get("freight_courier_priority", []),
             "service_categories": [
-                "线上快递", "线下快递", "线上快运", "线下快运",
-                "同城寄", "电动车", "分销", "商家寄件",
+                "线上快递",
+                "线下快递",
+                "线上快运",
+                "线下快运",
+                "同城寄",
+                "电动车",
+                "分销",
+                "商家寄件",
             ],
             "updated_at": _now_iso(),
         }
@@ -3199,11 +3231,9 @@ class MimicOps:
                     normalized[str(cat).strip()] = inner
             quote_cfg["volume_divisors"] = normalized
         if isinstance(freight_courier_priority, list):
-            quote_cfg["freight_courier_priority"] = [
-                str(c).strip() for c in freight_courier_priority if str(c).strip()
-            ]
+            quote_cfg["freight_courier_priority"] = [str(c).strip() for c in freight_courier_priority if str(c).strip()]
 
-        backup_path = setup._backup_existing_file() if existed else None
+        setup._backup_existing_file() if existed else None
         setup._write_yaml(data)
         try:
             get_config().reload(str(self.config_path))
@@ -3214,6 +3244,7 @@ class MimicOps:
 
     def _get_cost_table_repo(self):
         from src.modules.quote.cost_table import CostTableRepository
+
         if self._cost_table_repo is None:
             self._cost_table_repo = CostTableRepository(table_dir=str(self._quote_dir()))
         return self._cost_table_repo
@@ -3449,7 +3480,9 @@ class MimicOps:
         self._risk_log_cache_ts = now
         return result
 
-    def _risk_control_status_from_logs_uncached(self, target: str = "presales", tail_lines: int = 300) -> dict[str, Any]:
+    def _risk_control_status_from_logs_uncached(
+        self, target: str = "presales", tail_lines: int = 300
+    ) -> dict[str, Any]:
         fp = self._module_runtime_log(target)
         _empty = {
             "last_event": "",
@@ -3459,12 +3492,24 @@ class MimicOps:
             "updated_at": _now_iso(),
         }
         if not fp.exists():
-            return {"level": "unknown", "label": "未检测（无日志）", "score": 0, "signals": ["日志文件不存在"], **_empty}
+            return {
+                "level": "unknown",
+                "label": "未检测（无日志）",
+                "score": 0,
+                "signals": ["日志文件不存在"],
+                **_empty,
+            }
 
         try:
             lines = fp.read_text(encoding="utf-8", errors="ignore").splitlines()
         except Exception as e:
-            return {"level": "unknown", "label": "未检测（读取失败）", "score": 0, "signals": [f"日志读取失败: {e}"], **_empty}
+            return {
+                "level": "unknown",
+                "label": "未检测（读取失败）",
+                "score": 0,
+                "signals": [f"日志读取失败: {e}"],
+                **_empty,
+            }
 
         tail_n = max(50, min(int(tail_lines or 300), 2000))
         recent = [self._strip_ansi(line) for line in lines[-tail_n:] if str(line or "").strip()]
@@ -3531,7 +3576,9 @@ class MimicOps:
             level = "normal"
             label = "正常"
             score = 0
-            signals = [f"历史高风险信号 x{len(stale_blocks)}（最后于 {last_block_time}，已超过 {self._RISK_SIGNAL_WINDOW_MINUTES} 分钟，已过期）"]
+            signals = [
+                f"历史高风险信号 x{len(stale_blocks)}（最后于 {last_block_time}，已超过 {self._RISK_SIGNAL_WINDOW_MINUTES} 分钟，已过期）"
+            ]
             last_event = stale_blocks[-1][1]
         elif len(active_ws400) >= 10 or active_warns:
             level = "warning"
@@ -3550,7 +3597,9 @@ class MimicOps:
             level = "normal"
             label = "正常"
             score = 0
-            signals = [f"历史异常信号 x{stale_total}（最后于 {last_stale_time}，已超过 {self._RISK_SIGNAL_WINDOW_MINUTES} 分钟，已过期）"]
+            signals = [
+                f"历史异常信号 x{stale_total}（最后于 {last_stale_time}，已超过 {self._RISK_SIGNAL_WINDOW_MINUTES} 分钟，已过期）"
+            ]
             last_event = last_stale[1]
 
         last_connected_at = ""
@@ -3574,7 +3623,9 @@ class MimicOps:
 
         if level in ("blocked", "warning") and self._last_auto_recover_at:
             try:
-                recover_dt = datetime.fromisoformat(self._last_auto_recover_at.replace("Z", "+00:00")).replace(tzinfo=None)
+                recover_dt = datetime.fromisoformat(self._last_auto_recover_at.replace("Z", "+00:00")).replace(
+                    tzinfo=None
+                )
                 last_risk_line = (active_blocks or active_warns or active_ws400 or [(-1, "")])[-1][1]
                 last_risk_dt = self._parse_log_datetime(last_risk_line)
                 if last_risk_dt and recover_dt > last_risk_dt:
@@ -3923,7 +3974,11 @@ class MimicOps:
             "cookie_update_required": cookie_update_required,
             "cookie_cloud_configured": cc_configured,
             "slider_auto_solve_enabled": bool(
-                get_config().get_section("messages", {}).get("ws", {}).get("slider_auto_solve", {}).get("enabled", False)
+                get_config()
+                .get_section("messages", {})
+                .get("ws", {})
+                .get("slider_auto_solve", {})
+                .get("enabled", False)
             ),
             "user_id": user_id,
             "last_token_refresh": risk_control.get("last_event_at") if token_error is None else None,
@@ -4062,9 +4117,9 @@ def _get_embedded_html(name: str) -> str:
     from src.dashboard.embedded_html import (
         DASHBOARD_HTML,
         MIMIC_COOKIE_HTML,
-        MIMIC_TEST_HTML,
         MIMIC_LOGS_HTML,
         MIMIC_LOGS_REALTIME_HTML,
+        MIMIC_TEST_HTML,
     )
 
     return {
@@ -4152,9 +4207,10 @@ class DashboardHandler(BaseHTTPRequestHandler):
             return
 
         import httpx
+
         from src.integrations.xianguanjia.signing import (
-            sign_open_platform_request,
             sign_business_request,
+            sign_open_platform_request,
         )
 
         try:
@@ -4169,13 +4225,18 @@ class DashboardHandler(BaseHTTPRequestHandler):
                         ts = str(int(time.time()))
                         if mode == "business" and seller_id:
                             sig = sign_business_request(
-                                app_key=app_key, app_secret=app_secret,
-                                seller_id=seller_id, timestamp=ts, body=detail_body,
+                                app_key=app_key,
+                                app_secret=app_secret,
+                                seller_id=seller_id,
+                                timestamp=ts,
+                                body=detail_body,
                             )
                         else:
                             sig = sign_open_platform_request(
-                                app_key=app_key, app_secret=app_secret,
-                                timestamp=ts, body=detail_body,
+                                app_key=app_key,
+                                app_secret=app_secret,
+                                timestamp=ts,
+                                body=detail_body,
                             )
                         detail_resp = hc.post(
                             f"{base_url}/api/open/product/detail",
@@ -4222,6 +4283,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
         """生成自动上架预览。"""
         try:
             import asyncio
+
             from src.modules.listing.auto_publish import AutoPublishService
 
             service = AutoPublishService(config=self.mimic_ops._xianguanjia_service_config())
@@ -4242,8 +4304,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 return {"ok": False, "error": "自动上架未启用，请在设置中开启"}
 
             import asyncio
-            from src.modules.listing.auto_publish import AutoPublishService
+
             from src.integrations.xianguanjia.open_platform_client import OpenPlatformClient
+            from src.modules.listing.auto_publish import AutoPublishService
 
             cfg = self.mimic_ops._xianguanjia_service_config().get("xianguanjia", {})
             app_key = str(cfg.get("app_key", "")).strip()
@@ -4470,7 +4533,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
             "data": panel_payload,
         }
 
-    _CC_UUID_RE = re.compile(r'^[a-zA-Z0-9_-]+$')
+    _CC_UUID_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
 
     def _handle_cookie_cloud(self, sub_path: str, method: str) -> None:
         cc_dir = Path(__file__).resolve().parents[1] / "server" / "data" / "cookie_cloud"
@@ -4493,7 +4556,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self._send_json({"action": "done", "cookie_applied": cookie_applied})
             return
 
-        m = re.match(r'^/get/([a-zA-Z0-9_-]+)$', sub_path)
+        m = re.match(r"^/get/([a-zA-Z0-9_-]+)$", sub_path)
         if m:
             uuid_val = m.group(1)
             fp = cc_dir / f"{uuid_val}.json"
@@ -4510,6 +4573,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
             if pwd and data.get("encrypted"):
                 try:
                     from src.core.cookie_grabber import CookieGrabber
+
                     key_hash = hashlib.md5(f"{uuid_val}-{pwd}".encode()).hexdigest()[:16]
                     decrypted = CookieGrabber._decrypt_cookiecloud(data["encrypted"], key_hash)
                     if decrypted:
@@ -4538,7 +4602,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
                     cc = cfg.get("cookie_cloud", {}) if isinstance(cfg.get("cookie_cloud"), dict) else {}
                     uuid_val = uuid_val or str(cc.get("cookie_cloud_uuid") or cfg.get("cookie_cloud_uuid", "")).strip()
-                    password = password or str(cc.get("cookie_cloud_password") or cfg.get("cookie_cloud_password", "")).strip()
+                    password = (
+                        password or str(cc.get("cookie_cloud_password") or cfg.get("cookie_cloud_password", "")).strip()
+                    )
             except Exception:
                 pass
         return uuid_val, password
@@ -4593,27 +4659,21 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
         try:
             if path.startswith("/cookie-cloud/") or path == "/cookie-cloud":
-                self._handle_cookie_cloud(path[len("/cookie-cloud"):].rstrip("/") or "/", method="GET")
+                self._handle_cookie_cloud(path[len("/cookie-cloud") :].rstrip("/") or "/", method="GET")
                 return
 
             # --- Route dispatch (decorator-registered routes) ---
             _ctx = RouteContext(
-                _handler=self, path=path,
+                _handler=self,
+                path=path,
                 query=query,
             )
             if dispatch_get(path, _ctx):
                 return
 
-
-
             if path in {"/", "/cookie", "/test", "/logs", "/logs/realtime"}:
                 self._serve_spa_file(path)
                 return
-
-
-
-
-
 
             # ---------- vendor static files (Chart.js etc.) ----------
             if path.startswith("/vendor/"):
@@ -4686,13 +4746,12 @@ class DashboardHandler(BaseHTTPRequestHandler):
         try:
             # --- Route dispatch (decorator-registered routes) ---
             _ctx = RouteContext(
-                _handler=self, path=path,
+                _handler=self,
+                path=path,
                 query=parse_qs(parsed.query),
             )
             if dispatch_put(path, _ctx):
                 return
-
-
 
             self._send_json(_error_payload("Not Found", code="NOT_FOUND"), status=404)
         except Exception as e:
@@ -4703,7 +4762,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
         path = parsed.path
         try:
             _ctx = RouteContext(
-                _handler=self, path=path,
+                _handler=self,
+                path=path,
                 query=parse_qs(parsed.query),
             )
             if dispatch_delete(path, _ctx):
@@ -4718,26 +4778,17 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
         try:
             if path.startswith("/cookie-cloud/") or path == "/cookie-cloud":
-                self._handle_cookie_cloud(path[len("/cookie-cloud"):].rstrip("/") or "/", method="POST")
+                self._handle_cookie_cloud(path[len("/cookie-cloud") :].rstrip("/") or "/", method="POST")
                 return
-
 
             # --- Route dispatch (decorator-registered routes) ---
             _ctx = RouteContext(
-                _handler=self, path=path,
+                _handler=self,
+                path=path,
                 query=parse_qs(urlparse(self.path).query),
             )
             if dispatch_post(path, _ctx):
                 return
-
-
-
-
-
-
-
-
-
 
             self._send_json(_error_payload("Not Found", code="NOT_FOUND"), status=404)
         except Exception as e:  # pragma: no cover - safety net
@@ -4748,8 +4799,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
 
 def run_server(host: str = "127.0.0.1", port: int = 8091, db_path: str | None = None) -> None:
-    import src.dashboard.routes  # noqa: F401 — trigger route registration
     import signal
+
+    import src.dashboard.routes  # noqa: F401 — trigger route registration
 
     config = get_config()
     resolved_db = db_path or config.database.get("path", "data/agent.db")
@@ -4863,6 +4915,7 @@ def run_server(host: str = "127.0.0.1", port: int = 8091, db_path: str | None = 
                     if _wd_restart_count >= _WD_MAX_RESTARTS:
                         try:
                             from src.core.notify import send_system_notification
+
                             send_system_notification(
                                 f"【闲鱼自动化】⚠️ presales 模块连续 {_WD_MAX_RESTARTS} 次异常重启，"
                                 f"进入 {_WD_COOLDOWN // 60} 分钟静默期。请检查日志排查问题。",
@@ -4904,5 +4957,6 @@ def main() -> None:
 
 if __name__ == "__main__":
     import sys
+
     sys.modules.setdefault("src.dashboard_server", sys.modules[__name__])
     main()

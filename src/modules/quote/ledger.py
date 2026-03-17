@@ -89,9 +89,18 @@ class QuoteLedger:
                     origin, destination, weight, courier_choice,
                     quote_rows_json, created_at)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (session_id, peer_name, sender_user_id, item_id,
-                 origin, destination, weight, courier_choice,
-                 rows_json, now),
+                (
+                    session_id,
+                    peer_name,
+                    sender_user_id,
+                    item_id,
+                    origin,
+                    destination,
+                    weight,
+                    courier_choice,
+                    rows_json,
+                    now,
+                ),
             )
             return cur.lastrowid or 0
 
@@ -162,9 +171,7 @@ class QuoteLedger:
         """Remove records older than max_age_seconds. Returns deleted count."""
         cutoff = time.time() - max_age_seconds
         with self._connect() as conn:
-            cur = conn.execute(
-                "DELETE FROM quote_records WHERE created_at < ?", (cutoff,)
-            )
+            cur = conn.execute("DELETE FROM quote_records WHERE created_at < ?", (cutoff,))
             return cur.rowcount
 
     @staticmethod

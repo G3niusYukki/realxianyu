@@ -32,10 +32,10 @@ from .registry import (
 __all__ = [
     "TEMPLATES",
     "get_template",
-    "list_templates",
-    "render_template",
     "list_all_templates",
     "list_frames_metadata",
-    "render_by_frame",
+    "list_templates",
     "render_by_composition",
+    "render_by_frame",
+    "render_template",
 ]

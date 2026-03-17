@@ -388,6 +388,7 @@ def render_template(key: str, params: dict[str, Any] | None = None) -> str | Non
     if ":" in key:
         frame_id, _, category = key.partition(":")
         from .registry import render_by_frame
+
         return render_by_frame(frame_id, category, params)
 
     tpl = TEMPLATES.get(key)

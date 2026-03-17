@@ -14,8 +14,12 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 ORDER_STATUS_LABELS: dict[int, str] = {
-    11: "待付款", 12: "待发货", 21: "已发货",
-    22: "已完成", 23: "已退款", 24: "已关闭",
+    11: "待付款",
+    12: "待发货",
+    21: "已发货",
+    22: "已完成",
+    23: "已退款",
+    24: "已关闭",
 }
 
 
@@ -141,14 +145,16 @@ class LiveDashboardDataSource:
         for p in on_sale[:limit]:
             images = p.get("images", [])
             pic_url = images[0] if isinstance(images, list) and images else ""
-            result.append({
-                "product_id": str(p.get("product_id", "")),
-                "title": str(p.get("title", "")),
-                "sold": int(p.get("sold", 0)),
-                "price": p.get("price", 0),
-                "stock": int(p.get("stock", 0)),
-                "pic_url": pic_url,
-            })
+            result.append(
+                {
+                    "product_id": str(p.get("product_id", "")),
+                    "title": str(p.get("title", "")),
+                    "sold": int(p.get("sold", 0)),
+                    "price": p.get("price", 0),
+                    "stock": int(p.get("stock", 0)),
+                    "pic_url": pic_url,
+                }
+            )
         return result
 
     def get_recent_operations(self, limit: int) -> list[dict[str, Any]]:
@@ -169,12 +175,14 @@ class LiveDashboardDataSource:
             if isinstance(order_time, (int, float)) and order_time > 1000000000:
                 order_time = datetime.fromtimestamp(order_time).strftime("%Y-%m-%d %H:%M:%S")
 
-            result.append({
-                "operation_type": f"订单 {status_label}",
-                "status": "success" if status_code in (12, 21, 22) else "pending",
-                "timestamp": str(order_time),
-                "message": title or f"订单 {order.get('order_no', '')}",
-            })
+            result.append(
+                {
+                    "operation_type": f"订单 {status_label}",
+                    "status": "success" if status_code in (12, 21, 22) else "pending",
+                    "timestamp": str(order_time),
+                    "message": title or f"订单 {order.get('order_no', '')}",
+                }
+            )
         return result
 
     def get_trend(self, metric: str, days: int) -> list[dict[str, Any]]:
@@ -260,10 +268,7 @@ class LiveDashboardDataSource:
     @staticmethod
     def _empty_trend(days: int) -> list[dict[str, Any]]:
         now = datetime.now()
-        return [
-            {"date": (now - timedelta(days=days - 1 - i)).strftime("%Y-%m-%d"), "value": 0}
-            for i in range(days)
-        ]
+        return [{"date": (now - timedelta(days=days - 1 - i)).strftime("%Y-%m-%d"), "value": 0} for i in range(days)]
 
 
 class DashboardRepository:

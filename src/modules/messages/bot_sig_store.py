@@ -46,9 +46,7 @@ class BotSigStore:
                 )
                 """
             )
-            conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_bot_sigs_created ON bot_sent_sigs(created_at)"
-            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_bot_sigs_created ON bot_sent_sigs(created_at)")
             conn.commit()
 
     def _load_from_db(self) -> None:

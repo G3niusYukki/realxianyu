@@ -379,7 +379,9 @@ class OperationsService:
                 resp = await asyncio.to_thread(self.api_client.list_authorized_users)
                 if resp.ok and isinstance(resp.data, list) and resp.data:
                     first = resp.data[0]
-                    user_name = str(first.get("user_name") or first.get("nick_name") or "") if isinstance(first, dict) else ""
+                    user_name = (
+                        str(first.get("user_name") or first.get("nick_name") or "") if isinstance(first, dict) else ""
+                    )
             except Exception as e:
                 self.logger.warning(f"Failed to fetch authorized user for relist: {e}")
 
@@ -468,6 +470,7 @@ class OperationsService:
         """Load pricing config from system_config.json."""
         try:
             from src.dashboard.config_service import read_system_config
+
             return read_system_config().get("pricing", {})
         except Exception:
             return {}

@@ -309,6 +309,7 @@ class AutoQuoteEngine:
         """Read safety_margin from system_config.json (Dashboard UI). Default 0.0 (no markup)."""
         try:
             from src.dashboard.config_service import read_system_config
+
             sys_cfg = read_system_config()
             pricing = sys_cfg.get("pricing", {})
             ui_val = pricing.get("safety_margin_percent")

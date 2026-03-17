@@ -39,8 +39,16 @@ _AUTO_REPLY_FIELD_MAP: dict[str, str] = {
 _RANGE_FIELDS = {"first_reply_delay", "inter_reply_delay"}
 
 _INTENT_RULE_KEYS = {
-    "name", "keywords", "reply", "patterns", "priority",
-    "categories", "needs_human", "human_reason", "phase", "skip_reply",
+    "name",
+    "keywords",
+    "reply",
+    "patterns",
+    "priority",
+    "categories",
+    "needs_human",
+    "human_reason",
+    "phase",
+    "skip_reply",
 }
 
 

@@ -9,7 +9,7 @@ import sys
 import tempfile
 import threading
 import time as _time_mod
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -146,9 +146,7 @@ def _check_xgj_health() -> dict[str, Any]:
         xgj_cfg = sys_cfg.get("xianguanjia", {})
         xgj_app_key = str(xgj_cfg.get("app_key", "") or os.environ.get("XGJ_APP_KEY", ""))
         xgj_app_secret = str(xgj_cfg.get("app_secret", "") or os.environ.get("XGJ_APP_SECRET", ""))
-        xgj_base = str(
-            xgj_cfg.get("base_url", "") or os.environ.get("XGJ_BASE_URL", "https://open.goofish.pro")
-        )
+        xgj_base = str(xgj_cfg.get("base_url", "") or os.environ.get("XGJ_BASE_URL", "https://open.goofish.pro"))
         if not xgj_app_key or not xgj_app_secret:
             return {"ok": False, "message": "AppKey 或 AppSecret 未配置"}
         from src.dashboard_server import _test_xgj_connection
@@ -311,11 +309,7 @@ def handle_accounts(ctx: RouteContext) -> None:
     """返回账户列表 — 前端 AccountList 页面使用。"""
     cfg = _read_system_config()
     xgj = cfg.get("xianguanjia", {})
-    configured = bool(
-        xgj.get("app_key")
-        and xgj.get("app_secret")
-        and "****" not in str(xgj.get("app_key", ""))
-    )
+    configured = bool(xgj.get("app_key") and xgj.get("app_secret") and "****" not in str(xgj.get("app_key", "")))
     accounts = [
         {
             "id": "default",
@@ -339,10 +333,13 @@ def handle_version(ctx: RouteContext) -> None:
     except Exception:
         __version__ = "unknown"
     from src.core.update_config import GITHUB_OWNER, GITHUB_REPO
-    ctx.send_json({
-        "version": __version__,
-        "releases_url": f"https://github.com/{GITHUB_OWNER}/{GITHUB_REPO}/releases",
-    })
+
+    ctx.send_json(
+        {
+            "version": __version__,
+            "releases_url": f"https://github.com/{GITHUB_OWNER}/{GITHUB_REPO}/releases",
+        }
+    )
 
 
 _latest_version_cache: dict[str, Any] = {}
@@ -352,6 +349,7 @@ _LATEST_VERSION_TTL = 3600.0
 
 def _gh_api_headers() -> dict[str, str]:
     from src.core.update_config import GITHUB_TOKEN
+
     headers: dict[str, str] = {"Accept": "application/vnd.github.v3+json"}
     if GITHUB_TOKEN:
         headers["Authorization"] = f"Bearer {GITHUB_TOKEN}"
@@ -360,6 +358,7 @@ def _gh_api_headers() -> dict[str, str]:
 
 def _gh_releases_url() -> str:
     from src.core.update_config import GITHUB_OWNER, GITHUB_REPO
+
     return f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/releases/latest"
 
 
@@ -374,6 +373,7 @@ def handle_version_latest(ctx: RouteContext) -> None:
 
     try:
         import httpx
+
         with httpx.Client(timeout=15.0) as hc:
             resp = hc.get(_gh_releases_url(), headers=_gh_api_headers())
         if resp.status_code == 200:
@@ -382,6 +382,7 @@ def handle_version_latest(ctx: RouteContext) -> None:
             latest = tag.lstrip("v") if tag else None
             assets = release_data.get("assets", [])
             from src.core.update_config import UPDATE_ASSET_SUFFIX
+
             update_asset_url = ""
             update_asset_size = 0
             for asset in assets:
@@ -454,6 +455,7 @@ def _do_update_in_background(latest: str, asset_url: str) -> None:
         tmp_path = Path(tempfile.gettempdir()) / f"xianyu-update-{latest}.tar.gz"
 
         import httpx
+
         with httpx.Client(timeout=180.0, follow_redirects=True) as hc:
             with hc.stream("GET", asset_url, headers=dl_headers) as stream:
                 stream.raise_for_status()
@@ -506,6 +508,7 @@ def handle_update_apply(ctx: RouteContext) -> None:
         _write_update_status("checking")
 
         import httpx
+
         with httpx.Client(timeout=15.0) as hc:
             resp = hc.get(_gh_releases_url(), headers=_gh_api_headers())
         if resp.status_code != 200:
@@ -556,10 +559,12 @@ def handle_update_apply(ctx: RouteContext) -> None:
 @get("/api/wizard/status")
 def handle_wizard_status(ctx: RouteContext) -> None:
     cfg = _read_system_config()
-    ctx.send_json({
-        "completed": bool(cfg.get("wizard_completed")),
-        "completed_at": cfg.get("wizard_completed_at", ""),
-    })
+    ctx.send_json(
+        {
+            "completed": bool(cfg.get("wizard_completed")),
+            "completed_at": cfg.get("wizard_completed_at", ""),
+        }
+    )
 
 
 @post("/api/wizard/complete")

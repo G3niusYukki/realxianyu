@@ -29,7 +29,7 @@ def m_h5_tk_seconds_until_expiry(cookie_text: str) -> float | None:
     for pair in str(cookie_text or "").split(";"):
         pair = pair.strip()
         if pair.startswith("_m_h5_tk="):
-            val = pair[len("_m_h5_tk="):]
+            val = pair[len("_m_h5_tk=") :]
             parts = val.split("_")
             if len(parts) >= 2:
                 try:
@@ -174,10 +174,7 @@ class CookieHealthChecker:
         """检查 _m_h5_tk TTL，过低时直接返回不健康。"""
         ttl = m_h5_tk_seconds_until_expiry(self._cookie_text)
         if ttl is not None and ttl < _M_H5_TK_EXPIRY_THRESHOLD:
-            return self._build_result(
-                False,
-                f"_m_h5_tk 即将过期 (剩余 {int(ttl)}s / {int(ttl / 60)} 分钟)"
-            )
+            return self._build_result(False, f"_m_h5_tk 即将过期 (剩余 {int(ttl)}s / {int(ttl / 60)} 分钟)")
         return None
 
     def _evaluate_response(self, resp: httpx.Response) -> dict[str, Any]:

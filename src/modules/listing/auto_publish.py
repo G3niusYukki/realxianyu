@@ -353,7 +353,11 @@ class AutoPublishService:
         scheduled_time 支持: "YYYY-MM-DD HH:MM:SS" 字符串 或 int Unix 时间戳。
         """
         if not self.api_client:
-            return {"ok": False, "step": "api_publish", "error": "闲管家 API 客户端未初始化，请检查 AppKey/AppSecret 配置"}
+            return {
+                "ok": False,
+                "step": "api_publish",
+                "error": "闲管家 API 客户端未初始化，请检查 AppKey/AppSecret 配置",
+            }
 
         publish_payload: dict[str, Any] = {
             "product_id": product_id,
@@ -366,9 +370,9 @@ class AutoPublishService:
                 from datetime import datetime as _dt
 
                 try:
-                    publish_payload["specify_publish_time"] = _dt.fromtimestamp(
-                        int(scheduled_time)
-                    ).strftime("%Y-%m-%d %H:%M:%S")
+                    publish_payload["specify_publish_time"] = _dt.fromtimestamp(int(scheduled_time)).strftime(
+                        "%Y-%m-%d %H:%M:%S"
+                    )
                 except (ValueError, TypeError, OSError):
                     logger.warning("Invalid scheduled_time value: %s, skipping", scheduled_time)
 

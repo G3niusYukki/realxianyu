@@ -9,12 +9,11 @@ Phase 3: 自动检测并求解滑块验证码（NC 滑块 / 拼图滑块）
 from __future__ import annotations
 
 import asyncio
-import math
 import os
 import platform
 import random
 import time
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any
 
 from src.core.logger import get_logger
@@ -27,6 +26,7 @@ _SCREENSHOT_MAX_PER_TRIGGER = 4
 
 _GOOFISH_IM_URL = "https://www.goofish.com/im"
 _GOOFISH_DOMAINS = [".goofish.com", ".taobao.com", ".tmall.com"]
+
 
 async def _take_screenshot(page: Any, label: str) -> str | None:
     """Take a screenshot and save to data/slider_screenshots/. Returns the path."""
@@ -121,7 +121,7 @@ def _has_display() -> bool:
 
 
 def _get_slider_config(config: dict[str, Any] | None) -> dict[str, Any]:
-    ws_cfg = (config or {})
+    ws_cfg = config or {}
     slider_cfg = ws_cfg.get("slider_auto_solve", {})
     if not isinstance(slider_cfg, dict):
         slider_cfg = {}
@@ -261,7 +261,7 @@ async def _find_slider_in_frames(page: Any) -> tuple[Any, Any, str] | None:
     When a baxia-dialog container is found, waits for and searches inside it
     for an NC slider component which loads asynchronously.
     """
-    targets = [page] + list(page.frames)
+    targets = [page, *list(page.frames)]
 
     for frame in targets:
         for sel in NC_SLIDER_SELECTORS:
@@ -296,15 +296,14 @@ async def _find_slider_in_frames(page: Any) -> tuple[Any, Any, str] | None:
     return None
 
 
-async def _wait_for_nc_inside_baxia(
-    page: Any, frame: Any, dialog_el: Any
-) -> tuple[Any, Any, str] | None:
+async def _wait_for_nc_inside_baxia(page: Any, frame: Any, dialog_el: Any) -> tuple[Any, Any, str] | None:
     """Wait for the NC slider component to load inside a baxia-dialog.
 
     The NC component loads asynchronously via JS, so the container div
     appears before the slider button. We poll a few times to catch it.
     """
-    nc_inner_selectors = NC_SLIDER_SELECTORS + [
+    nc_inner_selectors = [
+        *NC_SLIDER_SELECTORS,
         ".baxia-dialog .btn_slide",
         ".baxia-dialog [class*='slide']",
         ".baxia-dialog span[class*='btn']",
@@ -320,9 +319,7 @@ async def _wait_for_nc_inside_baxia(
                 try:
                     el = await f.query_selector(sel)
                     if el and await el.is_visible():
-                        logger.info(
-                            f"Baxia dialog: found NC button via '{sel}' (wait_round={wait_round})"
-                        )
+                        logger.info(f"Baxia dialog: found NC button via '{sel}' (wait_round={wait_round})")
                         return f, el, "nc"
                 except Exception:
                     continue
@@ -341,9 +338,7 @@ async def _wait_for_nc_inside_baxia(
                             try:
                                 el = await f.query_selector(sel)
                                 if el and await el.is_visible():
-                                    logger.info(
-                                        f"Baxia iframe: found NC button via '{sel}'"
-                                    )
+                                    logger.info(f"Baxia iframe: found NC button via '{sel}'")
                                     return f, el, "nc"
                             except Exception:
                                 continue
@@ -523,7 +518,8 @@ async def _try_nc_fallback_inside_puzzle(page: Any, frame: Any) -> dict[str, Any
     """
     logger.info("Puzzle fallback: searching for NC-style slider inside dialog...")
 
-    nc_broad_selectors = NC_SLIDER_SELECTORS + [
+    nc_broad_selectors = [
+        *NC_SLIDER_SELECTORS,
         ".baxia-dialog .btn_slide",
         ".baxia-dialog [class*='slide']",
         ".baxia-dialog span[class*='btn']",
@@ -605,7 +601,11 @@ async def _try_nc_fallback_inside_puzzle(page: Any, frame: Any) -> dict[str, Any
         logger.info(f"Puzzle fallback evaluate failed: {exc}")
 
     logger.info("Puzzle fallback: no draggable element found")
-    return {"solved": False, "fail_reason": "no_draggable_element", "screenshot_path": await _take_screenshot(page, "puzzle_fallback_none")}
+    return {
+        "solved": False,
+        "fail_reason": "no_draggable_element",
+        "screenshot_path": await _take_screenshot(page, "puzzle_fallback_none"),
+    }
 
 
 _PUZZLE_BG_SELECTORS = [
@@ -726,6 +726,7 @@ async def _solve_puzzle_slider(page: Any, frame: Any, slider_el: Any) -> dict[st
                 return result
         else:
             import httpx
+
             async with httpx.AsyncClient(timeout=10) as client:
                 bg_resp = await client.get(bg_url)
                 sl_resp = await client.get(sl_url)
@@ -852,6 +853,7 @@ _CDP_PORTS = [9222, 9223, 9224]
 async def _try_connect_cdp(pw: Any, _log: Any) -> tuple[Any, Any, bool] | None:
     """Try connecting to an already-running Chrome via CDP."""
     import socket
+
     for port in _CDP_PORTS:
         s = socket.socket()
         s.settimeout(0.5)
@@ -1092,7 +1094,7 @@ async def try_slider_recovery(
 
         if auto_solve:
             for attempt in range(max_attempts):
-                attempt_start = time.time()
+                time.time()
                 attempt_data: dict[str, Any] = {
                     "attempt_num": attempt + 1,
                     "slider_type": None,
@@ -1111,27 +1113,25 @@ async def try_slider_recovery(
                     if _has_login_cookies(all_cookies):
                         cookie_str = _extract_goofish_cookies(all_cookies)
                         if cookie_str:
-                            cookie_keys = {
-                                p.split("=")[0].strip()
-                                for p in cookie_str.split(";") if "=" in p
-                            }
+                            cookie_keys = {p.split("=")[0].strip() for p in cookie_str.split(";") if "=" in p}
                             if "_m_h5_tk" in cookie_keys:
                                 _log.info("Slider recovery: no slider found, complete cookies detected")
                                 attempt_data.update(result="cookies_complete", slider_type="none")
                                 attempts_log.append(attempt_data)
-                                return {"cookie": cookie_str, "attempts": attempts_log,
-                                        "browser_strategy": browser_strategy,
-                                        "browser_connect_ms": browser_connect_ms,
-                                        "total_duration_ms": int((time.time() - recovery_start) * 1000)}
+                                return {
+                                    "cookie": cookie_str,
+                                    "attempts": attempts_log,
+                                    "browser_strategy": browser_strategy,
+                                    "browser_connect_ms": browser_connect_ms,
+                                    "total_duration_ms": int((time.time() - recovery_start) * 1000),
+                                }
 
                             _log.info(
                                 "Slider recovery: no slider, cookies missing _m_h5_tk. "
                                 "Reloading page to trigger slider/token..."
                             )
                             try:
-                                await page.reload(
-                                    wait_until="domcontentloaded", timeout=15000
-                                )
+                                await page.reload(wait_until="domcontentloaded", timeout=15000)
                                 await asyncio.sleep(5)
                             except Exception as reload_exc:
                                 _log.info(f"Page reload failed: {reload_exc}")
@@ -1145,22 +1145,29 @@ async def try_slider_recovery(
                                 cookie_str = _extract_goofish_cookies(all_cookies) or cookie_str
                                 if attempt < max_attempts - 1:
                                     _log.info("Slider recovery: no slider after reload, trying next attempt...")
-                                    attempt_data.update(result="no_slider", slider_type="none",
-                                                        fail_reason="no_slider_after_reload")
+                                    attempt_data.update(
+                                        result="no_slider", slider_type="none", fail_reason="no_slider_after_reload"
+                                    )
                                     attempts_log.append(attempt_data)
                                     continue
                                 _log.info("Slider recovery: no slider found, returning partial cookies")
                                 attempt_data.update(result="cookies_complete", slider_type="none")
                                 attempts_log.append(attempt_data)
-                                return {"cookie": cookie_str, "attempts": attempts_log,
-                                        "browser_strategy": browser_strategy,
-                                        "browser_connect_ms": browser_connect_ms,
-                                        "total_duration_ms": int((time.time() - recovery_start) * 1000)}
+                                return {
+                                    "cookie": cookie_str,
+                                    "attempts": attempts_log,
+                                    "browser_strategy": browser_strategy,
+                                    "browser_connect_ms": browser_connect_ms,
+                                    "total_duration_ms": int((time.time() - recovery_start) * 1000),
+                                }
                     else:
                         _log.info("Slider recovery: no slider element and no login cookies on page")
-                        attempt_data.update(result="no_slider", slider_type="none",
-                                            fail_reason="no_slider_no_login",
-                                            screenshot_path=await _take_screenshot(page, "no_slider_no_login"))
+                        attempt_data.update(
+                            result="no_slider",
+                            slider_type="none",
+                            fail_reason="no_slider_no_login",
+                            screenshot_path=await _take_screenshot(page, "no_slider_no_login"),
+                        )
                         attempts_log.append(attempt_data)
                         if attempt < max_attempts - 1:
                             continue
@@ -1205,10 +1212,13 @@ async def try_slider_recovery(
                     all_cookies = await context.cookies()
                     cookie_str = _extract_goofish_cookies(all_cookies)
                     if cookie_str and _has_login_cookies(all_cookies):
-                        return {"cookie": cookie_str, "attempts": attempts_log,
-                                "browser_strategy": browser_strategy,
-                                "browser_connect_ms": browser_connect_ms,
-                                "total_duration_ms": int((time.time() - recovery_start) * 1000)}
+                        return {
+                            "cookie": cookie_str,
+                            "attempts": attempts_log,
+                            "browser_strategy": browser_strategy,
+                            "browser_connect_ms": browser_connect_ms,
+                            "total_duration_ms": int((time.time() - recovery_start) * 1000),
+                        }
                     _log.info("Slider solved but cookies incomplete, waiting for page reload...")
                     await asyncio.sleep(5)
                     try:
@@ -1219,10 +1229,13 @@ async def try_slider_recovery(
                     all_cookies = await context.cookies()
                     cookie_str = _extract_goofish_cookies(all_cookies)
                     if cookie_str:
-                        return {"cookie": cookie_str, "attempts": attempts_log,
-                                "browser_strategy": browser_strategy,
-                                "browser_connect_ms": browser_connect_ms,
-                                "total_duration_ms": int((time.time() - recovery_start) * 1000)}
+                        return {
+                            "cookie": cookie_str,
+                            "attempts": attempts_log,
+                            "browser_strategy": browser_strategy,
+                            "browser_connect_ms": browser_connect_ms,
+                            "total_duration_ms": int((time.time() - recovery_start) * 1000),
+                        }
                 else:
                     _log.info(f"Slider auto-solve attempt {attempt + 1} failed")
                     attempt_data["result"] = "failed"
@@ -1242,24 +1255,35 @@ async def try_slider_recovery(
                     cookie_str = _extract_goofish_cookies(all_cookies)
                     if cookie_str:
                         _log.info("Slider recovery: manual verification detected")
-                        attempts_log.append({"attempt_num": 0, "slider_type": "manual",
-                                             "result": "passed", "fail_reason": None})
-                        return {"cookie": cookie_str, "attempts": attempts_log,
-                                "browser_strategy": browser_strategy,
-                                "browser_connect_ms": browser_connect_ms,
-                                "total_duration_ms": int((time.time() - recovery_start) * 1000)}
+                        attempts_log.append(
+                            {"attempt_num": 0, "slider_type": "manual", "result": "passed", "fail_reason": None}
+                        )
+                        return {
+                            "cookie": cookie_str,
+                            "attempts": attempts_log,
+                            "browser_strategy": browser_strategy,
+                            "browser_connect_ms": browser_connect_ms,
+                            "total_duration_ms": int((time.time() - recovery_start) * 1000),
+                        }
                 await asyncio.sleep(3)
 
-        return {"cookie": None, "attempts": attempts_log,
-                "browser_strategy": browser_strategy,
-                "browser_connect_ms": browser_connect_ms,
-                "total_duration_ms": int((time.time() - recovery_start) * 1000)}
+        return {
+            "cookie": None,
+            "attempts": attempts_log,
+            "browser_strategy": browser_strategy,
+            "browser_connect_ms": browser_connect_ms,
+            "total_duration_ms": int((time.time() - recovery_start) * 1000),
+        }
 
     except Exception as exc:
         _log.info(f"Slider recovery error: {exc}")
-        return {"cookie": None, "attempts": attempts_log, "error": str(exc),
-                "browser_strategy": browser_strategy,
-                "total_duration_ms": int((time.time() - recovery_start) * 1000)}
+        return {
+            "cookie": None,
+            "attempts": attempts_log,
+            "error": str(exc),
+            "browser_strategy": browser_strategy,
+            "total_duration_ms": int((time.time() - recovery_start) * 1000),
+        }
     finally:
         if not is_cdp:
             if browser:

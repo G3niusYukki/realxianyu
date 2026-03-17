@@ -9,7 +9,6 @@ from __future__ import annotations
 import asyncio
 import json
 import random
-import time
 import uuid
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
@@ -84,7 +83,6 @@ DESC_TEMPLATES: dict[str, list[str]] = {
         "支持{brands}等主流快递\n"
         "全国免费上门取件，大件小件都能发！\n"
         "个人寄件、商家发货、退换货均可",
-
         "【下单流程】：\n"
         "①发给我: 例如 浙江-广东-1kg\n"
         "②我报价给您，接受就拍下\n"
@@ -94,14 +92,12 @@ DESC_TEMPLATES: dict[str, list[str]] = {
         "⚠ 请报实际重量，超重需补差价\n"
         "体积重=长×宽×高/8000（单位厘米）\n\n"
         "在线秒回，欢迎咨询！",
-
         "支持{brands}等主流快递，低价寄全国\n\n"
         "📦 下单流程：直接告诉我 寄件地-收件地-重量\n"
         "💰 报价后拍下不付款，我改价后您再付款\n"
         "🚚 付款后快递员免费上门取件\n\n"
         "个人/商家/退换货均可使用\n"
         "大件小件都能发，在线秒回",
-
         "{brands}快递代下单，全国可发\n\n"
         "怎么下单？\n"
         "告诉我：寄件地-收件地-重量\n"
@@ -110,7 +106,6 @@ DESC_TEMPLATES: dict[str, list[str]] = {
         "快递员免费上门取件\n\n"
         "万一破损丢件，快递赔，保障拉满\n"
         "在线秒回，欢迎咨询~~",
-
         "全国寄快递 低价优惠\n\n"
         "----------------------\n"
         "报价格式：寄件地-收件地-重量\n"
@@ -133,7 +128,6 @@ DESC_TEMPLATES: dict[str, list[str]] = {
         "适合：家具、电器、健身器材、行李、搬家物品\n"
         "支持{brands}等大件物流\n\n"
         "在线秒回，欢迎咨询！",
-
         "【下单流程】：\n"
         "①告诉我: 寄件地-收件地-重量（如 广东-江苏-80kg）\n"
         "②我报价给您，接受就拍下\n"
@@ -143,7 +137,6 @@ DESC_TEMPLATES: dict[str, list[str]] = {
         "物流师傅免费上门取件\n\n"
         "适合寄：家具 电器 健身器材 行李 搬家物品\n"
         "在线秒回，欢迎咨询！",
-
         "支持{brands}等大件物流，全国可寄\n\n"
         "🚛 适合：家具、电器、健身器材、行李箱、搬家\n"
         "💰 越重越划算，30kg起步\n"
@@ -151,7 +144,6 @@ DESC_TEMPLATES: dict[str, list[str]] = {
         "下单流程：告诉我 寄件地-收件地-重量\n"
         "报价后拍下不付款，我改价后您再付款\n\n"
         "在线秒回，大件放心寄！",
-
         "{brands}大件快运，全国可发\n\n"
         "寄大件找我！\n"
         "告诉我：寄件地-收件地-重量\n"
@@ -160,7 +152,6 @@ DESC_TEMPLATES: dict[str, list[str]] = {
         "物流师傅免费上门取件\n"
         "家具电器搬家行李都能寄\n\n"
         "在线秒回，欢迎咨询~~",
-
         "全国大件物流 越重越划算\n\n"
         "----------------------\n"
         "报价格式：寄件地-收件地-重量\n"
@@ -202,9 +193,9 @@ def _now_iso() -> str:
 
 
 _PUBLISH_WINDOWS = [
-    (8, 30, 11, 30),   # 上午高峰（含通勤）
-    (12, 0, 14, 0),    # 午休高峰
-    (19, 30, 22, 0),   # 晚间高峰（下班后主力时段）
+    (8, 30, 11, 30),  # 上午高峰（含通勤）
+    (12, 0, 14, 0),  # 午休高峰
+    (19, 30, 22, 0),  # 晚间高峰（下班后主力时段）
 ]
 
 
@@ -378,6 +369,7 @@ class PublishQueue:
 
                 brand_items = self._load_brand_items_for_generation(mgr, cat_asset_ids)
                 from .templates.themes import get_random_variant
+
                 variant = get_random_variant(cat)
                 params = {
                     "brand_items": brand_items,
@@ -388,13 +380,17 @@ class PublishQueue:
                 }
 
                 from .templates.frames import list_frames
+
                 frames = list_frames()
                 chosen_frame = random.choice(frames) if frames else {"id": "grid_paper"}
                 chosen_frame_id = chosen_frame["id"]
 
                 from .image_generator import generate_frame_images
+
                 local_images = await generate_frame_images(
-                    frame_id=chosen_frame_id, category=cat, params=params,
+                    frame_id=chosen_frame_id,
+                    category=cat,
+                    params=params,
                 )
                 if not local_images:
                     local_images = []
@@ -425,7 +421,7 @@ class PublishQueue:
                 )
                 self.add_item(item)
                 items.append(item)
-                logger.info(f"Generated queue item {time_idx+1}/{total_count} [{cat}]: {item.id}")
+                logger.info(f"Generated queue item {time_idx + 1}/{total_count} [{cat}]: {item.id}")
                 time_idx += 1
 
         return items
@@ -445,10 +441,12 @@ class PublishQueue:
             return None
 
         from .brand_assets import BrandAssetManager
+
         mgr = BrandAssetManager()
         brand_items = self._load_brand_items_for_generation(mgr, item.brand_asset_ids)
 
         from .templates.themes import get_random_variant
+
         variant = get_random_variant(item.category)
         params = {
             "brand_items": brand_items,
@@ -459,14 +457,18 @@ class PublishQueue:
         }
 
         from .templates.frames import list_frames
+
         frames = list_frames()
         chosen_frame_id = random.choice(frames)["id"] if frames else "grid_paper"
 
         updates: dict[str, Any] = {"status": "draft"}
 
         from .image_generator import generate_frame_images
+
         local_images = await generate_frame_images(
-            frame_id=chosen_frame_id, category=item.category, params=params,
+            frame_id=chosen_frame_id,
+            category=item.category,
+            params=params,
         )
         updates["generated_images"] = local_images
         updates["frame_id"] = chosen_frame_id
@@ -495,12 +497,17 @@ class PublishQueue:
         if not all(oss_cfg.get(k) for k in required_oss):
             return {"ok": False, "error": "OSS 存储未配置，请在「系统配置 → 阿里云 OSS」中填写完整"}
 
-        if not xgj_cfg.get("default_province") or not xgj_cfg.get("default_city") or not xgj_cfg.get("default_district"):
+        if (
+            not xgj_cfg.get("default_province")
+            or not xgj_cfg.get("default_city")
+            or not xgj_cfg.get("default_district")
+        ):
             return {"ok": False, "error": "发货地区未配置，请在「系统配置 → 闲管家」中填写省/市/区行政编码"}
 
         self.update_item(item_id, {"status": "publishing"})
 
         from .auto_publish import AutoPublishService
+
         svc = AutoPublishService(config=config)
 
         if not item.generated_images:
@@ -524,16 +531,22 @@ class PublishQueue:
 
         if result.get("ok"):
             new_status = "publishing" if result.get("publish_async") else "published"
-            self.update_item(item_id, {
-                "status": new_status,
-                "published_product_id": result.get("product_id"),
-                "error": None,
-            })
+            self.update_item(
+                item_id,
+                {
+                    "status": new_status,
+                    "published_product_id": result.get("product_id"),
+                    "error": None,
+                },
+            )
         else:
-            self.update_item(item_id, {
-                "status": "failed",
-                "error": result.get("error", "发布失败"),
-            })
+            self.update_item(
+                item_id,
+                {
+                    "status": "failed",
+                    "error": result.get("error", "发布失败"),
+                },
+            )
 
         return result
 
@@ -558,13 +571,12 @@ class PublishQueue:
     def _get_available_frame_ids(self) -> list[str]:
         try:
             from .templates.frames import list_frames
+
             return [f["id"] for f in list_frames()]
         except Exception:
             return ["grid_paper", "clipboard", "torn_paper"]
 
-    def _load_brand_items_for_generation(
-        self, mgr: Any, asset_ids: list[str]
-    ) -> list[dict[str, str]]:
+    def _load_brand_items_for_generation(self, mgr: Any, asset_ids: list[str]) -> list[dict[str, str]]:
         items = []
         for aid in asset_ids:
             path = mgr.get_asset_path(aid)
@@ -576,24 +588,27 @@ class PublishQueue:
                     entry = a
                     break
             from .brand_assets import file_to_data_uri
-            items.append({
-                "name": entry["name"] if entry else "brand",
-                "src": file_to_data_uri(path),
-            })
+
+            items.append(
+                {
+                    "name": entry["name"] if entry else "brand",
+                    "src": file_to_data_uri(path),
+                }
+            )
         return items
 
-    async def _ai_generate_content(
-        self, svc: Any, category: str, index: int
-    ) -> tuple[str, str]:
+    async def _ai_generate_content(self, svc: Any, category: str, index: int) -> tuple[str, str]:
         """使用 ContentService 生成标题和描述，AI 不可用时用模版池回退。"""
         try:
-            content = svc.content_service.generate_listing_content({
-                "name": category,
-                "category": category,
-                "features": [],
-                "condition": "全新",
-                "reason": "闲置出",
-            })
+            content = svc.content_service.generate_listing_content(
+                {
+                    "name": category,
+                    "category": category,
+                    "features": [],
+                    "condition": "全新",
+                    "reason": "闲置出",
+                }
+            )
             title = content.get("title", "")
             description = content.get("description", "")
             if title and len(title) > 3 and "【转卖】" not in title:
@@ -606,6 +621,7 @@ class PublishQueue:
     def _fallback_content(self, category: str) -> tuple[str, str]:
         """AI 不可用时，从模版池生成标题和描述。"""
         from .brand_assets import BrandAssetManager
+
         mgr = BrandAssetManager()
         assets = mgr.list_assets(category=category)
         brand_names = sorted(set(a.get("name", "") for a in assets if a.get("name")))

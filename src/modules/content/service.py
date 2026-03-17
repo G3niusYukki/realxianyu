@@ -95,6 +95,7 @@ class ContentService:
             try:
                 from pathlib import Path
                 import json as _json
+
                 _sys_path = Path("data/system_config.json")
                 if _sys_path.exists():
                     _sys_data = _json.loads(_sys_path.read_text("utf-8"))
@@ -315,9 +316,22 @@ class ContentService:
         """获取分类热搜关键词"""
         keywords = {
             "express": [
-                "快递代下单", "快递代发", "便宜寄快递", "上门取件", "菜鸟裹裹",
-                "全国可寄", "低价优惠", "免费上门", "大件小件",
-                "圆通", "申通", "极兔", "韵达", "中通", "京东", "顺丰",
+                "快递代下单",
+                "快递代发",
+                "便宜寄快递",
+                "上门取件",
+                "菜鸟裹裹",
+                "全国可寄",
+                "低价优惠",
+                "免费上门",
+                "大件小件",
+                "圆通",
+                "申通",
+                "极兔",
+                "韵达",
+                "中通",
+                "京东",
+                "顺丰",
             ],
             "数码手机": ["自用", "闲置", "正品", "国行", "原装", "95新", "便宜出"],
             "电脑办公": ["办公", "游戏", "高性能", "低价", "成色新"],

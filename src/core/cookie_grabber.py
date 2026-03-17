@@ -108,9 +108,7 @@ class CookieGrabber:
             valid = await self._validate(cookie)
             if valid:
                 self._save(cookie, source="cookiecloud")
-                self._update(
-                    GrabStage.SUCCESS, "Cookie 获取成功！", "从 CookieCloud 远程同步获取", 100
-                )
+                self._update(GrabStage.SUCCESS, "Cookie 获取成功！", "从 CookieCloud 远程同步获取", 100)
                 return GrabResult(ok=True, cookie_str=cookie, source="cookiecloud", message="从 CookieCloud 同步成功")
 
         # Level 1: rookiepy 直读浏览器 Cookie DB
@@ -192,13 +190,16 @@ class CookieGrabber:
         if not host or not uuid or not password:
             try:
                 import json
+
                 cfg_path = Path("data/system_config.json")
                 if cfg_path.exists():
                     cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
                     cc = cfg.get("cookie_cloud", {}) if isinstance(cfg.get("cookie_cloud"), dict) else {}
                     host = host or str(cc.get("cookie_cloud_host") or cfg.get("cookie_cloud_host", "")).strip()
                     uuid = uuid or str(cc.get("cookie_cloud_uuid") or cfg.get("cookie_cloud_uuid", "")).strip()
-                    password = password or str(cc.get("cookie_cloud_password") or cfg.get("cookie_cloud_password", "")).strip()
+                    password = (
+                        password or str(cc.get("cookie_cloud_password") or cfg.get("cookie_cloud_password", "")).strip()
+                    )
             except Exception:
                 pass
 
@@ -831,6 +832,7 @@ class CookieGrabber:
         self._update(GrabStage.SAVING, "正在保存 Cookie...", "", 95)
 
         from src.core.cookie_store import save_cookie
+
         save_cookie(cookie_str, persist=True, source=source)
 
 
@@ -934,6 +936,7 @@ class CookieAutoRefresher:
     @staticmethod
     def _m_h5_tk_seconds_until_expiry(cookie_text: str) -> float | None:
         from src.core.cookie_health import m_h5_tk_seconds_until_expiry
+
         return m_h5_tk_seconds_until_expiry(cookie_text)
 
     def _tick(self) -> None:
@@ -958,6 +961,7 @@ class CookieAutoRefresher:
         # Level IM: 闲管家IM直读（最可靠来源）
         try:
             from src.core.goofish_im_cookie import read_goofish_im_cookies, merge_cookies
+
             im_result = read_goofish_im_cookies(min_ttl=60)
             if im_result:
                 im_cookie = im_result["cookie_str"]
@@ -1041,6 +1045,7 @@ class CookieAutoRefresher:
         self._last_check_msg = "静默刷新成功"
 
         from src.core.cookie_store import save_cookie
+
         save_cookie(new_cookie, persist=True, source=self._last_refresh_source)
 
         _source_labels = {
@@ -1097,4 +1102,5 @@ class CookieAutoRefresher:
     @staticmethod
     def _save_to_env(cookie_str: str) -> None:
         from src.core.cookie_store import save_cookie
+
         save_cookie(cookie_str, persist=True)

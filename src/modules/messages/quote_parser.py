@@ -8,7 +8,8 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Any, Callable
+from typing import Any
+from collections.abc import Callable
 
 from src.core.logger import get_logger
 from src.modules.quote.models import QuoteRequest
@@ -21,11 +22,12 @@ try:
     def _normalize_chinese(text: str) -> str:
         return _zhconv_convert(text, "zh-cn")
 except ImportError:
+
     def _normalize_chinese(text: str) -> str:
         return text
 
 
-from src.modules.quote.geo_resolver import GeoResolver
+from src.modules.quote.geo_resolver import GeoResolver  # noqa: E402
 
 _PROVINCE_SHORT_ALIASES = frozenset({"新疆", "宁夏", "广西", "内蒙", "香港", "澳门", "台湾"})
 _geo_known_cache: set[str] | None = None
@@ -65,28 +67,116 @@ class QuoteMessageParser:
     """从买家消息中提取报价所需的结构化字段。"""
 
     _CN_NUM_MAP = {
-        "零": 0, "一": 1, "二": 2, "两": 2, "三": 3, "四": 4, "五": 5,
-        "六": 6, "七": 7, "八": 8, "九": 9, "十": 10,
+        "零": 0,
+        "一": 1,
+        "二": 2,
+        "两": 2,
+        "三": 3,
+        "四": 4,
+        "五": 5,
+        "六": 6,
+        "七": 7,
+        "八": 8,
+        "九": 9,
+        "十": 10,
         "半": 0.5,
     }
 
-    _NON_LOCATION_WORDS = frozenset({
-        "帮我", "可以", "快递", "怎么", "能不能", "不能", "什么",
-        "这个", "那个", "已经", "需要", "想要", "能否", "请问", "如何",
-        "在吗", "你好", "亲", "老板", "在不", "有人", "客服", "包裹",
-        "顺丰", "圆通", "中通", "韵达", "申通", "极兔", "邮政", "京东",
-        "发货", "收货", "物流", "运费", "价格", "多少", "再见", "朋友", "老家",
-    })
+    _NON_LOCATION_WORDS = frozenset(
+        {
+            "帮我",
+            "可以",
+            "快递",
+            "怎么",
+            "能不能",
+            "不能",
+            "什么",
+            "这个",
+            "那个",
+            "已经",
+            "需要",
+            "想要",
+            "能否",
+            "请问",
+            "如何",
+            "在吗",
+            "你好",
+            "亲",
+            "老板",
+            "在不",
+            "有人",
+            "客服",
+            "包裹",
+            "顺丰",
+            "圆通",
+            "中通",
+            "韵达",
+            "申通",
+            "极兔",
+            "邮政",
+            "京东",
+            "发货",
+            "收货",
+            "物流",
+            "运费",
+            "价格",
+            "多少",
+            "再见",
+            "朋友",
+            "老家",
+        }
+    )
 
-    _NON_LOCATION_TERMS = frozenset({
-        "韵达", "圆通", "中通", "申通", "顺丰", "极兔", "德邦",
-        "京东", "邮政", "菜鸟裹裹", "菜鸟", "裹裹",
-        "首重", "续重", "快递", "退款", "退货", "报价", "包邮",
-        "发货", "收货", "签收", "下单", "拍下", "改价",
-        "你好", "可以", "不行", "算了", "好的", "谢谢", "没有", "什么",
-        "怎么", "为什么", "不了", "多少", "已经", "帮忙", "能不",
-        "不够", "太贵", "便宜", "优惠", "金额", "余额",
-    })
+    _NON_LOCATION_TERMS = frozenset(
+        {
+            "韵达",
+            "圆通",
+            "中通",
+            "申通",
+            "顺丰",
+            "极兔",
+            "德邦",
+            "京东",
+            "邮政",
+            "菜鸟裹裹",
+            "菜鸟",
+            "裹裹",
+            "首重",
+            "续重",
+            "快递",
+            "退款",
+            "退货",
+            "报价",
+            "包邮",
+            "发货",
+            "收货",
+            "签收",
+            "下单",
+            "拍下",
+            "改价",
+            "你好",
+            "可以",
+            "不行",
+            "算了",
+            "好的",
+            "谢谢",
+            "没有",
+            "什么",
+            "怎么",
+            "为什么",
+            "不了",
+            "多少",
+            "已经",
+            "帮忙",
+            "能不",
+            "不够",
+            "太贵",
+            "便宜",
+            "优惠",
+            "金额",
+            "余额",
+        }
+    )
 
     def __init__(
         self,
@@ -157,7 +247,8 @@ class QuoteMessageParser:
                 rf"长[：:]?\s*(\d+\.?\d*)\s*{_UNIT_CN}\s*"
                 rf"宽[：:]?\s*(\d+\.?\d*)\s*{_UNIT_CN}\s*"
                 rf"高[：:]?\s*(\d+\.?\d*)\s*{_UNIT_CN}",
-                text, flags=re.IGNORECASE,
+                text,
+                flags=re.IGNORECASE,
             )
             if m2:
                 a, b, c = float(m2.group(1)), float(m2.group(2)), float(m2.group(3))
@@ -227,12 +318,18 @@ class QuoteMessageParser:
             if province and len(province) >= 2:
                 return _validate_geo_return(province, province)
 
-        labeled_origin = re.search(r"(?:寄件(?:城市)?|发件(?:城市)?|始发地|发(?=\s*[:：]))\s*[:：，,]?\s*([\u4e00-\u9fa5]{2,20})", text)
-        labeled_dest = re.search(r"(?:收件(?:城市)?|目的地|寄到|送到|收(?=\s*[:：]))\s*[:：，,]?\s*([\u4e00-\u9fa5]{2,20})", text)
+        labeled_origin = re.search(
+            r"(?:寄件(?:城市)?|发件(?:城市)?|始发地|发(?=\s*[:：]))\s*[:：，,]?\s*([\u4e00-\u9fa5]{2,20})", text
+        )
+        labeled_dest = re.search(
+            r"(?:收件(?:城市)?|目的地|寄到|送到|收(?=\s*[:：]))\s*[:：，,]?\s*([\u4e00-\u9fa5]{2,20})", text
+        )
         if labeled_origin and labeled_dest:
             return _validate_geo_return(labeled_origin.group(1), labeled_dest.group(1))
 
-        compact = re.search(r"([\u4e00-\u9fa5]{2,20})\s*[~～\-\u2013\u2014\u2015→➔>＞]+\s*([\u4e00-\u9fa5]{2,20})", text)
+        compact = re.search(
+            r"([\u4e00-\u9fa5]{2,20})\s*[~～\-\u2013\u2014\u2015→➔>＞]+\s*([\u4e00-\u9fa5]{2,20})", text
+        )
         if compact:
             return _validate_geo_return(compact.group(1), compact.group(2))
 
@@ -253,7 +350,9 @@ class QuoteMessageParser:
                 if origin in QuoteMessageParser._NON_LOCATION_WORDS or dest in QuoteMessageParser._NON_LOCATION_WORDS:
                     _logger.debug(
                         "geo_extract: blacklist_hit origin=%s dest=%s text=%s",
-                        origin, dest, text[:60],
+                        origin,
+                        dest,
+                        text[:60],
                     )
                     continue
                 return _validate_geo_return(origin, dest)
@@ -317,7 +416,7 @@ class QuoteMessageParser:
             "- origin: 寄件城市/省份（中文）\n"
             "- destination: 收件城市/省份（中文）\n"
             "- weight: 重量（数字，单位kg，如半斤=0.25，一斤=0.5，一公斤=1）\n"
-            "只返回JSON，不要解释。格式：{\"origin\":\"...\",\"destination\":\"...\",\"weight\":...}"
+            '只返回JSON，不要解释。格式：{"origin":"...","destination":"...","weight":...}'
         )
         try:
             result = svc._call_ai(prompt, max_tokens=100, task="quote_extract")
@@ -352,7 +451,10 @@ class QuoteMessageParser:
         if origin or destination:
             _logger.info(
                 "geo_extract: accepted origin=%s dest=%s weight=%s msg=%s",
-                origin, destination, weight, (message_text or "")[:60],
+                origin,
+                destination,
+                weight,
+                (message_text or "")[:60],
             )
         elif message_text and len(message_text) >= 4:
             _logger.debug(
@@ -379,7 +481,9 @@ class QuoteMessageParser:
                 if ai_fields.get("origin") or ai_fields.get("destination"):
                     _logger.info(
                         "geo_extract: ai_补充 origin=%s dest=%s weight=%s",
-                        fields.get("origin"), fields.get("destination"), fields.get("weight"),
+                        fields.get("origin"),
+                        fields.get("destination"),
+                        fields.get("weight"),
                     )
         return fields
 

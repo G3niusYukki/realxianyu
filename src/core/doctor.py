@@ -39,8 +39,7 @@ _SUGGESTIONS = {
         "然后在管理面板 → 系统配置 → CookieCloud 中填入 UUID 和密码。"
     ),
     "Dashboard 配置完整性": (
-        "请在管理面板中完成首次配置（AI、CookieCloud、自动回复），"
-        "或从旧设备导入 data/system_config.json。"
+        "请在管理面板中完成首次配置（AI、CookieCloud、自动回复），或从旧设备导入 data/system_config.json。"
     ),
 }
 
@@ -263,6 +262,7 @@ def _extra_checks(skip_quote: bool = False) -> list[dict[str, Any]]:
     cc_decrypt_msg = ""
     if cc_configured:
         import hashlib
+
         cc_host = os.getenv("COOKIE_CLOUD_HOST", "").strip()
         if not cc_host:
             try:
@@ -276,7 +276,6 @@ def _extra_checks(skip_quote: bool = False) -> list[dict[str, Any]]:
         if not cc_host:
             cc_host = "http://localhost:8091/cookie-cloud"
         try:
-            import urllib.request
             url = f"{cc_host.rstrip('/')}/get/{cc_uuid}"
             req = urllib.request.Request(
                 url,
@@ -291,6 +290,7 @@ def _extra_checks(skip_quote: bool = False) -> list[dict[str, Any]]:
                 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
                 from cryptography.hazmat.primitives import padding as sym_padding
                 import base64
+
                 key_raw = f"{cc_uuid}-{cc_pwd}"
                 key_hash = hashlib.md5(key_raw.encode("utf-8")).hexdigest()[:16]
                 raw_bytes = base64.b64decode(encrypted)
@@ -320,10 +320,9 @@ def _extra_checks(skip_quote: bool = False) -> list[dict[str, Any]]:
         passed=cc_configured,
         message=cc_decrypt_msg if cc_configured else "未配置（推荐配置以实现 Cookie 自动同步恢复）",
         critical=False,
-        suggestion=(
-            "密码不匹配，请在管理面板 → 系统配置 → CookieCloud 中重新配置，"
-            "确保密码与浏览器插件中的一致。"
-        ) if (cc_configured and not cc_decryptable and "密码" in cc_decrypt_msg) else None,
+        suggestion=("密码不匹配，请在管理面板 → 系统配置 → CookieCloud 中重新配置，确保密码与浏览器插件中的一致。")
+        if (cc_configured and not cc_decryptable and "密码" in cc_decrypt_msg)
+        else None,
     )
 
     # system_config.json 完整性检测

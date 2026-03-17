@@ -21,6 +21,7 @@ async def main():
     logger = get_logger()
 
     from src import __version__
+
     logger.info(f"Starting {config.app.get('name', 'xianyu-openclaw')} v{config.app.get('version', __version__)}")
 
     try:

@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import time
 import threading
-from typing import Any
 
 from src.dashboard.router import RouteContext, get, post
 
@@ -32,6 +31,7 @@ def handle_download_cookie_plugin(ctx: RouteContext) -> None:
         ctx.send_bytes(data=data, content_type="application/zip", download_name=filename)
     except FileNotFoundError as exc:
         from src.dashboard_server import _error_payload
+
         ctx.send_json(_error_payload(str(exc), code="NOT_FOUND"), status=404)
 
 
@@ -50,6 +50,7 @@ def handle_cookie_auto_grab_status(ctx: RouteContext) -> None:
     ctx.end_headers()
 
     from src.dashboard_server import DashboardHandler
+
     grabber = getattr(DashboardHandler, "_cookie_grabber", None)
     try:
         for _ in range(600):
@@ -90,6 +91,7 @@ def handle_cookie_auto_grab_status(ctx: RouteContext) -> None:
 @get("/api/cookie/auto-refresh/status")
 def handle_cookie_auto_refresh_status(ctx: RouteContext) -> None:
     from src.dashboard_server import DashboardHandler
+
     refresher = getattr(DashboardHandler, "_cookie_auto_refresher", None)
     if refresher is None:
         ctx.send_json(
@@ -101,6 +103,7 @@ def handle_cookie_auto_refresh_status(ctx: RouteContext) -> None:
         )
     else:
         from dataclasses import asdict
+
         s = refresher.status()
         ctx.send_json(asdict(s))
 
@@ -258,6 +261,7 @@ def handle_cookie_auto_grab(ctx: RouteContext) -> None:
 @post("/api/cookie/auto-grab/cancel")
 def handle_cookie_auto_grab_cancel(ctx: RouteContext) -> None:
     from src.dashboard_server import DashboardHandler
+
     grabber = getattr(DashboardHandler, "_cookie_grabber", None)
     if grabber is not None:
         grabber.cancel()

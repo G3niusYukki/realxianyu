@@ -73,8 +73,14 @@ COURIER_ALIASES = {
 }
 
 FREIGHT_COURIERS: set[str] = {
-    "百世快运", "跨越速运", "壹米滴答", "安能", "顺心捷达",
-    "中通快运", "圆通快运", "德邦快运",
+    "百世快运",
+    "跨越速运",
+    "壹米滴答",
+    "安能",
+    "顺心捷达",
+    "中通快运",
+    "圆通快运",
+    "德邦快运",
 }
 
 REGION_ALIASES = {
@@ -151,13 +157,9 @@ REGION_ALIASES = {
 PROVINCE_SET = set(REGION_ALIASES.values())
 
 
-_COURIER_SUFFIX_RE = re.compile(
-    r"[-_]?(?:[A-Za-z]{0,4}\d{2,4}(?:[-_]\d+)?|捞|特惠|揽件高|省|市)$"
-)
+_COURIER_SUFFIX_RE = re.compile(r"[-_]?(?:[A-Za-z]{0,4}\d{2,4}(?:[-_]\d+)?|捞|特惠|揽件高|省|市)$")
 
-_CANONICAL_COURIERS: list[str] = sorted(
-    set(COURIER_ALIASES.values()), key=len, reverse=True
-)
+_CANONICAL_COURIERS: list[str] = sorted(set(COURIER_ALIASES.values()), key=len, reverse=True)
 
 
 def normalize_courier_name(name: str | None) -> str:
@@ -232,7 +234,17 @@ class CostTableRepository:
     _HEADER_ALIASES = {
         "courier": {"快递公司", "物流公司", "承运商"},
         "origin": {"始发地", "寄件地", "发件地", "发货地", "始发城市", "揽收地", "始发省份", "始发省", "发件城市"},
-        "destination": {"目的地", "收件地", "收件地址", "收件城市", "到达地", "目的省份", "目的省", "目的城市", "到达城市"},
+        "destination": {
+            "目的地",
+            "收件地",
+            "收件地址",
+            "收件城市",
+            "到达地",
+            "目的省份",
+            "目的省",
+            "目的城市",
+            "到达城市",
+        },
         "first_cost": {"首重", "首重1kg", "首重价", "首重价格", "首重1kg价"},
         "extra_cost": {"续重", "续重1kg", "续重价", "续重价格", "续重1kg价"},
         "throw_ratio": {"抛比", "抛重比", "材积比", "体积系数"},
@@ -389,13 +401,12 @@ class CostTableRepository:
     @staticmethod
     def _sort_candidates(records: list[CostRecord], weight: float | None = None) -> list[CostRecord]:
         if weight is not None and weight > 0:
+
             def _total_cost(r: CostRecord) -> float:
                 extra_w = max(0.0, weight - r.base_weight)
                 return r.first_cost + extra_w * r.extra_cost
 
-            sorted_records = sorted(
-                records, key=lambda r: (_total_cost(r), r.extra_cost, r.first_cost, r.courier)
-            )
+            sorted_records = sorted(records, key=lambda r: (_total_cost(r), r.extra_cost, r.first_cost, r.courier))
         else:
             sorted_records = sorted(
                 records, key=lambda r: (r.first_cost + r.extra_cost, r.first_cost, r.extra_cost, r.courier)

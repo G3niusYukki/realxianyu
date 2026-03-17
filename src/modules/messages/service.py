@@ -23,10 +23,10 @@ from src.core.error_handler import BrowserError
 from src.core.logger import get_logger
 from src.modules.compliance.center import ComplianceCenter
 from src.modules.messages.manual_mode import ManualModeStore
-from src.modules.messages.reply_engine import ReplyStrategyEngine
 from src.modules.messages.quote_composer import QuoteReplyComposer
 from src.modules.messages.quote_context import QuoteContextStore
 from src.modules.messages.quote_parser import QuoteMessageParser
+from src.modules.messages.reply_engine import ReplyStrategyEngine
 from src.modules.quote.engine import AutoQuoteEngine
 from src.modules.quote.geo_resolver import GeoResolver
 
@@ -63,13 +63,15 @@ def _validate_geo_return(origin: str | None, dest: str | None) -> tuple[str | No
     if origin and not _is_known_geo(origin):
         _logger.info(
             "geo_extract: rejected origin=%s dest=%s reason=origin_unknown",
-            origin, dest,
+            origin,
+            dest,
         )
         return None, None
     if dest and not _is_known_geo(dest):
         _logger.info(
             "geo_extract: rejected origin=%s dest=%s reason=dest_unknown",
-            origin, dest,
+            origin,
+            dest,
         )
         return None, None
     return origin, dest
@@ -81,11 +83,13 @@ try:
     def _normalize_chinese(text: str) -> str:
         return _zhconv_convert(text, "zh-cn")
 except ImportError:
+
     def _normalize_chinese(text: str) -> str:
         return text
-from src.modules.quote.ledger import get_quote_ledger
-from src.modules.quote.models import QuoteRequest, QuoteResult
-from src.modules.quote.providers import QuoteProviderError
+
+
+from src.modules.quote.models import QuoteRequest, QuoteResult  # noqa: E402
+from src.modules.quote.providers import QuoteProviderError  # noqa: E402
 
 
 class MessageSelectors:
@@ -112,8 +116,7 @@ DEFAULT_VOLUME_REPLY_TEMPLATE = (
 )
 
 DEFAULT_NON_EMPTY_REPLY_FALLBACK = (
-    "您好！发送 寄件城市 - 收件城市 - 重量 就能帮您查最优价格哦~\n"
-    "示例：广东省 - 浙江省 - 3kg"
+    "您好！发送 寄件城市 - 收件城市 - 重量 就能帮您查最优价格哦~\n示例：广东省 - 浙江省 - 3kg"
 )
 DEFAULT_COURIER_LOCK_TEMPLATE = (
     "好的，已为您锁定 {courier}（{price}）~\n"
@@ -126,7 +129,7 @@ DEFAULT_COURIER_LOCK_TEMPLATE = (
 )
 
 
-_active_service: "MessagesService | None" = None
+_active_service: MessagesService | None = None
 
 
 class MessagesService:
@@ -243,10 +246,7 @@ class MessagesService:
 
         if active_category == "express":
             express_irrelevant = {"瑕疵", "验货", "自提"}
-            self.keyword_replies = {
-                k: v for k, v in self.keyword_replies.items()
-                if k not in express_irrelevant
-            }
+            self.keyword_replies = {k: v for k, v in self.keyword_replies.items() if k not in express_irrelevant}
             if "便宜" in self.keyword_replies:
                 self.keyword_replies["便宜"] = "亲，这已经是首单优惠价了，非常划算~ 量大的话可以再商量哦~"
             if "还在" in self.keyword_replies:
@@ -264,7 +264,27 @@ class MessagesService:
         )
 
         self.quote_engine = AutoQuoteEngine(self.quote_config)
-        default_quote_keywords = ["报价", "多少钱", "价格", "运费", "邮费", "快递费", "寄到", "发到", "送到", "怎么寄", "怎么收费", "多钱", "啥价", "咋卖", "怎么卖", "什么价", "几块钱", "首重", "续重"]
+        default_quote_keywords = [
+            "报价",
+            "多少钱",
+            "价格",
+            "运费",
+            "邮费",
+            "快递费",
+            "寄到",
+            "发到",
+            "送到",
+            "怎么寄",
+            "怎么收费",
+            "多钱",
+            "啥价",
+            "咋卖",
+            "怎么卖",
+            "什么价",
+            "几块钱",
+            "首重",
+            "续重",
+        ]
         default_standard_format_triggers = ["在吗", "在不", "hi", "hello", "哈喽", "有人吗"]
         raw_quote_keywords = self.config.get("quote_intent_keywords")
         if isinstance(raw_quote_keywords, list):
@@ -274,7 +294,7 @@ class MessagesService:
         else:
             cleaned_quote_keywords = []
         base = cleaned_quote_keywords or [str(s).lower() for s in default_quote_keywords]
-        self.quote_intent_keywords = list(dict.fromkeys(base + ["首重", "续重"]))
+        self.quote_intent_keywords = list(dict.fromkeys([*base, "首重", "续重"]))
         raw_standard_triggers = self.config.get("standard_format_trigger_keywords")
         if isinstance(raw_standard_triggers, list):
             cleaned_standard_triggers = [
@@ -358,6 +378,7 @@ class MessagesService:
         active_category = ""
         try:
             from src.core.config import get_active_category
+
             active_category = get_active_category()
         except Exception:
             pass
@@ -617,10 +638,23 @@ class MessagesService:
 
         return await self._get_unread_sessions_dom(limit=limit)
 
-    _AFTERSALE_SIGNALS = frozenset({
-        "到哪了", "退回", "破了", "坏了", "少了", "丢了", "态度",
-        "没收到", "签收", "退回来", "弄坏", "差评", "投诉",
-    })
+    _AFTERSALE_SIGNALS = frozenset(
+        {
+            "到哪了",
+            "退回",
+            "破了",
+            "坏了",
+            "少了",
+            "丢了",
+            "态度",
+            "没收到",
+            "签收",
+            "退回来",
+            "弄坏",
+            "差评",
+            "投诉",
+        }
+    )
 
     def _is_quote_request(self, message_text: str) -> bool:
         text = _normalize_chinese((message_text or "").strip().lower())
@@ -662,11 +696,26 @@ class MessagesService:
         compact_text = re.sub(r"\s+", "", text)
         return any(keyword in compact_text for keyword in self.standard_format_trigger_keywords)
 
-    _SHIPPING_SIGNAL_STRONG = frozenset({
-        "快递", "物流", "包裹", "运费", "邮费", "重量",
-        "公斤", "寄到", "发到", "送到", "寄件", "发件", "收件",
-        "报价", "多少钱", "价格",
-    })
+    _SHIPPING_SIGNAL_STRONG = frozenset(
+        {
+            "快递",
+            "物流",
+            "包裹",
+            "运费",
+            "邮费",
+            "重量",
+            "公斤",
+            "寄到",
+            "发到",
+            "送到",
+            "寄件",
+            "发件",
+            "收件",
+            "报价",
+            "多少钱",
+            "价格",
+        }
+    )
 
     _SHIPPING_SIGNAL_RE = re.compile(
         r"\d+\s*(?:kg|公斤|斤|g|克)(?![a-zA-Z])"
@@ -746,9 +795,7 @@ class MessagesService:
         r"已付款|已支付|你已发货|去发货|我已付款|等待你发货|等待发货|请包装好|按.*地址发货"
     )
 
-    def _detect_and_update_phase(
-        self, message_text: str, session_id: str, context: dict[str, Any]
-    ) -> str:
+    def _detect_and_update_phase(self, message_text: str, session_id: str, context: dict[str, Any]) -> str:
         current = str(context.get("phase") or "presale")
         text = message_text or ""
 
@@ -761,10 +808,7 @@ class MessagesService:
             old_origin = context.get("origin")
             old_dest = context.get("destination")
             has_weight = bool(re.search(r"\d+(?:\.\d+)?\s*(?:kg|公斤|斤|g|克)", text, re.IGNORECASE))
-            has_new_route = bool(
-                origin and dest and has_weight
-                and (origin != old_origin or dest != old_dest)
-            )
+            has_new_route = bool(origin and dest and has_weight and (origin != old_origin or dest != old_dest))
             if has_new_route:
                 new_phase = "presale"
             else:
@@ -815,6 +859,7 @@ class MessagesService:
         if not hasattr(self, "_content_service") or self._content_service is None:
             try:
                 from src.modules.content.service import ContentService
+
                 self._content_service = ContentService()
             except Exception:
                 self._content_service = None
@@ -861,7 +906,7 @@ class MessagesService:
             with open(faq_path, encoding="utf-8") as f:
                 faq_data = json.load(f)
             if isinstance(faq_data, list):
-                items = [f"Q: {item.get('q','')} A: {item.get('a','')}" for item in faq_data[:20]]
+                items = [f"Q: {item.get('q', '')} A: {item.get('a', '')}" for item in faq_data[:20]]
                 return "\n常见问答参考：\n" + "\n".join(items) + "\n"
         except Exception:
             pass
@@ -938,7 +983,9 @@ class MessagesService:
         all_names = couriers + [a for a in self._COURIER_ALIASES if a not in couriers]
 
         pattern = re.compile(
-            r"(?:选|选择|确认|走|用|安排)\s*(" + "|".join([re.escape(x) for x in sorted(all_names, key=len, reverse=True)]) + r")",
+            r"(?:选|选择|确认|走|用|安排)\s*("
+            + "|".join([re.escape(x) for x in sorted(all_names, key=len, reverse=True)])
+            + r")",
             flags=re.IGNORECASE,
         )
         matched = pattern.search(text)
@@ -1018,8 +1065,7 @@ class MessagesService:
             reply = self.courier_lock_template.format(courier=courier, price=price_label, eta_days=eta_days)
         except Exception:
             reply = (
-                f"好的，已为您锁定 {courier}（{price_label}）~\n"
-                "先拍下链接不付款，我帮您改价，付款后系统自动发兑换码哦~"
+                f"好的，已为您锁定 {courier}（{price_label}）~\n先拍下链接不付款，我帮您改价，付款后系统自动发兑换码哦~"
             )
         if courier != "已选渠道" and courier not in reply:
             reply = f"已为您锁定 {courier}（{price_label}）~\n{reply}"
@@ -1032,10 +1078,13 @@ class MessagesService:
         try:
             log_path = Path("data/unmatched_messages.jsonl")
             log_path.parent.mkdir(parents=True, exist_ok=True)
-            entry = json.dumps({
-                "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
-                "msg": (message_text or "")[:200],
-            }, ensure_ascii=False)
+            entry = json.dumps(
+                {
+                    "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                    "msg": (message_text or "")[:200],
+                },
+                ensure_ascii=False,
+            )
             with open(log_path, "a", encoding="utf-8") as f:
                 f.write(entry + "\n")
         except Exception:
@@ -1047,6 +1096,7 @@ class MessagesService:
             text = self.non_empty_reply_fallback
 
         from src.modules.messages.reply_engine import get_word_replacements
+
         for forbidden, safe in get_word_replacements().items():
             text = text.replace(forbidden, safe)
 
@@ -1125,7 +1175,9 @@ class MessagesService:
                         parts = []
                         sf_kw = re.search(r"顺丰|京东", message_text or "")
                         if sf_kw:
-                            parts.append("闲鱼特价渠道暂时没有顺丰/京东，小程序内可直接下单且价格更优~ 这边有韵达/圆通/中通/申通可选")
+                            parts.append(
+                                "闲鱼特价渠道暂时没有顺丰/京东，小程序内可直接下单且价格更优~ 这边有韵达/圆通/中通/申通可选"
+                            )
                         else:
                             parts.append("在的亲")
                         route_str = f"{origin} -> {dest}" if origin and dest else (origin or dest or "")
@@ -1139,13 +1191,15 @@ class MessagesService:
                             "rule_matched": pre_matched.name,
                         }
 
-            _QUOTE_YIELDABLE_RULES = frozenset({
-                "express_large",
-                "express_volume",
-                "express_remote_area",
-                "express_first_weight",
-                "express_sf_jd",
-            })
+            _QUOTE_YIELDABLE_RULES = frozenset(
+                {
+                    "express_large",
+                    "express_volume",
+                    "express_remote_area",
+                    "express_first_weight",
+                    "express_sf_jd",
+                }
+            )
             use_rule_reply = True
             if is_quote_intent and pre_matched.name in _QUOTE_YIELDABLE_RULES:
                 _origin, _dest = self._extract_locations(message_text)
@@ -1157,8 +1211,7 @@ class MessagesService:
                 if _origin and _dest and _weight is not None and _weight > 0:
                     use_rule_reply = False
                     self.logger.info(
-                        "[quote_override] Rule '%s' yielded to quote engine "
-                        "(buyer has quote intent + complete info)",
+                        "[quote_override] Rule '%s' yielded to quote engine (buyer has quote intent + complete info)",
                         pre_matched.name,
                     )
 
@@ -1200,11 +1253,14 @@ class MessagesService:
             message_text,
             session_id=session_id,
         )
-        if missing and not is_post_order and session_phase == "presale" and (
-            is_quote_intent or force_standard_format or (
-                self.strict_format_reply_enabled
-                and not is_virtual
-                and self._has_shipping_signal(message_text)
+        if (
+            missing
+            and not is_post_order
+            and session_phase == "presale"
+            and (
+                is_quote_intent
+                or force_standard_format
+                or (self.strict_format_reply_enabled and not is_virtual and self._has_shipping_signal(message_text))
             )
         ):
             fields = "、".join([self.quote_missing_prompts[field] for field in missing])
@@ -1410,9 +1466,7 @@ class MessagesService:
             get_context=self._get_quote_context,
         )
 
-    _ORDER_TRIGGER_PATTERNS = re.compile(
-        r"拍了|拍下|已拍|已下单|下单了|付款|已买|改价|改个价|帮我改|拍好了|我拍了"
-    )
+    _ORDER_TRIGGER_PATTERNS = re.compile(r"拍了|拍下|已拍|已下单|下单了|付款|已买|改价|改个价|帮我改|拍好了|我拍了")
 
     def _check_order_trigger(self, msg: str) -> None:
         """If buyer message hints at placing an order, wake up the price poller."""
@@ -1614,9 +1668,7 @@ class MessagesService:
                             self._workflow_store.set_manual_takeover(session_id, True)
                         except Exception:
                             pass
-                    self.logger.info(
-                        f"检测到人工介入: session={session_id}, text={str(m.get('text', ''))[:30]}"
-                    )
+                    self.logger.info(f"检测到人工介入: session={session_id}, text={str(m.get('text', ''))[:30]}")
                     return True
         return False
 
@@ -1662,10 +1714,7 @@ class MessagesService:
             session_id=session_id,
         )
 
-        should_persist = (
-            session_id
-            and (quote_meta.get("quote_success") or quote_meta.get("courier_locked"))
-        )
+        should_persist = session_id and (quote_meta.get("quote_success") or quote_meta.get("courier_locked"))
         if should_persist:
             self._persist_quote_to_ledger(
                 session_id=session_id,

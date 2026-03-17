@@ -23,9 +23,7 @@ def handle_virtual_goods_metrics(ctx: RouteContext) -> None:
     metrics_query = getattr(ctx.mimic_ops, "get_virtual_goods_metrics", None)
     if callable(metrics_query):
         result = metrics_query()
-        payload = (
-            result if isinstance(result, dict) else _error_payload("virtual_goods metrics payload invalid")
-        )
+        payload = result if isinstance(result, dict) else _error_payload("virtual_goods metrics payload invalid")
     else:
         aggregate_query = getattr(ctx.mimic_ops, "get_dashboard_readonly_aggregate", None)
         aggregate = aggregate_query() if callable(aggregate_query) else None
@@ -41,9 +39,7 @@ def handle_virtual_goods_metrics(ctx: RouteContext) -> None:
             if not payload["success"]:
                 payload = aggregate
         else:
-            payload = _error_payload(
-                "virtual_goods metrics endpoint unavailable", code="VG_QUERY_NOT_AVAILABLE"
-            )
+            payload = _error_payload("virtual_goods metrics endpoint unavailable", code="VG_QUERY_NOT_AVAILABLE")
     ctx.send_json(payload, status=200 if payload.get("success") else 400)
 
 
@@ -77,6 +73,7 @@ def handle_orders_remind(ctx: RouteContext) -> None:
 
     try:
         from src.modules.followup.service import FollowUpEngine
+
         engine = FollowUpEngine.from_system_config()
     except Exception as init_err:
         ctx.send_json({"ok": False, "error": f"催单引擎初始化失败: {init_err}", "reason": "engine_init_error"})
@@ -110,6 +107,7 @@ def handle_orders_remind(ctx: RouteContext) -> None:
                 msgs_cfg = {}
                 try:
                     from src.core.config import get_config as _get_config
+
                     msgs_cfg = _get_config().messages
                 except Exception:
                     pass
@@ -215,8 +213,11 @@ def handle_xgj_test_connection(ctx: RouteContext) -> None:
         return
     try:
         info = _test_xgj_connection(
-            app_key=app_key, app_secret=app_secret,
-            base_url=base_url, mode=mode, seller_id=seller_id,
+            app_key=app_key,
+            app_secret=app_secret,
+            base_url=base_url,
+            mode=mode,
+            seller_id=seller_id,
         )
         ctx.send_json(info)
     except Exception as exc:
@@ -248,9 +249,7 @@ def handle_xgj_proxy(ctx: RouteContext) -> None:
     mode = str(xgj.get("mode", "self_developed"))
     seller_id = str(xgj.get("seller_id", ""))
     if not app_key or not app_secret:
-        ctx.send_json(
-            {"ok": False, "error": "闲管家 API 未配置，请在设置中配置 AppKey 和 AppSecret"}, status=400
-        )
+        ctx.send_json({"ok": False, "error": "闲管家 API 未配置，请在设置中配置 AppKey 和 AppSecret"}, status=400)
         return
     payload_str = json.dumps(req_body, ensure_ascii=False)
     ts = str(int(time.time()))
@@ -261,9 +260,7 @@ def handle_xgj_proxy(ctx: RouteContext) -> None:
             app_key=app_key, app_secret=app_secret, seller_id=seller_id, timestamp=ts, body=payload_str
         )
     else:
-        sign = sign_open_platform_request(
-            app_key=app_key, app_secret=app_secret, timestamp=ts, body=payload_str
-        )
+        sign = sign_open_platform_request(app_key=app_key, app_secret=app_secret, timestamp=ts, body=payload_str)
     try:
         import httpx
 
@@ -279,9 +276,8 @@ def handle_xgj_proxy(ctx: RouteContext) -> None:
 
         if api_path == "/api/open/product/list":
             from src.dashboard_server import DashboardHandler
-            DashboardHandler._enrich_product_images(
-                resp_data, base_url, app_key, app_secret, mode, seller_id
-            )
+
+            DashboardHandler._enrich_product_images(resp_data, base_url, app_key, app_secret, mode, seller_id)
 
         ctx.send_json({"ok": True, "data": resp_data})
     except Exception as exc:

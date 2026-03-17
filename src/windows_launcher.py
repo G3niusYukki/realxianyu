@@ -166,7 +166,9 @@ class WindowsLauncherApp(ctk.CTk):
             from src import __version__ as _ver
         except Exception:
             _ver = "8.0.0"
-        ctk.CTkLabel(frame, text=f"v{_ver}", text_color="gray70").grid(row=1, column=0, padx=30, pady=(0, 20), sticky="w")
+        ctk.CTkLabel(frame, text=f"v{_ver}", text_color="gray70").grid(
+            row=1, column=0, padx=30, pady=(0, 20), sticky="w"
+        )
 
         ctk.CTkLabel(
             frame,

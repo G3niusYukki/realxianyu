@@ -49,13 +49,15 @@ def _is_goofish_im_running() -> bool:
         if system == "Darwin":
             r = subprocess.run(
                 ["pgrep", "-f", "闲管家"],
-                capture_output=True, timeout=5,
+                capture_output=True,
+                timeout=5,
             )
             return r.returncode == 0
         if system == "Windows":
             r = subprocess.run(
                 ["tasklist", "/FI", "IMAGENAME eq goofish-im.exe", "/NH"],
-                capture_output=True, timeout=5,
+                capture_output=True,
+                timeout=5,
             )
             return "goofish-im.exe" in r.stdout.decode("gbk", errors="ignore")
     except Exception:
@@ -141,10 +143,7 @@ def read_goofish_im_cookies(
         uri = f"file:{db_path}?mode=ro&immutable=1"
         conn = sqlite3.connect(uri, uri=True, timeout=3)
         try:
-            rows = conn.execute(
-                "SELECT name, value, host_key FROM cookies "
-                "WHERE length(value) > 0"
-            ).fetchall()
+            rows = conn.execute("SELECT name, value, host_key FROM cookies WHERE length(value) > 0").fetchall()
         finally:
             conn.close()
     except (sqlite3.Error, OSError) as exc:
@@ -180,17 +179,15 @@ def read_goofish_im_cookies(
                 )
                 low_ttl_warning = True
             else:
-                logger.info(
-                    f"goofish_im: _m_h5_tk already expired ({m_h5_tk_ttl:.0f}s), skipping"
-                )
+                logger.info(f"goofish_im: _m_h5_tk already expired ({m_h5_tk_ttl:.0f}s), skipping")
                 return None
 
     cookie_str = "; ".join(f"{k}={v}" for k, v in cookies.items())
 
     logger.info(
-        f"goofish_im: read {len(cookies)} cookies from {db_path.parent.name}, "
-        f"_m_h5_tk TTL={m_h5_tk_ttl:.0f}s" if m_h5_tk_ttl is not None else
-        f"goofish_im: read {len(cookies)} cookies from {db_path.parent.name}"
+        f"goofish_im: read {len(cookies)} cookies from {db_path.parent.name}, _m_h5_tk TTL={m_h5_tk_ttl:.0f}s"
+        if m_h5_tk_ttl is not None
+        else f"goofish_im: read {len(cookies)} cookies from {db_path.parent.name}"
     )
 
     return {
