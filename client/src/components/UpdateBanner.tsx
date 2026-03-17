@@ -112,6 +112,29 @@ export default function UpdateBanner() {
     }
   };
 
+  const reconnectAttemptsRef = useRef(0);
+
+  const startReconnecting = useCallback(() => {
+    if (reconnectRef.current) clearInterval(reconnectRef.current);
+    reconnectAttemptsRef.current = 0;
+    reconnectRef.current = setInterval(async () => {
+      reconnectAttemptsRef.current++;
+      try {
+        await api.get('/healthz');
+        if (reconnectRef.current) clearInterval(reconnectRef.current);
+        setPhase('done');
+        localStorage.removeItem(CACHE_KEY);
+        setTimeout(() => window.location.reload(), 1500);
+      } catch {
+        if (reconnectAttemptsRef.current > 30) {
+          if (reconnectRef.current) clearInterval(reconnectRef.current);
+          setPhase('error');
+          setErrorMsg('服务重启超时，请手动刷新页面');
+        }
+      }
+    }, 2000);
+  }, []);
+
   const startPollingStatus = useCallback(() => {
     if (pollRef.current) clearInterval(pollRef.current);
     pollRef.current = setInterval(async () => {
@@ -136,28 +159,7 @@ export default function UpdateBanner() {
         startReconnecting();
       }
     }, 2000);
-  }, []);
-
-  const startReconnecting = useCallback(() => {
-    if (reconnectRef.current) clearInterval(reconnectRef.current);
-    let attempts = 0;
-    reconnectRef.current = setInterval(async () => {
-      attempts++;
-      try {
-        await api.get('/healthz');
-        if (reconnectRef.current) clearInterval(reconnectRef.current);
-        setPhase('done');
-        localStorage.removeItem(CACHE_KEY);
-        setTimeout(() => window.location.reload(), 1500);
-      } catch {
-        if (attempts > 30) {
-          if (reconnectRef.current) clearInterval(reconnectRef.current);
-          setPhase('error');
-          setErrorMsg('服务重启超时，请手动刷新页面');
-        }
-      }
-    }, 2000);
-  }, []);
+  }, [startReconnecting]);
 
   const handleUpdate = async () => {
     setPhase('checking');

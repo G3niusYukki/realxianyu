@@ -59,7 +59,11 @@ export default function Orders() {
       if (activeTab?.status) payload.order_status = activeTab.status;
 
       const res = await getOrders(payload);
-      if (res.data?.ok) setOrders(res.data.data?.data?.list || res.data.data?.list || []);
+      if (res.data?.ok) {
+        const d = res.data.data;
+        const list = Array.isArray(d) ? d : (d?.data?.list || d?.list || []);
+        setOrders(list);
+      }
       else toast.error(res.data?.error || '无法获取订单');
     } catch { toast.error('加载订单失败'); }
     finally { setLoading(false); }

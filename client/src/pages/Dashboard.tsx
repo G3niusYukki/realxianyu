@@ -406,9 +406,9 @@ const Dashboard = () => {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 mb-8">
             {[
               { label: '在售商品', value: stats.products, icon: ShoppingBag, color: 'bg-xy-brand-50', iconColor: 'text-xy-brand-500' },
-              { label: '待付款订单', value: stats.orders, icon: Clock, color: 'bg-orange-50', iconColor: 'text-orange-500' },
+              { label: dataSource === 'xianguanjia_api' ? '待付款订单' : '今日操作', value: stats.orders, icon: Clock, color: 'bg-orange-50', iconColor: 'text-orange-500' },
               { label: '总销量', value: stats.sales, icon: TrendingUp, color: 'bg-blue-50', iconColor: 'text-blue-500' },
-              { label: '总订单数', value: stats.totalOrders, icon: FileText, color: 'bg-green-50', iconColor: 'text-green-500' },
+              { label: dataSource === 'xianguanjia_api' ? '总订单数' : '总操作数', value: stats.totalOrders, icon: FileText, color: 'bg-green-50', iconColor: 'text-green-500' },
             ].map(card => (
               <div key={card.label} className="xy-card p-6">
                 <div className="flex items-center justify-between mb-4">

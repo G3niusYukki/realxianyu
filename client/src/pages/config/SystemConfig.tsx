@@ -24,6 +24,7 @@ interface CategoryDefaults {
     auto_adjust: boolean;
     min_margin_percent: number;
     max_discount_percent: number;
+    safety_margin_percent?: number;
   };
   delivery: {
     auto_delivery: boolean;
@@ -39,7 +40,7 @@ const GENERIC_DEFAULTS: CategoryDefaults = {
     ai_intent_enabled: true,
     enabled: true,
   },
-  pricing: { auto_adjust: true, min_margin_percent: 10, max_discount_percent: 20 },
+  pricing: { auto_adjust: true, min_margin_percent: 10, max_discount_percent: 20, safety_margin_percent: 0 },
   delivery: { auto_delivery: true, delivery_timeout_minutes: 30 },
   summary: ['自动回复 → 通用话术', '定价 → 均衡方案', '发货 → 自动发货'],
 };
@@ -52,7 +53,7 @@ const CATEGORY_DEFAULTS: Record<string, CategoryDefaults> = {
       ai_intent_enabled: true,
       enabled: true,
     },
-    pricing: { auto_adjust: false, min_margin_percent: 15, max_discount_percent: 15 },
+    pricing: { auto_adjust: false, min_margin_percent: 15, max_discount_percent: 15, safety_margin_percent: 0 },
     delivery: { auto_delivery: false, delivery_timeout_minutes: 60 },
     summary: ['自动回复 → 快递兑换码业务话术', '定价 → 保守方案（利润率 15%）', '发货 → 手动发货（需填快递单号）'],
   },
@@ -63,7 +64,7 @@ const CATEGORY_DEFAULTS: Record<string, CategoryDefaults> = {
       ai_intent_enabled: true,
       enabled: true,
     },
-    pricing: { auto_adjust: true, min_margin_percent: 5, max_discount_percent: 10 },
+    pricing: { auto_adjust: true, min_margin_percent: 5, max_discount_percent: 10, safety_margin_percent: 0 },
     delivery: { auto_delivery: true, delivery_timeout_minutes: 5 },
     summary: ['自动回复 → 兑换码/卡密专用话术', '定价 → 激进方案（利润率 5%）', '发货 → 自动发码（付款后 5 秒）'],
   },
@@ -843,6 +844,7 @@ export default function SystemConfig() {
         auto_adjust: defaults.pricing.auto_adjust,
         min_margin_percent: defaults.pricing.min_margin_percent,
         max_discount_percent: defaults.pricing.max_discount_percent,
+        safety_margin_percent: defaults.pricing.safety_margin_percent ?? 0,
       };
       next.delivery = {
         ...(prev.delivery || {}),
@@ -1824,6 +1826,11 @@ export default function SystemConfig() {
                   </div>
                 </div>
                 <div className="space-y-4">
+                  <div>
+                    <label className="xy-label">报价安全加价 (%)</label>
+                    <input type="number" className="xy-input px-3 py-2" value={config.pricing?.safety_margin_percent ?? 0} onChange={e => handleChange('pricing', 'safety_margin_percent', Number(e.target.value))} />
+                    <p className="text-xs text-gray-400 mt-1">在成本价基础上额外加价的百分比，0 表示不加价。例如填 3 表示加价 3%</p>
+                  </div>
                   <div className="flex items-center justify-between">
                     <div><p className="font-medium text-sm text-xy-text-primary">自动调价</p><p className="text-xs text-xy-text-secondary">系统根据市场行情和库存自动调整价格</p></div>
                     <ToggleSwitch checked={!!config.pricing?.auto_adjust} onChange={() => handleChange('pricing', 'auto_adjust', !config.pricing?.auto_adjust)} />
