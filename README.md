@@ -345,9 +345,10 @@ CookieCloud 是浏览器扩展，可将 Cookie 实时同步到服务端。风控
 **症状**：双击 `闲鱼管家.command` 后终端闪退或无日志输出。
 
 **解决**：
-1. 确认 `start.sh` 有执行权限：`chmod +x start.sh`
-2. 检查 Python 和 Node.js 是否在 PATH 中
-3. 尝试在终端中直接运行 `bash start.sh` 查看详细错误
+1. **重新生成桌面快捷方式**（推荐）：在项目目录运行 `bash scripts/macos/install-desktop.sh`，会生成带 PATH 补全的 .command 文件，双击即可正常显示日志
+2. 确认 `start.sh` 有执行权限：`chmod +x start.sh`
+3. 检查 Python 和 Node.js 是否在 PATH 中（Homebrew 安装的通常在 `/opt/homebrew/bin`）
+4. 在终端中直接运行 `bash start.sh` 查看详细错误
 </details>
 
 <details>

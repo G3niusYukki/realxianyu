@@ -15,12 +15,28 @@ chmod +x "$SCRIPT_DIR/start.command" 2>/dev/null || true
 
 if [ -d "$DESKTOP" ]; then
     # 动态生成 .command 文件，写入实际的项目绝对路径
+    # 注：从 Finder 双击时 PATH 很有限，必须在脚本开头补充 PATH
     cat > "$DESKTOP/闲鱼管家.command" << CMDEOF
 #!/usr/bin/env bash
 # 闲鱼管家 - 桌面一键启动（由 install-desktop.sh 生成）
 # 项目路径: $PROJECT_ROOT
 
-cd "$PROJECT_ROOT"
+echo "正在启动闲鱼管家..."
+echo ""
+
+# 从 Finder 双击时 PATH 不完整，补充常见路径
+for p in /opt/homebrew/bin /opt/homebrew/sbin /usr/local/bin; do
+  [ -d "\$p" ] 2>/dev/null && case ":\$PATH:" in *:"\$p":*) ;; *) export PATH="\$p:\$PATH" ;; esac
+done
+for p in "\$HOME/.nvm/versions/node"/*/bin; do
+  [ -d "\$p" ] 2>/dev/null && case ":\$PATH:" in *:"\$p":*) ;; *) export PATH="\$p:\$PATH" ;; esac
+done
+[ -s "\$HOME/.nvm/nvm.sh" ] && source "\$HOME/.nvm/nvm.sh" 2>/dev/null || true
+
+cd "$PROJECT_ROOT" || { echo "[错误] 无法进入项目目录: $PROJECT_ROOT"; echo "按回车键关闭..."; read; exit 1; }
+
+echo "工作目录: \$(pwd)"
+echo ""
 
 if [ -f "start.sh" ]; then
     exec bash start.sh
