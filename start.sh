@@ -54,13 +54,13 @@ fi
 PY_VER=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
 info "Python 版本: $PY_VER"
 
-# 2. 检查 Node.js（Vite 前端开发工具需要）
+# 2. 检查 Node.js (Vite 前端需要)
 if ! command -v node &>/dev/null; then
-  fail "未找到 node，请先安装 Node.js 18+（React 前端开发工具需要）"
+  fail "未找到 node, 请先安装 Node.js 18+"
 fi
 
-NODE_VER=$(node -v)
-info "Node.js 版本: $NODE_VER（前端开发工具）"
+NODE_VER="$(node -v 2>/dev/null || echo unknown)"
+info "Node.js 版本: ${NODE_VER}"
 
 # 3. 创建 .env（如不存在）
 if [ ! -f ".env" ]; then
