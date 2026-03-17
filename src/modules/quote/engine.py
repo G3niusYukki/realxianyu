@@ -306,7 +306,7 @@ class AutoQuoteEngine:
 
     @staticmethod
     def _resolve_safety_margin(cfg: dict[str, Any]) -> float:
-        """Read safety_margin from system_config.json (Dashboard UI) first, fallback to config.yaml."""
+        """Read safety_margin from system_config.json (Dashboard UI). Default 0.0 (no markup)."""
         try:
             from src.dashboard.config_service import read_system_config
             sys_cfg = read_system_config()
@@ -316,7 +316,7 @@ class AutoQuoteEngine:
                 return float(ui_val) / 100.0
         except Exception:
             pass
-        return float(cfg.get("safety_margin", 0.0))
+        return 0.0
 
     @staticmethod
     def _classify_failure(error: Exception | None) -> str:

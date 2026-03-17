@@ -184,6 +184,14 @@ else
   warn "未找到 venv pip 或 requirements.txt，跳过依赖安装"
 fi
 
+# ═══════════════ 4.5 配置迁移 ═══════════════
+CONFIG_YAML="$PROJECT_ROOT/config/config.yaml"
+if [ -f "$CONFIG_YAML" ] && grep -q 'safety_margin: 0\.03' "$CONFIG_YAML" 2>/dev/null; then
+  sed -i.migbak 's/safety_margin: 0\.03/safety_margin: 0.0/' "$CONFIG_YAML"
+  rm -f "${CONFIG_YAML}.migbak" 2>/dev/null
+  ok "已自动将 safety_margin 从 0.03 修正为 0.0"
+fi
+
 # ═══════════════ 5. 重启服务 ═══════════════
 info "[5/5] 重新启动服务..."
 write_status "restarting"

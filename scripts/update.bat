@@ -133,6 +133,16 @@ if not "%VENV_PIP%"=="" (
     echo [!!] 未找到 venv pip，跳过依赖安装
 )
 
+REM ═══════════════ 4.5 配置迁移 ═══════════════
+set "_CFG=%PROJECT_ROOT%\config\config.yaml"
+if exist "%_CFG%" (
+    findstr /C:"safety_margin: 0.03" "%_CFG%" >nul 2>&1
+    if !errorlevel! equ 0 (
+        powershell -Command "(Get-Content '%_CFG%') -replace 'safety_margin: 0\.03','safety_margin: 0.0' | Set-Content '%_CFG%'"
+        echo [OK] 已自动将 safety_margin 从 0.03 修正为 0.0
+    )
+)
+
 REM ═══════════════ 5. 重启服务 ═══════════════
 echo [^>^>] [5/5] 重新启动服务...
 call :write_status "restarting" ""

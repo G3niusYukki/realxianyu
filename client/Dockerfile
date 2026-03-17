@@ -1,12 +1,10 @@
 FROM node:20-alpine AS build
 
 ARG MIRROR=international
-ARG VITE_NODE_API_URL=/api
-ARG VITE_PY_API_URL=/py
+ARG VITE_API_URL=/api
 # 国内构建: docker build --build-arg MIRROR=china .
 
-ENV VITE_NODE_API_URL=$VITE_NODE_API_URL
-ENV VITE_PY_API_URL=$VITE_PY_API_URL
+ENV VITE_API_URL=$VITE_API_URL
 WORKDIR /app
 COPY package*.json ./
 RUN if [ "$MIRROR" = "china" ]; then \
