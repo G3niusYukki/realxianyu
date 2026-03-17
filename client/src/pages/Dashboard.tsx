@@ -288,12 +288,12 @@ const Dashboard = () => {
   }, [metric, days, applyAnalyticsResults]);
 
   // Initial load
-  useEffect(() => { fetchDashboardData() }, []);
+  useEffect(() => { fetchDashboardData() }, [fetchDashboardData]);
 
   // Analytics tab data fetch on metric/days change
   useEffect(() => {
     if (activeTab === 'analytics') fetchAnalyticsData();
-  }, [activeTab, metric, days]);
+  }, [activeTab, metric, days, fetchAnalyticsData]);
 
   // 60s auto-polling with visibility check
   useEffect(() => {

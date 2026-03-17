@@ -909,6 +909,10 @@ class WorkflowWorker:
                         self.store.set_manual_takeover(job.session_id, True)
                     elif wf_manual and not mm_manual and self._manual_mode_store is not None:
                         self._manual_mode_store.set_state(job.session_id, True)
+                    self.logger.info(
+                        f"process_session skipped: 人工模式, session_id={job.session_id}, "
+                        f"wf_manual={wf_manual}, mm_manual={mm_manual}"
+                    )
                     skipped_manual += 1
                     self.store.complete_job(job.id, expected_lease_until=job.lease_until)
                     continue

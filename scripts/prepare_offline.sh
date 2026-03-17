@@ -167,36 +167,58 @@ download_pip_packages() {
   local platform_tag="$1" dest_dir="$2" label="$3"
 
   if [ -d "$dest_dir" ] && [ "$(ls -A "$dest_dir" 2>/dev/null)" ]; then
-    local count; count=$(ls "$dest_dir"/*.whl "$dest_dir"/*.tar.gz "$dest_dir"/*.zip 2>/dev/null | wc -l | tr -d ' ')
+    local count
+    count=$(find "$dest_dir" -maxdepth 1 \( -name "*.whl" -o -name "*.tar.gz" -o -name "*.zip" \) | wc -l | tr -d ' ')
     if [ "$count" -gt 10 ]; then
       ok "$label (已存在 ${count} 个包，跳过。删除目录可重新下载)"
       return 0
     fi
   fi
 
-  info "下载 $label (wheel 优先)..."
+  info "下载 $label (逐包下载, wheel 优先)..."
 
-  $PIP_CMD download -r "$REQ_FILE" \
-    --platform "$platform_tag" \
-    --python-version "$TARGET_PYVER" \
-    --only-binary=:all: \
-    -d "$dest_dir/" 2>&1 | grep -E "Saved|ERROR|No matching" || true
-
-  # 补充只发布 sdist 的包（如 oss2）- 这些是纯 Python，跨平台通用
-  info "补充 sdist 包..."
+  local succeeded=0 failed=0
   while IFS= read -r pkg_line; do
-    pkg_name=$(echo "$pkg_line" | sed 's/[>=<].*//' | sed 's/\[.*//' | tr -d ' ')
-    [ -z "$pkg_name" ] && continue
-    [[ "$pkg_name" =~ ^# ]] && continue
-    # 检查是否已有该包的 wheel
-    if ! ls "$dest_dir/"*"${pkg_name}"* &>/dev/null 2>&1; then
-      $PIP_CMD download "$pkg_line" --no-binary=:all: --no-deps -d "$dest_dir/" 2>/dev/null || true
+    pkg_line=$(echo "$pkg_line" | sed 's/#.*//' | tr -d ' ')
+    [ -z "$pkg_line" ] && continue
+
+    local pkg_name
+    pkg_name=$(echo "$pkg_line" | sed 's/[>=<\[].*//' | tr '[:upper:]' '[:lower:]' | tr '-' '_')
+
+    if $PIP_CMD download "$pkg_line" \
+      --platform "$platform_tag" \
+      --python-version "$TARGET_PYVER" \
+      --only-binary=:all: \
+      --no-deps \
+      -d "$dest_dir/" 2>/dev/null; then
+      succeeded=$((succeeded + 1))
+    else
+      if $PIP_CMD download "$pkg_line" --no-binary=:all: --no-deps -d "$dest_dir/" 2>/dev/null; then
+        succeeded=$((succeeded + 1))
+      else
+        warn "  跳过: $pkg_line (无可用 wheel/sdist)"
+        failed=$((failed + 1))
+      fi
     fi
   done < "$REQ_FILE"
 
-  local final_count; final_count=$(ls "$dest_dir"/*.whl "$dest_dir"/*.tar.gz "$dest_dir"/*.zip 2>/dev/null | wc -l | tr -d ' ')
-  local total_size; total_size=$(du -sh "$dest_dir" | cut -f1)
-  ok "$label 完成 (${final_count} 个包, ${total_size})"
+  # 补充下载传递依赖（如 pydantic-core、typing-extensions 等）
+  info "补充传递依赖..."
+  # 排除无 wheel 的纯 sdist 包，只下载有 wheel 的包的传递依赖
+  local temp_req; temp_req=$(mktemp)
+  grep -v "^#" "$REQ_FILE" | grep -v "^$" | grep -iv "oss2" > "$temp_req" || true
+  $PIP_CMD download -r "$temp_req" \
+    --platform "$platform_tag" \
+    --python-version "$TARGET_PYVER" \
+    --only-binary=:all: \
+    -d "$dest_dir/" 2>&1 | grep -E "Saved|already" || true
+  rm -f "$temp_req"
+
+  local final_count
+  final_count=$(find "$dest_dir" -maxdepth 1 \( -name "*.whl" -o -name "*.tar.gz" -o -name "*.zip" \) | wc -l | tr -d ' ')
+  local total_size
+  total_size=$(du -sh "$dest_dir" | cut -f1)
+  ok "$label 完成 (${final_count} 个包, ${total_size}, ${failed} 个跳过)"
 }
 
 if [ "$PREP_MACOS" -eq 1 ]; then
@@ -247,7 +269,7 @@ if [ "$PREP_MACOS" -eq 1 ] && [ "$CURRENT_OS" = "macos" ]; then
     fi
   fi
 elif [ "$PREP_MACOS" -eq 1 ]; then
-  warn "macOS Playwright Chromium 需要在 macOS 设备上准备（当前为 $CURRENT_OS）"
+  warn "macOS Playwright Chromium 需要在 macOS 设备上准备 (当前为 ${CURRENT_OS})"
 fi
 
 if [ "$PREP_WINDOWS" -eq 1 ] && [ "$CURRENT_OS" = "windows" ]; then
@@ -264,7 +286,7 @@ if [ "$PREP_WINDOWS" -eq 1 ] && [ "$CURRENT_OS" = "windows" ]; then
     fi
   fi
 elif [ "$PREP_WINDOWS" -eq 1 ]; then
-  warn "Windows Playwright Chromium 需要在 Windows 设备上准备（当前为 $CURRENT_OS）"
+  warn "Windows Playwright Chromium 需要在 Windows 设备上准备 (当前为 ${CURRENT_OS})"
   info "在 Windows 设备上运行: scripts\\windows\\prepare_offline.bat"
 fi
 

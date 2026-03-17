@@ -68,6 +68,15 @@ if not exist ".env" (
     echo [OK] .env 已存在
 )
 
+:: 创建 config.yaml
+if not exist "config\config.yaml" (
+    if exist "config\config.example.yaml" (
+        if not exist "config" mkdir config
+        copy "config\config.example.yaml" "config\config.yaml" >nul
+        echo [OK] config.yaml 已从模板创建
+    )
+)
+
 :: Python 虚拟环境
 if not exist ".venv" (
     echo [*] 创建 Python 虚拟环境...
@@ -100,6 +109,15 @@ if not exist "client\node_modules" (
 
 :: 确保 data 目录存在
 if not exist "data" mkdir data
+
+:: 清理被占用端口
+for %%p in (8091 5173) do (
+    for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| findstr ":%%p " ^| findstr "LISTENING"') do (
+        echo [!] 端口 %%p 被占用 (PID: %%a)，正在释放...
+        taskkill /F /PID %%a >nul 2>&1
+        timeout /t 1 >nul
+    )
+)
 
 echo.
 echo =========================================

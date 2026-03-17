@@ -17,18 +17,37 @@ from src.core.logger import get_logger
 
 logger = get_logger()
 
-# 闲鱼个人主页，需要登录态才能正常访问（未登录会 302 到登录页）
 _PROBE_URL = "https://www.goofish.com/im"
 _LOGIN_URL_FRAGMENT = "login"
+_LOGIN_BODY_MARKERS = ("newlogin", "login-form", "qrcode-img", "请登录", "sign in")
+_LOGGED_IN_BODY_MARKERS = ("消息", "im-page", "chatList", "message-list")
+_M_H5_TK_EXPIRY_THRESHOLD = 1200
+
+
+def m_h5_tk_seconds_until_expiry(cookie_text: str) -> float | None:
+    """Parse _m_h5_tk expiry from cookie text. Returns seconds left or None."""
+    for pair in str(cookie_text or "").split(";"):
+        pair = pair.strip()
+        if pair.startswith("_m_h5_tk="):
+            val = pair[len("_m_h5_tk="):]
+            parts = val.split("_")
+            if len(parts) >= 2:
+                try:
+                    return (int(parts[1]) / 1000.0) - time.time()
+                except (ValueError, OverflowError):
+                    pass
+    return None
 
 
 class CookieHealthChecker:
     """Cookie 有效性探测 + 飞书告警。
 
     通过请求闲鱼个人页判断 Cookie 是否有效：
-    - HTTP 200 且未跳转到登录页 → 有效
+    - HTTP 200 且响应体包含登录态标记 → 有效
+    - HTTP 200 但响应体包含登录页标记 → 无效（SPA 登录态丢失）
     - HTTP 302 / 跳转到登录页 / 请求失败 → 无效
 
+    同时检查 _m_h5_tk TTL，即使 HTTP 健康但 token 即将过期也视为不健康。
     集成飞书告警：Cookie 失效时即时通知，恢复后发送恢复消息。
     """
 
@@ -47,7 +66,6 @@ class CookieHealthChecker:
         self._timeout = max(3.0, float(timeout_seconds))
         self._notifier = notifier
 
-        # 状态追踪
         self._last_check_ts: float = 0.0
         self._last_healthy: bool | None = None
         self._last_alert_ts: float = 0.0
@@ -109,9 +127,13 @@ class CookieHealthChecker:
         return result
 
     def _do_check_sync(self) -> dict[str, Any]:
-        """同步 HTTP 探测。"""
+        """同步 HTTP 探测 + _m_h5_tk TTL 检查。"""
         if not self._cookie_text:
             return self._build_result(False, "Cookie 未配置")
+
+        ttl_result = self._check_m_h5_tk_ttl()
+        if ttl_result is not None:
+            return ttl_result
 
         try:
             with httpx.Client(
@@ -127,9 +149,13 @@ class CookieHealthChecker:
             return self._build_result(False, f"探测异常: {type(exc).__name__}")
 
     async def _do_check_async(self) -> dict[str, Any]:
-        """异步 HTTP 探测。"""
+        """异步 HTTP 探测 + _m_h5_tk TTL 检查。"""
         if not self._cookie_text:
             return self._build_result(False, "Cookie 未配置")
+
+        ttl_result = self._check_m_h5_tk_ttl()
+        if ttl_result is not None:
+            return ttl_result
 
         try:
             async with httpx.AsyncClient(
@@ -144,8 +170,18 @@ class CookieHealthChecker:
         except Exception as exc:
             return self._build_result(False, f"探测异常: {type(exc).__name__}")
 
+    def _check_m_h5_tk_ttl(self) -> dict[str, Any] | None:
+        """检查 _m_h5_tk TTL，过低时直接返回不健康。"""
+        ttl = m_h5_tk_seconds_until_expiry(self._cookie_text)
+        if ttl is not None and ttl < _M_H5_TK_EXPIRY_THRESHOLD:
+            return self._build_result(
+                False,
+                f"_m_h5_tk 即将过期 (剩余 {int(ttl)}s / {int(ttl / 60)} 分钟)"
+            )
+        return None
+
     def _evaluate_response(self, resp: httpx.Response) -> dict[str, Any]:
-        """根据 HTTP 响应判断 Cookie 是否有效。"""
+        """根据 HTTP 响应 + 响应体判断 Cookie 是否有效。"""
         if resp.status_code in {301, 302, 303, 307, 308}:
             location = resp.headers.get("location", "")
             if _LOGIN_URL_FRAGMENT in location.lower():
@@ -153,15 +189,22 @@ class CookieHealthChecker:
             return self._build_result(False, f"非预期跳转: {location[:80]}")
 
         if resp.status_code == 200:
+            body = ""
+            try:
+                body = resp.text[:4096]
+            except Exception:
+                pass
+            body_lower = body.lower()
+            if body_lower and any(m in body_lower for m in _LOGIN_BODY_MARKERS):
+                if not any(m in body_lower for m in _LOGGED_IN_BODY_MARKERS):
+                    return self._build_result(False, "Cookie 无效（页面为登录表单）")
             return self._build_result(True, "Cookie 有效")
 
         if resp.status_code in {403, 401}:
             return self._build_result(False, "Cookie 已过期或无效")
 
-        # 404 等非致命状态码 — 闲鱼页面结构可能变化，
-        # 只要服务器有响应且不是认证失败，Cookie 可能仍有效
         if resp.status_code == 404:
-            return self._build_result(True, "页面返回 404 但连接正常")
+            return self._build_result(False, "探测页面返回 404，无法判断登录态")
 
         return self._build_result(False, f"HTTP {resp.status_code}")
 

@@ -12,7 +12,6 @@ from __future__ import annotations
 import asyncio
 import os
 import platform
-import re
 import subprocess
 import threading
 import time
@@ -831,24 +830,8 @@ class CookieGrabber:
     def _save(self, cookie_str: str, source: str = "auto") -> None:
         self._update(GrabStage.SAVING, "正在保存 Cookie...", "", 95)
 
-        os.environ["XIANYU_COOKIE_1"] = cookie_str
-
-        env_path = Path(".env")
-        if env_path.exists():
-            content = env_path.read_text(encoding="utf-8")
-            if "XIANYU_COOKIE_1=" in content:
-                content = re.sub(
-                    r"XIANYU_COOKIE_1=.*",
-                    f"XIANYU_COOKIE_1={cookie_str}",
-                    content,
-                )
-            else:
-                content += f"\nXIANYU_COOKIE_1={cookie_str}\n"
-            env_path.write_text(content, encoding="utf-8")
-        else:
-            env_path.write_text(f"XIANYU_COOKIE_1={cookie_str}\n", encoding="utf-8")
-
-        logger.info(f"Cookie 已保存 (source={source}, length={len(cookie_str)})")
+        from src.core.cookie_store import save_cookie
+        save_cookie(cookie_str, persist=True, source=source)
 
 
 # ======================================================================
@@ -950,18 +933,8 @@ class CookieAutoRefresher:
 
     @staticmethod
     def _m_h5_tk_seconds_until_expiry(cookie_text: str) -> float | None:
-        """Parse _m_h5_tk expiry from cookie text. Returns seconds left or None."""
-        for pair in str(cookie_text or "").split(";"):
-            pair = pair.strip()
-            if pair.startswith("_m_h5_tk="):
-                val = pair[len("_m_h5_tk="):]
-                parts = val.split("_")
-                if len(parts) >= 2:
-                    try:
-                        return (int(parts[1]) / 1000.0) - time.time()
-                    except (ValueError, OverflowError):
-                        pass
-        return None
+        from src.core.cookie_health import m_h5_tk_seconds_until_expiry
+        return m_h5_tk_seconds_until_expiry(cookie_text)
 
     def _tick(self) -> None:
         self._total_checks += 1
@@ -969,40 +942,47 @@ class CookieAutoRefresher:
 
         cookie_text = os.environ.get("XIANYU_COOKIE_1", "")
 
-        # 1) 检查当前 Cookie 是否健康
         healthy, msg = self._check_health(cookie_text)
         self._last_check_ok = healthy
         self._last_check_msg = msg
 
-        # 即使 HTTP 探测健康，也检查 _m_h5_tk 是否即将过期
         if healthy:
-            ttl = self._m_h5_tk_seconds_until_expiry(cookie_text)
-            if ttl is not None and ttl < 1200:
-                logger.info(f"Cookie 探测健康但 _m_h5_tk 仅剩 {ttl:.0f}s，提前触发刷新")
-                healthy = False
-                msg = f"_m_h5_tk 即将过期 (剩余 {int(ttl/60)} 分钟)"
-                self._last_check_ok = False
-                self._last_check_msg = msg
-            else:
-                logger.debug(f"Cookie 自动检查: 健康 ({msg})")
-                return
+            logger.debug(f"Cookie 自动检查: 健康 ({msg})")
+            return
 
         logger.info(f"Cookie 自动检查: 不健康 ({msg})，尝试静默刷新...")
 
-        # 2) 尝试 Level 0 (CookieCloud) -> Level 1 (rookiepy) 静默获取
-        loop = asyncio.new_event_loop()
+        # 2) 多级静默获取: 闲管家IM -> CookieCloud -> rookiepy -> Chrome Profile
         new_cookie: str | None = None
+
+        # Level IM: 闲管家IM直读（最可靠来源）
+        try:
+            from src.core.goofish_im_cookie import read_goofish_im_cookies, merge_cookies
+            im_result = read_goofish_im_cookies(min_ttl=60)
+            if im_result:
+                im_cookie = im_result["cookie_str"]
+                existing = cookie_text or ""
+                if existing:
+                    im_cookie = merge_cookies(im_result["cookies"], existing)
+                new_cookie = im_cookie
+                self._last_refresh_source = "goofish_im"
+                logger.info("自动刷新: 闲管家IM获取成功")
+        except Exception as im_exc:
+            logger.debug(f"自动刷新: 闲管家IM失败: {im_exc}")
+
+        loop = asyncio.new_event_loop()
         try:
             grabber = CookieGrabber()
             # Level 0: CookieCloud（如已配置）
-            try:
-                cc_cookie = loop.run_until_complete(grabber._grab_from_cookiecloud())
-                if cc_cookie:
-                    new_cookie = cc_cookie
-                    self._last_refresh_source = "cookiecloud"
-                    logger.info("自动刷新: CookieCloud 获取成功")
-            except Exception as cc_exc:
-                logger.debug(f"自动刷新: CookieCloud 失败: {cc_exc}")
+            if not new_cookie:
+                try:
+                    cc_cookie = loop.run_until_complete(grabber._grab_from_cookiecloud())
+                    if cc_cookie:
+                        new_cookie = cc_cookie
+                        self._last_refresh_source = "cookiecloud"
+                        logger.info("自动刷新: CookieCloud 获取成功")
+                except Exception as cc_exc:
+                    logger.debug(f"自动刷新: CookieCloud 失败: {cc_exc}")
             # Level 1: rookiepy 降级
             if not new_cookie:
                 new_cookie = loop.run_until_complete(grabber._grab_from_browser_db())
@@ -1015,16 +995,28 @@ class CookieAutoRefresher:
                         new_cookie = enriched
                     else:
                         logger.info("自动刷新: 会话字段补全失败")
+            # Level 1.5: Chrome Profile headless（零交互）
+            if not new_cookie:
+                try:
+                    profile_cookie = loop.run_until_complete(grabber._grab_from_profile())
+                    if profile_cookie:
+                        new_cookie = profile_cookie
+                        self._last_refresh_source = "chrome_profile"
+                        logger.info("自动刷新: Chrome Profile 获取成功")
+                except Exception as prof_exc:
+                    logger.debug(f"自动刷新: Chrome Profile 失败: {prof_exc}")
         finally:
             loop.close()
 
         if not new_cookie:
-            logger.info("Cookie 静默刷新: Level 1 未获取到 Cookie")
+            logger.info("Cookie 静默刷新: 所有静默方式均未获取到 Cookie")
             self._last_refresh_ok = False
             self._last_refresh_source = ""
             self._send_notification(
                 "⚠️ Cookie 已失效且自动刷新失败",
-                f"【闲鱼自动化】Cookie 过期告警\n状态: {msg}\n静默刷新: 未获取到新 Cookie\n请手动打开 Dashboard 更新 Cookie",
+                f"【闲鱼自动化】Cookie 过期告警\n状态: {msg}\n"
+                "静默刷新: 闲管家IM/CookieCloud/浏览器DB/Chrome Profile 均未获取到新 Cookie\n"
+                "请手动打开 Dashboard 更新 Cookie",
                 event="cookie_expire",
             )
             return
@@ -1048,10 +1040,16 @@ class CookieAutoRefresher:
         self._last_check_ok = True
         self._last_check_msg = "静默刷新成功"
 
-        os.environ["XIANYU_COOKIE_1"] = new_cookie
-        self._save_to_env(new_cookie)
+        from src.core.cookie_store import save_cookie
+        save_cookie(new_cookie, persist=True, source=self._last_refresh_source)
 
-        source_label = "CookieCloud" if self._last_refresh_source == "cookiecloud" else "浏览器数据库"
+        _source_labels = {
+            "goofish_im": "闲管家IM",
+            "cookiecloud": "CookieCloud",
+            "browser_db": "浏览器数据库",
+            "chrome_profile": "Chrome Profile",
+        }
+        source_label = _source_labels.get(self._last_refresh_source, self._last_refresh_source)
         logger.info(f"Cookie 静默刷新成功 (来源={source_label}, length={len(new_cookie)})")
 
         self._send_notification(
@@ -1098,20 +1096,5 @@ class CookieAutoRefresher:
 
     @staticmethod
     def _save_to_env(cookie_str: str) -> None:
-        env_path = Path(".env")
-        try:
-            if env_path.exists():
-                content = env_path.read_text(encoding="utf-8")
-                if "XIANYU_COOKIE_1=" in content:
-                    content = re.sub(
-                        r"XIANYU_COOKIE_1=.*",
-                        f"XIANYU_COOKIE_1={cookie_str}",
-                        content,
-                    )
-                else:
-                    content += f"\nXIANYU_COOKIE_1={cookie_str}\n"
-                env_path.write_text(content, encoding="utf-8")
-            else:
-                env_path.write_text(f"XIANYU_COOKIE_1={cookie_str}\n", encoding="utf-8")
-        except Exception as exc:
-            logger.error(f"Cookie 写入 .env 失败: {exc}")
+        from src.core.cookie_store import save_cookie
+        save_cookie(cookie_str, persist=True)

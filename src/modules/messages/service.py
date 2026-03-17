@@ -101,7 +101,7 @@ class MessageSelectors:
 DEFAULT_WEIGHT_REPLY_TEMPLATE = (
     "{origin_province}到{dest_province} {billing_weight}kg 参考价格\n"
     "{courier}: {price} 元\n"
-    "温馨提示：如包裹体积较大，快递会按体积重计费（长x宽x高/8000），届时可能需要补差价哦~"
+    "温馨提示：如包裹体积较大，快递会按体积重计费（{volume_formula}），届时可能需要补差价哦~"
 )
 
 DEFAULT_VOLUME_REPLY_TEMPLATE = (
@@ -120,9 +120,9 @@ DEFAULT_COURIER_LOCK_TEMPLATE = (
     "下单流程：\n"
     "1. 先拍下链接，先不要付款；\n"
     "2. 我改价后您再付款；\n"
-    "3. 付款后系统自动发兑换码，到小橙序下单即可。\n"
-    "地址和手机号在小橙序填写就好，这边不需要提供哦~\n"
-    "新用户福利：以上为首单优惠价（每个手机号限一次）~ 若已使用过小橙序，后续可直接在小橙序下单，正常价也比自寄便宜5折起"
+    "3. 付款后系统自动发兑换码，到小程序下单即可。\n"
+    "地址和手机号在小程序填写就好，这边不需要提供哦~\n"
+    "新用户福利：以上为首单优惠价（每个手机号限一次）~ 若已使用过小程序，后续可直接在小程序下单，正常价也比自寄便宜5折起"
 )
 
 
@@ -834,7 +834,7 @@ class MessagesService:
         prompt = (
             "你是快递代寄服务的客服助手。根据买家消息生成简短友好的回复。\n"
             "业务信息：我们代理韵达/圆通/中通/申通快递，不支持顺丰和京东。\n"
-            "下单流程：闲鱼拍下→改价→付款→收到兑换码→到小橙序兑换余额→填地址选快递下单。\n"
+            "下单流程：闲鱼拍下→改价→付款→收到兑换码→到小程序兑换余额→填地址选快递下单。\n"
             "首单优惠：首次使用新手机号可享首单优惠价，续重不变。如买家问价格，引导提供'寄件城市-收件城市-重量'以便精确报价，严禁自行编造具体金额。\n"
             f"{faq_context}"
             f"{ctx_str}\n"
@@ -1046,6 +1046,10 @@ class MessagesService:
         if not text and self.force_non_empty_reply:
             text = self.non_empty_reply_fallback
 
+        from src.modules.messages.reply_engine import get_word_replacements
+        for forbidden, safe in get_word_replacements().items():
+            text = text.replace(forbidden, safe)
+
         lowered = text.lower()
         if any(keyword in lowered for keyword in self.high_risk_keywords):
             return self.safe_fallback_reply
@@ -1121,7 +1125,7 @@ class MessagesService:
                         parts = []
                         sf_kw = re.search(r"顺丰|京东", message_text or "")
                         if sf_kw:
-                            parts.append("闲鱼特价渠道暂时没有顺丰/京东，小橙序内可直接下单且价格更优~ 这边有韵达/圆通/中通/申通可选")
+                            parts.append("闲鱼特价渠道暂时没有顺丰/京东，小程序内可直接下单且价格更优~ 这边有韵达/圆通/中通/申通可选")
                         else:
                             parts.append("在的亲")
                         route_str = f"{origin} -> {dest}" if origin and dest else (origin or dest or "")
@@ -1183,7 +1187,7 @@ class MessagesService:
 
         if has_checkout_context and has_quote_rows and is_quote_intent and courier_choice is None:
             return self._sanitize_reply(
-                "亲，直接在小橙序重新下单即可~ 正常价也比自寄便宜5折起，填写寄件收件信息→选快递→用余额支付，方便又快捷~"
+                "亲，直接在小程序重新下单即可~ 正常价也比自寄便宜5折起，填写寄件收件信息→选快递→用余额支付，方便又快捷~"
             ), {"is_quote": False, "phase": "repeat_purchase"}
 
         is_post_order = bool(self._POST_ORDER_EXCLUSIONS.search(message_text or ""))
@@ -1220,7 +1224,7 @@ class MessagesService:
                 "quote_context_enabled": bool(self.context_memory_enabled),
             }
 
-        aftersale_fallback = "亲，有任何问题随时问我~ 如需修改订单或其他帮助，可以在小橙序联系客服哦~"
+        aftersale_fallback = "亲，有任何问题随时问我~ 如需修改订单或其他帮助，可以在小程序联系客服哦~"
 
         if not is_quote_intent:
             if is_post_order:
@@ -1573,8 +1577,14 @@ class MessagesService:
             "details": details,
         }
 
+    _MANUAL_CHECK_WINDOW_MINUTES = 10
+
     async def _check_manual_intervention(self, session_id: str) -> bool:
-        """Check if a human seller sent messages in this session (not the bot)."""
+        """Check if a human seller sent messages in this session (not the bot).
+
+        Only considers messages within the last ``_MANUAL_CHECK_WINDOW_MINUTES``
+        minutes (configurable via ``manual_check_window_minutes``).
+        """
         if (time.time() - self._init_ts) < self._MANUAL_CHECK_GRACE_SECONDS:
             return False
         ws_transport = self._ws_transport
@@ -1587,7 +1597,15 @@ class MessagesService:
             return False
         if not recent:
             return False
+
+        window_minutes = self.config.get("manual_check_window_minutes", self._MANUAL_CHECK_WINDOW_MINUTES)
+        window_ms = int(window_minutes) * 60 * 1000
+        now_ms = int(time.time() * 1000)
+
         for m in recent:
+            ts = m.get("timestamp", 0)
+            if ts > 0 and (now_ms - ts) > window_ms:
+                continue
             if m.get("sender_id") == ws_transport.my_user_id:
                 if not ws_transport.is_bot_sent(session_id, m.get("text", "")):
                     self._manual_mode_store.set_state(session_id, True)

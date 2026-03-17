@@ -139,17 +139,24 @@ class ManualModeStore:
         return self._upsert(session_id, enabled, now_ts)
 
     def record_seller_activity(self, session_id: str, *, now: float | None = None) -> None:
-        """Record seller message timestamp for smart resume logic."""
+        """Record seller message timestamp for smart resume logic.
+
+        When the session is already in manual mode, automatically extends
+        ``expires_at`` so that continuous seller activity does not get
+        interrupted by a premature timeout.
+        """
         now_ts = self._now(now)
+        new_expires = (now_ts + self.timeout_seconds) if self.timeout_seconds > 0 else None
         with self._connect() as conn:
             conn.execute(
                 """
                 INSERT INTO message_manual_mode(session_id, enabled, updated_at, last_seller_msg_at)
                 VALUES (?, 0, ?, ?)
                 ON CONFLICT(session_id) DO UPDATE SET
-                    last_seller_msg_at=excluded.last_seller_msg_at
+                    last_seller_msg_at = excluded.last_seller_msg_at,
+                    expires_at = CASE WHEN enabled = 1 THEN ? ELSE expires_at END
                 """,
-                (session_id, now_ts, now_ts),
+                (session_id, now_ts, now_ts, new_expires),
             )
             conn.commit()
 

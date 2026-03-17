@@ -3113,7 +3113,7 @@ class MimicOps:
 
 
     def get_pricing_config(self) -> dict[str, Any]:
-        """读取 YAML 中的 markup_categories 和 xianyu_discount。"""
+        """读取 YAML 中的 markup_categories、xianyu_discount、抛比和大件运力优先级。"""
         setup = QuoteSetupService(config_path=str(self.config_path))
         data, _ = setup._load_yaml()
         quote_cfg = data.get("quote", {}) if isinstance(data, dict) else {}
@@ -3121,6 +3121,9 @@ class MimicOps:
             "success": True,
             "markup_categories": quote_cfg.get("markup_categories", {}),
             "xianyu_discount": quote_cfg.get("xianyu_discount", {}),
+            "volume_divisor_default": quote_cfg.get("volume_divisor_default", 8000),
+            "volume_divisors": quote_cfg.get("volume_divisors", {}),
+            "freight_courier_priority": quote_cfg.get("freight_courier_priority", []),
             "service_categories": [
                 "线上快递", "线下快递", "线上快运", "线下快运",
                 "同城寄", "电动车", "分销", "商家寄件",
@@ -3128,8 +3131,15 @@ class MimicOps:
             "updated_at": _now_iso(),
         }
 
-    def save_pricing_config(self, markup_categories: Any = None, xianyu_discount: Any = None) -> dict[str, Any]:
-        """保存加价表和让利表到 YAML。"""
+    def save_pricing_config(
+        self,
+        markup_categories: Any = None,
+        xianyu_discount: Any = None,
+        volume_divisor_default: Any = None,
+        volume_divisors: Any = None,
+        freight_courier_priority: Any = None,
+    ) -> dict[str, Any]:
+        """保存加价表、让利表、抛比和大件运力优先级到 YAML。"""
         setup = QuoteSetupService(config_path=str(self.config_path))
         data, existed = setup._load_yaml()
         quote_cfg = data.get("quote")
@@ -3141,6 +3151,33 @@ class MimicOps:
             quote_cfg["markup_categories"] = markup_categories
         if isinstance(xianyu_discount, dict):
             quote_cfg["xianyu_discount"] = xianyu_discount
+        if volume_divisor_default is not None:
+            try:
+                val = float(volume_divisor_default)
+                if val > 0:
+                    quote_cfg["volume_divisor_default"] = val
+            except (TypeError, ValueError):
+                pass
+        if isinstance(volume_divisors, dict):
+            normalized: dict[str, Any] = {}
+            for cat, courier_cfg in volume_divisors.items():
+                if not isinstance(courier_cfg, dict):
+                    continue
+                inner: dict[str, float] = {}
+                for k, v in courier_cfg.items():
+                    try:
+                        fv = float(v)
+                        if fv > 0:
+                            inner[str(k).strip()] = fv
+                    except (TypeError, ValueError):
+                        pass
+                if inner:
+                    normalized[str(cat).strip()] = inner
+            quote_cfg["volume_divisors"] = normalized
+        if isinstance(freight_courier_priority, list):
+            quote_cfg["freight_courier_priority"] = [
+                str(c).strip() for c in freight_courier_priority if str(c).strip()
+            ]
 
         backup_path = setup._backup_existing_file() if existed else None
         setup._write_yaml(data)

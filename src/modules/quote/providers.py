@@ -115,6 +115,7 @@ class CostTableMarkupQuoteProvider(IQuoteProvider):
         markup_rules: dict[str, Any] | None = None,
         pricing_profile: str = "normal",
         volume_divisor_default: float | None = None,
+        volume_divisors: dict[str, Any] | None = None,
         markup_categories: dict[str, Any] | None = None,
         xianyu_discount: dict[str, Any] | None = None,
     ):
@@ -122,6 +123,7 @@ class CostTableMarkupQuoteProvider(IQuoteProvider):
         self.pricing_profile = "member" if str(pricing_profile).strip().lower() == "member" else "normal"
         self.markup_rules = _normalize_markup_rules(markup_rules or {})
         self.volume_divisor_default = float(volume_divisor_default or 0.0) if volume_divisor_default else 0.0
+        self.volume_divisors = volume_divisors if isinstance(volume_divisors, dict) else {}
         self.category_markup = _normalize_category_markup(markup_categories or {})
         self.xianyu_discount_rules = _normalize_xianyu_discount(xianyu_discount or {})
 
@@ -160,7 +162,10 @@ class CostTableMarkupQuoteProvider(IQuoteProvider):
             extra_discount = 0.0
 
         actual_weight = max(0.0, float(request.weight))
-        divisor = _first_positive(row.throw_ratio, self.volume_divisor_default)
+        courier_divisor = _resolve_volume_divisor(
+            self.volume_divisors, category, row.courier, self.volume_divisor_default
+        )
+        divisor = _first_positive(row.throw_ratio, courier_divisor, self.volume_divisor_default)
         volume_weight = _derive_volume_weight_kg(
             volume_cm3=float(request.volume or 0.0),
             explicit_volume_weight=float(request.volume_weight or 0.0),
@@ -243,6 +248,7 @@ class ApiCostMarkupQuoteProvider(IQuoteProvider):
         markup_rules: dict[str, Any] | None = None,
         pricing_profile: str = "normal",
         volume_divisor_default: float | None = None,
+        volume_divisors: dict[str, Any] | None = None,
         markup_categories: dict[str, Any] | None = None,
         xianyu_discount: dict[str, Any] | None = None,
     ):
@@ -251,6 +257,7 @@ class ApiCostMarkupQuoteProvider(IQuoteProvider):
         self.markup_rules = _normalize_markup_rules(markup_rules or {})
         self.pricing_profile = "member" if str(pricing_profile).strip().lower() == "member" else "normal"
         self.volume_divisor_default = float(volume_divisor_default or 0.0) if volume_divisor_default else 0.0
+        self.volume_divisors = volume_divisors if isinstance(volume_divisors, dict) else {}
         self.category_markup = _normalize_category_markup(markup_categories or {})
         self.xianyu_discount_rules = _normalize_xianyu_discount(xianyu_discount or {})
 
@@ -299,10 +306,15 @@ class ApiCostMarkupQuoteProvider(IQuoteProvider):
         if first_cost is None and total_cost is None:
             raise QuoteProviderError("Remote cost api missing first_cost/total_cost")
 
+        is_freight = courier in FREIGHT_COURIERS
+        category = "线上快运" if is_freight else "线上快递"
+        divisor = _resolve_volume_divisor(
+            self.volume_divisors, category, courier, self.volume_divisor_default
+        )
         volume_weight = _derive_volume_weight_kg(
             volume_cm3=float(request.volume or 0.0),
             explicit_volume_weight=float(request.volume_weight or 0.0),
-            divisor=self.volume_divisor_default,
+            divisor=divisor,
         )
         api_billable_weight = _to_float(parsed.get("billable_weight"))
         billing_weight = max(
@@ -310,15 +322,12 @@ class ApiCostMarkupQuoteProvider(IQuoteProvider):
             float(api_billable_weight or 0.0),
             float(volume_weight or 0.0),
         )
-        is_freight = courier in FREIGHT_COURIERS
         base_weight = 30.0 if is_freight else 1.0
         extra_weight = max(0.0, billing_weight - base_weight)
         if first_cost is None:
             first_cost = max(0.0, float(total_cost or 0.0) - (extra_weight * float(extra_cost or 0.0)))
         if extra_cost is None:
             extra_cost = 0.0
-
-        category = "线上快运" if is_freight else "线上快递"
 
         if self.category_markup:
             first_add, extra_add = _resolve_category_markup(
@@ -373,7 +382,7 @@ class ApiCostMarkupQuoteProvider(IQuoteProvider):
                 "volume_cm3": round(float(request.volume or 0.0), 3),
                 "volume_weight_kg": round(volume_weight, 3),
                 "api_billable_weight_kg": api_billable_weight,
-                "volume_divisor": self.volume_divisor_default if self.volume_divisor_default > 0 else None,
+                "volume_divisor": divisor if divisor > 0 else None,
                 "api_provider": provider_name,
             },
         )
@@ -729,6 +738,25 @@ def _first_positive(*values: Any) -> float:
         if v is not None and v > 0:
             return float(v)
     return 0.0
+
+
+def _resolve_volume_divisor(
+    volume_divisors: dict[str, Any],
+    category: str,
+    courier: str,
+    global_default: float,
+) -> float:
+    """解析抛比：per-courier > 类别 default > 全局 default。"""
+    cat_cfg = volume_divisors.get(category) if isinstance(volume_divisors, dict) else None
+    if not isinstance(cat_cfg, dict):
+        return float(global_default or 0.0) or 0.0
+    v = _to_float(cat_cfg.get(courier))
+    if v is not None and v > 0:
+        return float(v)
+    v = _to_float(cat_cfg.get("default"))
+    if v is not None and v > 0:
+        return float(v)
+    return float(global_default or 0.0) or 0.0
 
 
 def _derive_volume_weight_kg(volume_cm3: float, explicit_volume_weight: float, divisor: float) -> float:

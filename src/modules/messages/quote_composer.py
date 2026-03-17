@@ -31,6 +31,12 @@ class QuoteReplyComposer:
         self.quote_reply_max_couriers = quote_reply_max_couriers
         self.logger = _logger
         self._freight_needs_city = False
+        self.freight_courier_priority: list[str] = list(
+            quote_config.get("freight_courier_priority") or []
+        )
+        self.volume_divisor_default: float = float(
+            quote_config.get("volume_divisor_default") or 8000
+        )
 
     @staticmethod
     def format_eta_days(minutes: int | float | None) -> str:
@@ -178,6 +184,15 @@ class QuoteReplyComposer:
         express_rows = [(n, r) for n, r in quote_rows if (r.explain or {}).get("service_type") != "freight"]
         freight_rows = [(n, r) for n, r in quote_rows if (r.explain or {}).get("service_type") == "freight"]
 
+        if freight_rows and self.freight_courier_priority:
+            prio = self.freight_courier_priority
+            freight_rows.sort(
+                key=lambda item: (
+                    prio.index(item[0]) if item[0] in prio else len(prio),
+                    float(item[1].total_fee),
+                ),
+            )
+
         if express_rows and freight_rows:
             lines.append("快递方案：")
             for i, (name, result) in enumerate(express_rows, 1):
@@ -201,11 +216,16 @@ class QuoteReplyComposer:
                 lines.append(_format_courier_line(i, name, result))
 
         lines.append("回复\u201c选XX快递\u201d帮您锁定价格哦~")
-        lines.append("下单流程：先拍下链接不付款 → 我改价 → 付款后自动发兑换码，到小橙序下单即可~")
+        lines.append("下单流程：先拍下链接不付款 → 我改价 → 付款后自动发兑换码，到小程序下单即可~")
         if volume_w and float(volume_w) > 0:
             lines.append("温馨提示：本次已按体积重与实际重量中较大值计费，如实际体积有出入可能需补差价哦~")
         else:
-            lines.append("温馨提示：以上按实际重量计算，如包裹体积较大（体积重=长×宽×高/8000），快递按较大值计费，届时可能需补差价哦~")
+            divisor = first_explain.get("volume_divisor")
+            if divisor is not None and float(divisor) > 0:
+                div_val = int(divisor) if float(divisor) == int(float(divisor)) else float(divisor)
+            else:
+                div_val = int(self.volume_divisor_default) if self.volume_divisor_default == int(self.volume_divisor_default) else self.volume_divisor_default
+            lines.append(f"温馨提示：以上按实际重量计算，如包裹体积较大（体积重=长×宽×高/{div_val}），快递按较大值计费，届时可能需补差价哦~")
 
         for _, r in quote_rows:
             exp = r.explain if isinstance(r.explain, dict) else {}
@@ -215,7 +235,7 @@ class QuoteReplyComposer:
                 svc_label = "快运" if exp.get("service_type") == "freight" else "快递"
                 lines.append(
                     f"超长提醒：您的包裹最长边约{max_dim:.0f}cm，超出{svc_label}标准（{threshold:.0f}cm），"
-                    "物流方可能根据实际情况收取超长费，届时小橙序会自动通知补差价~"
+                    "物流方可能根据实际情况收取超长费，届时小程序会自动通知补差价~"
                 )
                 break
 
@@ -224,7 +244,7 @@ class QuoteReplyComposer:
                 "大件快运报价需精确到市-市才准确，麻烦提供具体城市（如：广州到杭州），帮您查快运价格哦~"
             )
 
-        lines.append("新用户福利：以上为首单优惠价（每个手机号限一次）~ 若已使用过小橙序，则按正常价计费，后续可直接在小橙序下单，无需再走闲鱼，正常价也比自寄便宜5折起~")
+        lines.append("新用户福利：以上为首单优惠价（每个手机号限一次）~ 若已使用过小程序，则按正常价计费，后续可直接在小程序下单，无需再走闲鱼，正常价也比自寄便宜5折起~")
         return "\n".join(lines)
 
     def persist_to_ledger(

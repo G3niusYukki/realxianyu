@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
+import sys
+import tempfile
 import threading
 import time as _time_mod
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -335,9 +338,10 @@ def handle_version(ctx: RouteContext) -> None:
         from src import __version__
     except Exception:
         __version__ = "unknown"
+    from src.core.update_config import GITHUB_OWNER, GITHUB_REPO
     ctx.send_json({
         "version": __version__,
-        "releases_url": "https://github.com/openclawlab/xianyu-openclaw/releases",
+        "releases_url": f"https://github.com/{GITHUB_OWNER}/{GITHUB_REPO}/releases",
     })
 
 
@@ -346,9 +350,22 @@ _latest_version_ts: float = 0.0
 _LATEST_VERSION_TTL = 3600.0
 
 
+def _gh_api_headers() -> dict[str, str]:
+    from src.core.update_config import GITHUB_TOKEN
+    headers: dict[str, str] = {"Accept": "application/vnd.github.v3+json"}
+    if GITHUB_TOKEN:
+        headers["Authorization"] = f"Bearer {GITHUB_TOKEN}"
+    return headers
+
+
+def _gh_releases_url() -> str:
+    from src.core.update_config import GITHUB_OWNER, GITHUB_REPO
+    return f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/releases/latest"
+
+
 @get("/api/version/latest")
 def handle_version_latest(ctx: RouteContext) -> None:
-    """Proxy GitHub releases API with 1-hour cache to avoid rate limits and China access issues."""
+    """Proxy GitHub releases API with 1-hour cache. Uses token for private repos."""
     global _latest_version_cache, _latest_version_ts
 
     if _latest_version_cache and (_time_mod.time() - _latest_version_ts) < _LATEST_VERSION_TTL:
@@ -357,15 +374,28 @@ def handle_version_latest(ctx: RouteContext) -> None:
 
     try:
         import httpx
-        with httpx.Client(timeout=10.0) as hc:
-            resp = hc.get(
-                "https://api.github.com/repos/openclawlab/xianyu-openclaw/releases/latest",
-                headers={"Accept": "application/vnd.github.v3+json"},
-            )
+        with httpx.Client(timeout=15.0) as hc:
+            resp = hc.get(_gh_releases_url(), headers=_gh_api_headers())
         if resp.status_code == 200:
-            tag = resp.json().get("tag_name", "")
+            release_data = resp.json()
+            tag = release_data.get("tag_name", "")
             latest = tag.lstrip("v") if tag else None
-            result: dict[str, Any] = {"latest": latest, "tag": tag}
+            assets = release_data.get("assets", [])
+            from src.core.update_config import UPDATE_ASSET_SUFFIX
+            update_asset_url = ""
+            update_asset_size = 0
+            for asset in assets:
+                if asset.get("name", "").endswith(UPDATE_ASSET_SUFFIX):
+                    update_asset_url = asset.get("url", "")
+                    update_asset_size = asset.get("size", 0)
+                    break
+            result: dict[str, Any] = {
+                "latest": latest,
+                "tag": tag,
+                "update_asset_url": update_asset_url,
+                "update_asset_size": update_asset_size,
+                "body": release_data.get("body", ""),
+            }
             _latest_version_cache = result
             _latest_version_ts = _time_mod.time()
             ctx.send_json(result)
@@ -373,6 +403,133 @@ def handle_version_latest(ctx: RouteContext) -> None:
             ctx.send_json({"latest": None, "error": f"GitHub API returned {resp.status_code}"})
     except Exception as exc:
         ctx.send_json({"latest": None, "error": str(exc)})
+
+
+# ---------------------------------------------------------------------------
+# POST /api/update/apply, GET /api/update/status
+# ---------------------------------------------------------------------------
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[3]
+_UPDATE_STATUS_FILE = _PROJECT_ROOT / "data" / "update-status.json"
+_update_lock = threading.Lock()
+
+
+def _cmp_ver(a: str, b: str) -> int:
+    """Compare semver strings. Returns <0 if a<b, 0 if a==b, >0 if a>b."""
+    pa = [int(x) for x in a.replace("v", "").split(".") if x.isdigit()]
+    pb = [int(x) for x in b.replace("v", "").split(".") if x.isdigit()]
+    for i in range(max(len(pa), len(pb))):
+        na = pa[i] if i < len(pa) else 0
+        nb = pb[i] if i < len(pb) else 0
+        if na != nb:
+            return na - nb
+    return 0
+
+
+def _read_update_status() -> dict[str, Any]:
+    try:
+        if _UPDATE_STATUS_FILE.exists():
+            return json.loads(_UPDATE_STATUS_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        pass
+    return {"status": "idle"}
+
+
+def _write_update_status(status: str, **extra: Any) -> None:
+    _UPDATE_STATUS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    payload = {"status": status, "timestamp": _now_iso(), **extra}
+    _UPDATE_STATUS_FILE.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+
+
+@get("/api/update/status")
+def handle_update_status(ctx: RouteContext) -> None:
+    ctx.send_json(_read_update_status())
+
+
+@post("/api/update/apply")
+def handle_update_apply(ctx: RouteContext) -> None:
+    if not _update_lock.acquire(blocking=False):
+        ctx.send_json({"success": False, "error": "更新正在进行中"}, status=409)
+        return
+    try:
+        from src import __version__ as current_version
+        from src.core.update_config import UPDATE_ASSET_SUFFIX
+
+        _write_update_status("checking")
+
+        import httpx
+        with httpx.Client(timeout=15.0) as hc:
+            resp = hc.get(_gh_releases_url(), headers=_gh_api_headers())
+        if resp.status_code != 200:
+            _write_update_status("error", message=f"GitHub API {resp.status_code}")
+            ctx.send_json({"success": False, "error": f"无法获取最新版本: HTTP {resp.status_code}"})
+            return
+
+        release = resp.json()
+        tag = release.get("tag_name", "")
+        latest = tag.lstrip("v") if tag else ""
+        if not latest:
+            _write_update_status("error", message="无法解析版本号")
+            ctx.send_json({"success": False, "error": "无法解析最新版本号"})
+            return
+
+        if _cmp_ver(current_version, latest) >= 0:
+            _write_update_status("idle")
+            ctx.send_json({"success": False, "error": f"当前版本 {current_version} 已是最新"})
+            return
+
+        asset_url = ""
+        for asset in release.get("assets", []):
+            if asset.get("name", "").endswith(UPDATE_ASSET_SUFFIX):
+                asset_url = asset.get("url", "")
+                break
+        if not asset_url:
+            _write_update_status("error", message="Release 中未找到更新包")
+            ctx.send_json({"success": False, "error": "Release 中未找到更新包 (*-update.tar.gz)"})
+            return
+
+        _write_update_status("downloading", version=latest)
+        dl_headers = _gh_api_headers()
+        dl_headers["Accept"] = "application/octet-stream"
+        tmp_path = Path(tempfile.gettempdir()) / f"xianyu-update-{latest}.tar.gz"
+        with httpx.Client(timeout=120.0, follow_redirects=True) as hc:
+            with hc.stream("GET", asset_url, headers=dl_headers) as stream:
+                stream.raise_for_status()
+                with open(tmp_path, "wb") as f:
+                    for chunk in stream.iter_bytes(chunk_size=65536):
+                        f.write(chunk)
+
+        _write_update_status("installing", version=latest, package=str(tmp_path))
+
+        project_root = str(_PROJECT_ROOT)
+        if sys.platform == "win32":
+            script = str(_PROJECT_ROOT / "scripts" / "update.bat")
+            subprocess.Popen(
+                ["cmd", "/c", script, str(tmp_path), project_root],
+                cwd=project_root,
+                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS,
+                close_fds=True,
+            )
+        else:
+            script = str(_PROJECT_ROOT / "scripts" / "update.sh")
+            subprocess.Popen(
+                ["bash", script, str(tmp_path), project_root],
+                cwd=project_root,
+                start_new_session=True,
+                close_fds=True,
+                stdout=open(_PROJECT_ROOT / "logs" / "update.log", "a"),
+                stderr=subprocess.STDOUT,
+            )
+
+        ctx.send_json({"success": True, "status": "updating", "version": latest})
+    except Exception as exc:
+        _write_update_status("error", message=str(exc))
+        ctx.send_json({"success": False, "error": str(exc)}, status=500)
+    finally:
+        try:
+            _update_lock.release()
+        except RuntimeError:
+            pass
 
 
 # ---------------------------------------------------------------------------

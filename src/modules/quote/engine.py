@@ -46,12 +46,14 @@ class AutoQuoteEngine:
         self._circuit_open_until = 0.0
 
         self.rule_provider: IQuoteProvider = RuleTableQuoteProvider()
+        volume_divisors = cfg.get("volume_divisors") or {}
         self.cost_table_provider: IQuoteProvider = CostTableMarkupQuoteProvider(
             table_dir=str(cfg.get("cost_table_dir", "data/quote_costs")),
             include_patterns=cfg.get("cost_table_patterns", ["*.xlsx", "*.csv"]),
             markup_rules=cfg.get("markup_rules", {}),
             pricing_profile=str(cfg.get("pricing_profile", "normal")),
             volume_divisor_default=self.volume_divisor_default,
+            volume_divisors=volume_divisors,
             markup_categories=cfg.get("markup_categories", {}),
             xianyu_discount=cfg.get("xianyu_discount", {}),
         )
@@ -61,6 +63,7 @@ class AutoQuoteEngine:
             markup_rules=cfg.get("markup_rules", {}),
             pricing_profile=str(cfg.get("pricing_profile", "normal")),
             volume_divisor_default=self.volume_divisor_default,
+            volume_divisors=volume_divisors,
             markup_categories=cfg.get("markup_categories", {}),
             xianyu_discount=cfg.get("xianyu_discount", {}),
         )

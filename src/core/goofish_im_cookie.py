@@ -168,14 +168,22 @@ def read_goofish_im_cookies(
         return None
 
     m_h5_tk_ttl: float | None = None
+    low_ttl_warning = False
     tk_val = cookies.get(_KEY_SESSION_COOKIE)
     if tk_val:
         m_h5_tk_ttl = _parse_m_h5_tk_ttl(tk_val)
         if m_h5_tk_ttl is not None and m_h5_tk_ttl < min_ttl:
-            logger.info(
-                f"goofish_im: _m_h5_tk TTL too low ({m_h5_tk_ttl:.0f}s < {min_ttl}s), skipping"
-            )
-            return None
+            if m_h5_tk_ttl > 0:
+                logger.warning(
+                    f"goofish_im: _m_h5_tk TTL low ({m_h5_tk_ttl:.0f}s < {min_ttl}s), "
+                    f"returning with low_ttl_warning=True"
+                )
+                low_ttl_warning = True
+            else:
+                logger.info(
+                    f"goofish_im: _m_h5_tk already expired ({m_h5_tk_ttl:.0f}s), skipping"
+                )
+                return None
 
     cookie_str = "; ".join(f"{k}={v}" for k, v in cookies.items())
 
@@ -190,6 +198,7 @@ def read_goofish_im_cookies(
         "cookies": cookies,
         "source": "goofish_im",
         "m_h5_tk_ttl": m_h5_tk_ttl,
+        "low_ttl_warning": low_ttl_warning,
         "im_running": _is_goofish_im_running(),
     }
 

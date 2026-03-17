@@ -102,6 +102,8 @@ export default function ProductList() {
   const [costSummary, setCostSummary] = useState<CourierSummary[]>([]);
   const [pricingLoading, setPricingLoading] = useState(false);
   const [pricingSaving, setPricingSaving] = useState(false);
+  const [volumeDivisors, setVolumeDivisors] = useState<Record<string, Record<string, number>>>({});
+  const [freightPriority, setFreightPriority] = useState<string[]>([]);
 
   // 路线查询 state
   const [queryOrigin, setQueryOrigin] = useState('');
@@ -179,6 +181,8 @@ export default function ProductList() {
       }
       setMarkupCategories(merged);
       if (configRes.data?.xianyu_discount) setXianyuDiscount(configRes.data.xianyu_discount);
+      if (configRes.data?.volume_divisors && typeof configRes.data.volume_divisors === 'object') setVolumeDivisors(configRes.data.volume_divisors);
+      if (Array.isArray(configRes.data?.freight_courier_priority)) setFreightPriority(configRes.data.freight_courier_priority);
       if (costRes.data?.couriers) setCostSummary(costRes.data.couriers);
     } catch { toast.error('加载定价配置失败'); }
     finally { setPricingLoading(false); }
@@ -190,6 +194,8 @@ export default function ProductList() {
       const res = await api.post('/save-pricing-config', {
         markup_categories: markupCategories,
         xianyu_discount: xianyuDiscount,
+        volume_divisors: volumeDivisors,
+        freight_courier_priority: freightPriority,
       });
       if (res.data?.success) toast.success('定价配置已保存');
       else toast.error(res.data?.error || '保存失败');
@@ -238,6 +244,22 @@ export default function ProductList() {
       };
       return { ...prev, [category]: cat };
     });
+  };
+
+  const updateVolumeDivisor = (category: string, courier: string, value: string) => {
+    setVolumeDivisors(prev => {
+      const cat = { ...(prev[category] || {}) };
+      const v = value === '' ? undefined : Number(value);
+      if (v != null && v > 0) cat[courier] = v;
+      else delete cat[courier];
+      return { ...prev, [category]: cat };
+    });
+  };
+
+  const getVolumeDivisorDisplay = (category: string, courier: string) => {
+    const cat = volumeDivisors[category];
+    const v = cat?.[courier] ?? cat?.default;
+    return v ?? (['线上快运', '线下快运'].includes(category) ? 6000 : 8000);
   };
 
   const isFreightCategory = ['线上快运', '线下快运'].includes(pricingCategory);
@@ -630,6 +652,57 @@ export default function ProductList() {
                 <p>小程序价首重 = 成本首重 + 首重加价 | 小程序价续重 = 成本续重 + 续重加价</p>
                 <p>闲鱼价首重 = 小程序价首重 - 首重让利 | 闲鱼价续重 = 小程序价续重 - 续重让利</p>
                 <p className="text-blue-600 mt-1">闲鱼最终价 = 闲鱼首重价 + max(0, 计费重 - {categoryBaseWeight}kg) × 闲鱼续重价</p>
+                <p className="text-blue-500 mt-1">计费重 = max(实际重量, 体积重)，体积重 = 长×宽×高 / 抛比。每个运力可单独配置抛比（见加价表）。</p>
+              </div>
+
+              {/* 大件运力优先级 */}
+              <div className="xy-card p-4 space-y-4">
+                <div className="border-t-0 pt-0 border-xy-border">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-sm font-medium text-xy-text-secondary">大件快运推荐优先级</label>
+                    <button onClick={() => {
+                      const name = window.prompt('输入运力名称（如：中通快运）');
+                      if (name?.trim() && !freightPriority.includes(name.trim())) {
+                        setFreightPriority(prev => [...prev, name.trim()]);
+                      }
+                    }} className="xy-btn-secondary text-xs px-2.5 py-1 flex items-center gap-1">
+                      <Plus className="w-3.5 h-3.5" /> 添加
+                    </button>
+                  </div>
+                  <p className="text-xs text-xy-text-muted mb-2">报价回复中大件快运运力按此顺序展示，不在列表中的运力排在最后按价格排序。</p>
+                  {freightPriority.length === 0 ? (
+                    <p className="text-xs text-xy-text-muted italic">未配置优先级，将按价格从低到高排序</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {freightPriority.map((courier, idx) => (
+                        <div key={courier} className="flex items-center gap-1 bg-xy-gray-100 rounded-lg px-2.5 py-1.5 text-sm">
+                          <span className="text-xs text-xy-text-muted font-mono mr-1">{idx + 1}</span>
+                          <span className="font-medium text-xy-text-primary">{courier}</span>
+                          <div className="flex items-center ml-1 gap-0.5">
+                            {idx > 0 && (
+                              <button onClick={() => setFreightPriority(prev => {
+                                const arr = [...prev]; [arr[idx - 1], arr[idx]] = [arr[idx], arr[idx - 1]]; return arr;
+                              })} className="p-0.5 hover:bg-xy-gray-200 rounded text-xy-text-muted" title="上移">
+                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" /></svg>
+                              </button>
+                            )}
+                            {idx < freightPriority.length - 1 && (
+                              <button onClick={() => setFreightPriority(prev => {
+                                const arr = [...prev]; [arr[idx], arr[idx + 1]] = [arr[idx + 1], arr[idx]]; return arr;
+                              })} className="p-0.5 hover:bg-xy-gray-200 rounded text-xy-text-muted" title="下移">
+                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                              </button>
+                            )}
+                            <button onClick={() => setFreightPriority(prev => prev.filter((_, i) => i !== idx))}
+                              className="p-0.5 hover:bg-red-100 rounded text-red-400 hover:text-red-600" title="删除">
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* 路线查询 + 成本表 */}
@@ -719,6 +792,7 @@ export default function ProductList() {
                         <th className="text-left px-4 py-2 font-medium text-xy-text-secondary">
                           续重加价<span className="text-xs text-xy-text-muted ml-1">(元/kg)</span>
                         </th>
+                        <th className="text-left px-4 py-2 font-medium text-xy-text-secondary" title="体积重 = 长×宽×高 / 抛比">抛比</th>
                         <th className="text-left px-4 py-2 font-medium text-xy-text-secondary text-green-600">小程序首重价</th>
                         <th className="text-left px-4 py-2 font-medium text-xy-text-secondary text-green-600">小程序续重价</th>
                         <th className="text-right px-4 py-2 font-medium text-xy-text-secondary">操作</th>
@@ -746,6 +820,12 @@ export default function ProductList() {
                               <input type="number" step="0.01" className="xy-input px-2 py-1 text-sm w-24"
                                 value={rule.extra_add ?? 0}
                                 onChange={e => updateCategoryMarkup(pricingCategory, courier, 'extra_add', e.target.value)} />
+                            </td>
+                            <td className="px-4 py-2">
+                              <input type="number" min="1" step="1" className="xy-input px-2 py-1 text-sm w-20"
+                                value={volumeDivisors[pricingCategory]?.[courier] ?? ''}
+                                placeholder={String(getVolumeDivisorDisplay(pricingCategory, courier))}
+                                onChange={e => updateVolumeDivisor(pricingCategory, courier, e.target.value)} />
                             </td>
                             <td className="px-4 py-2 text-green-700 font-mono text-xs">{miniFirst}</td>
                             <td className="px-4 py-2 text-green-700 font-mono text-xs">{miniExtra}</td>

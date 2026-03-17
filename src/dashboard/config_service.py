@@ -39,6 +39,7 @@ _ALLOWED_CONFIG_SECTIONS = {
     "auto_price_modify",
     "cookie_cloud",
     "slider_auto_solve",
+    "sensitive_words",
 }
 
 _SENSITIVE_CONFIG_KEYS = ["app_secret", "api_key", "access_key_secret", "mch_secret", "webhook"]

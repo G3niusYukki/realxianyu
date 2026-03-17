@@ -1,4 +1,17 @@
-# MEMORY.md — 闲鱼管家项目记忆
+# Roo Code 项目规则 — 闲鱼管家 (Xianyu OpenClaw)
+
+## 基本要求
+- **始终用中文（简体）回复用户**
+- 每次会话开始时，先阅读本文件获取完整项目上下文
+
+## 环境说明
+- 本机运行 CLIProxyAPI 代理服务（端口 8317），用于 Claude Max 订阅 API 转发
+- CLIProxyAPI 配置文件：`~/openclaw/cliproxyapi-cursor/config.yaml`
+- CLIProxyAPI 已设为 macOS LaunchAgent 开机自启
+
+---
+
+# 以下为项目完整记忆（来自 MEMORY.md）
 
 > **读我优先级：本文件 > QUICKSTART.md > README.md**
 > 本文件是项目的结构化记忆，记录关键决策、经验教训、架构约束、业务规则和所有记忆位置。
@@ -19,12 +32,9 @@
 
 | 类型 | 位置 | 说明 |
 |------|------|------|
-| **项目记忆** | `MEMORY.md`（本文件） | 业务规则、架构决策、经验教训 — **AI 必读** |
+| **项目记忆** | `MEMORY.md` | 业务规则、架构决策、经验教训 — **AI 必读** |
 | **快速入门** | `QUICKSTART.md` | 启动指南、目录结构、部署说明 |
 | **项目说明** | `README.md` | 项目概述、功能列表、架构图 |
-| **Cursor 对话记录** | `~/.cursor/projects/.../agent-transcripts/` | 12 轮历史对话（JSONL 格式），含完整开发上下文 |
-| **Cursor 方案记录** | `~/.cursor/plans/` | **135 个** `.plan.md` 方案文件，记录每次功能开发/修复的设计 |
-| **Workspace 规则** | Cursor 自动注入 `AGENTS.md`（来自根 workspace） | 会话引导规则 |
 | **运行时上下文** | `service.py:_quote_context_memory`（内存） | 每个会话的报价上下文，TTL 1h |
 | **运行时对话** | `service.py:_append_chat_history`（内存） | 最近 5 条对话历史 |
 | **人工模式状态** | `data/manual_mode.db`（SQLite） | 人工接管持久化 |
@@ -51,7 +61,7 @@
 .
 ├── src/                           # Python 后端核心
 │   ├── core/                      #   配置、日志、Cookie、加密、合规
-│   ├── dashboard/                 #   仪表盘（配置服务、数据仓库、模块控制）
+│   ├── dashboard/                 #   仪表盘（路由、配置服务、嵌入 HTML）
 │   │   └── vendor/                #   本地 CDN 资源（Chart.js）
 │   ├── dashboard_server.py        #   Python HTTP 主服务（端口 8091）
 │   └── modules/
@@ -85,12 +95,11 @@
 │   ├── manual_mode.db             # 人工模式 SQLite
 │   └── cost_table_*.xlsx          # 成本表
 ├── tests/                         # 161 条自动回复测试 + 服务层测试
-├── MEMORY.md                      # ← 你正在读的文件
+├── MEMORY.md                      # 项目记忆（本文件同步）
 ├── QUICKSTART.md                  # 快速启动指南
 ├── README.md                      # 项目说明
-├── supervisor.sh                  # ★ 进程守护（健康检查 + 自动重启）— 推荐使用
 ├── quick-start.sh / .bat          # 交互式启动脚本
-├── start.sh / .bat                # 一键启动脚本（无守护）
+├── start.sh / .bat                # 一键启动脚本
 ├── docker-compose.yml             # Docker 编排
 ├── Dockerfile.python              # Python 容器
 └── .env                           # 环境变量
@@ -210,40 +219,33 @@ priority 越小 = 越优先匹配
 ## 四、经验教训（踩过的坑）
 
 ### 4.1 单位换算
-
 - **重大 Bug**：早期报价金额异常（上万元），根因是尺寸单位 mm 未转换为 cm，导致体积重计算错误
 - **修复**：在报价前统一将 mm 转 cm，将 g 转 kg
 
 ### 4.2 正则匹配中文
-
 - `\b` 词边界在中英混合文本中不可靠
 - 中文全角标点（，、。）需要在正则中显式处理
 - "省内" 模式需要特殊处理（如"广东省内"→ 寄件和收件都在广东）
 
 ### 4.3 Legacy 规则覆盖
-
 - 旧版 `keyword_replies`（如"便宜"→ 通用回复）的优先级曾设为 30，高于新 intent_rules
 - **修复**：将 legacy 规则优先级改为 200，确保新规则优先
 
 ### 4.4 售后阶段回退
-
 - 买家付款后发"怎么补"、"码呢"等消息，被错误识别为新的询价请求（阶段从 aftersale 回退到 presale）
 - **修复**：严格化阶段回退条件，要求同时满足有效的 origin/destination/weight 且地址发生变化
 
 ### 4.5 Cookie 与风控
-
 - 闲鱼 Cookie 有效期 7-30 天
 - `_m_h5_tk` 是关键 Cookie，过期会导致 WS 连接失败
 - 风控滑块（RGV587）需要 Playwright Chromium 自动解决
 - CookieCloud 可用于多设备同步 Cookie
 
 ### 4.6 AI 配置链路
-
 - 用户在前端配置了 AI（system_config.json），但后端未读取 → AI 功能不生效
 - **修复**：`MessagesService` 和 `ContentService` 初始化时从 `system_config.json` 读取 AI 配置作为 fallback
 
 ### 4.7 WS 不推送卖家消息
-
 - 闲鱼 WS sync push 只推送对方（买家）消息，不推送自己（卖家/机器人）的消息
 - 最初在 `_push_event` 中添加 `sender_id == my_user_id` 检测是死代码
 - **修复**：改用 HTTP API 主动拉取 + bot 发送追踪比对
@@ -311,8 +313,6 @@ priority 越小 = 越优先匹配
 
 ## 七、API 端点速查
 
-### 7.1 关键 API
-
 | 方法 | 路径 | 用途 |
 |------|------|------|
 | GET | `/api/status` | 系统状态 |
@@ -334,66 +334,17 @@ priority 越小 = 越优先匹配
 
 ---
 
-## 九、重大变更记录
+## 九、Git 状态（当前未提交的变更）
 
-### 9.1 Node.js 后端彻底移除（2026-03-14）
+以下文件有修改但尚未提交，开发时注意：
 
-**变更摘要**：项目从三层架构（Python + Node.js + React）简化为双服务架构（Python + React/Vite）。
-
-**已删除**：
-- `server/` 目录（Express 后端：webhook 验签、XGJ API 代理、config CRUD）— 功能已全部由 Python 实现
-- `src/dashboard/embedded_html.py`（2833 行内嵌 HTML 回退仪表盘）— 死代码
-
-**路径迁移**：
-- `system_config.json` 从 `server/data/` → `data/`（含自动迁移逻辑，10 处代码更新）
-- `.gitignore` 对应更新 `server/data/cookie_cloud/` → `data/cookie_cloud/`
-
-**前端清理**：
-- `useHealthCheck.ts`：移除 `node: ServiceHealth`
-- `SetupGuide.tsx`：移除 `nodeBackend` 检查步骤
-- `ApiStatusPanel.tsx`：确认无需修改
-
-**启动脚本**：
-- `start.sh` / `start.bat` / `quick-start.sh` / `quick-start.bat`：移除 Node.js 进程管理
-
-**文档更新**：README.md、QUICKSTART.md、USER_GUIDE.md、docker-compose.yml、.env.example、package.json
-
-**⚠ 注意**：任何引用 `server/` 目录、端口 3001、或 `Node 薄代理` 的文档/分析已过时。
-
-### 9.2 进程守护机制（2026-03-14）
-
-**问题**：Python `ThreadingHTTPServer` 偶发挂死（进程存活但不响应 HTTP），服务无法自愈。
-
-**方案**：新增 `supervisor.sh`
-- 每 15 秒对 Python（`/api/config`）和 Vite（`/`）发 HTTP 健康检查
-- 连续 2 次无响应 → 强制 kill + 自动重启
-- 进程退出 → 立即重启
-- 日志写入 `logs/supervisor.log`
-- 启动时自动清理残留端口占用
-
-**推荐启动方式**：`./supervisor.sh` 代替 `./start.sh`
-
-### 9.3 自动回复日志修复（2026-03-14）
-
-**问题**：消息页面"自动回复日志"显示空白卡片。
-
-**根因**：`get_replies()` 从 `workflow.db:session_state_transitions.metadata` 读取消息内容，但旧版代码写入 metadata 时只存了 `{"quote": false, "quote_success": false}`，缺少 `buyer_message`、`reply_text`。
-
-**修复**：`get_replies()` 增加两级数据回退：
-1. 优先读 `metadata`（新代码写入的记录有完整数据）
-2. `buyer_message` 缺失 → 从 `workflow_jobs.payload_json` 获取
-3. `reply_text` 缺失 → 从 `compliance.db:compliance_audit` 获取（SQLite ATTACH 跨库查询）
-
-### 9.4 数据库文件说明
-
-| 数据库 | 路径 | 用途 |
-|--------|------|------|
-| `data/workflow.db` | 会话状态机 + 任务调度 + SLA 事件 |
-| `data/compliance.db` | 合规审计日志（每条发出的消息） |
-| `data/manual_mode.db` | 人工模式持久化 |
-| `data/agent.db` | 商品运营日志 |
-| `data/quote_ledger.db` | 报价台账 |
-| `data/followup.db` | 追单记录 |
-| `data/orders.db` | 订单数据 |
-| `data/message_dedup.db` | 消息去重（当前未初始化） |
-| `data/system_config.json` | 前端可视化配置（非数据库） |
+- `.env.example` / `QUICKSTART.md` / `README.md` — 文档更新
+- `config/config.example.yaml` / `docker-compose.yml` — 配置调整
+- `src/core/config.py` / `cookie_grabber.py` / `notify.py` — 核心模块修改
+- `src/dashboard/config_service.py` / `dashboard_server.py` — 仪表盘服务
+- `src/modules/messages/*` — 消息模块（service, reply_engine, workflow, ws_live, manual_mode）
+- `src/modules/content/service.py` — AI 内容服务
+- `client/src/pages/messages/Messages.tsx` — 前端消息页
+- `client/src/pages/config/SystemConfig.tsx` — 前端配置页
+- `tests/test_reply_engine_cov100.py` — 测试文件
+- `start.sh` — 启动脚本

@@ -67,6 +67,15 @@ else
   info ".env 已存在"
 fi
 
+# 3.5 创建 config.yaml（如不存在）
+if [ ! -f "config/config.yaml" ]; then
+  if [ -f "config/config.example.yaml" ]; then
+    mkdir -p config
+    cp config/config.example.yaml config/config.yaml
+    info "config.yaml 已从模板创建"
+  fi
+fi
+
 # 4. 创建 Python 虚拟环境并安装依赖
 if [ ! -d ".venv" ]; then
   info "创建 Python 虚拟环境..."
@@ -114,7 +123,16 @@ mkdir -p data
 
 info "所有依赖就绪"
 
-# 6. 启动服务
+# 6. 清理被占用端口
+for port in 8091 5173; do
+  if lsof -ti :"$port" >/dev/null 2>&1; then
+    warn "端口 $port 被占用，正在释放..."
+    lsof -ti :"$port" | xargs kill -9 2>/dev/null || true
+    sleep 1
+  fi
+done
+
+# 7. 启动服务
 echo ""
 echo "========================================="
 echo "  启动所有服务"

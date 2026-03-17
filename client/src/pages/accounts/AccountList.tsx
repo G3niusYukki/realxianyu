@@ -208,21 +208,7 @@ export default function AccountList() {
     } catch { /* non-blocking */ }
   }, []);
 
-  useEffect(() => {
-    fetchAll();
-    fetchAutoRefreshStatus();
-    fetchCookieHealth();
-    refreshTimerRef.current = setInterval(() => {
-      fetchAutoRefreshStatus();
-      fetchRiskStatus();
-    }, 15000);
-    return () => {
-      if (eventSourceRef.current) eventSourceRef.current.close();
-      if (refreshTimerRef.current) clearInterval(refreshTimerRef.current);
-    };
-  }, [fetchAutoRefreshStatus, fetchRiskStatus, fetchCookieHealth]);
-
-  const fetchAll = async () => {
+  const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
       const [cfgRes, statusRes] = await Promise.all([
@@ -249,7 +235,21 @@ export default function AccountList() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchAll();
+    fetchAutoRefreshStatus();
+    fetchCookieHealth();
+    refreshTimerRef.current = setInterval(() => {
+      fetchAutoRefreshStatus();
+      fetchRiskStatus();
+    }, 15000);
+    return () => {
+      if (eventSourceRef.current) eventSourceRef.current.close();
+      if (refreshTimerRef.current) clearInterval(refreshTimerRef.current);
+    };
+  }, [fetchAll, fetchAutoRefreshStatus, fetchRiskStatus, fetchCookieHealth]);
 
   const toggleAutomation = async (currentStatus: boolean) => {
     try {

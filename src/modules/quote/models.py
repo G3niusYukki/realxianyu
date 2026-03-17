@@ -146,7 +146,7 @@ class QuoteResult:
             svc_label = "快运" if explain.get("service_type") == "freight" else "快递"
             oversize_tip = (
                 f"\n超长提醒：您的包裹最长边约{max_dim:.0f}cm，超出{svc_label}标准（{threshold:.0f}cm），"
-                "物流方可能根据实际情况收取超长费，届时小橙序会自动通知补差价~"
+                "物流方可能根据实际情况收取超长费，届时小程序会自动通知补差价~"
             )
 
         tpl = str(template or DEFAULT_QUOTE_REPLY_TEMPLATE)

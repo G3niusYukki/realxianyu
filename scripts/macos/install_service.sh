@@ -22,8 +22,29 @@ usage() {
 install_service() {
     echo "Installing xianyu-openclaw service..."
 
-    # 生成 plist 文件（替换项目路径占位符）
-    sed "s|__PROJECT_ROOT__|${PROJECT_ROOT}|g" "$PLIST_SOURCE" > "$PLIST_TARGET"
+    # 查找 Python3（优先 venv）
+    local PYTHON3=""
+    if [ -x "$PROJECT_ROOT/.venv/bin/python3" ]; then
+        PYTHON3="$PROJECT_ROOT/.venv/bin/python3"
+    elif [ -x "$PROJECT_ROOT/venv/bin/python3" ]; then
+        PYTHON3="$PROJECT_ROOT/venv/bin/python3"
+    else
+        PYTHON3="$(command -v python3 2>/dev/null || true)"
+    fi
+
+    if [ -z "$PYTHON3" ]; then
+        echo "  ❌ python3 not found. Please install Python 3.10+ first."
+        exit 1
+    fi
+    echo "  Python: $PYTHON3"
+
+    mkdir -p "$PROJECT_ROOT/logs"
+    mkdir -p "$HOME/Library/LaunchAgents"
+
+    # 生成 plist 文件（替换所有占位符）
+    sed -e "s|__PROJECT_ROOT__|${PROJECT_ROOT}|g" \
+        -e "s|__PYTHON3__|${PYTHON3}|g" \
+        "$PLIST_SOURCE" > "$PLIST_TARGET"
     echo "  Created: $PLIST_TARGET"
 
     # 加载服务
@@ -35,8 +56,8 @@ install_service() {
     echo "  Service started."
     echo ""
     echo "✅ xianyu-openclaw service installed and started."
-    echo "   Logs: $PROJECT_ROOT/logs/launchd_stdout.log"
-    echo "   Errors: $PROJECT_ROOT/logs/launchd_stderr.log"
+    echo "   Logs: $PROJECT_ROOT/logs/launchd-stdout.log"
+    echo "   Errors: $PROJECT_ROOT/logs/launchd-stderr.log"
 }
 
 uninstall_service() {

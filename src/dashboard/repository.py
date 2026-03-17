@@ -269,6 +269,29 @@ class LiveDashboardDataSource:
 class DashboardRepository:
     def __init__(self, db_path: str):
         self.db_path = db_path
+        self._ensure_tables()
+
+    def _ensure_tables(self) -> None:
+        with self._connect() as conn:
+            conn.execute("""CREATE TABLE IF NOT EXISTS operation_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp TEXT DEFAULT (datetime('now','localtime')),
+                operation TEXT, operation_type TEXT,
+                product_id TEXT, account_id TEXT,
+                status TEXT, details TEXT
+            )""")
+            conn.execute("""CREATE TABLE IF NOT EXISTS products (
+                product_id TEXT PRIMARY KEY, title TEXT,
+                status TEXT DEFAULT 'active', price REAL, stock INTEGER DEFAULT 0,
+                pic_url TEXT, created_at TEXT DEFAULT (datetime('now','localtime'))
+            )""")
+            conn.execute("""CREATE TABLE IF NOT EXISTS product_metrics (
+                product_id TEXT PRIMARY KEY, views INTEGER DEFAULT 0,
+                wants INTEGER DEFAULT 0, sales INTEGER DEFAULT 0,
+                inquiries INTEGER DEFAULT 0,
+                timestamp TEXT DEFAULT (datetime('now','localtime')),
+                updated_at TEXT DEFAULT (datetime('now','localtime'))
+            )""")
 
     @contextmanager
     def _connect(self) -> Iterator[sqlite3.Connection]:

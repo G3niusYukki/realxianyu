@@ -331,7 +331,9 @@ class GoofishWsTransport:
         )
         self._on_manual_takeover: Any | None = None
 
-        self._bot_sent_sigs: dict[str, float] = {}
+        from src.modules.messages.bot_sig_store import BotSigStore
+        self._bot_sig_store = BotSigStore()
+        self._bot_sent_sigs: dict[str, float] = self._bot_sig_store._cache
         self._BOT_SIG_TTL = 7200.0
         self._recent_msgs_cache: dict[str, tuple[float, list[dict[str, Any]]]] = {}
         self._RECENT_MSGS_CACHE_TTL = 30.0
@@ -359,6 +361,8 @@ class GoofishWsTransport:
         self._cookie_changed = threading.Event()
         self._last_cookie_check: float = 0.0
         self._last_im_refresh_at: float = 0.0
+        self._last_haslogin_heartbeat_at: float = 0.0
+        self.haslogin_heartbeat_interval = int(self.config.get("haslogin_heartbeat_interval_seconds", 30 * 60))
 
     def notify_cookie_changed(self) -> None:
         """Thread-safe signal: external cookie update detected."""
@@ -464,8 +468,15 @@ class GoofishWsTransport:
         fp_poll_interval = 120.0
         fp_last_poll = 0.0
         fp_not_configured = False
+        im_poll_interval = 90.0
+        im_last_poll = 0.0
+        rk_poll_interval = 180.0
+        rk_last_poll = 0.0
+        wait_start = time.time()
+        escalation_notified = False
+        escalation_timeout = float(self.config.get("cookie_wait_escalation_timeout_seconds", 10 * 60))
         self.logger.info(
-            "进入 Cookie 更新等待循环 (检测: env/config, CookieCloud, 指纹浏览器)"
+            "进入 Cookie 更新等待循环 (检测: env/config, CookieCloud, 指纹浏览器, 闲管家IM, rookiepy)"
         )
         while not self._stop_event.is_set():
             if self._cookie_changed.is_set():
@@ -473,6 +484,24 @@ class GoofishWsTransport:
             if self._maybe_reload_cookie(reason="watch"):
                 return True
             now = time.time()
+
+            if not escalation_notified and (now - wait_start) >= escalation_timeout:
+                escalation_notified = True
+                elapsed_min = int((now - wait_start) / 60)
+                self.logger.warning(
+                    f"Cookie 等待已超过 {elapsed_min} 分钟，所有自动恢复手段未成功"
+                )
+                try:
+                    from src.core.notify import send_system_notification
+                    send_system_notification(
+                        f"【闲鱼自动化】⚠️ Cookie 等待已超 {elapsed_min} 分钟\n"
+                        "所有自动恢复手段均未成功（CookieCloud/闲管家IM/浏览器DB/滑块验证）。\n"
+                        "请手动打开 Dashboard 更新 Cookie，或确保闲管家IM正在运行。",
+                        event="cookie_expire",
+                    )
+                except Exception:
+                    pass
+
             if not cc_not_configured and (now - cc_last_poll) >= cc_poll_interval:
                 cc_last_poll = now
                 refreshed = await self._try_cookiecloud_poll()
@@ -480,6 +509,19 @@ class GoofishWsTransport:
                     return True
                 if refreshed is None:
                     cc_not_configured = True
+
+            if (now - im_last_poll) >= im_poll_interval:
+                im_last_poll = now
+                if await self._try_goofish_im_refresh(urgent=True):
+                    self.logger.info("Cookie wait: 闲管家IM刷新成功")
+                    return True
+
+            if (now - rk_last_poll) >= rk_poll_interval:
+                rk_last_poll = now
+                if await self._try_active_cookie_refresh():
+                    self.logger.info("Cookie wait: rookiepy主动刷新成功")
+                    return True
+
             if not fp_not_configured and (now - fp_last_poll) >= fp_poll_interval:
                 fp_last_poll = now
                 recovered = await self._try_slider_recovery()
@@ -527,10 +569,11 @@ class GoofishWsTransport:
     _IM_REFRESH_COOLDOWN = 60.0
     _last_im_cookie_refresh_at: float = 0.0
 
-    async def _try_goofish_im_refresh(self) -> bool:
+    async def _try_goofish_im_refresh(self, urgent: bool = False) -> bool:
         """从闲管家IM Electron应用直接读取最新Cookie（首选恢复方式）。
 
         内置 60s 冷却期，避免 RGV587 场景下无限快速循环。
+        urgent=True 时使用更低的 min_ttl (60s)，接受短 TTL 的 cookie。
         """
         now = time.time()
         if (now - self._last_im_cookie_refresh_at) < self._IM_REFRESH_COOLDOWN:
@@ -543,10 +586,16 @@ class GoofishWsTransport:
 
         self._last_im_cookie_refresh_at = now
 
-        result = read_goofish_im_cookies(user_id=self.my_user_id)
+        min_ttl = 60 if urgent else 300
+        result = read_goofish_im_cookies(user_id=self.my_user_id, min_ttl=min_ttl)
         if not result:
             self.logger.debug("goofish_im refresh: no valid cookies from IM app")
             return False
+
+        if result.get("low_ttl_warning"):
+            self.logger.warning(
+                f"goofish_im refresh: using low-TTL cookie (urgent={urgent})"
+            )
 
         existing_cookie = os.environ.get("XIANYU_COOKIE_1", "") or self.cookie_text
         merged = merge_cookies(result["cookies"], existing_cookie)
@@ -566,11 +615,13 @@ class GoofishWsTransport:
         """主动调用 rookiepy 从浏览器 DB 读取最新 Cookie（含 _m_h5_tk）。
 
         在 auth 失败时调用，避免因 _m_h5_tk 过期而永久挂起。
+        rookiepy 同步读取在 executor 中运行；如需 Playwright 补全 _m_h5_tk，
+        在当前事件循环中直接 await，避免嵌套事件循环。
         """
         self.logger.info("WS auth failed, attempting active cookie refresh via rookiepy...")
         try:
             loop = asyncio.get_running_loop()
-            new_cookie = await loop.run_in_executor(None, self._sync_grab_from_browser_db)
+            new_cookie = await loop.run_in_executor(None, self._sync_rookiepy_read_only)
         except Exception as exc:
             self.logger.info(f"Active cookie refresh failed: {exc}")
             return False
@@ -578,6 +629,17 @@ class GoofishWsTransport:
         if not new_cookie:
             self.logger.info("Active cookie refresh: no cookie obtained from browser DB")
             return False
+
+        try:
+            from src.core.cookie_grabber import CookieGrabber
+            if not CookieGrabber._has_session_fields(new_cookie):
+                self.logger.info("Active cookie refresh: missing session fields, trying Playwright enrichment...")
+                grabber = CookieGrabber()
+                enriched = await grabber._enrich_with_session_cookies(new_cookie)
+                if enriched:
+                    new_cookie = enriched
+        except Exception as exc:
+            self.logger.debug(f"Playwright session enrichment failed: {exc}")
 
         new_fp = hashlib.sha1(new_cookie.encode("utf-8")).hexdigest()
         if new_fp == self._cookie_fp:
@@ -597,8 +659,8 @@ class GoofishWsTransport:
             return False
 
     @staticmethod
-    def _sync_grab_from_browser_db() -> str | None:
-        """同步调用 rookiepy 读取浏览器 Cookie DB。"""
+    def _sync_rookiepy_read_only() -> str | None:
+        """同步调用 rookiepy 读取浏览器 Cookie DB（纯同步，不启动 Playwright）。"""
         try:
             from src.core.cookie_grabber import CookieGrabber
         except ImportError:
@@ -609,12 +671,7 @@ class GoofishWsTransport:
         _loop = _asyncio.new_event_loop()
         try:
             grabber = CookieGrabber()
-            cookie = _loop.run_until_complete(grabber._grab_from_browser_db())
-            if cookie and not CookieGrabber._has_session_fields(cookie):
-                enriched = _loop.run_until_complete(grabber._enrich_with_session_cookies(cookie))
-                if enriched:
-                    cookie = enriched
-            return cookie
+            return _loop.run_until_complete(grabber._grab_from_browser_db())
         except Exception:
             return None
         finally:
@@ -1170,23 +1227,65 @@ class GoofishWsTransport:
             self._recent_msgs_cache.pop(k, None)
 
     _SYSTEM_MSG_PATTERNS: list[str] = [
-        "记得及时确认收货",
+        # 价格 / 付款
         "已修改价格",
         "我已修改价格",
         "等待你付款",
         "请确认价格",
+        "待付款",
+        "付款成功",
+        "已拍下",
+        "买家已付款",
+        # 发货 / 物流
         "已发货",
         "你已发货",
         "等待你发货",
+        "待发货",
+        "物流已更新",
+        "快递已签收",
+        "包裹已揽收",
+        "已填写物流",
+        "请尽快发货",
+        # 收货 / 交易完成
+        "记得及时确认收货",
+        "已确认收货",
         "交易成功",
         "订单已完成",
-        "订单已关闭",
+        "交易完成",
+        # 退款 / 关闭
         "已退款",
-        "请在24小时内",
-        "交易已关闭",
-        "已确认收货",
         "申请退款",
         "同意退款",
+        "退款成功",
+        "退款已到账",
+        "拒绝退款",
+        "订单已关闭",
+        "交易已关闭",
+        "已取消订单",
+        "订单已取消",
+        # 验货 / 鉴定
+        "验货担保",
+        "验货报告",
+        "鉴定结果",
+        "已通过鉴定",
+        "鉴定为正品",
+        "验货中",
+        # 平台提醒 / 通知
+        "请在24小时内",
+        "系统消息",
+        "平台提醒",
+        "温馨提示",
+        "安全提醒",
+        "请注意交易安全",
+        "请勿线下交易",
+        "请勿私下转账",
+        "请通过平台交易",
+        "闲鱼小法庭",
+        "对方已读",
+        # 评价
+        "给你一个评价",
+        "已评价",
+        "请及时评价",
     ]
 
     def _is_system_message(self, text: str) -> bool:
@@ -1378,7 +1477,7 @@ class GoofishWsTransport:
                             self._connect_failures = 0
                             break
 
-                    im_refresh_interval = 45 * 60
+                    im_refresh_interval = 15 * 60
                     if (now - self._last_im_refresh_at) >= im_refresh_interval:
                         ttl = self._m_h5_tk_seconds_until_expiry()
                         if ttl is not None and ttl < 900:
@@ -1394,6 +1493,22 @@ class GoofishWsTransport:
                                 self._connect_failures = 0
                                 break
                         self._last_im_refresh_at = now
+
+                    if (now - self._last_haslogin_heartbeat_at) >= self.haslogin_heartbeat_interval:
+                        self._last_haslogin_heartbeat_at = now
+                        try:
+                            hl_ok = await self._preflight_has_login()
+                            if hl_ok:
+                                ttl_after = self._m_h5_tk_seconds_until_expiry()
+                                self.logger.info(
+                                    f"hasLogin heartbeat succeeded, _m_h5_tk TTL={ttl_after:.0f}s"
+                                    if ttl_after is not None else
+                                    "hasLogin heartbeat succeeded"
+                                )
+                            else:
+                                self.logger.debug("hasLogin heartbeat: server returned non-success")
+                        except Exception as exc:
+                            self.logger.debug(f"hasLogin heartbeat failed: {exc}")
 
                     try:
                         msg_text = await asyncio.wait_for(self._ws.recv(), timeout=1.0)
@@ -1428,7 +1543,7 @@ class GoofishWsTransport:
                             f"RGV587 风控检测 ({self._rgv587_consecutive})，尝试恢复..."
                         )
 
-                        if self._rgv587_consecutive <= 2 and await self._try_goofish_im_refresh():
+                        if self._rgv587_consecutive <= 2 and await self._try_goofish_im_refresh(urgent=True):
                             self._connect_failures = 0
                             rgv_backoff = 30.0 * self._rgv587_consecutive
                             self.logger.info(
@@ -1454,7 +1569,7 @@ class GoofishWsTransport:
                                     f"RGV587 风控检测 ({self._rgv587_consecutive}/{_RGV587_BACKOFF_MAX})，"
                                     f"退避 {backoff:.0f}s 后重试..."
                                 )
-                                await self._try_goofish_im_refresh()
+                                await self._try_goofish_im_refresh(urgent=True)
                                 if await self._try_active_cookie_refresh():
                                     self.logger.info("Active cookie refresh succeeded during RGV587 backoff")
                                 await asyncio.sleep(backoff)
@@ -1470,7 +1585,7 @@ class GoofishWsTransport:
                             self._rgv587_consecutive = 0
                             self.logger.info("检测到 Cookie 更新，立即重试 WS 连接")
                             continue
-                    elif await self._try_goofish_im_refresh():
+                    elif await self._try_goofish_im_refresh(urgent=True):
                         self._active_refresh_401_streak = 0
                         self._connect_failures = 0
                         self.logger.info("闲管家IM Cookie刷新成功 (401恢复)，立即重试 WS 连接")
@@ -1630,8 +1745,7 @@ class GoofishWsTransport:
         }
         try:
             await self._ws.send(json.dumps(msg, ensure_ascii=False))
-            sig = hashlib.sha1(f"{chat_id}:{str(text or '')[:100]}".encode()).hexdigest()[:16]
-            self._bot_sent_sigs[sig] = time.time()
+            self._record_bot_sig(chat_id, text)
             return True
         except Exception as exc:
             self.logger.warning(f"WS send failed: {exc}, falling back to mtop")
@@ -1664,8 +1778,7 @@ class GoofishWsTransport:
             ret = result.get("ret", []) if isinstance(result, dict) else []
             success = any("SUCCESS" in str(item) for item in ret) if ret else bool(result.get("data"))
             if success:
-                sig = hashlib.sha1(f"{chat_id}:{str(text or '')[:100]}".encode()).hexdigest()[:16]
-                self._bot_sent_sigs[sig] = time.time()
+                self._record_bot_sig(chat_id, text)
                 self.logger.info(f"mtop send succeeded for session `{chat_id}`")
             else:
                 self.logger.warning(f"mtop send response not successful for `{chat_id}`: ret={ret}")
@@ -1674,15 +1787,14 @@ class GoofishWsTransport:
             self.logger.warning(f"mtop send failed for `{chat_id}`: {exc}")
             return False
 
+    def _record_bot_sig(self, chat_id: str, text: str) -> None:
+        self._bot_sig_store.record(chat_id, text)
+
     def is_bot_sent(self, chat_id: str, text: str) -> bool:
-        sig = hashlib.sha1(f"{chat_id}:{str(text or '')[:100]}".encode()).hexdigest()[:16]
-        return sig in self._bot_sent_sigs
+        return self._bot_sig_store.is_bot_sent(chat_id, text)
 
     def _cleanup_bot_sigs(self) -> None:
-        now = time.time()
-        stale = [k for k, ts in self._bot_sent_sigs.items() if now - ts > self._BOT_SIG_TTL]
-        for k in stale:
-            del self._bot_sent_sigs[k]
+        self._bot_sig_store.cleanup()
 
     def find_session_by_peer(self, user_id: str) -> str:
         """Reverse lookup: sender_user_id -> chat_id."""

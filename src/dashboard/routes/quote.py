@@ -144,10 +144,13 @@ def handle_query_route_cost(ctx: RouteContext) -> None:
 
 @post("/api/save-pricing-config")
 def handle_save_pricing_config(ctx: RouteContext) -> None:
-    """保存加价表 + 让利表。"""
+    """保存加价表 + 让利表 + 抛比 + 大件运力优先级。"""
     body = ctx.json_body()
     payload = ctx.mimic_ops.save_pricing_config(
         markup_categories=body.get("markup_categories"),
         xianyu_discount=body.get("xianyu_discount"),
+        volume_divisor_default=body.get("volume_divisor_default"),
+        volume_divisors=body.get("volume_divisors"),
+        freight_courier_priority=body.get("freight_courier_priority"),
     )
     ctx.send_json(payload, status=200 if payload.get("success") else 400)

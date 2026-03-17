@@ -362,33 +362,33 @@ const BUILTIN_RULES: BuiltinRule[] = [
   { phase: 'universal', intent: '讲价', keywords: '最低、便宜、优惠、少点、能便宜', reply: '亲，这个价格已经很实惠了呢~ 量大的话可以再商量哦~' },
   // 快递售前 - 需人工
   { phase: 'presale_human', intent: '超偏远地区', keywords: '新疆、西藏', reply: '亲，新疆/西藏属于偏远地区续重会贵一些~ 方便告诉我包裹的长宽高吗？我帮您精确核算~', scope: '仅快递', needsHuman: true },
-  { phase: 'presale_human', intent: '体积计费', keywords: '体积大、长宽高、棉被、懒人沙发', reply: '体积较大的物品会按体积重计费（长x宽x高/8000），方便告诉我具体长宽高吗？我帮您算~', scope: '仅快递', needsHuman: true },
+  { phase: 'presale_human', intent: '体积计费', keywords: '体积大、长宽高、棉被、懒人沙发', reply: '体积较大的物品会按体积重计费（长x宽x高/抛比），方便告诉我具体长宽高吗？我帮您算~', scope: '仅快递', needsHuman: true },
   { phase: 'presale_human', intent: '大件/搬家', keywords: '搬家、毕业寄、大件', reply: '大件/搬家可以走德邦哦~ 我帮您确认一下具体方案~', scope: '仅快递', needsHuman: true },
   // 快递售前 - 自动回复
   { phase: 'presale', intent: '咨询在不在', keywords: '在吗、还在、有货吗', reply: '在的亲~ 您是从哪里寄到哪里呢？告诉我城市和重量帮您查最优价~', scope: '仅快递' },
   { phase: 'presale', intent: '购买流程', keywords: '怎么买、怎么拍、怎么下单', reply: '先拍下不付款，我帮您改价，付款后系统自动发兑换码给您~', scope: '仅快递' },
   { phase: 'presale', intent: '兑换码使用', keywords: '怎么用、怎么使用、兑换码', reply: '兑换码是兑换余额用的~ 下单时选择使用余额支付就好啦~', scope: '仅快递' },
-  { phase: 'presale', intent: '代下单', keywords: '代下单、帮我下单', reply: '亲，我们不做代下单了~ 拍下付款后系统会发兑换码给您，用兑换码到小橙序下单就好~', scope: '仅快递' },
+  { phase: 'presale', intent: '代下单', keywords: '代下单、帮我下单', reply: '亲，我们不做代下单了~ 拍下付款后系统会发兑换码给您，用兑换码到小程序下单就好~', scope: '仅快递' },
   { phase: 'presale', intent: '路线咨询', keywords: '哪里到哪里、寄到哪、从哪寄', reply: '亲，您是从哪里寄到哪里呢？告诉我城市和重量帮您查价~', scope: '仅快递' },
-  { phase: 'presale', intent: '上门取件', keywords: '上门取件、取件时间', reply: '下单后联系快递员沟通好上门取件时间就行啦~ 也可以搜索「商达人」小橙序预约上门取件哦~', scope: '仅快递' },
-  { phase: 'presale', intent: '商达人取件', keywords: '商达人、商达人取件', reply: '在小橙序搜索「商达人」点击进入 → 右下角「我的」→「兑换优惠」兑换余额 → 返回首页填写寄件和收件地址、选快递公司 → 用余额支付下单即可~', scope: '仅快递' },
+  { phase: 'presale', intent: '上门取件', keywords: '上门取件、取件时间', reply: '下单后联系快递员沟通好上门取件时间就行啦~ 也可以搜索「商达人」小程序预约上门取件哦~', scope: '仅快递' },
+  { phase: 'presale', intent: '商达人取件', keywords: '商达人、商达人取件', reply: '在小程序搜索「商达人」点击进入 → 右下角「我的」→「兑换优惠」兑换余额 → 返回首页填写寄件和收件地址、选快递公司 → 用余额支付下单即可~', scope: '仅快递' },
   { phase: 'presale', intent: '包装费', keywords: '包装费、耗材费', reply: '包装费需要跟快递员确认，这个是快递员那边的收费哦~', scope: '仅快递' },
   { phase: 'presale', intent: '品牌缺货', keywords: '有顺丰吗、有京东吗', reply: '不好意思，暂时没有顺丰和京东的渠道呢~', scope: '仅快递' },
-  { phase: 'presale', intent: '仅限首单', keywords: '第二次、再买、续费', reply: '亲，这个链接仅限首单哦~ 后续在小橙序直接下单就行，价格已经是官方5折了~', scope: '仅快递' },
-  { phase: 'presale', intent: '老用户优惠', keywords: '老用户、老客户、更优惠', reply: '小橙序的价格已经是官方5折了，首重续重都有折扣哦~', scope: '仅快递' },
+  { phase: 'presale', intent: '仅限首单', keywords: '第二次、再买、续费', reply: '亲，这个链接仅限首单哦~ 后续在小程序直接下单就行，价格已经是官方5折了~', scope: '仅快递' },
+  { phase: 'presale', intent: '老用户优惠', keywords: '老用户、老客户、更优惠', reply: '小程序的价格已经是官方5折了，首重续重都有折扣哦~', scope: '仅快递' },
   { phase: 'presale', intent: '有效期', keywords: '过期、有效期', reply: '不会过期的~ 未兑换就一直有效，兑换成余额后也一直在账户里哦~', scope: '仅快递' },
   { phase: 'presale', intent: '禁寄物品', keywords: '能发吗、可以寄吗', reply: '刀具、易燃品、电池、生鲜、数码产品暂时不支持寄送呢~ 具体可以问我帮您确认~', scope: '仅快递' },
   { phase: 'presale', intent: '保价', keywords: '保价、保价费', reply: '圆通可以保价，保价费1元~ 韵达不支持保价，选保价后韵达不显示，取消保价韵达就出来了哦~', scope: '仅快递' },
   { phase: 'presale', intent: '网点问题', keywords: '不接单、运力不足、被取消', reply: '亲，您那边的快递网点暂时不接单了~ 换别的快递重新下单试试哦~', scope: '仅快递' },
   { phase: 'presale', intent: '快递单号', keywords: '上传单号、填单号', reply: '可以的~ 不管是抖音还是闲鱼、淘宝、拼多多都可以，选自行寄回填写快递单号就行~', scope: '仅快递' },
-  { phase: 'presale', intent: '实名认证', keywords: '实名、身份证', reply: '去圆通/韵达官方小橙序，点我的，有个实名认证，认证一下就好了，是互通的~', scope: '仅快递' },
-  // 快递售后 - 引导小橙序客服
+  { phase: 'presale', intent: '实名认证', keywords: '实名、身份证', reply: '去圆通/韵达官方小程序，点我的，有个实名认证，认证一下就好了，是互通的~', scope: '仅快递' },
+  // 快递售后 - 引导小程序客服
   { phase: 'aftersale', intent: '退款', keywords: '退款、不想要了、退钱', reply: '好的亲，我会尽快帮您处理退款，请稍等一下哦~', scope: '仅快递', needsHuman: true },
   { phase: 'aftersale', intent: '退款申请', keywords: '申请退款、走退款', reply: '收到您的退款申请，我会尽快帮您处理~ 如有问题随时联系我哦~', scope: '仅快递', needsHuman: true },
   { phase: 'aftersale', intent: '投诉/丢件', keywords: '丢件、破损、投诉', reply: '非常抱歉给您带来不便~ 请把快递单号发我，我会尽快帮您处理！', scope: '仅快递', needsHuman: true },
-  { phase: 'aftersale', intent: '余额不够', keywords: '余额不够、抵扣不了', reply: '亲，是不是选错快递公司了呢？截图给我看一下~ 如需帮助可以在小橙序点击「联系客服」哦~', scope: '仅快递', needsHuman: true },
-  { phase: 'aftersale', intent: '揽收慢', keywords: '没来取、不来取、揽收慢', reply: '如果急件可以先换快递公司下单~ 揽收问题可以在小橙序点击「联系客服」反馈哦~', scope: '仅快递', needsHuman: true },
-  { phase: 'aftersale', intent: '差评风险', keywords: '差评、体验差', reply: '非常抱歉给您不好的体验~ 请在小橙序首页点击「联系客服」，客服会第一时间帮您处理的~', scope: '仅快递', needsHuman: true },
+  { phase: 'aftersale', intent: '余额不够', keywords: '余额不够、抵扣不了', reply: '亲，是不是选错快递公司了呢？截图给我看一下~ 如需帮助可以在小程序点击「联系客服」哦~', scope: '仅快递', needsHuman: true },
+  { phase: 'aftersale', intent: '揽收慢', keywords: '没来取、不来取、揽收慢', reply: '如果急件可以先换快递公司下单~ 揽收问题可以在小程序点击「联系客服」反馈哦~', scope: '仅快递', needsHuman: true },
+  { phase: 'aftersale', intent: '差评风险', keywords: '差评、体验差', reply: '非常抱歉给您不好的体验~ 请在小程序首页点击「联系客服」，客服会第一时间帮您处理的~', scope: '仅快递', needsHuman: true },
 ];
 
 const PHASE_LABELS: Record<RulePhase, { label: string; color: string }> = {
@@ -410,7 +410,7 @@ function BuiltinRulesTable() {
   return (
     <div className="space-y-3">
       <p className="text-xs text-xy-text-secondary">
-        以下规则始终生效。标记「仅快递」的规则仅在快递品类下触发。售后规则引导客户到小橙序联系客服。如需覆盖，在上方「关键词快捷回复」中添加相同关键词（优先级最高）。
+        以下规则始终生效。标记「仅快递」的规则仅在快递品类下触发。售后规则引导客户到小程序联系客服。如需覆盖，在上方「关键词快捷回复」中添加相同关键词（优先级最高）。
       </p>
       {grouped.map(group => (
         <div key={group.phase} className="space-y-1">
@@ -444,7 +444,7 @@ function BuiltinRulesTable() {
         <p>2. 快递售前/售后专用规则（优先级 45-50）</p>
         <p>3. 通用内置规则（优先级 100）</p>
         <p>4. 虚拟商品回复 / 通用报价引导模板（兜底）</p>
-        <p className="text-orange-600 mt-1">注：售后规则回复中会引导客户到小橙序联系客服，仅做日志记录不触发闲鱼转人工</p>
+        <p className="text-orange-600 mt-1">注：售后规则回复中会引导客户到小程序联系客服，仅做日志记录不触发闲鱼转人工</p>
       </GuideCard>
     </div>
   );
@@ -1743,6 +1743,34 @@ export default function SystemConfig() {
                 defaultOpen
               >
                 <IntentRulesManager config={config} onConfigChange={handleChange} onSave={handleSave} />
+              </CollapsibleSection>
+
+              {/* ═══ 敏感词替换 ═══ */}
+              <CollapsibleSection
+                title="敏感词替换"
+                icon={<Shield className="w-4 h-4 text-rose-500" />}
+                summary={<span className="px-1.5 py-0.5 rounded bg-rose-50 text-rose-600 text-[11px]">当前：{config.sensitive_words?.xiaochengxu || '小丞虚'}</span>}
+              >
+                <div className="space-y-4">
+                  <div>
+                    <label className="xy-label">「小程序」替换词</label>
+                    <input
+                      type="text"
+                      className="xy-input px-3 py-2"
+                      placeholder="小丞虚"
+                      value={config.sensitive_words?.xiaochengxu || ''}
+                      onChange={e => handleChange('sensitive_words', 'xiaochengxu', e.target.value)}
+                    />
+                    <p className="text-[11px] text-gray-400 mt-1">
+                      平台对「小程序」等词敏感，所有发给买家的消息中会自动替换为此处设置的词。留空则使用默认值「小丞虚」。可随时修改，立即生效无需重启。
+                    </p>
+                  </div>
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700">
+                    <p className="font-medium mb-1">替换示例</p>
+                    <p>模板原文：「到小程序下单即可」</p>
+                    <p>发送效果：「到{config.sensitive_words?.xiaochengxu || '小丞虚'}下单即可」</p>
+                  </div>
+                </div>
               </CollapsibleSection>
             </div>
           )}

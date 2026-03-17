@@ -214,7 +214,7 @@ STATELESS_TESTS: list[TestCase] = [
     TestCase("报价请求", "上海到武汉 3斤", expect_is_quote=True),
 
     # === 3. 京东/顺丰 (8) ===
-    TestCase("京东顺丰", "有顺丰吗", expect_rule="express_sf_jd", expect_reply_contains="小橙序"),
+    TestCase("京东顺丰", "有顺丰吗", expect_rule="express_sf_jd", expect_reply_contains="小丞虚"),
     TestCase("京东顺丰", "京东快递多少钱", expect_rule="express_sf_jd"),
     TestCase("京东顺丰", "能发顺丰不", expect_rule="express_sf_jd"),
     TestCase("京东顺丰", "改成京东", expect_rule="express_sf_jd"),
@@ -235,7 +235,7 @@ STATELESS_TESTS: list[TestCase] = [
     TestCase("下单流程", "收到码了然后呢", expect_rule="express_code_usage"),
     TestCase("下单流程", "码收到了怎么弄", expect_rule=["express_code_usage", "express_buying_process"]),
     TestCase("下单流程", "什么小程序", expect_rule="express_xiaochengxu_explain"),
-    TestCase("下单流程", "小橙序搜不到", expect_rule=["express_xiaochengxu_explain", "any"], allow_ai=True),
+    TestCase("下单流程", "小程序搜不到", expect_rule=["express_xiaochengxu_explain", "any"], allow_ai=True),
     TestCase("下单流程", "在哪搜", expect_rule="express_xiaochengxu_explain"),
 
     # === 5. 售后问题 (15) ===
@@ -364,7 +364,7 @@ SESSION_TESTS: list[SessionTest] = [
         SessionStep("杭州到北京 1kg", expect_is_quote=True),
         SessionStep("选申通", expect_reply_contains="申通"),
         SessionStep("我已付款，等待你发货\n请包装好商品，并按我在闲鱼上提供的地址发货", expect_skipped=True),
-        SessionStep("给我改成京东快递吧", expect_rule="express_sf_jd", expect_reply_contains="小橙序"),
+        SessionStep("给我改成京东快递吧", expect_rule="express_sf_jd", expect_reply_contains="小丞虚"),
         SessionStep("怎么补差价", expect_rule="express_supplement_pay"),
     ]),
 
