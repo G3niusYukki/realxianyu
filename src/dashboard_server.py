@@ -4800,10 +4800,12 @@ class DashboardHandler(BaseHTTPRequestHandler):
     })
 
     def log_message(self, format: str, *args: Any) -> None:
+        from loguru import logger as _loguru
+
         msg = format % args if args else format
         if any(p in msg for p in self._QUIET_PATHS) and "200" in msg:
             return
-        logger.info(msg)
+        _loguru.info(msg)
 
 
 def run_server(host: str = "127.0.0.1", port: int = 8091, db_path: str | None = None) -> None:
@@ -4945,12 +4947,13 @@ def run_server(host: str = "127.0.0.1", port: int = 8091, db_path: str | None = 
     wd_thread = threading.Thread(target=_watchdog_loop, daemon=True, name="watchdog")
     wd_thread.start()
 
+    from loguru import logger as _loguru
     from src.dashboard.router import all_routes
     routes = all_routes()
     total = sum(len(v) for v in routes.values())
-    logger.info("已注册 %d 个 API 路由", total)
-    logger.info("Dashboard running: http://%s:%s", host, port)
-    logger.info("Using database: %s", resolved_db)
+    _loguru.info("已注册 {} 个 API 路由", total)
+    _loguru.info("Dashboard running: http://{}:{}", host, port)
+    _loguru.info("Using database: {}", resolved_db)
     server.serve_forever()
 
 
