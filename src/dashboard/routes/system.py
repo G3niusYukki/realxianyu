@@ -411,7 +411,6 @@ def handle_version_latest(ctx: RouteContext) -> None:
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
 _UPDATE_STATUS_FILE = _PROJECT_ROOT / "data" / "update-status.json"
-_update_lock = threading.Lock()
 
 
 def _cmp_ver(a: str, b: str) -> int:
@@ -441,6 +440,54 @@ def _write_update_status(status: str, **extra: Any) -> None:
     _UPDATE_STATUS_FILE.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
 
 
+def _is_update_in_progress() -> bool:
+    s = _read_update_status().get("status", "idle")
+    return s not in ("idle", "error", "done")
+
+
+def _do_update_in_background(latest: str, asset_url: str) -> None:
+    """Download update package and spawn the install script in a background thread."""
+    try:
+        _write_update_status("downloading", version=latest)
+        dl_headers = _gh_api_headers()
+        dl_headers["Accept"] = "application/octet-stream"
+        tmp_path = Path(tempfile.gettempdir()) / f"xianyu-update-{latest}.tar.gz"
+
+        import httpx
+        with httpx.Client(timeout=180.0, follow_redirects=True) as hc:
+            with hc.stream("GET", asset_url, headers=dl_headers) as stream:
+                stream.raise_for_status()
+                with open(tmp_path, "wb") as f:
+                    for chunk in stream.iter_bytes(chunk_size=65536):
+                        f.write(chunk)
+
+        _write_update_status("installing", version=latest, package=str(tmp_path))
+
+        project_root = str(_PROJECT_ROOT)
+        (_PROJECT_ROOT / "logs").mkdir(parents=True, exist_ok=True)
+
+        if sys.platform == "win32":
+            script = str(_PROJECT_ROOT / "scripts" / "update.bat")
+            subprocess.Popen(
+                ["cmd", "/c", script, str(tmp_path), project_root],
+                cwd=project_root,
+                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS,
+                close_fds=True,
+            )
+        else:
+            script = str(_PROJECT_ROOT / "scripts" / "update.sh")
+            subprocess.Popen(
+                ["bash", script, str(tmp_path), project_root],
+                cwd=project_root,
+                start_new_session=True,
+                close_fds=True,
+                stdout=open(_PROJECT_ROOT / "logs" / "update.log", "a"),
+                stderr=subprocess.STDOUT,
+            )
+    except Exception as exc:
+        _write_update_status("error", message=str(exc))
+
+
 @get("/api/update/status")
 def handle_update_status(ctx: RouteContext) -> None:
     ctx.send_json(_read_update_status())
@@ -448,9 +495,10 @@ def handle_update_status(ctx: RouteContext) -> None:
 
 @post("/api/update/apply")
 def handle_update_apply(ctx: RouteContext) -> None:
-    if not _update_lock.acquire(blocking=False):
+    if _is_update_in_progress():
         ctx.send_json({"success": False, "error": "更新正在进行中"}, status=409)
         return
+
     try:
         from src import __version__ as current_version
         from src.core.update_config import UPDATE_ASSET_SUFFIX
@@ -488,48 +536,16 @@ def handle_update_apply(ctx: RouteContext) -> None:
             ctx.send_json({"success": False, "error": "Release 中未找到更新包 (*-update.tar.gz)"})
             return
 
-        _write_update_status("downloading", version=latest)
-        dl_headers = _gh_api_headers()
-        dl_headers["Accept"] = "application/octet-stream"
-        tmp_path = Path(tempfile.gettempdir()) / f"xianyu-update-{latest}.tar.gz"
-        with httpx.Client(timeout=120.0, follow_redirects=True) as hc:
-            with hc.stream("GET", asset_url, headers=dl_headers) as stream:
-                stream.raise_for_status()
-                with open(tmp_path, "wb") as f:
-                    for chunk in stream.iter_bytes(chunk_size=65536):
-                        f.write(chunk)
+        threading.Thread(
+            target=_do_update_in_background,
+            args=(latest, asset_url),
+            daemon=True,
+        ).start()
 
-        _write_update_status("installing", version=latest, package=str(tmp_path))
-
-        project_root = str(_PROJECT_ROOT)
-        if sys.platform == "win32":
-            script = str(_PROJECT_ROOT / "scripts" / "update.bat")
-            subprocess.Popen(
-                ["cmd", "/c", script, str(tmp_path), project_root],
-                cwd=project_root,
-                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS,
-                close_fds=True,
-            )
-        else:
-            script = str(_PROJECT_ROOT / "scripts" / "update.sh")
-            subprocess.Popen(
-                ["bash", script, str(tmp_path), project_root],
-                cwd=project_root,
-                start_new_session=True,
-                close_fds=True,
-                stdout=open(_PROJECT_ROOT / "logs" / "update.log", "a"),
-                stderr=subprocess.STDOUT,
-            )
-
-        ctx.send_json({"success": True, "status": "updating", "version": latest})
+        ctx.send_json({"success": True, "status": "checking", "version": latest})
     except Exception as exc:
         _write_update_status("error", message=str(exc))
         ctx.send_json({"success": False, "error": str(exc)}, status=500)
-    finally:
-        try:
-            _update_lock.release()
-        except RuntimeError:
-            pass
 
 
 # ---------------------------------------------------------------------------

@@ -86,6 +86,8 @@ if [ -n "$BACKUP_ITEMS" ]; then
   tar czf "$BACKUP_TAR" $BACKUP_ITEMS 2>/dev/null
   BACKUP_SIZE=$(du -sh "$BACKUP_TAR" | cut -f1)
   ok "备份完成: $BACKUP_SIZE -> data/backups/pre-update-${TIMESTAMP}.tar.gz"
+  # Keep only the 3 most recent backups
+  ls -t "$PROJECT_ROOT/data/backups/pre-update-"*.tar.gz 2>/dev/null | tail -n +4 | xargs rm -f 2>/dev/null || true
 else
   warn "没有找到需要备份的文件"
   BACKUP_TAR=""
@@ -188,7 +190,9 @@ write_status "restarting"
 
 NEW_VERSION="unknown"
 if [ -f "$PROJECT_ROOT/src/__init__.py" ]; then
-  NEW_VERSION=$(grep -oP '__version__\s*=\s*"\K[^"]+' "$PROJECT_ROOT/src/__init__.py" 2>/dev/null || echo "unknown")
+  NEW_VERSION=$(sed -n 's/.*__version__[[:space:]]*=[[:space:]]*["\x27]\([^"\x27]*\).*/\1/p' \
+    "$PROJECT_ROOT/src/__init__.py" 2>/dev/null)
+  [ -z "$NEW_VERSION" ] && NEW_VERSION="unknown"
 fi
 
 cd "$PROJECT_ROOT"

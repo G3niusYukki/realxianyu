@@ -55,6 +55,16 @@ if exist "requirements.txt" (
 )
 echo [OK] 备份完成: data\backups\pre-update-%TIMESTAMP%
 
+REM Keep only the 3 most recent backups
+set "_BACKUP_COUNT=0"
+for /f "delims=" %%B in ('dir /b /o-d "%PROJECT_ROOT%\data\backups\pre-update-*" 2^>nul') do (
+    set /a "_BACKUP_COUNT+=1"
+    if !_BACKUP_COUNT! gtr 3 (
+        rmdir /S /Q "%PROJECT_ROOT%\data\backups\%%B" 2>nul
+        del /F /Q "%PROJECT_ROOT%\data\backups\%%B" 2>nul
+    )
+)
+
 REM ═══════════════ 2. 停止服务 ═══════════════
 echo [^>^>] [2/5] 停止运行中的服务...
 call :write_status "stopping" ""

@@ -3,7 +3,7 @@ import { api } from '../api/index';
 import { ArrowUpCircle, X, ExternalLink, Download, Loader2, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
 
 const CACHE_KEY = 'xianyu_update_check';
-const CACHE_TTL = 24 * 60 * 60 * 1000;
+const CACHE_TTL = 4 * 60 * 60 * 1000;
 const DISMISS_KEY = 'xianyu_update_dismissed';
 
 interface VersionInfo {
@@ -151,7 +151,7 @@ export default function UpdateBanner() {
         localStorage.removeItem(CACHE_KEY);
         setTimeout(() => window.location.reload(), 1500);
       } catch {
-        if (reconnectAttemptsRef.current > 30) {
+        if (reconnectAttemptsRef.current > 90) {
           if (reconnectRef.current) clearInterval(reconnectRef.current);
           setPhase('error');
           setErrorMsg('服务重启超时，请手动刷新页面');
@@ -189,16 +189,17 @@ export default function UpdateBanner() {
   const handleUpdate = async () => {
     setPhase('checking');
     setErrorMsg('');
+    startPollingStatus();
     try {
       const res = await api.post('/update/apply');
-      if (res.data?.success) {
-        setPhase('downloading');
-        startPollingStatus();
-      } else {
+      if (!res.data?.success) {
+        if (pollRef.current) clearInterval(pollRef.current);
         setPhase('error');
         setErrorMsg(res.data?.error || '更新失败');
       }
     } catch (err: any) {
+      if (err?.code === 'ECONNABORTED') return;
+      if (pollRef.current) clearInterval(pollRef.current);
       setPhase('error');
       setErrorMsg(err?.response?.data?.error || err?.message || '请求失败');
     }
