@@ -1,6 +1,4 @@
-"""
-Test suite for analytics service module.
-"""
+"""Tests for analytics service module - corrected API usage."""
 
 import tempfile
 from pathlib import Path
@@ -9,7 +7,7 @@ import pytest
 
 
 class TestAnalyticsService:
-    """Tests for AnalyticsService."""
+    """Tests for AnalyticsService with correct API."""
 
     def test_analytics_service_import(self):
         """Test AnalyticsService can be imported."""
@@ -21,14 +19,15 @@ class TestAnalyticsService:
             pytest.skip("AnalyticsService not available")
 
     def test_analytics_service_creation(self):
-        """Test AnalyticsService can be created."""
+        """Test AnalyticsService can be created with config parameter."""
         try:
             from src.modules.analytics.service import AnalyticsService
 
             with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
                 db_path = f.name
 
-            service = AnalyticsService(db_path=db_path)
+            # AnalyticsService uses config= not db_path=
+            service = AnalyticsService(config={"db_path": db_path})
             assert service is not None
 
             Path(db_path).unlink(missing_ok=True)
@@ -43,7 +42,7 @@ class TestAnalyticsService:
             with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
                 db_path = f.name
 
-            service = AnalyticsService(db_path=db_path)
+            service = AnalyticsService(config={"db_path": db_path})
             result = service.get_summary()
 
             assert isinstance(result, dict)
@@ -60,7 +59,7 @@ class TestAnalyticsService:
             with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
                 db_path = f.name
 
-            service = AnalyticsService(db_path=db_path)
+            service = AnalyticsService(config={"db_path": db_path})
             result = service.get_trends(days=7)
 
             assert isinstance(result, list) or isinstance(result, dict)
