@@ -1640,8 +1640,7 @@ class GoofishWsTransport:
 
                         # Step 3: 滑块验证
                         can_try_slider = (
-                            slider_enabled
-                            and self._slider_recovery_attempts < self._SLIDER_MAX_ATTEMPTS_PER_CYCLE
+                            slider_enabled and self._slider_recovery_attempts < self._SLIDER_MAX_ATTEMPTS_PER_CYCLE
                         )
 
                         if can_try_slider:
@@ -1662,8 +1661,7 @@ class GoofishWsTransport:
                             continue
                         elif not slider_enabled and self._rgv587_consecutive <= 3:
                             self.logger.warning(
-                                f"RGV587 风控检测 ({self._rgv587_consecutive}/3)，"
-                                f"退避 {rgv_backoff:.0f}s 后重试..."
+                                f"RGV587 风控检测 ({self._rgv587_consecutive}/3)，退避 {rgv_backoff:.0f}s 后重试..."
                             )
                             await self._try_goofish_im_refresh(urgent=True)
                             if not _fp_enabled and await self._try_active_cookie_refresh():

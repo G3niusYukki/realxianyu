@@ -143,6 +143,8 @@ logs/
 *.sqlite3
 *.db
 data/
+!data/geo/
+!data/geo/city_province.json
 output/
 *.pem
 *.key
@@ -177,7 +179,15 @@ vendor/
 # Runtime PID files
 .pids/
 
-# Cursor / Codex
+# Cursor / Codex / Roo / Claude
 .cursor/
 .codex/
+.roo/
+.claude/
 *.bak.*
+
+# Server directory (if runtime only)
+server/
+
+# Temporary diff files
+*.diff
