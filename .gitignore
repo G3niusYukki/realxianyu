@@ -143,6 +143,8 @@ logs/
 *.sqlite3
 *.db
 data/
+!data/geo/
+!data/geo/city_province.json
 output/
 *.pem
 *.key
