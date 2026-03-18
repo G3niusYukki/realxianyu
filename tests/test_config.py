@@ -37,25 +37,25 @@ class TestConfig:
     def test_config_load_from_yaml(self, temp_config_file):
         """测试从YAML加载配置"""
         config = Config(str(temp_config_file))
-        assert config.get("app.name") == "xianyu-openclaw"
+        assert config.get("app.name") == "xianyu-guanjia"
         assert config.get("openclaw.port") == 9222
 
     def test_config_get_section(self, config):
         """测试获取配置段落"""
         app_config = config.get_section("app")
-        assert app_config["name"] == "xianyu-openclaw"
+        assert app_config["name"] == "xianyu-guanjia"
         assert app_config["version"] == "8.0.0"
 
     def test_config_get_value(self, config):
         """测试获取配置值"""
-        assert config.get("app.name") == "xianyu-openclaw"
+        assert config.get("app.name") == "xianyu-guanjia"
         assert config.get("openclaw.port") == 9222
         assert config.get("nonexistent.key", "default") == "default"
 
     def test_config_reload(self, temp_config_file, temp_dir):
         """测试重新加载配置"""
         config = Config(str(temp_config_file))
-        assert config.get("app.name") == "xianyu-openclaw"
+        assert config.get("app.name") == "xianyu-guanjia"
 
         # 修改配置文件
         config_content = """
@@ -71,7 +71,7 @@ app:
     def test_config_missing_file(self, temp_dir):
         """测试配置文件不存在"""
         config = Config(str(temp_dir / "nonexistent.yaml"))
-        assert config.get("app.name") == "xianyu-openclaw"  # 使用默认值
+        assert config.get("app.name") == "xianyu-guanjia"  # 使用默认值
 
 
 class TestConfigModels:
