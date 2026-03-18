@@ -127,8 +127,6 @@ xianyu-openclaw/
 │   └── qa/                #   质量检查
 │
 ├── docs/                  # 文档
-├── docker-compose.yml     # Docker 编排
-├── Dockerfile.python      # Python 镜像
 ├── requirements.txt       # Python 依赖
 ├── .env / .env.example    # 环境变量
 └── README.md              # 项目说明
@@ -191,21 +189,6 @@ cd client && npx vite --host
 |------|------|---------|
 | 管理面板 | http://localhost:5173 | 管理面板首页 |
 | Python API | http://localhost:8091 | Dashboard 页面 |
-
----
-
-## Docker 模式
-
-```bash
-cp .env.example .env    # 编辑 .env 填入配置
-docker compose up -d    # 启动
-docker compose ps       # 查看状态
-```
-
-| 容器 | 端口 | 说明 |
-|------|------|------|
-| xianyu-python-backend | 8091 | Python 后端 |
-| xianyu-react-frontend | 5173 | React 前端 |
 
 ---
 
@@ -281,7 +264,6 @@ set CHINA_MIRROR=1 && quick-start.bat
 | pip (Python) | `mirrors.aliyun.com/pypi/simple/` | 自动设置 |
 | npm (Node.js) | `registry.npmmirror.com` | 自动设置 |
 | Playwright | `npmmirror.com/mirrors/playwright` | `PLAYWRIGHT_DOWNLOAD_HOST` |
-| Docker 基础镜像 | 见下方 Docker 配置 | Docker daemon 配置 |
 
 ### 手动配置国内源（不使用启动脚本时）
 
@@ -297,27 +279,6 @@ npm install
 export PLAYWRIGHT_DOWNLOAD_HOST=https://npmmirror.com/mirrors/playwright
 playwright install chromium
 ```
-
-### Docker 国内构建
-
-```bash
-# 使用国内镜像源构建所有容器
-MIRROR=china docker compose build
-docker compose up -d
-```
-
-Docker 拉取基础镜像加速 — 编辑 `/etc/docker/daemon.json`：
-
-```json
-{
-  "registry-mirrors": [
-    "https://mirror.ccs.tencentyun.com",
-    "https://docker.mirrors.ustc.edu.cn"
-  ]
-}
-```
-
-然后重启 Docker：`sudo systemctl restart docker`
 
 ### 离线部署方案
 
@@ -400,9 +361,9 @@ npm install --registry=https://registry.npmmirror.com
 ```bash
 # 一键启动模式：Ctrl+C 即可停止所有服务
 
-# Docker 模式
-docker compose down       # 停止（保留数据）
-docker compose down -v    # 停止并删除数据卷（谨慎）
+# 手动启动模式
+pkill -f "dashboard_server"  # 停止 Python 后端
+pkill -f "vite"              # 停止前端开发服务器
 ```
 
 ---

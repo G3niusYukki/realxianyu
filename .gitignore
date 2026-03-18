@@ -177,9 +177,11 @@ vendor/
 # Runtime PID files
 .pids/
 
-# Cursor / Codex
+# Cursor / Codex / Roo / Claude
 .cursor/
 .codex/
+.roo/
+.claude/
 *.bak.*
 
 # Server directory (if runtime only)

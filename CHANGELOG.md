@@ -12,11 +12,65 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Dashboard 新增 `/api/orders/callback`，支持接收订单推送并在支付后自动同步订单状态
   - 当已配置闲管家且开启自动履约时，实物订单可在支付后自动触发物流发货
 - **Dashboard 闲管家控制面板**：
-  - 首页新增闲管家可视化配置区，可保存 AppKey/AppSecret、自动改价、自动发货与“支付后自动触发”开关
+  - 首页新增闲管家可视化配置区，可保存 AppKey/AppSecret、自动改价、自动发货与"支付后自动触发"开关
   - 新增 Dashboard 手动重试入口：API 改价、API 发货
 
 ### Changed
 - 实物订单在未真正提交物流单、仅降级为人工发货任务时，状态保持为 `processing`，避免误标记为 `shipping`
+
+## [8.0.0] - 2026-03-08
+
+### Added
+- **全新品牌升级**：项目正式更名为「闲鱼管家」，全新 README 和文档体系
+- **一键在线更新系统**：Dashboard 内置更新检查、自动备份、版本回滚功能
+- **SetupWizard 初始化向导**：首次启动自动弹出全屏配置向导，引导完成 Cookie/AI/闲管家配置
+- **macOS 桌面快捷方式**：`.command` 文件 + LaunchAgent 开机自启动
+- **Windows GUI 部署工具**：基于 CustomTkinter 的图形化部署向导
+- **定价系统 UI**：Dashboard 可视化配置加价比例、安全边距
+- **进程守护 supervisor.sh**：独立健康检查 + 自动重启脚本
+- **codecov.yml**：代码覆盖率集成配置
+- **requirements-dev.txt**：开发依赖分离
+
+### Changed
+- **文档全面重写**：README 从简洁版扩展为详细美观版（600+ 行）
+- **版本号统一规范**：`src/__init__.py` / `pyproject.toml` / `package.json` 统一使用 `8.0.0`
+- **CI 优化**：Python 版本升级至 3.12，移除增量 lint 逻辑
+- **pyproject.toml 增强**：添加完整 pytest 配置段
+
+### Removed
+- **移除 Docker 部署支持**：删除 `docker-compose.yml`、`Dockerfile.python`、`client/Dockerfile`
+- **清理冗余文件**：删除 `.roo/`、`.claude/`、`plans/`、`qa_evidence/`、`third_party/` 等无意义目录
+- **移除废弃配置**：清理 node-backend 启动配置
+
+### Fixed
+- 修复更新系统 8 个已知问题
+- 修复 SetupWizard "跳过全部" 只前进一步的问题
+- 修复已部署设备 3% 加价残留问题
+- 修复自动改价未生效的多个问题
+- 修复 3 个前端 Bug (Orders/SetupGuide/Dashboard)
+- 修复 bash 3.2 变量展开后跟全角字符导致 unbound variable
+- 修复 Finder 双击 .command 时 PATH 不含 node/homebrew
+
+## [7.0.0] - 2026-03-06
+
+### Added
+- **一键离线部署体系**：支持 U 盘拷贝零网络部署新设备
+- **大件快运品类**：新增大件快运品类，优化报价系统吸引大件客户
+- **重件报价优化**：按实际总成本选最优渠道，避免多收费
+- **滑块验证增强**：
+  - `_m_h5_tk` 缺失时自动补全，避免无限循环等待
+  - 复用 IM 标签页时 reload 触发滑块检测
+  - baxia 弹窗内 NC 滑块检测增强
+  - puzzle 失败时 NC 回退机制
+
+### Changed
+- **日志系统升级**：使用 loguru 替代标准库 logging 输出 HTTP 请求日志
+- **测试策略调整**：删除过时的自动生成测试，移除覆盖率阈值限制
+- 精简日志输出，只保留有用信息
+
+### Fixed
+- 桌面 `.command` 不显示日志问题 — 补充 PATH 与初始输出
+- 滑块验证相关稳定性修复
 
 ## [6.1.0] - 2026-03-03
 

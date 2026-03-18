@@ -206,21 +206,10 @@ start.bat
 | Python 看板 | http://localhost:8091 | 趋势图、商品表现、操作日志 |
 | 后端健康检查 | http://localhost:3001/health | Node.js 后端状态 |
 
-### Docker 模式（可选）
-
-如果你更喜欢 Docker，也可以用 Docker Compose 一键启动：
-
-```bash
-docker compose up -d
-```
-
 ### 关闭
 
 ```bash
 # 本地模式：在运行 start.sh / start.bat 的终端按 Ctrl+C 停止
-
-# Docker 模式
-docker compose down
 ```
 
 ---
@@ -270,7 +259,7 @@ pip install -r requirements.txt
 cd client && npm install && cd ..
 ```
 
-然后重新启动服务即可。Docker 模式用 `docker compose up -d --build` 重建。
+然后重新启动服务即可。
 
 ---
 
@@ -301,10 +290,8 @@ cd client && npm install && cd ..
 ### Q: 怎么看日志
 
 ```bash
-# 本地模式：直接在运行终端查看输出
-
-# Docker 模式
-docker compose logs -f
+# 直接在运行终端查看输出
+tail -f logs/*.log
 ```
 
 ---
