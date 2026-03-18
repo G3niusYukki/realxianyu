@@ -733,9 +733,9 @@ class WorkflowStore:
 
 
 QUOTE_NUDGE_TEMPLATES = [
-    "亲，刚给您报的价格目前是最优价了~ 有什么疑问随时问我哦~",
-    "亲，价格已为您查好，当前非常实惠哦~ 如需下单直接拍就行，有问题也随时问~",
-    "亲，报价已发您~ 需要帮您安排吗？有任何问题都可以继续问我哦~",
+    "价格有效期内随时可以下单哦，有问题问我~",
+    "需要下单的话直接拍就行，我来改价~",
+    "有啥疑问随时问，不着急~",
 ]
 
 
@@ -810,7 +810,7 @@ class WorkflowWorker:
 
         msg_cfg = app_config.get_section("messages", {})
         self.quote_nudge_enabled = bool(msg_cfg.get("quote_nudge_enabled", True))
-        self.quote_nudge_delay_seconds = max(10, int(msg_cfg.get("quote_nudge_delay_seconds", 60)))
+        self.quote_nudge_delay_seconds = max(10, int(msg_cfg.get("quote_nudge_delay_seconds", 300)))
         self.quote_nudge_max_per_session = max(1, int(msg_cfg.get("quote_nudge_max_per_session", 1)))
 
         if self._notifier is None and bool(feishu_cfg.get("enabled", False)):

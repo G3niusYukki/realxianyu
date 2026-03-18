@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import asyncio
+import random
 from typing import Any
 
 from src.core.logger import get_logger
@@ -129,9 +130,26 @@ class QuoteReplyComposer:
         ok_pairs.sort(key=lambda item: (float(item[1].total_fee), str(item[0])))
         return ok_pairs
 
-    def compose_multi_courier_reply(self, quote_rows: list[tuple[str, QuoteResult]]) -> str:
+    _HEADER_VARIANTS = [
+        "{origin}->{dest} {weight}kg 报价~",
+        "亲，{origin}寄{dest} {weight}kg 帮您查好了~",
+        "{origin}到{dest} {weight}kg 价格如下~",
+    ]
+    _PICK_COURIER_VARIANTS = [
+        "回复\u201c选XX快递\u201d锁定价格~",
+        "看中哪个回复我就行~",
+        "选好快递告诉我一声~",
+    ]
+    _ORDER_GUIDE_VARIANTS = [
+        "下单流程：拍下不付款→我改价→付款自动发码→到小程序下单即可~\n首单有优惠，正常价也比自寄便宜5折起~",
+        "先拍下别付款，我改完价您再付，自动发兑换码到小程序用~\n首单优惠价，正常价也比自寄便宜5折起~",
+        "流程：拍下→我改价→付款出码→小程序下单，很简单~\n首单有优惠哦，正常价也比自寄便宜5折起~",
+    ]
+
+    def compose_multi_courier_reply_segments(self, quote_rows: list[tuple[str, QuoteResult]]) -> list[str]:
+        """组装多快递报价，返回分段消息列表（每个元素是一条独立消息）。"""
         if not quote_rows:
-            return ""
+            return []
 
         first_explain = quote_rows[0][1].explain if isinstance(quote_rows[0][1].explain, dict) else {}
         origin = str(first_explain.get("matched_origin") or first_explain.get("normalized_origin") or "寄件地")
@@ -143,14 +161,20 @@ class QuoteReplyComposer:
         volume_w = first_explain.get("volume_weight_kg")
         billing_w = first_explain.get("billing_weight_kg")
 
-        lines = [f"亲，{origin} -> {destination} 的报价已为您查好~"]
+        # --- Segment 1: header + price list + pick courier ---
+        seg1_lines: list[str] = []
+        weight_str = f"{float(billing_w or actual_w or 0):.1f}"
+        header = random.choice(self._HEADER_VARIANTS).format(
+            origin=origin, dest=destination, weight=weight_str,
+        )
+        seg1_lines.append(header)
 
         if actual_w is not None and billing_w is not None:
             weight_parts: list[str] = [f"实际重量 {float(actual_w):.1f}kg"]
             if volume_w and float(volume_w) > 0:
                 weight_parts.append(f"体积重 {float(volume_w):.1f}kg")
             weight_parts.append(f"按 {float(billing_w):.1f}kg 计费")
-            lines.append(" | ".join(weight_parts))
+            seg1_lines.append(" | ".join(weight_parts))
 
         def _format_courier_line(index: int, courier_name: str, result: QuoteResult) -> str:
             exp = result.explain if isinstance(result.explain, dict) else {}
@@ -184,9 +208,9 @@ class QuoteReplyComposer:
             )
 
         if express_rows and freight_rows:
-            lines.append("快递方案：")
+            seg1_lines.append("快递方案：")
             for i, (name, result) in enumerate(express_rows, 1):
-                lines.append(_format_courier_line(i, name, result))
+                seg1_lines.append(_format_courier_line(i, name, result))
 
             bw_val = float(billing_w or 0)
             cheapest_freight = freight_rows[0][1]
@@ -196,23 +220,30 @@ class QuoteReplyComposer:
                 if unit_price > 0
                 else "大件快运方案（首重30kg起）："
             )
-            lines.append(freight_header)
+            seg1_lines.append(freight_header)
             for i, (name, result) in enumerate(freight_rows, 1):
-                lines.append(_format_courier_line(i, name, result))
+                seg1_lines.append(_format_courier_line(i, name, result))
 
             cheapest_express_fee = float(express_rows[0][1].total_fee) if express_rows else 0
             cheapest_freight_fee = float(cheapest_freight.total_fee)
             if cheapest_freight_fee < cheapest_express_fee:
                 saving = cheapest_express_fee - cheapest_freight_fee
-                lines.append(f"推荐：大件快运比快递便宜{saving:.0f}元，越重越划算~")
+                seg1_lines.append(f"推荐：大件快运比快递便宜{saving:.0f}元，越重越划算~")
         else:
             for i, (name, result) in enumerate(quote_rows, 1):
-                lines.append(_format_courier_line(i, name, result))
+                seg1_lines.append(_format_courier_line(i, name, result))
 
-        lines.append("回复\u201c选XX快递\u201d帮您锁定价格哦~")
-        lines.append("下单流程：先拍下链接不付款 → 我改价 → 付款后自动发兑换码，到小程序下单即可~")
+        seg1_lines.append(random.choice(self._PICK_COURIER_VARIANTS))
+
+        segments: list[str] = ["\n".join(seg1_lines)]
+
+        # --- Segment 2: order guide + first-order discount ---
+        segments.append(random.choice(self._ORDER_GUIDE_VARIANTS))
+
+        # --- Segment 3 (conditional): tips ---
+        tips_lines: list[str] = []
         if volume_w and float(volume_w) > 0:
-            lines.append("温馨提示：本次已按体积重与实际重量中较大值计费，如实际体积有出入可能需补差价哦~")
+            tips_lines.append("本次已按体积重与实际重量中较大值计费，实际体积有出入可能需补差价~")
         else:
             divisor = first_explain.get("volume_divisor")
             if divisor is not None and float(divisor) > 0:
@@ -223,8 +254,8 @@ class QuoteReplyComposer:
                     if self.volume_divisor_default == int(self.volume_divisor_default)
                     else self.volume_divisor_default
                 )
-            lines.append(
-                f"温馨提示：以上按实际重量计算，如包裹体积较大（体积重=长×宽×高/{div_val}），快递按较大值计费，届时可能需补差价哦~"
+            tips_lines.append(
+                f"温馨提示：体积较大的包裹按体积重计费（长×宽×高/{div_val}），届时可能需补差价~"
             )
 
         for _, r in quote_rows:
@@ -233,19 +264,24 @@ class QuoteReplyComposer:
                 max_dim = exp.get("max_dimension_cm", 0)
                 threshold = exp.get("oversize_threshold_cm", 120)
                 svc_label = "快运" if exp.get("service_type") == "freight" else "快递"
-                lines.append(
-                    f"超长提醒：您的包裹最长边约{max_dim:.0f}cm，超出{svc_label}标准（{threshold:.0f}cm），"
-                    "物流方可能根据实际情况收取超长费，届时小程序会自动通知补差价~"
+                tips_lines.append(
+                    f"超长提醒：最长边约{max_dim:.0f}cm，超出{svc_label}标准（{threshold:.0f}cm），"
+                    "可能收取超长费~"
                 )
                 break
 
         if self._freight_needs_city:
-            lines.append("大件快运报价需精确到市-市才准确，麻烦提供具体城市（如：广州到杭州），帮您查快运价格哦~")
+            tips_lines.append("大件快运报价需精确到市-市，麻烦提供具体城市帮您查快运价~")
 
-        lines.append(
-            "新用户福利：以上为首单优惠价（每个手机号限一次）~ 若已使用过小程序，则按正常价计费，后续可直接在小程序下单，无需再走闲鱼，正常价也比自寄便宜5折起~"
-        )
-        return "\n".join(lines)
+        if tips_lines:
+            segments.append("\n".join(tips_lines))
+
+        return segments
+
+    def compose_multi_courier_reply(self, quote_rows: list[tuple[str, QuoteResult]]) -> str:
+        """兼容旧调用：返回所有分段拼接的完整文本。"""
+        segments = self.compose_multi_courier_reply_segments(quote_rows)
+        return "\n".join(segments)
 
     def persist_to_ledger(
         self,

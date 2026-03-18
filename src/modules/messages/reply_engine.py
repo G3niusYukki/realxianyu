@@ -606,7 +606,7 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
             "寄手机",
             "寄数码",
         ],
-        "reply": "刀具、易燃品、电池、生鲜、数码产品暂时不支持寄送呢~ 具体可以问我帮您确认~",
+        "reply": "刀具、易燃品、电池、生鲜暂不支持~ 具体物品可以问我确认~",
         "priority": 50,
         "categories": ["express"],
         "phase": "presale",
@@ -964,7 +964,7 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     {
         "name": "express_luggage",
         "keywords": ["行李", "托运", "行李箱"],
-        "reply": "行李可以寄~ 告诉我从哪寄到哪、大约多重，帮您查最优价格~",
+        "reply": "行李可以寄~ 发我路线和重量帮您查价~",
         "priority": 49,
         "categories": ["express"],
         "phase": "presale",
@@ -972,7 +972,7 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     {
         "name": "express_food_liquid",
         "keywords": ["食品", "吃的", "液体", "化妆品", "酒"],
-        "reply": "部分食品和液体可以寄~ 建议在小程序下单看看哪家快递支持，也可以发我具体物品帮您确认~",
+        "reply": "化妆品/食品大部分能寄~ 告诉我路线和重量帮您查价~",
         "priority": 50,
         "categories": ["express"],
         "phase": "presale",

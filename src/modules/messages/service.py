@@ -491,6 +491,11 @@ class MessagesService:
         self._freight_needs_city = self._quote_composer._freight_needs_city
         return reply
 
+    def _compose_multi_courier_quote_segments(self, quote_rows: list[tuple[str, QuoteResult]]) -> list[str]:
+        segments = self._quote_composer.compose_multi_courier_reply_segments(quote_rows)
+        self._freight_needs_city = self._quote_composer._freight_needs_city
+        return segments
+
     def _should_use_ws_transport(self) -> bool:
         if self.transport_mode == "ws":
             return True
@@ -1112,6 +1117,34 @@ class MessagesService:
             return self.safe_fallback_reply
         return text
 
+    @staticmethod
+    def _build_natural_missing_prompt(missing: list[str], fields: dict[str, Any]) -> str:
+        origin = fields.get("origin") or ""
+        dest = fields.get("destination") or ""
+        weight = fields.get("weight")
+        item_name = fields.get("item_name") or ""
+        est_weight = fields.get("estimated_weight")
+        missing_set = set(missing)
+
+        if "weight" in missing_set and item_name and est_weight is not None:
+            route = f"{origin}到{dest}" if origin and dest else (origin or dest or "")
+            if route:
+                return f"收到~ {route}，{item_name}大约{est_weight}kg，按这个给您报价可以吗？"
+            return f"收到~ {item_name}大约{est_weight}kg，从哪寄到哪呢？"
+
+        if missing_set == {"weight"} and origin and dest:
+            return f"收到~ {origin}到{dest}，包裹大约多重呢？"
+        if missing_set == {"weight"} and (origin or dest):
+            known = origin or dest
+            return f"收到~ {known}，包裹大约多重呢？"
+        if missing_set <= {"origin", "destination"} and weight is not None:
+            return f"收到~ {weight}kg，从哪寄到哪呢？"
+        if missing_set == {"destination"} and origin:
+            return f"收到~ 从{origin}寄到哪呢？告诉我城市和重量帮您查价~"
+        if missing_set == {"origin"} and dest:
+            return f"收到~ 寄到{dest}，从哪发呢？告诉我重量帮您查价~"
+        return "发我 寄件地-收件地-重量 帮您查价~ 如：广州-杭州-3kg"
+
     async def _generate_reply_with_quote(
         self,
         message_text: str,
@@ -1201,6 +1234,9 @@ class MessagesService:
                     "express_remote_area",
                     "express_first_weight",
                     "express_sf_jd",
+                    "express_food_liquid",
+                    "express_luggage",
+                    "express_prohibited",
                 }
             )
             use_rule_reply = True
@@ -1266,8 +1302,7 @@ class MessagesService:
                 or (self.strict_format_reply_enabled and not is_virtual and self._has_shipping_signal(message_text))
             )
         ):
-            fields = "、".join([self.quote_missing_prompts[field] for field in missing])
-            prompt = self.quote_missing_template.format(fields=fields)
+            prompt = self._build_natural_missing_prompt(missing, extracted_fields)
             strict_enforced = bool(self.strict_format_reply_enabled and not is_quote_intent)
             return self._sanitize_reply(prompt), {
                 "is_quote": True,
@@ -1334,7 +1369,9 @@ class MessagesService:
                     "aftersale_fallback": True,
                     "quote_context_enabled": bool(self.context_memory_enabled),
                 }
-            prompt = self.quote_missing_template.format(fields="寄件城市、收件城市、包裹重量（kg）")
+            prompt = self._build_natural_missing_prompt(
+                ["origin", "destination", "weight"], extracted_fields,
+            )
             return self._sanitize_reply(prompt), {
                 "is_quote": True,
                 "quote_need_info": True,
@@ -1352,9 +1389,19 @@ class MessagesService:
 
             if multi_quote_rows:
                 best_courier, best_result = multi_quote_rows[0]
-                reply = self._compose_multi_courier_quote_reply(multi_quote_rows)
+                segments = self._compose_multi_courier_quote_segments(multi_quote_rows)
+                est_item = extracted_fields.get("item_name") or ""
+                est_w = extracted_fields.get("estimated_weight")
+                if est_item and est_w is not None and segments:
+                    segments[-1] = (segments[-1] + "\n" if segments[-1] else "") + (
+                        f"按{est_item}约{est_w}kg估算，以实际称重为准~"
+                    )
+                sf_jd_prefix = ""
                 if re.search(r"顺丰|京东", message_text or ""):
-                    reply = "闲鱼特价渠道暂时没有顺丰/京东哦~ 这边有韵达/圆通/中通/申通/极兔可选：\n\n" + reply
+                    sf_jd_prefix = "闲鱼特价渠道暂时没有顺丰/京东哦~ 这边有韵达/圆通/中通/申通/极兔可选：\n\n"
+                if sf_jd_prefix and segments:
+                    segments[0] = sf_jd_prefix + segments[0]
+                reply = "\n".join(segments)
                 latency_ms = int((perf_counter() - start) * 1000)
                 if session_id:
                     self._update_quote_context(
@@ -1399,6 +1446,7 @@ class MessagesService:
                         "selected_courier": best_courier,
                     },
                     "quote_context_hit": bool(memory_hit),
+                    "reply_segments": [self._sanitize_reply(s) for s in segments],
                 }
 
             result = await self.quote_engine.get_quote(request)
@@ -1747,12 +1795,32 @@ class MessagesService:
         elif quote_meta.get("skipped") or not (reply_text or "").strip():
             sent = False
         elif session_id:
-            if self.simulate_human_typing and reply_text:
-                base_delay = random.uniform(0, 1)
-                per_char = random.uniform(*self.typing_speed_range)
-                typing_delay = min(base_delay + len(reply_text) * per_char, self.typing_max_delay)
-                await asyncio.sleep(typing_delay)
-            sent = await self.reply_to_session(session_id, reply_text, page_id=page_id)
+            segments = quote_meta.get("reply_segments")
+            if segments and len(segments) > 1:
+                all_ok = True
+                for idx, seg in enumerate(segments):
+                    if not (seg or "").strip():
+                        continue
+                    if self.simulate_human_typing:
+                        base_delay = random.uniform(0, 1)
+                        per_char = random.uniform(*self.typing_speed_range)
+                        typing_delay = min(base_delay + len(seg) * per_char, self.typing_max_delay)
+                        await asyncio.sleep(typing_delay)
+                    seg_sent = await self.reply_to_session(session_id, seg, page_id=page_id)
+                    if not seg_sent:
+                        self.logger.warning(f"segment {idx} send failed: session={session_id}")
+                        all_ok = False
+                        break
+                    if idx < len(segments) - 1:
+                        await asyncio.sleep(self._random_range(self.inter_reply_delay_seconds, (0.4, 1.2)))
+                sent = all_ok
+            else:
+                if self.simulate_human_typing and reply_text:
+                    base_delay = random.uniform(0, 1)
+                    per_char = random.uniform(*self.typing_speed_range)
+                    typing_delay = min(base_delay + len(reply_text) * per_char, self.typing_max_delay)
+                    await asyncio.sleep(typing_delay)
+                sent = await self.reply_to_session(session_id, reply_text, page_id=page_id)
             if not sent:
                 self.logger.warning(f"reply_to_session returned False for session={session_id}")
 
