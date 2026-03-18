@@ -5,6 +5,9 @@ from unittest.mock import MagicMock
 
 from src.dashboard.router import _GET_ROUTES, _POST_ROUTES
 
+# Import routes to trigger registration
+from src.dashboard.routes import system, config, cookie, messages, orders, products, quote
+
 
 class TestRouteConfig:
     """Tests for config routes."""
