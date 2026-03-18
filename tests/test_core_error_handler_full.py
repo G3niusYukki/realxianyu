@@ -5,38 +5,103 @@ Test suite for core error handler module.
 import pytest
 from unittest.mock import MagicMock, patch
 
-from src.core.error_handler import ErrorHandler, ErrorSeverity, handle_error
+from src.core.error_handler import (
+    XianyuError,
+    ConfigError,
+    BrowserError,
+    AIError,
+    MediaError,
+    AccountError,
+    DatabaseError,
+    handle_controller_errors,
+    handle_operation_errors,
+    safe_execute,
+)
 
 
-class TestErrorSeverity:
-    """Tests for ErrorSeverity enum."""
+class TestXianyuError:
+    """Tests for XianyuError exceptions."""
 
-    def test_error_severity_values(self):
-        """Test that ErrorSeverity has expected values."""
-        assert ErrorSeverity.DEBUG.value == "debug"
-        assert ErrorSeverity.INFO.value == "info"
-        assert ErrorSeverity.WARNING.value == "warning"
-        assert ErrorSeverity.ERROR.value == "error"
-        assert ErrorSeverity.CRITICAL.value == "critical"
+    def test_xianyu_error_creation(self):
+        """Test XianyuError can be created."""
+        error = XianyuError("Test error message")
+        assert str(error) == "Test error message"
+
+    def test_config_error_creation(self):
+        """Test ConfigError can be created."""
+        error = ConfigError("Config error")
+        assert isinstance(error, XianyuError)
+
+    def test_browser_error_creation(self):
+        """Test BrowserError can be created."""
+        error = BrowserError("Browser error")
+        assert isinstance(error, XianyuError)
+
+    def test_ai_error_creation(self):
+        """Test AIError can be created."""
+        error = AIError("AI error")
+        assert isinstance(error, XianyuError)
+
+    def test_media_error_creation(self):
+        """Test MediaError can be created."""
+        error = MediaError("Media error")
+        assert isinstance(error, XianyuError)
+
+    def test_account_error_creation(self):
+        """Test AccountError can be created."""
+        error = AccountError("Account error")
+        assert isinstance(error, XianyuError)
+
+    def test_database_error_creation(self):
+        """Test DatabaseError can be created."""
+        error = DatabaseError("Database error")
+        assert isinstance(error, XianyuError)
 
 
-class TestErrorHandler:
-    """Tests for ErrorHandler class."""
+class TestErrorDecorators:
+    """Tests for error handling decorators."""
 
-    def test_error_handler_creation(self):
-        """Test ErrorHandler can be created."""
-        handler = ErrorHandler()
-        assert handler is not None
+    def test_handle_controller_errors_decorator(self):
+        """Test handle_controller_errors decorator exists."""
+        assert callable(handle_controller_errors)
 
-    def test_handle_error_with_exception(self):
-        """Test handling an exception."""
-        handler = ErrorHandler()
+    def test_handle_operation_errors_decorator(self):
+        """Test handle_operation_errors decorator exists."""
+        assert callable(handle_operation_errors)
 
-        try:
+    def test_safe_execute_decorator(self):
+        """Test safe_execute decorator exists."""
+        assert callable(safe_execute)
+
+    def test_controller_error_handler_with_function(self):
+        """Test handle_controller_errors with a function."""
+
+        @handle_controller_errors(default_return="fallback")
+        def test_func():
             raise ValueError("Test error")
-        except Exception as e:
-            result = handler.handle(e, severity=ErrorSeverity.ERROR)
-            assert result is not None
+
+        result = test_func()
+        assert result == "fallback"
+
+    def test_operation_error_handler_with_function(self):
+        """Test handle_operation_errors with a function."""
+
+        @handle_operation_errors(default_return=False)
+        def test_func():
+            raise ValueError("Test error")
+
+        result = test_func()
+        assert result is False
+
+    def test_safe_execute_with_function(self):
+        """Test safe_execute with a function."""
+
+        @safe_execute(default_return="safe")
+        def test_func():
+            raise ValueError("Test error")
+
+        result = test_func()
+        assert result == "safe"
 
     def test_handle_error_with_context(self):
         """Test handling error with context."""
