@@ -622,11 +622,10 @@ class GoofishWsTransport:
         return changed
 
     async def _try_active_cookie_refresh(self) -> bool:
-        """主动调用 rookiepy 从浏览器 DB 读取最新 Cookie（含 _m_h5_tk）。
+        """主动调用 rookiepy 从浏览器 DB 读取最新 Cookie。
 
         在 auth 失败时调用，避免因 _m_h5_tk 过期而永久挂起。
-        rookiepy 同步读取在 executor 中运行；如需 Playwright 补全 _m_h5_tk，
-        在当前事件循环中直接 await，避免嵌套事件循环。
+        rookiepy 同步读取在 executor 中运行。
         """
         self.logger.info("WS auth failed, attempting active cookie refresh via rookiepy...")
         try:
@@ -639,18 +638,6 @@ class GoofishWsTransport:
         if not new_cookie:
             self.logger.info("Active cookie refresh: no cookie obtained from browser DB")
             return False
-
-        try:
-            from src.core.cookie_grabber import CookieGrabber
-
-            if not CookieGrabber._has_session_fields(new_cookie):
-                self.logger.info("Active cookie refresh: missing session fields, trying Playwright enrichment...")
-                grabber = CookieGrabber()
-                enriched = await grabber._enrich_with_session_cookies(new_cookie)
-                if enriched:
-                    new_cookie = enriched
-        except Exception as exc:
-            self.logger.debug(f"Playwright session enrichment failed: {exc}")
 
         new_fp = hashlib.sha1(new_cookie.encode("utf-8")).hexdigest()
         if new_fp == self._cookie_fp:
@@ -671,7 +658,7 @@ class GoofishWsTransport:
 
     @staticmethod
     def _sync_rookiepy_read_only() -> str | None:
-        """同步调用 rookiepy 读取浏览器 Cookie DB（纯同步，不启动 Playwright）。"""
+        """同步调用 rookiepy 读取浏览器 Cookie DB。"""
         try:
             from src.core.cookie_grabber import CookieGrabber
         except ImportError:

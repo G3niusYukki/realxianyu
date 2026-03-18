@@ -16,13 +16,6 @@ RUN if [ "$MIRROR" = "china" ]; then \
       pip install --no-cache-dir -r requirements.txt; \
     fi
 
-RUN if [ "$MIRROR" = "china" ]; then \
-      pip install --no-cache-dir -i https://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com playwright && \
-      PLAYWRIGHT_DOWNLOAD_HOST=https://npmmirror.com/mirrors/playwright playwright install --with-deps chromium; \
-    else \
-      pip install --no-cache-dir playwright && playwright install --with-deps chromium; \
-    fi
-
 RUN groupadd -r appgrp && useradd -r -g appgrp -d /app appusr
 
 COPY src/ ./src/
