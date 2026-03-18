@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import cgi
 import json
 import logging
 import mimetypes
@@ -23,9 +22,20 @@ from src.dashboard.repository import DashboardRepository, LiveDashboardDataSourc
 from src.dashboard.router import RouteContext, dispatch_delete, dispatch_get, dispatch_post, dispatch_put
 from src.dashboard.mimic_ops import MimicOps, _error_payload
 
+import hashlib
+import re
+import gzip as _gzip_mod
+
+from src.dashboard.config_service import read_system_config as _read_system_config
+from src.dashboard.mimic_ops import _safe_int
+
 logger = logging.getLogger(__name__)
 
 # Embedded HTML hack removed. UI is strictly served from client/dist now.
+
+_product_image_cache: dict[str, tuple[str, float]] = {}
+_PRODUCT_IMAGE_CACHE_TTL = 1800
+
 
 class DashboardHandler(BaseHTTPRequestHandler):
     repo: DashboardRepository
@@ -592,7 +602,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
         """Serve React SPA static files from client/dist/."""
         dist_dir = Path(__file__).resolve().parents[1] / "client" / "dist"
         if not dist_dir.exists():
-            self._send_html("<html><body><h1>Dashboard Not Built</h1><p>Please run <code>npm run build</code> in the <code>client/</code> directory.</p></body></html>")
+            self._send_html(
+                "<html><body><h1>Dashboard Not Built</h1><p>Please run <code>npm run build</code> in the <code>client/</code> directory.</p></body></html>"
+            )
             return
 
         file_path = dist_dir / path.lstrip("/")

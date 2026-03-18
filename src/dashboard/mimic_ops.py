@@ -2,15 +2,12 @@
 
 from __future__ import annotations
 
-import argparse
 import asyncio
 import csv
-import gzip as _gzip_mod
 import hashlib
 import io
 import json
 import logging
-import mimetypes
 import os
 import re
 import sqlite3
@@ -21,10 +18,8 @@ import time
 import zipfile
 from contextlib import closing
 from datetime import datetime, timedelta
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qs, urlparse
 
 import yaml
 
@@ -33,8 +28,6 @@ from src.dashboard.config_service import (
     read_system_config as _read_system_config,
 )
 from src.dashboard.module_console import MODULE_TARGETS, ModuleConsole
-from src.dashboard.repository import DashboardRepository, LiveDashboardDataSource
-from src.dashboard.router import RouteContext, dispatch_delete, dispatch_get, dispatch_post, dispatch_put
 from src.modules.messages.service import MessagesService
 from src.modules.quote.cost_table import CostTableRepository, normalize_courier_name
 from src.modules.quote.setup import DEFAULT_MARKUP_RULES, QuoteSetupService
@@ -4113,5 +4106,3 @@ class MimicOps:
 
 
 # Embedded HTML hack removed. UI is strictly served from client/dist now.
-
-
