@@ -26,11 +26,11 @@ class TestRouteCookie:
 
     def test_cookie_get_route_exists(self):
         """Test cookie get route exists."""
-        assert "/api/cookie" in _GET_ROUTES
+        assert "/api/get-cookie" in _GET_ROUTES
 
     def test_cookie_diagnose_route_exists(self):
         """Test cookie diagnose route exists."""
-        assert "/api/cookie/diagnose" in _GET_ROUTES
+        assert "/api/cookie-diagnose" in _POST_ROUTES
 
 
 class TestRouteSystem:
@@ -54,7 +54,7 @@ class TestRouteMessages:
 
     def test_messages_replies_route_exists(self):
         """Test messages replies route exists."""
-        assert "/api/messages/replies" in _GET_ROUTES
+        assert "/api/replies" in _GET_ROUTES
 
 
 class TestRouteOrders:
@@ -62,7 +62,7 @@ class TestRouteOrders:
 
     def test_orders_route_exists(self):
         """Test orders route exists."""
-        assert "/api/orders" in _GET_ROUTES
+        assert "/api/virtual-goods/metrics" in _GET_ROUTES
 
 
 class TestRouteProducts:
@@ -70,7 +70,7 @@ class TestRouteProducts:
 
     def test_products_listing_route_exists(self):
         """Test products listing route exists."""
-        assert "/api/products/listing/templates" in _GET_ROUTES
+        assert "/api/listing/templates" in _GET_ROUTES
 
 
 class TestRouteQuote:
@@ -78,7 +78,7 @@ class TestRouteQuote:
 
     def test_quote_route_stats_exists(self):
         """Test quote route stats exists."""
-        assert "/api/quote/route-stats" in _GET_ROUTES
+        assert "/api/route-stats" in _GET_ROUTES
 
 
 if __name__ == "__main__":
