@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import json
 import os
+import time
 import threading
-from functools import lru_cache
 from typing import Any
 
 import yaml
@@ -63,6 +63,9 @@ class Config:
     _lock = threading.Lock()
     _config: dict[str, Any] = {}
     _config_path: str | None = None
+    _MTIME_CHECK_INTERVAL = 5.0
+    _last_mtime_check: float = 0.0
+    _sys_config_mtime: float = 0.0
 
     def __new__(cls, config_path: str | None = None):
         if cls._instance is None:
@@ -77,6 +80,7 @@ class Config:
         if not hasattr(self, "_initialized") or not self._initialized:
             self.logger = get_logger()
             self._load_config(config_path)
+            self._record_sys_config_mtime()
             self._initialized = True
         elif config_path and config_path != self._config_path:
             self.reload(config_path)
@@ -468,6 +472,27 @@ class Config:
                 self._config[section] = section_payload
             section_payload[key] = value
 
+    def _maybe_auto_reload(self) -> None:
+        now = time.time()
+        if (now - self._last_mtime_check) < self._MTIME_CHECK_INTERVAL:
+            return
+        self._last_mtime_check = now
+        try:
+            mtime = os.path.getmtime(os.path.join("data", "system_config.json"))
+            if mtime > self._sys_config_mtime:
+                self._sys_config_mtime = mtime
+                self.reload()
+        except OSError:
+            pass
+
+    def _record_sys_config_mtime(self) -> None:
+        try:
+            self._sys_config_mtime = os.path.getmtime(
+                os.path.join("data", "system_config.json")
+            )
+        except OSError:
+            self._sys_config_mtime = 0.0
+
     def get(self, key: str, default: Any = None) -> Any:
         """
         获取配置值
@@ -479,6 +504,7 @@ class Config:
         Returns:
             配置值
         """
+        self._maybe_auto_reload()
         keys = key.split(".")
         value = self._config
 
@@ -501,6 +527,7 @@ class Config:
         Returns:
             配置段落字典
         """
+        self._maybe_auto_reload()
         return self._config.get(section, default or {})
 
     @property
@@ -550,16 +577,21 @@ class Config:
 
     def reload(self, config_path: str | None = None) -> None:
         """
-        重新加载配置
+        重新加载配置（原子替换，失败回滚）
 
         Args:
             config_path: 新的配置文件路径
         """
-        self._config = {}
-        self._load_config(config_path or self._config_path)
+        old_config = self._config
+        try:
+            self._config = {}
+            self._load_config(config_path or self._config_path)
+            self._record_sys_config_mtime()
+        except Exception:
+            self._config = old_config
+            raise
 
 
-@lru_cache(maxsize=1)
 def get_config(config_path: str | None = None) -> Config:
     """
     获取配置单例

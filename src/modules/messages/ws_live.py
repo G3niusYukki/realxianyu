@@ -527,9 +527,13 @@ class GoofishWsTransport:
             if (now - im_last_poll) >= im_poll_interval:
                 im_last_poll = now
                 if await self._try_goofish_im_refresh(urgent=True):
-                    if is_rgv587 and not self.cookies.get("unb"):
+                    has_unb = bool(
+                        self.cookies.get("unb")
+                        or "unb=" in os.environ.get("XIANYU_COOKIE_1", "")
+                    )
+                    if is_rgv587 and not has_unb:
                         self.logger.warning(
-                            "Cookie wait: 闲管家IM刷新成功但仍缺少unb，不触发重连（需通过滑块验证获取）"
+                            "Cookie wait: IM刷新成功但unb仍缺失，不触发重连"
                         )
                     else:
                         self.logger.info("Cookie wait: 闲管家IM刷新成功")
@@ -555,13 +559,8 @@ class GoofishWsTransport:
         try:
             from src.core.cookie_grabber import CookieGrabber
 
-            asyncio.get_running_loop()
             grabber = CookieGrabber()
-
-            os.environ.get("COOKIE_CLOUD_HOST", "").strip()
-            uuid_val = os.environ.get("COOKIE_CLOUD_UUID", "").strip()
-            pwd = os.environ.get("COOKIE_CLOUD_PASSWORD", "").strip()
-            if not uuid_val or not pwd:
+            if not grabber.is_cookiecloud_configured():
                 return None
 
             cookie = await grabber._grab_from_cookiecloud()
@@ -687,19 +686,11 @@ class GoofishWsTransport:
 
             slider_cfg = self.config.get("slider_auto_solve", {})
             slider_on = bool(slider_cfg.get("enabled")) if isinstance(slider_cfg, dict) else False
-            cc_uuid = os.environ.get("COOKIE_CLOUD_UUID", "").strip()
-            cc_pwd = os.environ.get("COOKIE_CLOUD_PASSWORD", "").strip()
-            if not cc_uuid or not cc_pwd:
-                try:
-                    from src.dashboard.config_service import read_system_config
-
-                    cc_cfg = read_system_config().get("cookie_cloud", {})
-                    if isinstance(cc_cfg, dict):
-                        cc_uuid = cc_uuid or str(cc_cfg.get("cookie_cloud_uuid", "")).strip()
-                        cc_pwd = cc_pwd or str(cc_cfg.get("cookie_cloud_password", "")).strip()
-                except Exception:
-                    pass
-            cc_on = bool(cc_uuid and cc_pwd)
+            try:
+                from src.core.cookie_grabber import CookieGrabber
+                cc_on = CookieGrabber().is_cookiecloud_configured()
+            except Exception:
+                cc_on = False
 
             lines = [
                 "【闲鱼自动化】⚠️ 风控滑块触发 (RGV587)",
@@ -898,77 +889,55 @@ class GoofishWsTransport:
             if not cookie_str:
                 return False
 
-            _required = {"sgcookie", "unb", "cookie2", "_m_h5_tk"}
+            _min_required = {"sgcookie", "cookie2", "_m_h5_tk"}
             cookie_keys = {p.split("=")[0].strip() for p in cookie_str.split(";") if "=" in p}
-            missing = _required - cookie_keys
-            is_complete = not missing
+            missing_min = _min_required - cookie_keys
 
-            if is_complete:
-                changed = self._apply_cookie_text(cookie_str, reason="slider_recovery")
-                if changed:
-                    self._last_cookie_applied_at = time.time()
-                    os.environ["XIANYU_COOKIE_1"] = cookie_str
-                    self._session_peer.clear()
-                    self._seen_event.clear()
-                    try:
-                        from src.core.notify import send_system_notification
-
-                        send_system_notification(
-                            "【闲鱼自动化】✅ 风控滑块验证已通过\nCookie 已自动恢复，WS 即将重连",
-                            event="risk_control",
-                        )
-                    except Exception:
-                        pass
-                return changed
-
-            self.logger.info(
-                f"Slider recovery: cookie incomplete (missing: {missing}), "
-                f"got {len(cookie_keys)} fields. Trying hasLogin to generate _m_h5_tk..."
-            )
-
-            if "_m_h5_tk" in missing and len(missing) == 1:
-                self._apply_cookie_text(cookie_str, reason="slider_partial")
-                os.environ["XIANYU_COOKIE_1"] = self.cookie_text
-                try:
-                    hl_ok = await self._preflight_has_login()
-                    if hl_ok and self.cookies.get("_m_h5_tk"):
-                        self.logger.info("hasLogin 补全 _m_h5_tk 成功，WS 即将重连")
-                        self._last_cookie_applied_at = time.time()
-                        self._session_peer.clear()
-                        self._seen_event.clear()
-                        try:
-                            from src.core.notify import send_system_notification
-
-                            send_system_notification(
-                                "【闲鱼自动化】✅ hasLogin 补全 _m_h5_tk 成功\nCookie 已自动恢复，WS 即将重连",
-                                event="risk_control",
-                            )
-                        except Exception:
-                            pass
-                        return True
-                    self.logger.info("hasLogin 未能补全 _m_h5_tk，回退 CookieCloud 轮询")
-                except Exception as exc:
-                    self.logger.info(f"hasLogin 补全失败: {exc}")
-
-            try:
-                from src.core.notify import send_system_notification
-
-                send_system_notification(
-                    "【闲鱼自动化】⚠️ 滑块页面无验证码，但提取的 Cookie 不完整\n"
-                    "缺少字段: " + ", ".join(sorted(missing)) + "\n"
-                    "请在 CookieCloud 扩展中点「手动同步」或在闲鱼网页重新登录",
-                    event="risk_control",
+            if missing_min:
+                self.logger.info(
+                    f"Slider recovery: cookie too few (missing: {missing_min}), got {len(cookie_keys)} fields"
                 )
-            except Exception:
-                pass
-            for _ in range(20):
-                refreshed = await self._try_cookiecloud_poll()
-                if refreshed is True:
-                    self._last_cookie_applied_at = time.time()
-                    self.logger.info("CookieCloud provided complete cookie after slider solve")
-                    return True
-                await asyncio.sleep(15)
-            return False
+                try:
+                    from src.core.notify import send_system_notification
+
+                    send_system_notification(
+                        "【闲鱼自动化】⚠️ 滑块恢复 Cookie 不完整\n"
+                        "缺少字段: " + ", ".join(sorted(missing_min)) + "\n"
+                        "请在 CookieCloud 扩展中点「手动同步」或在闲鱼网页重新登录",
+                        event="risk_control",
+                    )
+                except Exception:
+                    pass
+                for _ in range(20):
+                    refreshed = await self._try_cookiecloud_poll()
+                    if refreshed is True:
+                        self._last_cookie_applied_at = time.time()
+                        self.logger.info("CookieCloud provided complete cookie after slider solve")
+                        return True
+                    await asyncio.sleep(15)
+                return False
+
+            existing = os.environ.get("XIANYU_COOKIE_1", "") or self.cookie_text
+            merged = self._merge_cookie_strings(existing, cookie_str)
+            changed = self._apply_cookie_text(merged, reason="slider_recovery")
+            if changed:
+                self._last_cookie_applied_at = time.time()
+                os.environ["XIANYU_COOKIE_1"] = merged
+                self._session_peer.clear()
+                self._seen_event.clear()
+                self.logger.info(
+                    f"Slider recovery: merged {len(cookie_keys)} browser fields into existing cookie"
+                )
+                try:
+                    from src.core.notify import send_system_notification
+
+                    send_system_notification(
+                        "【闲鱼自动化】✅ 浏览器 Cookie 已合并恢复\nWS 即将重连",
+                        event="risk_control",
+                    )
+                except Exception:
+                    pass
+            return changed
         except Exception as exc:
             self.logger.info(f"Slider recovery failed: {exc}")
             return False
@@ -1504,9 +1473,20 @@ class GoofishWsTransport:
             raise BrowserError("WebSocket transport requires `websockets`. Install: pip install websockets")
 
         self._ensure_async_primitives()
+        _cdp_preloaded = False
         while not self._stop_event.is_set():
             try:
                 self._maybe_reload_cookie(reason="connect")
+                if not _cdp_preloaded:
+                    _cdp_preloaded = True
+                    try:
+                        from src.core.bitbrowser_cdp import get_fp_config
+                        fp_cfg = get_fp_config(self.config)
+                        if fp_cfg.get("enabled"):
+                            if await self._try_bitbrowser_cookie_refresh():
+                                self.logger.info("启动 CDP 预加载: 已合并 BitBrowser 最新 cookie")
+                    except Exception as exc:
+                        self.logger.debug(f"启动 CDP 预加载跳过: {exc}")
                 headers = self._base_headers(include_cookie=True)
                 try:
                     self._ws = await websockets.connect(
@@ -1654,12 +1634,12 @@ class GoofishWsTransport:
                             await asyncio.sleep(rgv_backoff)
                             continue
 
-                        # Step 2: BitBrowser CDP 直读 cookie (fp_enabled 时)
-                        if _fp_enabled and await self._try_bitbrowser_cookie_refresh():
-                            self._connect_failures = 0
-                            self.logger.info(f"BitBrowser CDP Cookie刷新成功，退避 {rgv_backoff:.0f}s 后重试 WS 连接")
-                            await asyncio.sleep(rgv_backoff)
-                            continue
+                        # Step 2: BitBrowser CDP 直读 cookie (前置补充，不阻断滑块)
+                        if _fp_enabled:
+                            cdp_refreshed = await self._try_bitbrowser_cookie_refresh()
+                            if cdp_refreshed:
+                                self._connect_failures = 0
+                                self.logger.info("BitBrowser CDP Cookie已合并，继续尝试滑块恢复...")
 
                         # Step 3: 滑块验证
                         can_try_slider = (

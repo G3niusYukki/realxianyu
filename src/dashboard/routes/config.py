@@ -17,7 +17,6 @@ from src.dashboard.config_service import (
 from src.dashboard.router import RouteContext, get, post, put
 
 # Lazy imports to avoid circular dependency with dashboard_server
-# _sync_system_config_to_yaml and _error_payload are defined in dashboard_server.py
 
 logger = logging.getLogger(__name__)
 
@@ -188,8 +187,6 @@ def handle_manual_mode_get(ctx: RouteContext) -> None:
 
 def _save_config(ctx: RouteContext) -> None:
     """Shared config save logic for POST and PUT."""
-    from src.dashboard_server import _sync_system_config_to_yaml
-
     body = ctx.json_body()
     current = _read_system_config()
     for section, values in body.items():
@@ -206,7 +203,6 @@ def _save_config(ctx: RouteContext) -> None:
             clean[k] = v
         current[section] = {**(current.get(section) or {}), **clean}
     _write_system_config(current)
-    _sync_system_config_to_yaml(current)
     get_config().reload()
     try:
         from src.modules.messages.service import _active_service

@@ -148,6 +148,24 @@ class CookieGrabber:
     # Level 0: CookieCloud 远程拉取
     # ------------------------------------------------------------------
 
+    def is_cookiecloud_configured(self) -> bool:
+        """判断 CookieCloud 是否已配置（env -> system_config.json 降级）。"""
+        import json
+
+        uuid_val = os.environ.get("COOKIE_CLOUD_UUID", "").strip()
+        pwd = os.environ.get("COOKIE_CLOUD_PASSWORD", "").strip()
+        if not uuid_val or not pwd:
+            try:
+                cfg_path = Path("data/system_config.json")
+                if cfg_path.exists():
+                    cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+                    cc = cfg.get("cookie_cloud", {}) if isinstance(cfg.get("cookie_cloud"), dict) else {}
+                    uuid_val = uuid_val or str(cc.get("cookie_cloud_uuid") or cfg.get("cookie_cloud_uuid", "")).strip()
+                    pwd = pwd or str(cc.get("cookie_cloud_password") or cfg.get("cookie_cloud_password", "")).strip()
+            except Exception:
+                pass
+        return bool(uuid_val and pwd)
+
     async def _grab_from_cookiecloud(self) -> str | None:
         """从 CookieCloud 服务拉取 Cookie（需配置环境变量或 system_config）。"""
         host = os.environ.get("COOKIE_CLOUD_HOST", "").strip()

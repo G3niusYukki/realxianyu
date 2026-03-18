@@ -10,7 +10,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class Provider(str, Enum):
@@ -221,6 +221,20 @@ class QuoteConfig(BaseModel):
     xianyu_discount: dict[str, Any] = Field(default_factory=dict, description="三层定价：闲鱼让利")
 
 
+class CookieCloudConfig(BaseModel):
+    """CookieCloud 同步配置"""
+
+    cookie_cloud_host: str = ""
+    cookie_cloud_uuid: str = ""
+    cookie_cloud_password: str = ""
+
+
+class StoreConfig(BaseModel):
+    """店铺配置"""
+
+    category: str = Field(default="express", description="店铺品类：express|virtual|general")
+
+
 class AppConfig(BaseModel):
     """应用配置模型"""
 
@@ -253,6 +267,8 @@ class AppConfig(BaseModel):
 class ConfigModel(BaseModel):
     """完整配置模型"""
 
+    model_config = ConfigDict(extra="ignore")
+
     app: AppConfig = Field(default_factory=AppConfig)
     browser_runtime: BrowserRuntimeConfig = Field(default_factory=BrowserRuntimeConfig)
     ai: AIConfig = Field(default_factory=AIConfig)
@@ -265,6 +281,8 @@ class ConfigModel(BaseModel):
     browser: BrowserConfig = Field(default_factory=BrowserConfig)
     messages: MessagesConfig = Field(default_factory=MessagesConfig)
     quote: QuoteConfig = Field(default_factory=QuoteConfig)
+    cookie_cloud: CookieCloudConfig = Field(default_factory=CookieCloudConfig)
+    store: StoreConfig = Field(default_factory=StoreConfig)
 
     @field_validator("default_account")
     @classmethod
