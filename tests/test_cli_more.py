@@ -59,7 +59,7 @@ def test_main_without_command(monkeypatch):
 def test_main_handler_exception(monkeypatch):
     class P:
         def parse_args(self):
-            return argparse.Namespace(command="publish")
+            return argparse.Namespace(command="publish", title="Test Item", price=99.0)
 
         def print_help(self):
             return None
@@ -67,6 +67,7 @@ def test_main_handler_exception(monkeypatch):
     async def bad(_args):
         raise RuntimeError("boom")
 
+    # main() now looks up build_parser from src.cli dynamically at call time.
     monkeypatch.setattr("src.cli.build_parser", lambda: P())
     monkeypatch.setattr("src.cli.cmd_publish", bad)
     called = []

@@ -40,8 +40,7 @@ class TestCmdOrders:
             xgj_app_key="key123",
             xgj_app_secret="secret456",
         )
-        with patch("src.cli.cmd_orders.__module__", "src.cli"), \
-             patch("src.modules.orders.service.OrderFulfillmentService") as MockService:
+        with patch("src.modules.orders.service.OrderFulfillmentService") as MockService:
             mock_svc = MagicMock()
             mock_svc.list_orders.return_value = []
             MockService.return_value = mock_svc

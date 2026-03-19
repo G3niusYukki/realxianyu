@@ -33,6 +33,8 @@ from src.modules.quote.cost_table import CostTableRepository, normalize_courier_
 from src.modules.quote.setup import DEFAULT_MARKUP_RULES, QuoteSetupService
 from src.modules.virtual_goods.service import VirtualGoodsService
 
+from src.dashboard.services import ConfigSyncService, CookieService, XGJService
+
 logger = logging.getLogger(__name__)
 
 _product_image_cache: dict[str, tuple[str, float]] = {}
@@ -85,132 +87,6 @@ def _extract_json_payload(text: str) -> Any | None:
             except Exception:
                 continue
     return None
-
-
-_YAML_CONFIG_PATH = Path(__file__).resolve().parents[1] / "config" / "config.yaml"
-_YAML_EXAMPLE_PATH = Path(__file__).resolve().parents[1] / "config" / "config.example.yaml"
-
-_AUTO_REPLY_TO_YAML_KEYS = {
-    "default_reply": "default_reply",
-    "virtual_default_reply": "virtual_default_reply",
-    "enabled": "enabled",
-    "ai_intent_enabled": "ai_intent_enabled",
-    "quote_missing_template": "quote_missing_template",
-    "strict_format_reply_enabled": "strict_format_reply_enabled",
-    "force_non_empty_reply": "force_non_empty_reply",
-    "non_empty_reply_fallback": "non_empty_reply_fallback",
-    "quote_failed_template": "quote_failed_template",
-    "quote_reply_max_couriers": "quote_reply_max_couriers",
-    "first_reply_delay": "first_reply_delay_seconds",
-    "inter_reply_delay": "inter_reply_delay_seconds",
-}
-
-
-def _sync_system_config_to_yaml(sys_config: dict[str, Any]) -> None:
-    """Write relevant system_config fields back to config.yaml so the runtime picks them up."""
-    yaml_path = _YAML_CONFIG_PATH if _YAML_CONFIG_PATH.exists() else _YAML_EXAMPLE_PATH
-    if not yaml_path.exists():
-        return
-    try:
-        raw = yaml_path.read_text(encoding="utf-8")
-        cfg = yaml.safe_load(raw) or {}
-    except Exception:
-        return
-
-    changed = False
-
-    ar = sys_config.get("auto_reply")
-    if isinstance(ar, dict):
-        msgs = cfg.setdefault("messages", {})
-        _RANGE_KEYS = {"first_reply_delay", "inter_reply_delay"}
-        for src_key, dst_key in _AUTO_REPLY_TO_YAML_KEYS.items():
-            if src_key in ar:
-                val = ar[src_key]
-                if src_key in _RANGE_KEYS and isinstance(val, str) and "-" in val:
-                    try:
-                        parts = val.split("-", 1)
-                        val = [float(parts[0].strip()), float(parts[1].strip())]
-                    except (ValueError, IndexError):
-                        pass
-                msgs[dst_key] = val
-                changed = True
-        kw_text = ar.get("keyword_replies_text")
-        if isinstance(kw_text, str) and kw_text.strip():
-            kw_dict: dict[str, str] = {}
-            for line in kw_text.strip().splitlines():
-                line = line.strip()
-                if "=" in line:
-                    k, v = line.split("=", 1)
-                    k, v = k.strip(), v.strip()
-                    if k and v:
-                        kw_dict[k] = v
-            if kw_dict:
-                msgs["keyword_replies"] = kw_dict
-                changed = True
-        custom_rules = ar.get("custom_intent_rules")
-        if isinstance(custom_rules, list):
-            msgs["intent_rules"] = [
-                {
-                    k: v
-                    for k, v in r.items()
-                    if k
-                    in (
-                        "name",
-                        "keywords",
-                        "reply",
-                        "patterns",
-                        "priority",
-                        "categories",
-                        "needs_human",
-                        "human_reason",
-                        "phase",
-                        "skip_reply",
-                    )
-                }
-                for r in custom_rules
-                if isinstance(r, dict) and r.get("name")
-            ]
-            changed = True
-
-    for section_key in ("pricing", "delivery"):
-        sec = sys_config.get(section_key)
-        if isinstance(sec, dict):
-            cfg.setdefault(section_key, {}).update(sec)
-            changed = True
-
-    store = sys_config.get("store")
-    if isinstance(store, dict) and "category" in store:
-        cfg.setdefault("store", {})["category"] = store["category"]
-        changed = True
-
-    slider = sys_config.get("slider_auto_solve")
-    if isinstance(slider, dict):
-        ws_cfg = cfg.setdefault("messages", {}).setdefault("ws", {})
-        slider_dict = {
-            "enabled": bool(slider.get("enabled", False)),
-            "max_attempts": int(slider.get("max_attempts", 2)),
-            "cooldown_seconds": int(slider.get("cooldown_seconds", 300)),
-            "headless": bool(slider.get("headless", False)),
-        }
-        fp = slider.get("fingerprint_browser")
-        if isinstance(fp, dict):
-            slider_dict["fingerprint_browser"] = {
-                "enabled": bool(fp.get("enabled", False)),
-                "api_url": str(fp.get("api_url", "http://127.0.0.1:54345")),
-                "browser_id": str(fp.get("browser_id", "")),
-            }
-        ws_cfg["slider_auto_solve"] = slider_dict
-        changed = True
-
-    if changed:
-        try:
-            tmp = yaml_path.with_suffix(".tmp")
-            tmp.write_text(
-                yaml.dump(cfg, allow_unicode=True, default_flow_style=False, sort_keys=False), encoding="utf-8"
-            )
-            tmp.rename(yaml_path)
-        except Exception as exc:
-            logger.warning("Failed to sync config to YAML: %s", exc)
 
 
 def _test_xgj_connection(
@@ -371,6 +247,10 @@ class MimicOps:
         self._shared_cookie_checker: Any = None
         self._risk_log_cache: dict[str, Any] | None = None
         self._risk_log_cache_ts: float = 0.0
+        # Service instances
+        self._cookie_service = CookieService(self.project_root)
+        self._xgj_service = XGJService(self.project_root)
+        self._config_sync_service = ConfigSyncService()
 
     @property
     def env_path(self) -> Path:
@@ -424,522 +304,29 @@ class MimicOps:
         raw = self._get_env_value(key)
         return self._to_bool(raw, default=default)
 
-    def _get_xianguanjia_settings(self) -> dict[str, Any]:
-        app_key = self._get_env_value("XGJ_APP_KEY").strip()
-        app_secret = self._get_env_value("XGJ_APP_SECRET").strip()
-        merchant_id = self._get_env_value("XGJ_MERCHANT_ID").strip()
-        base_url = self._get_env_value("XGJ_BASE_URL").strip() or "https://open.goofish.pro"
-        auto_price_enabled = self._get_env_bool("XGJ_AUTO_PRICE_ENABLED", default=True)
-        auto_ship_enabled = self._get_env_bool("XGJ_AUTO_SHIP_ENABLED", default=True)
-        auto_ship_on_paid = self._get_env_bool("XGJ_AUTO_SHIP_ON_PAID", default=True)
-        return {
-            "configured": bool(app_key and app_secret),
-            "app_key": app_key,
-            "app_secret": app_secret,
-            "merchant_id": merchant_id,
-            "base_url": base_url,
-            "auto_price_enabled": auto_price_enabled,
-            "auto_ship_enabled": auto_ship_enabled,
-            "auto_ship_on_paid": auto_ship_on_paid,
-        }
-
-    @staticmethod
-    def _mask_secret(value: str) -> str:
-        text = str(value or "").strip()
-        if len(text) <= 6:
-            return "*" * len(text)
-        return text[:3] + "*" * (len(text) - 6) + text[-3:]
-
     def get_xianguanjia_settings(self) -> dict[str, Any]:
-        settings = self._get_xianguanjia_settings()
-        return {
-            "success": True,
-            "configured": settings["configured"],
-            "app_key": settings["app_key"],
-            "app_secret_masked": self._mask_secret(settings["app_secret"]),
-            "merchant_id": settings["merchant_id"],
-            "base_url": settings["base_url"],
-            "auto_price_enabled": settings["auto_price_enabled"],
-            "auto_ship_enabled": settings["auto_ship_enabled"],
-            "auto_ship_on_paid": settings["auto_ship_on_paid"],
-            "callback_url": "/api/orders/callback",
-        }
+        return self._xgj_service.get_xianguanjia_settings()
 
     def save_xianguanjia_settings(self, payload: dict[str, Any]) -> dict[str, Any]:
-        data = dict(payload or {})
-        updates = {
-            "XGJ_APP_KEY": str(data.get("app_key") or self._get_env_value("XGJ_APP_KEY")).strip(),
-            "XGJ_APP_SECRET": str(data.get("app_secret") or self._get_env_value("XGJ_APP_SECRET")).strip(),
-            "XGJ_MERCHANT_ID": str(data.get("merchant_id") or self._get_env_value("XGJ_MERCHANT_ID")).strip(),
-            "XGJ_BASE_URL": str(data.get("base_url") or self._get_env_value("XGJ_BASE_URL")).strip()
-            or "https://open.goofish.pro",
-            "XGJ_AUTO_PRICE_ENABLED": "1"
-            if self._to_bool(data.get("auto_price_enabled"), default=self._get_env_bool("XGJ_AUTO_PRICE_ENABLED", True))
-            else "0",
-            "XGJ_AUTO_SHIP_ENABLED": "1"
-            if self._to_bool(data.get("auto_ship_enabled"), default=self._get_env_bool("XGJ_AUTO_SHIP_ENABLED", True))
-            else "0",
-            "XGJ_AUTO_SHIP_ON_PAID": "1"
-            if self._to_bool(data.get("auto_ship_on_paid"), default=self._get_env_bool("XGJ_AUTO_SHIP_ON_PAID", True))
-            else "0",
-        }
-        for key, value in updates.items():
-            self._set_env_value(key, value)
-
-        saved = self.get_xianguanjia_settings()
-        saved["message"] = "闲管家设置已更新"
-        return saved
+        return self._xgj_service.save_xianguanjia_settings(payload)
 
     def _xianguanjia_service_config(self) -> dict[str, Any]:
-        settings = self._get_xianguanjia_settings()
-        sys_cfg = _read_system_config()
-        xgj_sys = sys_cfg.get("xianguanjia", {}) if isinstance(sys_cfg.get("xianguanjia"), dict) else {}
-
-        # env 为空时从 system_config 回退；用于 SystemConfig 写入 system_config.json 但 .env 未同步的场景
-        app_key = (settings["app_key"] or "").strip() or str(xgj_sys.get("app_key", "")).strip()
-        app_secret = (settings["app_secret"] or "").strip() or str(xgj_sys.get("app_secret", "")).strip()
-        base_url = (
-            (settings["base_url"] or "").strip()
-            or str(xgj_sys.get("base_url", "")).strip()
-            or "https://open.goofish.pro"
-        )
-        merchant_id = (settings["merchant_id"] or "").strip() or str(xgj_sys.get("merchant_id", "")).strip() or None
-
-        merged_xgj = dict(xgj_sys)
-        merged_xgj.update(
-            {
-                "enabled": bool(app_key and app_secret),
-                "app_key": app_key,
-                "app_secret": app_secret,
-                "merchant_id": merchant_id or None,
-                "base_url": base_url,
-            }
-        )
-
-        result: dict[str, Any] = {"xianguanjia": merged_xgj}
-        oss_cfg = sys_cfg.get("oss")
-        if isinstance(oss_cfg, dict) and oss_cfg:
-            clean_oss = {k: v for k, v in oss_cfg.items() if v and not str(v).endswith("****")}
-            if clean_oss:
-                result["oss"] = clean_oss
-        return result
+        return XGJService._xianguanjia_service_config()
 
     def retry_xianguanjia_delivery(self, payload: dict[str, Any]) -> dict[str, Any]:
-        from src.modules.orders.service import OrderFulfillmentService
-
-        svc_cfg = self._xianguanjia_service_config()
-        if not (svc_cfg.get("xianguanjia", {}).get("enabled", False)):
-            return _error_payload("闲管家凭证未配置", code="XGJ_NOT_CONFIGURED")
-
-        data = dict(payload or {})
-        shipping_info = data.get("shipping_info")
-        if not isinstance(shipping_info, dict):
-            shipping_info = {}
-
-        for field in (
-            "order_no",
-            "waybill_no",
-            "express_code",
-            "express_name",
-            "ship_name",
-            "ship_mobile",
-            "ship_province",
-            "ship_city",
-            "ship_area",
-            "ship_address",
-        ):
-            if field in data and data.get(field) not in (None, ""):
-                shipping_info[field] = data.get(field)
-
-        order_id = str(data.get("order_id") or data.get("order_no") or "").strip()
-        if not order_id:
-            return _error_payload("缺少订单号", code="MISSING_ORDER_ID")
-
-        service = OrderFulfillmentService(
-            db_path=str(self.project_root / "data" / "orders.db"),
-            config=self._xianguanjia_service_config(),
-        )
-        try:
-            result = service.deliver(
-                order_id=order_id,
-                dry_run=self._to_bool(data.get("dry_run"), default=False),
-                shipping_info=shipping_info or None,
-            )
-        except Exception as exc:
-            return _error_payload(f"发货重试失败: {exc}", code="XGJ_RETRY_SHIP_FAILED")
-        return {"success": True, **result}
+        return self._xgj_service.retry_xianguanjia_delivery(payload)
 
     def retry_xianguanjia_price(self, payload: dict[str, Any]) -> dict[str, Any]:
-        from src.modules.operations.service import OperationsService
-
-        svc_cfg = self._xianguanjia_service_config()
-        if not (svc_cfg.get("xianguanjia", {}).get("enabled", False)):
-            return _error_payload("闲管家凭证未配置", code="XGJ_NOT_CONFIGURED")
-
-        data = dict(payload or {})
-        product_id = str(data.get("product_id") or data.get("productId") or "").strip()
-        if not product_id:
-            return _error_payload("缺少商品 ID", code="MISSING_PRODUCT_ID")
-
-        try:
-            new_price = float(data.get("new_price"))
-        except Exception:
-            return _error_payload("缺少有效的新价格", code="INVALID_NEW_PRICE")
-
-        original_price_raw = data.get("original_price")
-        original_price = None
-        if original_price_raw not in (None, ""):
-            try:
-                original_price = float(original_price_raw)
-            except Exception:
-                return _error_payload("原价格式无效", code="INVALID_ORIGINAL_PRICE")
-
-        service = OperationsService(config=self._xianguanjia_service_config())
-        try:
-            result = _run_async(service.update_price(product_id, new_price, original_price))
-        except Exception as exc:
-            return _error_payload(f"改价重试失败: {exc}", code="XGJ_RETRY_PRICE_FAILED")
-        return {"success": bool(result.get("success")), **result}
+        return self._xgj_service.retry_xianguanjia_price(payload)
 
     def handle_order_callback(self, payload: dict[str, Any]) -> dict[str, Any]:
-        from src.modules.orders.service import OrderFulfillmentService
-
-        data = dict(payload or {})
-        svc_cfg = self._xianguanjia_service_config()
-        xgj_enabled = bool(svc_cfg.get("xianguanjia", {}).get("enabled", False))
-        service = OrderFulfillmentService(
-            db_path=str(self.project_root / "data" / "orders.db"),
-            config=svc_cfg,
-        )
-
-        sys_cfg = _read_system_config()
-        delivery_cfg = sys_cfg.get("delivery", {})
-        settings = self._get_xianguanjia_settings()
-        auto_delivery_override = delivery_cfg.get("auto_delivery")
-        if auto_delivery_override is not None:
-            use_auto = bool(auto_delivery_override) and xgj_enabled
-        else:
-            use_auto = bool(xgj_enabled and settings["auto_ship_enabled"] and settings["auto_ship_on_paid"])
-
-        try:
-            result = service.process_callback(
-                data,
-                dry_run=self._to_bool(data.get("dry_run"), default=False),
-                auto_deliver=use_auto,
-            )
-        except Exception as exc:
-            return _error_payload(f"回调处理失败: {exc}", code="XGJ_CALLBACK_FAILED")
-
-        result["settings"] = {
-            "configured": settings["configured"],
-            "auto_ship_enabled": settings["auto_ship_enabled"],
-            "auto_ship_on_paid": settings["auto_ship_on_paid"],
-            "auto_delivery_source": "system_config" if auto_delivery_override is not None else "env",
-        }
-        return result
+        return self._xgj_service.handle_order_callback(payload)
 
     def handle_order_push(self, payload: dict[str, Any]) -> dict[str, Any]:
-        """Handle order push notification from Xianyu.
-
-        Processes order callback AND triggers auto-price-modify for
-        status 11 (pending payment) orders asynchronously.
-        """
-        order_status = payload.get("order_status")
-        order_no = str(payload.get("order_no", ""))
-
-        callback_result = self.handle_order_callback(payload)
-
-        if order_status == 11 and order_no:
-            sys_cfg = _read_system_config()
-            apm_cfg = sys_cfg.get("auto_price_modify", {})
-            if apm_cfg.get("enabled"):
-                import threading
-
-                t = threading.Thread(
-                    target=self._auto_modify_price_sync,
-                    args=(order_no, payload, apm_cfg),
-                    daemon=True,
-                )
-                t.start()
-                callback_result["auto_price_modify_triggered"] = True
-
-        return callback_result
-
-    def _auto_modify_price_sync(self, order_no: str, push_payload: dict[str, Any], apm_cfg: dict[str, Any]) -> None:
-        """Background thread: look up quote and modify order price."""
-        try:
-            from src.integrations.xianguanjia.open_platform_client import OpenPlatformClient
-            from src.modules.quote.ledger import get_quote_ledger
-
-            settings = self._get_xianguanjia_settings()
-            if not settings["configured"]:
-                logger.warning("Auto-price-modify: xianguanjia not configured")
-                return
-
-            xgj_cfg = self._xianguanjia_service_config().get("xianguanjia", {})
-            client_fields = {"base_url", "app_key", "app_secret", "timeout", "mode", "seller_id"}
-            client_kwargs = {k: v for k, v in xgj_cfg.items() if k in client_fields and v}
-            client = OpenPlatformClient(**client_kwargs)
-
-            detail_resp = client.get_order_detail({"order_no": order_no})
-            if not detail_resp.ok:
-                logger.warning("Auto-price-modify: failed to get order detail for %s", order_no)
-                return
-
-            detail = detail_resp.data or {}
-            buyer_nick = str(detail.get("buyer_nick", ""))
-            buyer_eid = str(detail.get("buyer_eid", "")).strip()
-            goods = detail.get("goods") or {}
-            item_id = str(goods.get("item_id", ""))
-            total_amount = int(detail.get("total_amount", 0))
-
-            if not buyer_nick and not buyer_eid:
-                logger.info("Auto-price-modify: no buyer_nick/buyer_eid in order %s", order_no)
-                return
-
-            max_age = int(apm_cfg.get("max_quote_age_seconds", 7200))
-            ledger = get_quote_ledger()
-            quote = ledger.find_by_buyer(
-                buyer_nick,
-                item_id=item_id,
-                max_age_seconds=max_age,
-                sender_user_id=buyer_eid,
-            )
-
-            if not quote:
-                fallback = apm_cfg.get("fallback_action", "skip")
-                if fallback == "use_listing_price":
-                    logger.info(
-                        "Auto-price-modify: no quote for buyer=%s order=%s, "
-                        "fallback=use_listing_price — accepting at current price",
-                        buyer_nick,
-                        order_no,
-                    )
-                    return
-                logger.info(
-                    "Auto-price-modify: no matching quote for buyer=%s order=%s, fallback=%s",
-                    buyer_nick,
-                    order_no,
-                    fallback,
-                )
-                return
-
-            quote_rows = quote.get("quote_rows", [])
-            courier_choice = quote.get("courier_choice", "")
-
-            target_fee = None
-            if courier_choice:
-                for row in quote_rows:
-                    if str(row.get("courier", "")).strip() == courier_choice.strip():
-                        target_fee = row.get("total_fee")
-                        break
-            if target_fee is None and quote_rows:
-                target_fee = min(r.get("total_fee", 0) for r in quote_rows if r.get("total_fee"))
-
-            if target_fee is None:
-                logger.info("Auto-price-modify: no valid fee in quote for order=%s", order_no)
-                return
-
-            target_price_cents = round(float(target_fee) * 100)
-            express_fee_cents = int(float(apm_cfg.get("default_express_fee", 0)) * 100)
-
-            if target_price_cents == total_amount:
-                logger.info("Auto-price-modify: price already correct for order=%s", order_no)
-                return
-
-            import time as _time
-
-            retry_delays = (2, 4, 8)
-            last_exc = None
-            modify_resp = None
-            for attempt in range(1 + len(retry_delays)):
-                try:
-                    modify_resp = client.modify_order_price(
-                        {
-                            "order_no": order_no,
-                            "order_price": target_price_cents,
-                            "express_fee": express_fee_cents,
-                        }
-                    )
-                    if modify_resp.ok:
-                        logger.info(
-                            "Auto-price-modify: SUCCESS order=%s from=%d to=%d (express=%d)",
-                            order_no,
-                            total_amount,
-                            target_price_cents,
-                            express_fee_cents,
-                        )
-                        self._mark_order_processed_in_poller(order_no)
-                        return
-                    last_exc = None
-                    if not getattr(modify_resp, "retryable", False) or attempt >= len(retry_delays):
-                        break
-                    delay = retry_delays[attempt]
-                    logger.info(
-                        "Auto-price-modify: retry in %ds (attempt %d) order=%s error=%s",
-                        delay,
-                        attempt + 1,
-                        order_no,
-                        modify_resp.error_message,
-                    )
-                    _time.sleep(delay)
-                except Exception as exc:
-                    last_exc = exc
-                    if attempt >= len(retry_delays):
-                        break
-                    from src.integrations.xianguanjia.errors import is_retryable_error
-
-                    if not is_retryable_error(exc):
-                        raise
-                    delay = retry_delays[attempt]
-                    logger.info(
-                        "Auto-price-modify: retry in %ds (attempt %d) order=%s exc=%s",
-                        delay,
-                        attempt + 1,
-                        order_no,
-                        type(exc).__name__,
-                    )
-                    _time.sleep(delay)
-
-            if modify_resp is not None and not modify_resp.ok:
-                logger.warning(
-                    "Auto-price-modify: FAILED order=%s error=%s",
-                    order_no,
-                    modify_resp.error_message,
-                )
-            if last_exc is not None:
-                raise last_exc
-
-        except Exception:
-            logger.error("Auto-price-modify: unexpected error for order=%s", order_no, exc_info=True)
-
-    @staticmethod
-    def _mark_order_processed_in_poller(order_no: str) -> None:
-        """Notify the poller that this order was already handled by the push callback."""
-        try:
-            from src.modules.orders.auto_price_poller import get_price_poller
-
-            poller = get_price_poller()
-            if poller is not None:
-                poller._processed[order_no] = __import__("time").time()
-        except Exception:
-            pass
-
-    def _resolve_session_id_for_order(self, order_no: str) -> str:
-        """Try to find the chat session_id for a given order.
-
-        Priority: local orders DB > QuoteLedger (via buyer_nick) > ws_live reverse map.
-        """
-        # 1. 查本地订单库
-        try:
-            from src.modules.orders.service import OrderFulfillmentService
-
-            ofs = OrderFulfillmentService(
-                config=self._xianguanjia_service_config(),
-            )
-            order = ofs.get_order(order_no)
-            if order and str(order.get("session_id", "")).strip():
-                return str(order["session_id"]).strip()
-        except Exception:
-            pass
-
-        # 2. 通过闲管家 API 获取 buyer_nick，再查 QuoteLedger
-        buyer_nick = ""
-        try:
-            from src.integrations.xianguanjia.open_platform_client import OpenPlatformClient
-
-            xgj_cfg = self._xianguanjia_service_config().get("xianguanjia", {})
-            client_fields = {"base_url", "app_key", "app_secret", "timeout", "mode", "seller_id"}
-            client_kwargs = {k: v for k, v in xgj_cfg.items() if k in client_fields and v}
-            if client_kwargs.get("app_key") and client_kwargs.get("app_secret"):
-                client = OpenPlatformClient(**client_kwargs)
-                detail_resp = client.get_order_detail({"order_no": order_no})
-                if detail_resp.ok and isinstance(detail_resp.data, dict):
-                    buyer_nick = str(detail_resp.data.get("buyer_nick", "")).strip()
-        except Exception:
-            pass
-
-        if buyer_nick:
-            try:
-                from src.modules.quote.ledger import get_quote_ledger
-
-                quote = get_quote_ledger().find_by_buyer(buyer_nick)
-                if quote and str(quote.get("session_id", "")).strip():
-                    return str(quote["session_id"]).strip()
-            except Exception:
-                pass
-
-        # 3. ws_live 反向映射
-        try:
-            from src.modules.messages.ws_live import get_session_by_buyer_nick
-
-            sid = get_session_by_buyer_nick(buyer_nick) if buyer_nick else ""
-            if sid:
-                return sid
-        except Exception:
-            pass
-
-        return ""
+        return self._xgj_service.handle_order_push(payload)
 
     def handle_product_callback(self, payload: dict[str, Any]) -> dict[str, Any]:
-        """Handle product callback notification (async publish result)."""
-        product_id = payload.get("product_id")
-        task_type = payload.get("task_type")
-        task_result = payload.get("task_result")
-        payload.get("item_id")
-        err_code = payload.get("err_code", "")
-        err_msg = payload.get("err_msg", "")
-        product_status = payload.get("product_status")
-        publish_status = payload.get("publish_status")
-
-        logger.info(
-            "Product callback: product_id=%s task_type=%s result=%s status=%s/%s err=%s/%s",
-            product_id,
-            task_type,
-            task_result,
-            product_status,
-            publish_status,
-            err_code,
-            err_msg,
-        )
-
-        if product_id and task_type in (10, 11):
-            try:
-                from src.modules.listing.publish_queue import PublishQueue
-
-                queue = PublishQueue(project_root=self.project_root)
-                for item in queue.get_queue():
-                    pid = (
-                        item.get("published_product_id")
-                        if isinstance(item, dict)
-                        else getattr(item, "published_product_id", None)
-                    )
-                    status = item.get("status") if isinstance(item, dict) else getattr(item, "status", None)
-                    item_id_val = item.get("id") if isinstance(item, dict) else getattr(item, "id", None)
-                    if pid == product_id and status == "publishing":
-                        if task_result == 1:
-                            queue.update_item(
-                                item_id_val,
-                                {
-                                    "status": "published",
-                                    "error": None,
-                                },
-                            )
-                            logger.info("Product callback: marked queue item %s as published", item_id_val)
-                        elif task_result == 2:
-                            queue.update_item(
-                                item_id_val,
-                                {
-                                    "status": "failed",
-                                    "error": f"上架失败: [{err_code}] {err_msg}",
-                                },
-                            )
-                            logger.warning("Product callback: marked queue item %s as failed: %s", item_id_val, err_msg)
-                        break
-            except Exception:
-                logger.error("Product callback: failed to update publish queue", exc_info=True)
-
-        return {"success": True, "product_id": product_id, "task_result": task_result}
+        return self._xgj_service.handle_product_callback(payload)
 
     def _virtual_goods_service(self) -> VirtualGoodsService:
         return VirtualGoodsService(
@@ -1386,252 +773,44 @@ class MimicOps:
         }
 
     def get_cookie(self) -> dict[str, Any]:
-        cookie = self._get_env_value("XIANYU_COOKIE_1").strip()
-        return {
-            "success": bool(cookie),
-            "cookie": cookie,
-            "length": len(cookie),
-        }
+        return {"success": bool(self._get_env_value("XIANYU_COOKIE_1").strip()), "cookie": self._get_env_value("XIANYU_COOKIE_1").strip(), "length": len(self._get_env_value("XIANYU_COOKIE_1").strip())}
 
     @staticmethod
     def _cookie_fingerprint(cookie_text: str) -> str:
-        raw = str(cookie_text or "").strip()
-        if not raw:
-            return ""
-        return hashlib.sha1(raw.encode("utf-8", errors="ignore")).hexdigest()[:16]
+        return CookieService._cookie_fingerprint(cookie_text)
 
     @classmethod
     def _cookie_pairs_to_text(cls, pairs: list[tuple[str, str]]) -> tuple[str, int]:
-        items: list[str] = []
-        seen: set[str] = set()
-        for name, value in pairs:
-            key = str(name or "").strip()
-            val = str(value or "").strip()
-            if not key or not val:
-                continue
-            if not cls._COOKIE_NAME_RE.fullmatch(key):
-                continue
-            if key in seen:
-                continue
-            seen.add(key)
-            items.append(f"{key}={val}")
-        return "; ".join(items), len(items)
+        return CookieService._cookie_pairs_to_text(pairs)
 
     @classmethod
     def _extract_cookie_pairs_from_json(cls, raw_text: str) -> list[tuple[str, str]]:
-        text = str(raw_text or "").strip()
-        if not text:
-            return []
-        try:
-            payload = json.loads(text)
-        except Exception:
-            return []
-
-        pairs: list[tuple[str, str]] = []
-
-        def _collect(items: Any) -> None:
-            if not isinstance(items, list):
-                return
-            for item in items:
-                if not isinstance(item, dict):
-                    continue
-                name = item.get("name") or item.get("key")
-                value = item.get("value")
-                if name is None or value is None:
-                    continue
-                pairs.append((str(name), str(value)))
-
-        if isinstance(payload, list):
-            _collect(payload)
-        elif isinstance(payload, dict):
-            if "name" in payload and "value" in payload:
-                pairs.append((str(payload.get("name")), str(payload.get("value"))))
-            _collect(payload.get("cookies"))
-            _collect(payload.get("items"))
-
-        return pairs
+        return CookieService._extract_cookie_pairs_from_json(raw_text)
 
     @classmethod
     def _is_allowed_cookie_domain(cls, domain: str) -> bool:
-        value = str(domain or "").strip().lower().lstrip(".")
-        if not value:
-            return True
-        return any(value.endswith(allowed) for allowed in cls._COOKIE_DOMAIN_ALLOWLIST)
+        return CookieService._is_allowed_cookie_domain(domain)
 
     @classmethod
     def _extract_cookie_pairs_from_header(cls, raw_text: str) -> list[tuple[str, str]]:
-        text = str(raw_text or "").replace("\ufeff", "").replace("\x00", "").strip()
-        if not text:
-            return []
-        text = re.sub(r"^\s*cookie\s*:\s*", "", text, flags=re.IGNORECASE)
-        parts = re.split(r";|\n", text)
-        pairs: list[tuple[str, str]] = []
-        for part in parts:
-            seg = str(part or "").strip()
-            if not seg or "=" not in seg:
-                continue
-            key, value = seg.split("=", 1)
-            pairs.append((key.strip(), value.strip()))
-        return pairs
+        return CookieService._extract_cookie_pairs_from_header(raw_text)
 
     @classmethod
     def _extract_cookie_pairs_from_lines(cls, raw_text: str) -> list[tuple[str, str]]:
-        text = str(raw_text or "").replace("\ufeff", "").replace("\x00", "")
-        pairs: list[tuple[str, str]] = []
-        for line in text.splitlines():
-            s = str(line or "").strip()
-            if not s or s.startswith("#"):
-                continue
-
-            # Netscape cookies.txt: domain, flag, path, secure, expiry, name, value
-            if "\t" in s:
-                cols = [c.strip() for c in s.split("\t") if c.strip()]
-                if len(cols) >= 7:
-                    if cls._is_allowed_cookie_domain(cols[0]):
-                        pairs.append((cols[5], cols[6]))
-                    continue
-                if len(cols) >= 2 and cls._COOKIE_NAME_RE.fullmatch(cols[0]):
-                    # DevTools 表格常见格式：name value domain ...
-                    if len(cols) >= 3 and not cls._is_allowed_cookie_domain(cols[2]):
-                        continue
-                    pairs.append((cols[0], cols[1]))
-                    continue
-
-            cols = [c.strip() for c in s.split() if c.strip()]
-            if len(cols) >= 2 and cls._COOKIE_NAME_RE.fullmatch(cols[0]):
-                pairs.append((cols[0], cols[1]))
-                continue
-
-            if "=" in s:
-                key, value = s.split("=", 1)
-                pairs.append((key.strip(), value.strip()))
-        return pairs
+        return CookieService._extract_cookie_pairs_from_lines(raw_text)
 
     @classmethod
     def parse_cookie_text(cls, text: str) -> dict[str, Any]:
-        raw = str(text or "").strip()
-        if not raw:
-            return {"success": False, "error": "Cookie string cannot be empty"}
-
-        candidates: list[dict[str, Any]] = []
-        for source, extractor in (
-            ("json", cls._extract_cookie_pairs_from_json),
-            ("header", cls._extract_cookie_pairs_from_header),
-            ("table_or_netscape", cls._extract_cookie_pairs_from_lines),
-        ):
-            cookie_text, count = cls._cookie_pairs_to_text(extractor(raw))
-            if count > 0 and cookie_text:
-                candidates.append({"format": source, "cookie": cookie_text, "count": count})
-
-        if not candidates:
-            return {
-                "success": False,
-                "error": "Unable to parse cookie text. Please use header/json/cookies.txt format.",
-            }
-
-        candidates.sort(key=lambda x: (int(x.get("count", 0)), x.get("format") == "header"), reverse=True)
-        best = candidates[0]
-        cookie_text = str(best["cookie"])
-        count = int(best["count"])
-        missing_required = [k for k in cls._COOKIE_REQUIRED_KEYS if f"{k}=" not in cookie_text]
-        return {
-            "success": True,
-            "cookie": cookie_text,
-            "length": len(cookie_text),
-            "cookie_items": count,
-            "detected_format": str(best["format"]),
-            "missing_required": missing_required,
-        }
+        return CookieService.parse_cookie_text(text)
 
     def _recovery_stage_label(self, stage: str) -> str:
-        mapping = {
-            "healthy": "链路正常",
-            "token_error": "鉴权异常",
-            "waiting_cookie_update": "等待更新 Cookie",
-            "waiting_reconnect": "等待重连",
-            "recover_triggered": "已触发自动恢复",
-            "inactive": "服务未运行",
-            "monitoring": "监控中",
-        }
-        key = str(stage or "").strip().lower()
-        return mapping.get(key, "状态未知")
+        return CookieService._recovery_stage_label(stage)
 
     def _is_cookie_cloud_configured(self) -> bool:
-        sys_cfg = _read_system_config()
-        cc_cfg = sys_cfg.get("cookie_cloud", {}) if isinstance(sys_cfg.get("cookie_cloud"), dict) else {}
-        return bool(cc_cfg.get("cookie_cloud_uuid") and cc_cfg.get("cookie_cloud_password"))
+        return CookieService._is_cookie_cloud_configured()
 
     def _recovery_advice(self, stage: str, token_error: str | None = None) -> str:
-        s = str(stage or "").strip().lower()
-        t = str(token_error or "").strip().upper()
-        cc = self._is_cookie_cloud_configured()
-        slider_cfg = get_config().get_section("messages", {}).get("ws", {}).get("slider_auto_solve", {})
-        slider_auto = bool(slider_cfg.get("enabled", False)) if isinstance(slider_cfg, dict) else False
-        if s == "recover_triggered":
-            return "已触发售前恢复，建议等待 5-20 秒后刷新状态。"
-        if s == "waiting_reconnect":
-            return "Cookie 已更新但尚未连通，可点击“售前一键恢复”立即重试。"
-        if s == "waiting_cookie_update":
-            if t == "FAIL_SYS_USER_VALIDATE":
-                if cc:
-                    return "请在闲鱼网页重新登录，CookieCloud 会自动同步新 Cookie，系统将秒级自动恢复。"
-                return "请在闲鱼网页重新登录后导出最新 Cookie，再执行“售前一键恢复”。"
-            if t in ("RGV587", "RGV587_SERVER_BUSY"):
-                if slider_auto:
-                    return (
-                        "触发平台风控（RGV587），系统正在自动尝试滑块验证...\n"
-                        "如自动验证失败，会弹出浏览器窗口，请手动完成滑块拖动。\n"
-                        + (
-                            "CookieCloud 即时同步已启用，验证后秒级恢复。"
-                            if cc
-                            else "验证后请手动复制 Cookie 粘贴保存。"
-                        )
-                    )
-                if cc:
-                    return (
-                        "触发平台风控（RGV587），请按以下步骤操作：\n"
-                        "1. 在浏览器打开 goofish.com/im（闲鱼消息页）\n"
-                        "2. 完成滑块验证\n"
-                        "3. 在 CookieCloud 扩展中点「手动同步」立即生效\n"
-                        "系统将秒级自动恢复（CookieCloud 即时同步已启用）。\n"
-                        "提示：在「系统设置 → 集成服务」中开启自动滑块验证可实现全自动恢复。"
-                    )
-                return (
-                    "触发平台风控（RGV587），请按以下步骤操作：\n"
-                    "1. 在浏览器打开 goofish.com/im（闲鱼消息页）\n"
-                    "2. 完成滑块验证\n"
-                    "3. 按 F12 → Network → 复制任意请求的 Cookie\n"
-                    "4. 粘贴到本页面的「手动粘贴 Cookie」区域并保存\n"
-                    "5. 点击“售前一键恢复”\n"
-                    "提示：配置 CookieCloud 可实现滑块验证后秒级自动恢复，无需手动复制。"
-                )
-            if cc:
-                return "请更新 Cookie 后等待 CookieCloud 自动同步，系统将秒级自动恢复。"
-            return "请更新 Cookie 后重试恢复。"
-        if s == "token_error":
-            if t == "WS_HTTP_400":
-                return "连接通道异常，请先点“售前一键恢复”；若持续失败再更新 Cookie。"
-            if t in ("RGV587", "RGV587_SERVER_BUSY"):
-                if slider_auto:
-                    return "触发平台风控，系统正在自动尝试滑块验证。" + (
-                        " CookieCloud 即时同步已启用，验证后秒级恢复。" if cc else ""
-                    )
-                if cc:
-                    return (
-                        "触发平台风控，请在浏览器打开 goofish.com/im 完成滑块验证，"
-                        "在 CookieCloud 扩展中点「手动同步」，系统将秒级自动恢复。"
-                    )
-                return (
-                    "触发平台风控，请在闲鱼网页版打开「消息」页面通过滑块验证后，"
-                    "手动复制 Cookie 并粘贴保存（F12 → Network → Cookie），然后执行“售前一键恢复”。\n"
-                    "提示：配置 CookieCloud 可实现验证后秒级自动恢复。"
-                )
-            return "存在鉴权错误，建议更新 Cookie 后重连。"
-        if s == "inactive":
-            return "服务未运行，请先在首页启动服务。"
-        if s == "healthy":
-            return "当前链路可用，可正常自动回复。"
-        return "监控中，请刷新状态查看最新结果。"
+        return CookieService._recovery_advice(stage, token_error)
 
     def _trigger_presales_recover_after_cookie_update(self, cookie_text: str) -> dict[str, Any]:
         cookie_fp = self._cookie_fingerprint(cookie_text)
@@ -1692,390 +871,40 @@ class MimicOps:
 
     @classmethod
     def _cookie_domain_filter_stats(cls, raw_text: str) -> dict[str, Any]:
-        text = str(raw_text or "").replace("\ufeff", "").replace("\x00", "")
-        checked = 0
-        rejected = 0
-        samples: list[str] = []
-
-        def _check_domain(domain: str) -> None:
-            nonlocal checked, rejected
-            dom = str(domain or "").strip().lower()
-            if not dom:
-                return
-            checked += 1
-            if not cls._is_allowed_cookie_domain(dom):
-                rejected += 1
-                if len(samples) < 5:
-                    samples.append(dom)
-
-        # 文本行（Netscape / 表格）
-        for line in text.splitlines():
-            s = str(line or "").strip()
-            if not s or s.startswith("#"):
-                continue
-            if "\t" not in s:
-                continue
-            cols = [c.strip() for c in s.split("\t") if c.strip()]
-            if len(cols) >= 7:
-                _check_domain(cols[0])
-            elif len(cols) >= 3:
-                _check_domain(cols[2])
-
-        # JSON 结构中的 domain 字段
-        try:
-            payload = json.loads(text)
-        except Exception:
-            payload = None
-        if payload is not None:
-            queue: list[Any] = [payload]
-            while queue:
-                item = queue.pop()
-                if isinstance(item, dict):
-                    if "domain" in item:
-                        _check_domain(str(item.get("domain") or ""))
-                    for v in item.values():
-                        if isinstance(v, (dict, list)):
-                            queue.append(v)
-                elif isinstance(item, list):
-                    queue.extend(item)
-
-        return {
-            "allowlist": list(cls._COOKIE_DOMAIN_ALLOWLIST),
-            "checked": checked,
-            "rejected": rejected,
-            "applied": True,
-            "rejected_samples": samples,
-        }
+        return CookieService._cookie_domain_filter_stats(raw_text)
 
     def diagnose_cookie(self, cookie_text: str) -> dict[str, Any]:
-        raw = str(cookie_text or "").strip()
-        if not raw:
-            return {
-                "success": False,
-                "grade": "不可用",
-                "error": "Cookie text is empty",
-                "actions": ["请先粘贴 Cookie 文本，或上传插件导出的 cookies 文件。"],
-            }
-
-        parsed = self.parse_cookie_text(raw)
-        domain_filter = self._cookie_domain_filter_stats(raw)
-        if not parsed.get("success"):
-            return {
-                "success": False,
-                "grade": "不可用",
-                "error": str(parsed.get("error") or "解析失败"),
-                "domain_filter": domain_filter,
-                "actions": [
-                    "请使用 headers/json/cookies.txt 任一格式重试。",
-                    "建议在登录闲鱼后立即导出 Cookie，再上传。",
-                ],
-            }
-
-        normalized = str(parsed.get("cookie") or "")
-        cookie_map = {k: v for k, v in self._extract_cookie_pairs_from_header(normalized)}
-        required_all = [*list(self._COOKIE_REQUIRED_KEYS), "_m_h5_tk", "_m_h5_tk_enc"]
-        required_present = [k for k in required_all if k in cookie_map]
-        required_missing = [k for k in required_all if k not in cookie_map]
-        recommended_present = [k for k in self._COOKIE_RECOMMENDED_KEYS if k in cookie_map]
-        recommended_missing = [k for k in self._COOKIE_RECOMMENDED_KEYS if k not in cookie_map]
-        critical_missing = [k for k in self._COOKIE_REQUIRED_KEYS if k in required_missing]
-        session_missing = [k for k in ("_m_h5_tk", "_m_h5_tk_enc") if k in required_missing]
-
-        length = int(parsed.get("length", 0) or 0)
-        cookie_items = int(parsed.get("cookie_items", 0) or 0)
-        m_h5_tk_ttl = self._parse_m_h5_tk_ttl(cookie_map.get("_m_h5_tk", ""))
-        m_h5_tk_expired = m_h5_tk_ttl is not None and m_h5_tk_ttl <= 0
-        m_h5_tk_expiring_soon = m_h5_tk_ttl is not None and 0 < m_h5_tk_ttl < 900
-
-        grade = "可用"
-        if critical_missing or cookie_items < 4:
-            grade = "不可用"
-        elif m_h5_tk_expired:
-            grade = "不可用"
-        elif session_missing or length < 80:
-            grade = "高风险"
-        elif m_h5_tk_expiring_soon:
-            grade = "高风险"
-        elif len(recommended_missing) >= 2:
-            grade = "高风险"
-
-        actions: list[str] = []
-        if critical_missing:
-            actions.append(f"缺少关键字段：{', '.join(critical_missing)}，请重新登录后导出完整 Cookie。")
-        if m_h5_tk_expired:
-            actions.append("_m_h5_tk 已过期，请在闲鱼网页版刷新页面后重新导出 Cookie。")
-        elif m_h5_tk_expiring_soon:
-            ttl_min = int((m_h5_tk_ttl or 0) / 60)
-            actions.append(f"_m_h5_tk 将在 {ttl_min} 分钟内过期，建议尽快刷新页面重新导出 Cookie。")
-        if session_missing:
-            actions.append("缺少 _m_h5_tk/_m_h5_tk_enc，建议刷新页面后重新导出。")
-        if domain_filter.get("rejected", 0):
-            actions.append("检测到非 goofish 域 Cookie，系统已自动过滤。")
-        if recommended_missing:
-            actions.append(
-                "缺少会话增强字段："
-                + ", ".join(recommended_missing)
-                + "；建议在插件中使用 Export All Cookies（全量导出）后重试。"
-            )
-        if grade == "可用":
-            actions.append("可直接保存并在首页执行“售前一键恢复”。")
-
-        result: dict[str, Any] = {
-            "success": True,
-            "grade": grade,
-            "detected_format": str(parsed.get("detected_format") or "unknown"),
-            "length": length,
-            "cookie_items": cookie_items,
-            "required_present": required_present,
-            "required_missing": required_missing,
-            "recommended_present": recommended_present,
-            "recommended_missing": recommended_missing,
-            "domain_filter": domain_filter,
-            "actions": actions,
-        }
-        if m_h5_tk_ttl is not None:
-            result["m_h5_tk_ttl_seconds"] = round(m_h5_tk_ttl)
-        return result
+        return CookieService.diagnose_cookie(cookie_text)
 
     @staticmethod
     def _parse_m_h5_tk_ttl(raw: str) -> float | None:
-        """Parse _m_h5_tk value ({hex}_{epoch_ms}) and return seconds until expiry."""
-        parts = str(raw or "").split("_")
-        if len(parts) < 2:
-            return None
-        try:
-            expire_ms = int(parts[1])
-            return (expire_ms / 1000.0) - time.time()
-        except (ValueError, OverflowError):
-            return None
+        return CookieService._parse_m_h5_tk_ttl(raw)
 
     @classmethod
     def _is_cookie_import_file(cls, filename: str) -> bool:
-        suffix = Path(filename).suffix.lower()
-        if suffix in cls._COOKIE_IMPORT_EXTS:
-            return True
-        # 一些插件/工具导出的文件无后缀（如 `cookies`），允许走内容识别。
-        return suffix == "" and bool(Path(filename).name)
+        return CookieService._is_cookie_import_file(filename)
 
     @classmethod
     def _looks_like_cookie_plugin_bundle(cls, member_names: list[str]) -> bool:
-        names = [str(name or "").replace("\\", "/").strip().lower() for name in member_names if str(name or "").strip()]
-        if not names:
-            return False
-
-        if any("get-cookies.txt-locally/src/manifest.json" in item for item in names):
-            return True
-
-        basenames = {Path(item).name for item in names}
-        has_manifest = "manifest.json" in basenames
-        has_popup = "popup.mjs" in basenames or "popup.js" in basenames
-        has_background = "background.mjs" in basenames or "background.js" in basenames
-        if has_manifest and (has_popup or has_background):
-            return True
-
-        # 插件源码常见特征文件，manifest + 任一特征可判定为安装包而非导出 cookie。
-        plugin_markers = (
-            "get-cookies.txt-locally",
-            "cookie_format.mjs",
-            "get_all_cookies.mjs",
-            "save_to_file.mjs",
-            "popup-options.css",
-        )
-        if has_manifest and any(any(marker in item for marker in plugin_markers) for item in names):
-            return True
-        return False
+        return CookieService._looks_like_cookie_plugin_bundle(member_names)
 
     @classmethod
     def _cookie_hint_hit_keys(cls, cookie_text: str) -> list[str]:
-        text = str(cookie_text or "")
-        hits = [k for k in cls._COOKIE_HINT_KEYS if f"{k}=" in text]
-        return hits
+        return CookieService._cookie_hint_hit_keys(cookie_text)
 
     @classmethod
     def _score_cookie_candidate(cls, payload: dict[str, Any]) -> tuple[int, int, int]:
-        missing = payload.get("missing_required")
-        missing_count = len(missing) if isinstance(missing, list) else len(cls._COOKIE_REQUIRED_KEYS)
-        required_hit = max(0, len(cls._COOKIE_REQUIRED_KEYS) - missing_count)
-        cookie_items = int(payload.get("cookie_items", 0) or 0)
-        length = int(payload.get("length", 0) or 0)
-        return required_hit, cookie_items, length
+        return CookieService._score_cookie_candidate(payload)
 
     def import_cookie_plugin_files(
         self, files: list[tuple[str, bytes]], *, auto_recover: bool = False
     ) -> dict[str, Any]:
-        if not files:
-            return {"success": False, "error": "No files uploaded"}
-
-        candidates: list[dict[str, Any]] = []
-        imported_files: list[str] = []
-        skipped_files: list[str] = []
-        details: list[str] = []
-        plugin_bundle_detected = False
-
-        def _collect_text_candidate(source_name: str, raw: bytes) -> None:
-            text = self._decode_text_bytes(raw)
-            parsed = self.parse_cookie_text(text)
-            if not parsed.get("success"):
-                skipped_files.append(source_name)
-                details.append(f"{source_name} -> {parsed.get('error', 'parse failed')}")
-                return
-            hit_keys = self._cookie_hint_hit_keys(str(parsed.get("cookie") or ""))
-            if not hit_keys:
-                skipped_files.append(source_name)
-                details.append(f"{source_name} -> parsed but missing known keys ({', '.join(self._COOKIE_HINT_KEYS)})")
-                return
-
-            candidates.append(
-                {
-                    "source_file": source_name,
-                    "parsed": parsed,
-                    "hit_keys": hit_keys,
-                }
-            )
-            imported_files.append(source_name)
-
-        for filename, content in files:
-            file_name = str(filename or "").strip()
-            suffix = Path(file_name).suffix.lower()
-
-            if suffix == ".zip":
-                try:
-                    with zipfile.ZipFile(io.BytesIO(content), mode="r") as zf:
-                        member_names = [str(info.filename or "") for info in zf.infolist()]
-                        if self._looks_like_cookie_plugin_bundle(member_names):
-                            plugin_bundle_detected = True
-                        for info in zf.infolist():
-                            if info.is_dir():
-                                continue
-                            repaired_name = self._repair_zip_name(info.filename)
-                            member_name = Path(repaired_name).name
-                            if not member_name:
-                                continue
-                            if "__MACOSX" in repaired_name or member_name.startswith("._"):
-                                skipped_files.append(f"{file_name}:{repaired_name}")
-                                continue
-                            if not self._is_cookie_import_file(member_name):
-                                skipped_files.append(f"{file_name}:{repaired_name}")
-                                continue
-                            try:
-                                raw = zf.read(info)
-                                if not raw:
-                                    skipped_files.append(f"{file_name}:{repaired_name}")
-                                    details.append(f"{file_name}:{repaired_name} -> empty file")
-                                    continue
-                                _collect_text_candidate(f"{file_name}:{member_name}", raw)
-                            except Exception as exc:
-                                skipped_files.append(f"{file_name}:{repaired_name}")
-                                details.append(f"{file_name}:{repaired_name} -> {exc}")
-                except zipfile.BadZipFile:
-                    skipped_files.append(file_name)
-                    details.append(f"{file_name} -> invalid zip file")
-                except Exception as exc:
-                    skipped_files.append(file_name)
-                    details.append(f"{file_name} -> {exc}")
-                continue
-
-            if not self._is_cookie_import_file(file_name):
-                skipped_files.append(file_name)
-                continue
-            _collect_text_candidate(file_name, content)
-
-        if not candidates:
-            if plugin_bundle_detected:
-                return {
-                    "success": False,
-                    "error": "Detected plugin installation bundle, not exported cookies.",
-                    "hint": "请先在浏览器安装插件并导出 cookies.txt/JSON，再上传导出文件。",
-                    "imported_files": imported_files,
-                    "skipped_files": skipped_files,
-                    "details": details,
-                }
-            return {
-                "success": False,
-                "error": "No valid cookie content found in uploaded files.",
-                "imported_files": imported_files,
-                "skipped_files": skipped_files,
-                "details": details,
-            }
-
-        best = max(candidates, key=lambda item: self._score_cookie_candidate(item["parsed"]))
-        parsed = dict(best.get("parsed", {}))
-        cookie_text = str(parsed.get("cookie") or "").strip()
-        if not cookie_text:
-            return {
-                "success": False,
-                "error": "Parsed cookie is empty.",
-                "imported_files": imported_files,
-                "skipped_files": skipped_files,
-                "details": details,
-            }
-
-        self._set_env_value("XIANYU_COOKIE_1", cookie_text)
-        try:
-            from src.modules.messages.ws_live import notify_ws_cookie_changed
-
-            notify_ws_cookie_changed()
-        except Exception:
-            pass
-        diagnosis = self.diagnose_cookie(cookie_text)
-        payload: dict[str, Any] = {
-            "success": True,
-            "message": "Cookie imported from plugin export",
-            "source_file": str(best.get("source_file") or ""),
-            "cookie": cookie_text,
-            "length": int(parsed.get("length", 0) or 0),
-            "cookie_items": int(parsed.get("cookie_items", 0) or 0),
-            "detected_format": str(parsed.get("detected_format") or "unknown"),
-            "missing_required": parsed.get("missing_required", []),
-            "imported_files": imported_files,
-            "skipped_files": skipped_files,
-            "details": details,
-            "cookie_grade": diagnosis.get("grade", "未知"),
-            "cookie_actions": diagnosis.get("actions", []),
-            "cookie_diagnosis": diagnosis,
-            "recognized_key_hits": best.get("hit_keys", []),
-        }
-        should_recover = auto_recover and str(diagnosis.get("grade") or "") != "不可用"
-        if should_recover:
-            recover = self._trigger_presales_recover_after_cookie_update(cookie_text)
-            payload["auto_recover"] = recover
-            if recover.get("triggered"):
-                payload["message"] = "Cookie imported and presales recovery triggered"
-            else:
-                payload["message"] = "Cookie imported, but presales recovery failed"
-        return payload
+        return self._cookie_service.import_cookie_plugin_files(
+            files, module_console=self.module_console, auto_recover=auto_recover
+        )
 
     def export_cookie_plugin_bundle(self) -> tuple[bytes, str]:
-        base = self.cookie_plugin_dir
-        src_dir = base / "src"
-        if not base.exists() or not src_dir.exists():
-            raise FileNotFoundError("Bundled plugin source not found under third_party/Get-cookies.txt-LOCALLY")
-
-        include_paths = [
-            "src",
-            "LICENSE",
-            "README.upstream.md",
-            "privacy-policy.upstream.md",
-            "SOURCE_INFO.txt",
-        ]
-
-        buf = io.BytesIO()
-        with zipfile.ZipFile(buf, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
-            for rel in include_paths:
-                target = base / rel
-                if not target.exists():
-                    continue
-                if target.is_file():
-                    zf.write(target, arcname=f"Get-cookies.txt-LOCALLY/{rel}")
-                    continue
-                for fp in target.rglob("*"):
-                    if not fp.is_file():
-                        continue
-                    arc = f"Get-cookies.txt-LOCALLY/{fp.relative_to(base).as_posix()}"
-                    zf.write(fp, arcname=arc)
-
-        filename = "Get-cookies.txt-LOCALLY_bundle.zip"
-        return buf.getvalue(), filename
+        return self._cookie_service.export_cookie_plugin_bundle()
 
     def _quote_dir(self) -> Path:
         cfg = get_config().get_section("quote", {})
