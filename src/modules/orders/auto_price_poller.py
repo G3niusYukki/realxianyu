@@ -18,21 +18,19 @@ _MAX_QUOTE_AGE_DEFAULT = 7200
 _PROCESSED_CACHE_TTL = 3600
 
 
-_instance: AutoPricePoller | None = None
-
-
-def get_price_poller() -> AutoPricePoller | None:
+def get_price_poller() -> "AutoPricePoller | None":
     """Return the running poller singleton, if any."""
-    return _instance
+    return AutoPricePoller._instance
 
 
-def set_price_poller(poller: AutoPricePoller | None) -> None:
-    global _instance
-    _instance = poller
+def set_price_poller(poller: "AutoPricePoller | None") -> None:
+    AutoPricePoller._instance = poller
 
 
 class AutoPricePoller:
     """Background poller: queries pending-payment orders and auto-modifies price."""
+
+    _instance: "AutoPricePoller | None" = None
 
     def __init__(self, *, get_config_fn, interval: int = _POLL_INTERVAL_DEFAULT) -> None:
         self._get_config = get_config_fn

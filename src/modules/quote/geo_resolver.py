@@ -13,6 +13,34 @@ _SUFFIXES: tuple[str, ...] = tuple(
 
 _logger = logging.getLogger(__name__)
 
+_PROVINCE_SHORT_ALIASES = frozenset({"新疆", "宁夏", "广西", "内蒙", "香港", "澳门", "台湾"})
+
+
+class GeoKnownCache:
+    """Lazily-built singleton cache of known geo names (cities + provinces)."""
+
+    _instance: "GeoKnownCache | None" = None
+
+    def __init__(self) -> None:
+        self._cache: frozenset[str] | None = None
+
+    @classmethod
+    def get_instance(cls) -> "GeoKnownCache":
+        if cls._instance is None:
+            cls._instance = cls()
+        return cls._instance
+
+    def _build(self) -> frozenset[str]:
+        geo = GeoResolver()
+        cities = set(GeoResolver.normalize(c) for c in (geo._city_to_province or {}))
+        provinces = set(GeoResolver.normalize(p) for p in (geo._province_aliases or {}))
+        return frozenset(cities | provinces | _PROVINCE_SHORT_ALIASES)
+
+    def get(self) -> frozenset[str]:
+        if self._cache is None:
+            self._cache = self._build()
+        return self._cache
+
 
 class GeoResolver:
     """读取城市-省份映射并提供标准化/混配能力。"""

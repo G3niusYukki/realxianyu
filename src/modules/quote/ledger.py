@@ -23,6 +23,14 @@ _DB_NAME = "quote_ledger.db"
 class QuoteLedger:
     """SQLite-backed quote record store."""
 
+    _instance: "QuoteLedger | None" = None
+
+    @classmethod
+    def get_instance(cls, db_path: str | Path | None = None) -> "QuoteLedger":
+        if cls._instance is None:
+            cls._instance = cls(db_path)
+        return cls._instance
+
     def __init__(self, db_path: str | Path | None = None) -> None:
         if db_path is None:
             _DEFAULT_DB_DIR.mkdir(parents=True, exist_ok=True)
@@ -184,12 +192,6 @@ class QuoteLedger:
         return d
 
 
-_instance: QuoteLedger | None = None
-
-
 def get_quote_ledger(db_path: str | Path | None = None) -> QuoteLedger:
     """Module-level singleton accessor."""
-    global _instance
-    if _instance is None:
-        _instance = QuoteLedger(db_path)
-    return _instance
+    return QuoteLedger.get_instance(db_path)

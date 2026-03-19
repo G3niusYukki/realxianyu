@@ -28,29 +28,21 @@ from src.modules.messages.quote_context import QuoteContextStore
 from src.modules.messages.quote_parser import QuoteMessageParser
 from src.modules.messages.reply_engine import ReplyStrategyEngine
 from src.modules.quote.engine import AutoQuoteEngine
-from src.modules.quote.geo_resolver import GeoResolver
-
-_PROVINCE_SHORT_ALIASES = frozenset({"新疆", "宁夏", "广西", "内蒙", "香港", "澳门", "台湾"})
-_geo_known_cache: set[str] | None = None
+from src.modules.quote.geo_resolver import GeoKnownCache, GeoResolver
 
 
 def _is_known_geo(location: str | None) -> bool:
     """判断地点是否在 geo 白名单中（城市/省份/省份简称别名）。"""
     if not location:
         return False
-    global _geo_known_cache
-    if _geo_known_cache is None:
-        geo = GeoResolver()
-        cities = set(GeoResolver.normalize(c) for c in (geo._city_to_province or {}))
-        provinces = set(GeoResolver.normalize(p) for p in (geo._province_aliases or {}))
-        _geo_known_cache = cities | provinces | _PROVINCE_SHORT_ALIASES
+    known = GeoKnownCache.get_instance().get()
     n = GeoResolver.normalize(location)
-    if n in _geo_known_cache:
+    if n in known:
         return True
-    for known in _geo_known_cache:
-        if len(known) >= 2 and known.startswith(n):
+    for k in known:
+        if len(k) >= 2 and k.startswith(n):
             return True
-        if len(n) >= 2 and n.startswith(known):
+        if len(n) >= 2 and n.startswith(k):
             return True
     return False
 
@@ -132,14 +124,36 @@ DEFAULT_COURIER_LOCK_TEMPLATE = (
 _active_service: MessagesService | None = None
 
 
+class MessageServiceRegistry:
+    """Singleton registry for the active MessagesService instance."""
+
+    _instance: "MessageServiceRegistry | None" = None
+
+    def __init__(self) -> None:
+        self._service: MessagesService | None = None
+
+    @classmethod
+    def get_instance(cls) -> "MessageServiceRegistry":
+        if cls._instance is None:
+            cls._instance = cls()
+        return cls._instance
+
+    def register(self, service: "MessagesService") -> None:
+        import sys
+        self._service = service
+        sys.modules[__name__].__dict__["_active_service"] = service
+
+    def get(self) -> "MessagesService | None":
+        return self._service
+
+
 class MessagesService:
     """闲鱼会话自动回复服务。"""
 
     _MANUAL_CHECK_GRACE_SECONDS = 60.0
 
     def __init__(self, controller=None, config: dict[str, Any] | None = None):
-        global _active_service
-        _active_service = self
+        MessageServiceRegistry.get_instance().register(self)
         self.controller = controller
         self.logger = get_logger()
         self._init_ts = time.time()

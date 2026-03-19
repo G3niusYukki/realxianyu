@@ -125,32 +125,24 @@ except ImportError:
         return text
 
 
-from src.modules.quote.geo_resolver import GeoResolver  # noqa: E402
-
-_PROVINCE_SHORT_ALIASES = frozenset({"新疆", "宁夏", "广西", "内蒙", "香港", "澳门", "台湾"})
-_geo_known_cache: set[str] | None = None
+from src.modules.quote.geo_resolver import GeoKnownCache, GeoResolver  # noqa: E402
 
 
 def _is_known_geo(location: str | None) -> bool:
     if not location:
         return False
-    global _geo_known_cache
-    if _geo_known_cache is None:
-        geo = GeoResolver()
-        cities = set(GeoResolver.normalize(c) for c in (geo._city_to_province or {}))
-        provinces = set(GeoResolver.normalize(p) for p in (geo._province_aliases or {}))
-        _geo_known_cache = cities | provinces | _PROVINCE_SHORT_ALIASES
+    known = GeoKnownCache.get_instance().get()
     n = GeoResolver.normalize(location)
-    if n in _geo_known_cache:
+    if n in known:
         return True
     if n.endswith("市") and len(n) > 1:
         n_short = n[:-1]
-        if n_short in _geo_known_cache:
+        if n_short in known:
             return True
-    for known in _geo_known_cache:
-        if len(known) >= 2 and known.startswith(n):
+    for k in known:
+        if len(k) >= 2 and k.startswith(n):
             return True
-        if len(n) >= 2 and n.startswith(known):
+        if len(n) >= 2 and n.startswith(k):
             return True
     return False
 

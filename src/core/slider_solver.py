@@ -239,13 +239,12 @@ def generate_human_trajectory(distance: int) -> list[tuple[int, int, int]]:
     return steps
 
 
-_trajectory_cache: list[dict[str, Any]] | None = None
+_trajectory_cache: list[dict[str, Any]] = []
 
 
 def load_recorded_trajectories() -> list[dict[str, Any]]:
     """从 data/slider_trajectories/ 加载所有录制轨迹 JSON。结果缓存。"""
-    global _trajectory_cache
-    if _trajectory_cache is not None:
+    if _trajectory_cache:
         return _trajectory_cache
 
     trajectories: list[dict[str, Any]] = []
@@ -260,10 +259,10 @@ def load_recorded_trajectories() -> list[dict[str, Any]]:
         except Exception:
             continue
 
-    _trajectory_cache = trajectories
+    _trajectory_cache.extend(trajectories)
     if trajectories:
         logger.debug("Loaded %d recorded trajectories", len(trajectories))
-    return trajectories
+    return _trajectory_cache
 
 
 def replay_trajectory(distance: int) -> list[tuple[int, int, int]]:

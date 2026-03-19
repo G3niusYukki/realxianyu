@@ -28,10 +28,35 @@ def _now_iso() -> str:
 # Health check response cache (TTL 30s)
 # ---------------------------------------------------------------------------
 
-_health_cache: dict[str, Any] | None = None
-_health_cache_ts: float = 0.0
-_health_cache_lock = threading.Lock()
 _HEALTH_CACHE_TTL = 30.0
+
+
+class _HealthCache:
+    """Thread-safe TTL cache for health check results."""
+
+    _instance: "_HealthCache | None" = None
+
+    def __init__(self) -> None:
+        self._cache: dict[str, Any] | None = None
+        self._ts: float = 0.0
+        self._lock = threading.Lock()
+
+    @classmethod
+    def get_instance(cls) -> "_HealthCache":
+        if cls._instance is None:
+            cls._instance = cls()
+        return cls._instance
+
+    def get_cached(self, now: float) -> dict[str, Any] | None:
+        with self._lock:
+            if self._cache is not None and (now - self._ts) < _HEALTH_CACHE_TTL:
+                return self._cache
+        return None
+
+    def set_cached(self, result: dict[str, Any], now: float) -> None:
+        with self._lock:
+            self._cache = result
+            self._ts = now
 
 
 # ---------------------------------------------------------------------------
@@ -164,12 +189,12 @@ def _check_xgj_health() -> dict[str, Any]:
 
 @get("/api/health/check")
 def handle_health_check(ctx: RouteContext) -> None:
-    global _health_cache, _health_cache_ts
-
-    with _health_cache_lock:
-        if _health_cache is not None and (_time_mod.time() - _health_cache_ts) < _HEALTH_CACHE_TTL:
-            ctx.send_json(_health_cache)
-            return
+    _hc = _HealthCache.get_instance()
+    now = _time_mod.time()
+    cached = _hc.get_cached(now)
+    if cached is not None:
+        ctx.send_json(cached)
+        return
 
     cookie_text = os.environ.get("XIANYU_COOKIE_1", "")
     if not cookie_text:
@@ -191,10 +216,7 @@ def handle_health_check(ctx: RouteContext) -> None:
 
     result["services"] = {"python": {"ok": True, "message": "运行中"}}
 
-    with _health_cache_lock:
-        _health_cache = result
-        _health_cache_ts = _time_mod.time()
-
+    _hc.set_cached(result, _time_mod.time())
     ctx.send_json(result)
 
 
@@ -341,9 +363,35 @@ def handle_version(ctx: RouteContext) -> None:
     )
 
 
-_latest_version_cache: dict[str, Any] = {}
-_latest_version_ts: float = 0.0
 _LATEST_VERSION_TTL = 3600.0
+
+
+class _VersionCache:
+    """Thread-safe TTL cache for latest version lookups."""
+
+    _instance: "_VersionCache | None" = None
+
+    def __init__(self) -> None:
+        self._cache: dict[str, Any] = {}
+        self._ts: float = 0.0
+        self._lock = threading.Lock()
+
+    @classmethod
+    def get_instance(cls) -> "_VersionCache":
+        if cls._instance is None:
+            cls._instance = cls()
+        return cls._instance
+
+    def get_cached(self, now: float) -> dict[str, Any] | None:
+        with self._lock:
+            if self._cache and (now - self._ts) < _LATEST_VERSION_TTL:
+                return self._cache
+        return None
+
+    def set_cached(self, result: dict[str, Any], now: float) -> None:
+        with self._lock:
+            self._cache = result
+            self._ts = now
 
 
 def _gh_api_headers() -> dict[str, str]:
@@ -364,18 +412,18 @@ def _gh_releases_url() -> str:
 @get("/api/version/latest")
 def handle_version_latest(ctx: RouteContext) -> None:
     """Proxy GitHub releases API with 1-hour cache. Uses gh CLI as fallback."""
-    global _latest_version_cache, _latest_version_ts
-
-    if _latest_version_cache and (_time_mod.time() - _latest_version_ts) < _LATEST_VERSION_TTL:
-        ctx.send_json(_latest_version_cache)
+    _vc = _VersionCache.get_instance()
+    now = _time_mod.time()
+    cached = _vc.get_cached(now)
+    if cached is not None:
+        ctx.send_json(cached)
         return
 
     # Try gh CLI first (authenticated, reliable)
     try:
         result = _fetch_latest_via_gh()
         if result:
-            _latest_version_cache = result
-            _latest_version_ts = _time_mod.time()
+            _vc.set_cached(result, now)
             ctx.send_json(result)
             return
     except Exception:
@@ -408,8 +456,7 @@ def handle_version_latest(ctx: RouteContext) -> None:
                 "update_asset_size": update_asset_size,
                 "body": release_data.get("body", ""),
             }
-            _latest_version_cache = result
-            _latest_version_ts = _time_mod.time()
+            _vc.set_cached(result, _time_mod.time())
             ctx.send_json(result)
         else:
             ctx.send_json({"latest": None, "error": f"GitHub API returned {resp.status_code}"})

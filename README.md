@@ -49,7 +49,9 @@
 
 - **前端层 (`client/`)**：纯静态 SPA，编译后存放在 `client/dist/`，由后端接管路由。
 - **网关/路由层 (`src/dashboard_server.py`)**：轻量级 `BaseHTTPRequestHandler` 实现的路由分发与静态文件服务。
-- **业务中枢 (`src/dashboard/mimic_ops.py`)**：核心的业务操作面（God Object 正在被逐步服务化拆解），负责处理来自 Dashboard 的指令并分发到底层模块。
+- **业务中枢 (`src/dashboard/mimic_ops.py`)**：Facade 代理层（~3000行），分发到 `services/`（Cookie/XGJ/ConfigSync）和 `modules/` 各业务模块。
+- **核心服务 (`src/services/`)**：从 mimic_ops 拆分出的独立服务 — CookieService（Cookie 解析/诊断/导入导出）、XGJService（闲管家配置/回调/重试）、ConfigSyncService（YAML 同步）。
+- **CLI (`src/cli/`)**：模块化 CLI 包，命令按职责拆分到 `cmd_main/`、`cmd_orders/`、`cmd_module/`、`cmd_quote/`。
 - **核心模块 (`src/modules/`)**：
   - `messages/`：长链接 WS 通信，心跳维护，消息接收与风控响应。
   - `orders/`：虚拟商品的履约、改价重试机制。

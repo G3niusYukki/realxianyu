@@ -2031,17 +2031,34 @@ class GoofishWsTransport:
         return result
 
 
-_ws_transport_instance: GoofishWsTransport | None = None
+class WebSocketTransportManager:
+    """Singleton manager for the Goofish WS transport instance."""
+
+    _instance: WebSocketTransportManager | None = None
+
+    def __init__(self) -> None:
+        self._transport: GoofishWsTransport | None = None
+
+    @classmethod
+    def get_instance(cls) -> "WebSocketTransportManager":
+        if cls._instance is None:
+            cls._instance = cls()
+        return cls._instance
+
+    def set(self, transport: GoofishWsTransport | None) -> None:
+        self._transport = transport
+
+    def get(self) -> GoofishWsTransport | None:
+        return self._transport
 
 
 def set_ws_transport_instance(transport: GoofishWsTransport | None) -> None:
-    global _ws_transport_instance
-    _ws_transport_instance = transport
+    WebSocketTransportManager.get_instance().set(transport)
 
 
 def get_ws_transport_instance() -> GoofishWsTransport | None:
     """Return the current WS transport instance for cookie cascade refresh."""
-    return _ws_transport_instance
+    return WebSocketTransportManager.get_instance().get()
 
 
 async def run_cascade_cookie_refresh(transport: GoofishWsTransport) -> bool:
@@ -2069,12 +2086,14 @@ async def run_cascade_cookie_refresh(transport: GoofishWsTransport) -> bool:
 
 def get_session_by_buyer_nick(nick: str) -> str:
     """Module-level helper: find chat session_id by buyer nick."""
-    if not _ws_transport_instance or not nick:
+    transport = WebSocketTransportManager.get_instance().get()
+    if not transport or not nick:
         return ""
-    return _ws_transport_instance.find_session_by_nick(nick)
+    return transport.find_session_by_nick(nick)
 
 
 def notify_ws_cookie_changed() -> None:
     """Thread-safe: notify WS transport that cookie has been updated externally."""
-    if _ws_transport_instance is not None:
-        _ws_transport_instance.notify_cookie_changed()
+    transport = WebSocketTransportManager.get_instance().get()
+    if transport is not None:
+        transport.notify_cookie_changed()

@@ -33,7 +33,7 @@ from src.modules.quote.cost_table import CostTableRepository, normalize_courier_
 from src.modules.quote.setup import DEFAULT_MARKUP_RULES, QuoteSetupService
 from src.modules.virtual_goods.service import VirtualGoodsService
 
-from src.dashboard.services import ConfigSyncService, CookieService, XGJService
+from src.dashboard.services import CookieService, XGJService
 
 logger = logging.getLogger(__name__)
 
@@ -250,7 +250,6 @@ class MimicOps:
         # Service instances
         self._cookie_service = CookieService(self.project_root)
         self._xgj_service = XGJService(self.project_root)
-        self._config_sync_service = ConfigSyncService()
 
     @property
     def env_path(self) -> Path:
