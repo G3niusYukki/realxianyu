@@ -6,14 +6,11 @@ analytics, accounts, messages.
 from __future__ import annotations
 
 import argparse
-import asyncio
-from typing import Any
 
 # _run_messages_sla_benchmark and _json_out are imported from src.cli (the compatibility
 # shim) via local imports inside command functions so that tests patching those names
 # at src.cli always see the correct (possibly-patched) binding at call time.
-from .base import _messages_requires_browser_runtime, _resolve_workflow_state, _run_messages_sla_benchmark
-
+from .base import _messages_requires_browser_runtime, _resolve_workflow_state, _run_messages_sla_benchmark  # noqa: F401
 
 # ---------------------------------------------------------------------------
 # Commands
@@ -27,7 +24,6 @@ from .base import _messages_requires_browser_runtime, _resolve_workflow_state, _
 async def cmd_publish(args: argparse.Namespace) -> None:
     # Dynamic lookup so tests patching src.cli._json_out work correctly.
     from src.cli import _json_out  # noqa: F401
-
     from src.core.browser_client import create_browser_client
     from src.modules.listing.models import Listing
     from src.modules.listing.service import ListingService
@@ -59,7 +55,6 @@ async def cmd_publish(args: argparse.Namespace) -> None:
 
 async def cmd_polish(args: argparse.Namespace) -> None:
     from src.cli import _json_out  # noqa: F401
-
     from src.core.browser_client import create_browser_client
     from src.modules.operations.service import OperationsService
 
@@ -80,7 +75,6 @@ async def cmd_polish(args: argparse.Namespace) -> None:
 
 async def cmd_price(args: argparse.Namespace) -> None:
     from src.cli import _json_out  # noqa: F401
-
     from src.core.browser_client import create_browser_client
     from src.modules.operations.service import OperationsService
 
@@ -95,7 +89,6 @@ async def cmd_price(args: argparse.Namespace) -> None:
 
 async def cmd_delist(args: argparse.Namespace) -> None:
     from src.cli import _json_out  # noqa: F401
-
     from src.core.browser_client import create_browser_client
     from src.modules.operations.service import OperationsService
 
@@ -110,7 +103,6 @@ async def cmd_delist(args: argparse.Namespace) -> None:
 
 async def cmd_relist(args: argparse.Namespace) -> None:
     from src.cli import _json_out  # noqa: F401
-
     from src.core.browser_client import create_browser_client
     from src.modules.operations.service import OperationsService
 
@@ -125,7 +117,6 @@ async def cmd_relist(args: argparse.Namespace) -> None:
 
 async def cmd_analytics(args: argparse.Namespace) -> None:
     from src.cli import _json_out  # noqa: F401
-
     from src.modules.analytics.service import AnalyticsService
 
     service = AnalyticsService()
@@ -154,7 +145,6 @@ async def cmd_analytics(args: argparse.Namespace) -> None:
 
 async def cmd_accounts(args: argparse.Namespace) -> None:
     from src.cli import _json_out  # noqa: F401
-
     from src.modules.accounts.service import AccountsService
 
     service = AccountsService()
@@ -191,6 +181,7 @@ async def cmd_messages(args: argparse.Namespace) -> None:
     if action == "sla-benchmark":
         # Dynamic import so tests patching src.cli._run_messages_sla_benchmark work.
         from src.cli import _run_messages_sla_benchmark  # noqa: F401
+
         result = await _run_messages_sla_benchmark(
             count=int(args.benchmark_count or 120),
             concurrency=int(args.concurrency or 1),

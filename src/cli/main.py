@@ -7,8 +7,9 @@ from __future__ import annotations
 import argparse
 import asyncio
 import sys
+from collections.abc import Callable, Coroutine
 from importlib import import_module
-from typing import Any, Callable, Coroutine
+from typing import Any
 
 # Import command modules by explicit dotted name to avoid shadowing when
 # a module exports a function with the same local name (e.g. cmd_main.cmd_main).

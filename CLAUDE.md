@@ -12,12 +12,13 @@
 ```
 src/
 ├── core/            # 核心基础设施（配置、日志、浏览器客户端）
-├── services/        # 从 mimic_ops 拆分的服务（cookie/xgj/config_sync）
+├── services/        # 核心业务服务（CookieService / XGJService）
+│                       # 注意：ConfigSyncService 已删除（YAML 同步是死代码）
 ├── modules/         # 业务模块（messages/orders/quote/listing/virtual_goods/...）
 ├── integrations/    # 闲管家 API 集成
 ├── dashboard/        # Dashboard（mimic_ops.py Facade + routes/）
-├── dashboard/services/  # 已从 mimic_ops 拆分的服务
-├── cli/             # CLI 命令包（cmd_main/cmd_orders/cmd_module/cmd_quote）
+├── dashboard/services/  # 同 src/services/（从 mimic_ops 拆分）
+├── cli/             # CLI 命令包（base.py + cmd_main/cmd_orders/cmd_module/cmd_quote）
 └── main.py          # 程序入口
 ```
 
@@ -40,9 +41,28 @@ src/
 ## 关键约束
 
 1. **不要在 `mimic_ops.py` 中添加新业务逻辑** — 应该添加到对应的 `modules/` 或 `services/` 中
-2. **不要使用 `global` 声明** — 使用单例类或依赖注入
+2. **不要使用 `global` 声明** — 使用单例类（如 `WebSocketTransportManager`、`MessageServiceRegistry`、`GeoKnownCache`）
 3. **配置优先读 YAML** — 新配置项应添加到 `config.yaml`，不要创建新的配置源
 4. **测试必须通过** — 所有 PR 必须通过 `pytest tests/ -q`
+
+## 全局状态 / 单例模式
+
+项目已消除所有 `global` 声明，改用单例类：
+
+| 类 | 文件 | 用途 |
+|---|------|------|
+| `WebSocketTransportManager` | `modules/messages/ws_live.py` | WS 连接实例管理 |
+| `MessageServiceRegistry` | `modules/messages/service.py` | 活跃服务实例注册表 |
+| `GeoKnownCache` | `modules/quote/geo_resolver.py` | 省市解析缓存 |
+| `QuoteLedger` | `modules/quote/ledger.py` | 报价记录持久化 |
+| `AutoPricePoller` | `modules/orders/auto_price_poller.py` | 自动改价轮询器 |
+| `_HealthCache` / `_VersionCache` | `dashboard/routes/system.py` | Dashboard 健康检查缓存 |
+
+访问方式：`SingletonClass.get_instance()` 或 `get_singleton()` 函数。
+
+## CLI import 模式
+
+CLI 命令文件中的 `_json_out`、`_module_check_summary` 等函数**必须**通过动态 import（函数体内 `from src.cli import _json_out`）访问，以确保测试的 monkeypatch 能够正确拦截。使用 `noqa: F401` 抑制 ruff 的未使用警告：
 
 ## 运行命令
 

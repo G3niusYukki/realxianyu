@@ -221,11 +221,7 @@ class CookieService:
 
     @classmethod
     def _looks_like_cookie_plugin_bundle(cls, member_names: list[str]) -> bool:
-        names = [
-            str(name or "").replace("\\", "/").strip().lower()
-            for name in member_names
-            if str(name or "").strip()
-        ]
+        names = [str(name or "").replace("\\", "/").strip().lower() for name in member_names if str(name or "").strip()]
         if not names:
             return False
 
@@ -692,9 +688,7 @@ class CookieService:
         os.environ[key] = value
 
     @staticmethod
-    def _trigger_presales_recover_after_cookie_update(
-        cookie_text: str, module_console: Any
-    ) -> dict[str, Any]:
+    def _trigger_presales_recover_after_cookie_update(cookie_text: str, module_console: Any) -> dict[str, Any]:
         """Trigger presales recovery after cookie update (calls module_console externally)."""
         from src.dashboard.mimic_ops import _now_iso
 

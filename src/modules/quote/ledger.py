@@ -23,10 +23,10 @@ _DB_NAME = "quote_ledger.db"
 class QuoteLedger:
     """SQLite-backed quote record store."""
 
-    _instance: "QuoteLedger | None" = None
+    _instance: QuoteLedger | None = None
 
     @classmethod
-    def get_instance(cls, db_path: str | Path | None = None) -> "QuoteLedger":
+    def get_instance(cls, db_path: str | Path | None = None) -> QuoteLedger:
         if cls._instance is None:
             cls._instance = cls(db_path)
         return cls._instance

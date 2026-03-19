@@ -8,22 +8,18 @@ from __future__ import annotations
 import argparse
 import asyncio
 import os
-import sys
 from typing import Any
 
 # Import _json_out from src.cli (the compatibility shim) so that tests patching
 # src.cli._json_out correctly intercept all calls across all modules.
-from src.cli import _json_out  # noqa: F401
+from src.cli import _json_out as _json_out_mod  # noqa: F401
+
 from .base import (
     _EXPECTED_PROJECT_ROOT,
     _MODULE_TARGETS,
-    _clear_module_runtime_state,
     _messages_requires_browser_runtime,
-    _module_check_summary as _base_module_check_summary,
     _module_logs,
-    _module_process_status,
-    _start_background_module,
-    _stop_background_module,
+    _module_process_status as _module_process_status_mod,  # noqa: F401
 )
 
 # _json_out above is a fallback for use in internal helpers that are NOT called
@@ -308,10 +304,10 @@ async def cmd_module(args: argparse.Namespace) -> None:
         _clear_module_runtime_state,
         _json_out,
         _module_check_summary,
+        _module_process_status,
         _start_background_module,
         _stop_background_module,
     )
-
     from src.core.doctor import run_doctor
     from src.modules.accounts.scheduler import Scheduler
     from src.modules.messages.workflow import WorkflowStore

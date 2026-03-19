@@ -19,13 +19,13 @@ _PROVINCE_SHORT_ALIASES = frozenset({"新疆", "宁夏", "广西", "内蒙", "�
 class GeoKnownCache:
     """Lazily-built singleton cache of known geo names (cities + provinces)."""
 
-    _instance: "GeoKnownCache | None" = None
+    _instance: GeoKnownCache | None = None
 
     def __init__(self) -> None:
         self._cache: frozenset[str] | None = None
 
     @classmethod
-    def get_instance(cls) -> "GeoKnownCache":
+    def get_instance(cls) -> GeoKnownCache:
         if cls._instance is None:
             cls._instance = cls()
         return cls._instance

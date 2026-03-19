@@ -34,7 +34,7 @@ _HEALTH_CACHE_TTL = 30.0
 class _HealthCache:
     """Thread-safe TTL cache for health check results."""
 
-    _instance: "_HealthCache | None" = None
+    _instance: _HealthCache | None = None
 
     def __init__(self) -> None:
         self._cache: dict[str, Any] | None = None
@@ -42,7 +42,7 @@ class _HealthCache:
         self._lock = threading.Lock()
 
     @classmethod
-    def get_instance(cls) -> "_HealthCache":
+    def get_instance(cls) -> _HealthCache:
         if cls._instance is None:
             cls._instance = cls()
         return cls._instance
@@ -369,7 +369,7 @@ _LATEST_VERSION_TTL = 3600.0
 class _VersionCache:
     """Thread-safe TTL cache for latest version lookups."""
 
-    _instance: "_VersionCache | None" = None
+    _instance: _VersionCache | None = None
 
     def __init__(self) -> None:
         self._cache: dict[str, Any] = {}
@@ -377,7 +377,7 @@ class _VersionCache:
         self._lock = threading.Lock()
 
     @classmethod
-    def get_instance(cls) -> "_VersionCache":
+    def get_instance(cls) -> _VersionCache:
         if cls._instance is None:
             cls._instance = cls()
         return cls._instance

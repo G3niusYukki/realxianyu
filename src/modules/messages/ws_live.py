@@ -2040,7 +2040,7 @@ class WebSocketTransportManager:
         self._transport: GoofishWsTransport | None = None
 
     @classmethod
-    def get_instance(cls) -> "WebSocketTransportManager":
+    def get_instance(cls) -> WebSocketTransportManager:
         if cls._instance is None:
             cls._instance = cls()
         return cls._instance

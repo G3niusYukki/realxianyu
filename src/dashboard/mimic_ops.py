@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import csv
-import hashlib
 import io
 import json
 import logging
@@ -24,9 +23,6 @@ from typing import Any
 import yaml
 
 from src.core.config import get_config
-from src.dashboard.config_service import (
-    read_system_config as _read_system_config,
-)
 from src.dashboard.module_console import MODULE_TARGETS, ModuleConsole
 from src.modules.messages.service import MessagesService
 from src.modules.quote.cost_table import CostTableRepository, normalize_courier_name
@@ -772,7 +768,11 @@ class MimicOps:
         }
 
     def get_cookie(self) -> dict[str, Any]:
-        return {"success": bool(self._get_env_value("XIANYU_COOKIE_1").strip()), "cookie": self._get_env_value("XIANYU_COOKIE_1").strip(), "length": len(self._get_env_value("XIANYU_COOKIE_1").strip())}
+        return {
+            "success": bool(self._get_env_value("XIANYU_COOKIE_1").strip()),
+            "cookie": self._get_env_value("XIANYU_COOKIE_1").strip(),
+            "length": len(self._get_env_value("XIANYU_COOKIE_1").strip()),
+        }
 
     @staticmethod
     def _cookie_fingerprint(cookie_text: str) -> str:

@@ -31,19 +31,19 @@
                           │
 ┌─────────────────────────▼───────────────────────────────────┐
 │                   业务中枢 (mimic_ops.py)                   │
-│   Facade 代理，分发到底层 Services                         │
+│   Facade 代理，分发到 Services 和 Modules                  │
 └────┬──────────────┬──────────────┬──────────────┬──────────┘
      │              │              │              │
 ┌────▼────┐  ┌──────▼───┐  ┌─────▼─────┐  ┌────▼─────┐
 │Services/│  │ Modules/ │  │Integrations│ │  CLI/    │
 │         │  │          │  │            │  │          │
 │Cookie   │  │Messages  │  │Xianguanjia │  │cmd_main  │
-│XGJ      │  │Orders    │  │OpenPlatform │  │cmd_orders│
-│ConfigSync│ │Quote     │  │            │  │cmd_module │
-│         │  │Listing   │  │            │  │cmd_quote  │
+│XGJ      │  │Orders    │  │OpenPlatform│  │cmd_orders│
+│         │  │Quote     │  │            │  │cmd_module│
+│         │  │Listing   │  │            │  │cmd_quote │
 │         │  │VirtualGoods│ │            │  │          │
 │         │  │Growth    │  │            │  │          │
-│         │  │Operations │ │            │  │          │
+│         │  │Operations│  │            │  │          │
 └─────────┘  └──────────┘  └────────────┘  └──────────┘
 ```
 
@@ -63,10 +63,9 @@ src/
 │   ├── startup_checks.py         # 启动检查
 │   └── doctor.py                 # 运维诊断
 │
-├── services/                     # [重构后新增] 核心业务服务
+├── services/                     # [重构后] 核心业务服务
 │   ├── cookie_service.py         # CookieService（解析/诊断/导入导出）
-│   ├── xgj_service.py            # XGJService（闲管家配置/回调/重试）
-│   └── config_sync_service.py    # ConfigSyncService（YAML 同步）
+│   └── xgj_service.py            # XGJService（闲管家配置/回调/重试）
 │
 ├── modules/                      # 业务模块（各自独立）
 │   ├── messages/                 # 消息 WS、长连接、回复引擎
@@ -118,10 +117,9 @@ src/
 │
 ├── dashboard/                   # Dashboard 相关
 │   ├── mimic_ops.py             # [精简] Facade 代理 (~3000行)
-│   ├── services/                # 从 mimic_ops 拆分的服务
-│   │   ├── cookie_service.py
-│   │   ├── xgj_service.py
-│   │   └── config_sync_service.py
+│   ├── services/                # 从 mimic_ops 拆分的服务（同 src/services/）
+│   │   ├── cookie_service.py    # CookieService
+│   │   └── xgj_service.py       # XGJService
 │   ├── config_service.py        # Dashboard 配置 CRUD（JSON）
 │   ├── module_console.py        # 模块控制台
 │   ├── repository.py            # 数据仓库
@@ -299,12 +297,12 @@ client/src/
 - [x] CLI 拆分为独立模块（cli.py 2022行 → cli/ 包）
 - [x] 识别并保留 ticketing/growth（存在功能依赖）
 - [x] 识别并保留 templates/frames（Dashboard 使用）
+- [x] 消除所有 `global` 声明（ws_live.py、service.py、ledger.py、routes/system.py 等 → 单例类）
+- [x] 统一配置系统，删除 ConfigSyncService（YAML 同步是死代码，Config._merge_system_config() 已处理）
 
 ### 进行中
-- [ ] 消除 `global` 声明，改用单例类
-- [ ] 统一配置系统，移除冗余同步
-
-### 待办
 - [ ] `mimic_ops.py` 进一步拆分（目标：降至 2000 行以内）
 - [ ] `get_config()` 全局函数逐步替换为 DI
+
+### 待办
 - [ ] 前端 API 层审视（当前 369 行，轻量，暂无明显问题）

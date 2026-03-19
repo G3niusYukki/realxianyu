@@ -15,7 +15,6 @@ import time
 from pathlib import Path
 from typing import Any
 
-
 # ---------------------------------------------------------------------------
 # Output
 # ---------------------------------------------------------------------------
@@ -202,7 +201,7 @@ _EXPECTED_PROJECT_ROOT = ""  # 无固定预期路径，doctor strict 时 project
 def _module_check_summary(target: str, doctor_report: dict[str, Any]) -> dict[str, Any]:
     # Dynamic lookup so tests patching src.cli._messages_transport_mode always
     # intercept the correct binding at call time.
-    from src.cli import _messages_transport_mode, _messages_requires_browser_runtime  # noqa: F401
+    from src.cli import _messages_requires_browser_runtime, _messages_transport_mode  # noqa: F401
     from src.core.startup_checks import resolve_runtime_mode
 
     runtime = resolve_runtime_mode()

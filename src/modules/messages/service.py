@@ -127,23 +127,24 @@ _active_service: MessagesService | None = None
 class MessageServiceRegistry:
     """Singleton registry for the active MessagesService instance."""
 
-    _instance: "MessageServiceRegistry | None" = None
+    _instance: MessageServiceRegistry | None = None
 
     def __init__(self) -> None:
         self._service: MessagesService | None = None
 
     @classmethod
-    def get_instance(cls) -> "MessageServiceRegistry":
+    def get_instance(cls) -> MessageServiceRegistry:
         if cls._instance is None:
             cls._instance = cls()
         return cls._instance
 
-    def register(self, service: "MessagesService") -> None:
+    def register(self, service: MessagesService) -> None:
         import sys
+
         self._service = service
         sys.modules[__name__].__dict__["_active_service"] = service
 
-    def get(self) -> "MessagesService | None":
+    def get(self) -> MessagesService | None:
         return self._service
 
 

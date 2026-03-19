@@ -15,12 +15,14 @@ from src.cli import (
     _module_check_summary,
     _module_logs,
     _module_process_status,
-    _pick_bench_message,
     _pct,
+    _pick_bench_message,
     _resolve_workflow_state,
     _run_messages_sla_benchmark,
     _start_background_module,
     _stop_background_module,
+    # top-level
+    build_parser,
     # commands
     cmd_accounts,
     cmd_ai,
@@ -39,8 +41,6 @@ from src.cli import (
     cmd_quote,
     cmd_relist,
     cmd_virtual_goods,
-    # top-level
-    build_parser,
     main,
 )
 
@@ -53,12 +53,14 @@ __all__ = [
     "_module_check_summary",
     "_module_logs",
     "_module_process_status",
-    "_pick_bench_message",
     "_pct",
+    "_pick_bench_message",
     "_resolve_workflow_state",
     "_run_messages_sla_benchmark",
     "_start_background_module",
     "_stop_background_module",
+    # top-level
+    "build_parser",
     # commands
     "cmd_accounts",
     "cmd_ai",
@@ -77,7 +79,5 @@ __all__ = [
     "cmd_quote",
     "cmd_relist",
     "cmd_virtual_goods",
-    # top-level
-    "build_parser",
     "main",
 ]

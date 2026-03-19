@@ -2,71 +2,123 @@
 
 > **⚠️ 架构变更通知 (v8.1.0+)**
 >
-> 本项目已进行深度重构，**废弃了所有“一键安装 (.bat/.sh)”和冗余的内置 HTML 打包方式**，全面转向现代化的 **前端 (React/Vite) + 后端 (Python Asyncio)** 分离架构。
+> 本项目已进行深度重构，**废弃了所有"一键安装 (.bat/.sh)"和冗余的内置 HTML 打包方式**，全面转向现代化的 **前端 (React/Vite) + 后端 (Python Asyncio)** 分离架构。
 >
-> 本项目旨在作为工作室内部部署和 AI Agent 自动化驱动的基础设施。不再面向无编程基础的 C端用户提供“双击启动包”。
+> 本项目旨在作为工作室内部部署和 AI Agent 自动化驱动的基础设施。不再面向无编程基础的 C 端用户提供"双击启动包"。
+
+---
 
 ## 🚀 核心特性
 
-- **多级 Cookie 降级保活体系**：`闲管家 IM 直读 -> CookieCloud 实时同步 -> 本地数据库直读 -> Playwright 硬解滑块`，四级降级策略应对阿里严苛的 Web 端风控。
-- **现代化前后端分离**：React + TailwindCSS 构建的现代化 Dashboard 仪表盘，提供直观的状态监控与配置热更新。
-- **AI 智能客服**：接入大语言模型 (DeepSeek等)，实现根据商品信息自动报价、智能上下文回复。
-- **虚拟商品全自动核销**：支持卡密自动发货，自动标记已发货，状态全链路闭环。
-- **闲管家深度集成**：兼容闲管家 PC 端登录状态，双重签名算法支持，降低纯 Web 协议被风控的概率。
+| 特性 | 说明 |
+|------|------|
+| **多级 Cookie 降级保活** | 闲管家 IM 直读 → CookieCloud 同步 → 本地直读 → Playwright 硬解，四级降级 |
+| **现代化前后端分离** | React + TailwindCSS Dashboard，状态监控与配置热更新 |
+| **AI 智能客服** | 接入大语言模型（DeepSeek 等），自动报价与智能上下文回复 |
+| **虚拟商品全自动核销** | 卡密自动发货，自动标记已发货，状态全链路闭环 |
+| **闲管家深度集成** | 兼容闲管家 PC 端登录状态，双重签名算法，降低纯 Web 协议风控概率 |
 
 ---
 
-## 💻 部署指南 (供开发与 AI Agent 查阅)
+## 💻 部署指南
 
-本项目现推荐由拥有一定开发基础的操作员或 AI 编码 Agent 进行部署。
+> 详细步骤请参阅 [AGENT_DEPLOYMENT.md](./AGENT_DEPLOYMENT.md)。
 
-详细的部署要求请直接参阅根目录下的：[**AGENT_DEPLOYMENT.md**](./AGENT_DEPLOYMENT.md)
+```bash
+# 1. 构建前端
+cd client && npm install && npm run build && cd ..
 
-### 快速一览
+# 2. 初始化后端
+python3.12 -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
 
-1. **构建前端**：
-   ```bash
-   cd client
-   npm install
-   npm run build
-   ```
-2. **初始化后端**：
-   ```bash
-   python3.12 -m venv venv
-   source venv/bin/activate
-   pip install -r requirements.txt
-   ```
-3. **配置文件**：
-   复制 `.env.example` 到 `.env`，填入必需的 `XIANYU_COOKIE_1`、`DEEPSEEK_API_KEY` 等参数。
-4. **启动服务**：
-   ```bash
-   python -m src.main
-   ```
+# 3. 配置环境变量
+cp .env.example .env
+# 填入 XIANYU_COOKIE_1、DEEPSEEK_API_KEY 等必要参数
+
+# 4. 启动
+python -m src.main
+```
 
 ---
 
-## 🛠 架构设计 (Architecture)
+## 🏗 架构设计
 
-- **前端层 (`client/`)**：纯静态 SPA，编译后存放在 `client/dist/`，由后端接管路由。
-- **网关/路由层 (`src/dashboard_server.py`)**：轻量级 `BaseHTTPRequestHandler` 实现的路由分发与静态文件服务。
-- **业务中枢 (`src/dashboard/mimic_ops.py`)**：Facade 代理层（~3000行），分发到 `services/`（Cookie/XGJ/ConfigSync）和 `modules/` 各业务模块。
-- **核心服务 (`src/services/`)**：从 mimic_ops 拆分出的独立服务 — CookieService（Cookie 解析/诊断/导入导出）、XGJService（闲管家配置/回调/重试）、ConfigSyncService（YAML 同步）。
-- **CLI (`src/cli/`)**：模块化 CLI 包，命令按职责拆分到 `cmd_main/`、`cmd_orders/`、`cmd_module/`、`cmd_quote/`。
-- **核心模块 (`src/modules/`)**：
-  - `messages/`：长链接 WS 通信，心跳维护，消息接收与风控响应。
-  - `orders/`：虚拟商品的履约、改价重试机制。
-  - `quote/`：物流与虚拟发货的智能报价计算表。
+```
+┌──────────────────────────────────────────────────────────┐
+│                     前端层  client/                        │
+│     React + TailwindCSS SPA，编译后由后端服务静态托管     │
+└────────────────────────┬────────────────────────────────┘
+                         │ HTTP / REST
+┌────────────────────────▼────────────────────────────────┐
+│              网关层  dashboard_server.py                  │
+│      BaseHTTPRequestHandler · 路由分发 + 静态服务        │
+└────────────────────────┬────────────────────────────────┘
+                         │
+┌────────────────────────▼────────────────────────────────┐
+│           业务中枢  src/dashboard/mimic_ops.py            │
+│             Facade 代理 (~3000 行)                       │
+└────┬────────────────┬──────────────────┬────────────────┘
+     │                │                  │
+┌────▼────┐   ┌──────▼───┐   ┌────────▼─────────┐
+│ Services/│   │  Modules/ │   │   CLI 包 cli/    │
+│          │   │           │   │                 │
+│Cookie    │   │Messages   │   │cmd_main.py      │
+│Service   │   │Orders     │   │cmd_orders.py    │
+│XGJ       │   │Quote      │   │cmd_module.py   │
+│Service   │   │Listing    │   │cmd_quote.py    │
+│          │   │Virtual    │   │                 │
+│          │   │Goods      │   │                 │
+└──────────┘   └───────────┘   └─────────────────┘
+```
+
+### 核心设计原则
+
+- **Facade 模式**：`mimic_ops.py` 仅作分发代理，不含业务逻辑
+- **YAML 单一真相**：`config/config.yaml` 是唯一默认值来源，无需手动同步
+- **无 global 声明**：全局状态通过单例类（`WebSocketTransportManager`、`QuoteLedger` 等）管理
+- **CLI 模块化**：`cli/` 包按职责拆分，支持猴子补丁测试
 
 ---
 
-## 🤝 参与贡献
+## 🧪 测试与规范
 
-欢迎提交 PR。提交代码前请确保：
-1. 运行并通过所有的 1100+ 个单元测试：
-   `pytest tests/ -v --cov=src`
-2. 代码格式符合 Ruff 规范：
-   `ruff check src/ && ruff format src/`
+```bash
+# 运行全部测试（~1172 个）
+./venv/bin/python -m pytest tests/ -q
 
-## 📜 许可协议 (License)
+# 代码规范检查
+ruff check src/ --extend-ignore I001,E501,UP012,RUF100
+ruff format --check src/
+```
+
+提交前请确保测试全部通过且 `ruff check` 无报错。
+
+---
+
+## 📂 目录结构
+
+```
+src/
+├── core/               # 核心基础设施（配置、日志、浏览器客户端）
+├── services/           # 核心业务服务（CookieService / XGJService）
+├── modules/            # 业务模块
+│   ├── messages/       #   WS 长连接、消息回复、workflow
+│   ├── orders/         #   订单履约、自动改价
+│   ├── quote/         #   物流报价引擎
+│   ├── listing/       #   商品上架
+│   └── virtual_goods/ #   虚拟商品核销
+├── integrations/       # 闲管家 API 集成
+├── dashboard/          # Dashboard Facade + HTTP Routes
+├── dashboard/services/ # 从 mimic_ops 拆分的服务
+├── cli/               # 模块化 CLI 包
+├── dashboard_server.py # HTTP 服务器入口
+├── main.py            # Python 程序主入口
+└── setup_wizard.py    # 初始化向导
+```
+
+---
+
+## 📜 许可协议
 
 [MIT License](./LICENSE)

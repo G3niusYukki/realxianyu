@@ -7,7 +7,6 @@ import os
 from pathlib import Path
 from typing import Any
 
-from src.core.config import get_config
 from src.dashboard.config_service import (
     read_system_config as _read_system_config,
 )
@@ -189,7 +188,7 @@ class XGJService:
 
     def retry_xianguanjia_delivery(self, payload: dict[str, Any]) -> dict[str, Any]:
         from src.modules.orders.service import OrderFulfillmentService
-        from src.dashboard.mimic_ops import _error_payload, _run_async
+        from src.dashboard.mimic_ops import _error_payload
 
         svc_cfg = XGJService._xianguanjia_service_config()
         if not (svc_cfg.get("xianguanjia", {}).get("enabled", False)):
@@ -590,9 +589,7 @@ class XGJService:
                                     "error": f"上架失败: [{err_code}] {err_msg}",
                                 },
                             )
-                            logger.warning(
-                                "Product callback: marked queue item %s as failed: %s", item_id_val, err_msg
-                            )
+                            logger.warning("Product callback: marked queue item %s as failed: %s", item_id_val, err_msg)
                         break
             except Exception:
                 logger.error("Product callback: failed to update publish queue", exc_info=True)
