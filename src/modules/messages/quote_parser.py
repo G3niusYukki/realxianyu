@@ -299,9 +299,9 @@ class QuoteMessageParser:
     @staticmethod
     def extract_weight_kg(message_text: str) -> float | None:
         text = message_text or ""
-        m = re.search(r"(\d+(?:\.\d+)?)\s*(kg|公斤|斤|g|克)", text, flags=re.IGNORECASE)
+        m = re.search(r"(\d+(?:\.\d+)?)\s*(kg|公斤|千克|斤|g|克)", text, flags=re.IGNORECASE)
         if not m:
-            cn = re.search(r"([零一二两三四五六七八九十半]+)\s*(kg|公斤|斤|g|克)", text)
+            cn = re.search(r"([零一二两三四五六七八九十半]+)\s*(kg|公斤|千克|斤|g|克)", text)
             if not cn:
                 return None
             cn_str = cn.group(1)
@@ -792,6 +792,16 @@ class QuoteMessageParser:
             key = str(pending_missing[0])
             if not fields.get(key):
                 fields[key] = single_location
+
+        if fields.get("weight") in {None, ""} and "weight" in pending_missing:
+            bare = re.match(r"^\s*(\d+(?:\.\d+)?)\s*$", message_text or "")
+            if bare:
+                try:
+                    w = float(bare.group(1))
+                    if 0 < w < 10000:
+                        fields["weight"] = w
+                except (ValueError, TypeError):
+                    pass
 
         memory_hit_fields: list[str] = []
         for key in ("origin", "destination", "weight"):

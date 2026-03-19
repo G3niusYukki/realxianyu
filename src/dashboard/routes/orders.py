@@ -286,6 +286,273 @@ def handle_xgj_proxy(ctx: RouteContext) -> None:
 
 
 # ---------------------------------------------------------------------------
+# POST /api/auto-price/diagnose
+# ---------------------------------------------------------------------------
+
+
+@post("/api/auto-price/diagnose")
+def handle_auto_price_diagnose(ctx: RouteContext) -> None:
+    """Full diagnostic of the auto-pricing pipeline without executing modifications."""
+    import logging
+    from src.dashboard.config_service import read_system_config as _read_system_config
+    from src.modules.orders.auto_price_poller import get_price_poller
+
+    logger = logging.getLogger(__name__)
+    cfg = _read_system_config()
+    apm_cfg = cfg.get("auto_price_modify", {})
+    xgj = cfg.get("xianguanjia", {})
+
+    poller = get_price_poller()
+    result: dict = {
+        "config_enabled": bool(apm_cfg.get("enabled")),
+        "poller_running": poller is not None and poller._thread is not None and poller._thread.is_alive() if poller else False,
+        "poller_interval": int(apm_cfg.get("poll_interval_seconds", 15)),
+        "max_quote_age_seconds": int(apm_cfg.get("max_quote_age_seconds", 7200)),
+        "fallback_action": apm_cfg.get("fallback_action", "skip"),
+        "xgj_configured": bool(xgj.get("app_key") and xgj.get("app_secret")),
+        "pending_orders": [],
+        "api_connection_ok": False,
+        "api_error": None,
+    }
+
+    if not result["xgj_configured"]:
+        result["api_error"] = "闲管家 AppKey/AppSecret 未配置"
+        ctx.send_json(result)
+        return
+
+    try:
+        from src.integrations.xianguanjia.open_platform_client import OpenPlatformClient
+
+        client = OpenPlatformClient(
+            base_url=str(xgj.get("base_url", "") or "https://open.goofish.pro"),
+            app_key=str(xgj.get("app_key", "")),
+            app_secret=str(xgj.get("app_secret", "")),
+            timeout=float(xgj.get("timeout", 30.0)),
+            mode=str(xgj.get("mode", "self_developed")).strip() or "self_developed",
+            seller_id=str(xgj.get("seller_id", "")).strip(),
+        )
+        resp = client.list_orders({"order_status": 11, "page_no": 1, "page_size": 50})
+        if not resp.ok:
+            result["api_error"] = f"list_orders 失败: {resp.error_message}"
+            ctx.send_json(result)
+            return
+        result["api_connection_ok"] = True
+
+        data = resp.data
+        orders = []
+        if isinstance(data, dict):
+            orders = data.get("list") or data.get("data", {}).get("list") or []
+        elif isinstance(data, list):
+            orders = data
+
+        from src.modules.quote.ledger import get_quote_ledger
+        ledger = get_quote_ledger()
+        max_age = int(apm_cfg.get("max_quote_age_seconds", 7200))
+        processed_set = set(poller._processed.keys()) if poller else set()
+
+        for order in orders:
+            if not isinstance(order, dict):
+                continue
+            order_no = str(order.get("order_no", "")).strip()
+            buyer_nick = str(order.get("buyer_nick", "")).strip()
+            buyer_eid = str(order.get("buyer_eid", "")).strip()
+            goods = order.get("goods") or {}
+            item_id = str(goods.get("item_id", "")).strip()
+            total_amount = 0
+            try:
+                total_amount = int(order.get("total_amount", 0))
+            except (ValueError, TypeError):
+                pass
+
+            diag: dict = {
+                "order_no": order_no,
+                "buyer_nick": buyer_nick,
+                "buyer_eid": buyer_eid,
+                "item_id": item_id,
+                "total_amount_cents": total_amount,
+                "already_processed": order_no in processed_set,
+                "quote_found": False,
+                "quote_id": None,
+                "courier_choice": None,
+                "target_fee": None,
+                "target_price_cents": None,
+                "would_modify": False,
+                "reason": "",
+            }
+
+            if order_no in processed_set:
+                diag["reason"] = "already_processed_in_cache"
+                result["pending_orders"].append(diag)
+                continue
+
+            quote = ledger.find_by_buyer(
+                buyer_nick, item_id=item_id, max_age_seconds=max_age, sender_user_id=buyer_eid
+            )
+            if not quote:
+                diag["reason"] = "no_quote_in_ledger"
+                result["pending_orders"].append(diag)
+                continue
+
+            diag["quote_found"] = True
+            diag["quote_id"] = quote.get("id")
+            diag["courier_choice"] = quote.get("courier_choice", "")
+            quote_rows = quote.get("quote_rows", [])
+
+            target_fee = None
+            cc = diag["courier_choice"]
+            if cc:
+                for row in quote_rows:
+                    if str(row.get("courier", "")).strip() == cc.strip():
+                        target_fee = row.get("total_fee")
+                        break
+            if target_fee is None and quote_rows:
+                fees = [r.get("total_fee", 0) for r in quote_rows if r.get("total_fee")]
+                if fees:
+                    target_fee = min(fees)
+
+            if target_fee is None:
+                diag["reason"] = "no_valid_fee_in_quote_rows"
+                result["pending_orders"].append(diag)
+                continue
+
+            diag["target_fee"] = target_fee
+            target_cents = round(float(target_fee) * 100)
+            diag["target_price_cents"] = target_cents
+
+            if target_cents == total_amount and total_amount > 0:
+                diag["reason"] = "price_already_correct"
+            else:
+                diag["would_modify"] = True
+                diag["reason"] = f"would_change_from_{total_amount}_to_{target_cents}"
+            result["pending_orders"].append(diag)
+
+    except Exception as exc:
+        logger.error("auto-price diagnose error: %s", exc, exc_info=True)
+        result["api_error"] = str(exc)
+
+    ctx.send_json(result)
+
+
+# ---------------------------------------------------------------------------
+# POST /api/auto-price/test-modify
+# ---------------------------------------------------------------------------
+
+
+@post("/api/auto-price/test-modify")
+def handle_auto_price_test_modify(ctx: RouteContext) -> None:
+    """Execute auto-price modification for a specific order."""
+    import logging
+    from src.dashboard.config_service import read_system_config as _read_system_config
+
+    logger = logging.getLogger(__name__)
+    body = ctx.json_body()
+    order_no = str(body.get("order_no", "")).strip()
+    if not order_no:
+        ctx.send_json({"ok": False, "error": "Missing order_no"}, status=400)
+        return
+
+    cfg = _read_system_config()
+    xgj = cfg.get("xianguanjia", {})
+    apm_cfg = cfg.get("auto_price_modify", {})
+
+    if not xgj.get("app_key") or not xgj.get("app_secret"):
+        ctx.send_json({"ok": False, "error": "闲管家 API 未配置"}, status=400)
+        return
+
+    try:
+        from src.integrations.xianguanjia.open_platform_client import OpenPlatformClient
+        from src.modules.quote.ledger import get_quote_ledger
+
+        client = OpenPlatformClient(
+            base_url=str(xgj.get("base_url", "") or "https://open.goofish.pro"),
+            app_key=str(xgj.get("app_key", "")),
+            app_secret=str(xgj.get("app_secret", "")),
+            timeout=float(xgj.get("timeout", 30.0)),
+            mode=str(xgj.get("mode", "self_developed")).strip() or "self_developed",
+            seller_id=str(xgj.get("seller_id", "")).strip(),
+        )
+
+        detail_resp = client.get_order_detail({"order_no": order_no})
+        if not detail_resp.ok:
+            ctx.send_json({"ok": False, "error": f"获取订单详情失败: {detail_resp.error_message}"})
+            return
+
+        detail = detail_resp.data or {}
+        buyer_nick = str(detail.get("buyer_nick", ""))
+        buyer_eid = str(detail.get("buyer_eid", "")).strip()
+        goods = detail.get("goods") or {}
+        item_id = str(goods.get("item_id", ""))
+        total_amount = int(detail.get("total_amount", 0))
+
+        max_age = int(apm_cfg.get("max_quote_age_seconds", 7200))
+        ledger = get_quote_ledger()
+        quote = ledger.find_by_buyer(buyer_nick, item_id=item_id, max_age_seconds=max_age, sender_user_id=buyer_eid)
+
+        if not quote:
+            ctx.send_json({
+                "ok": False,
+                "error": f"未找到报价记录 (buyer={buyer_nick}, eid={buyer_eid}, item={item_id})",
+                "order_detail": {"buyer_nick": buyer_nick, "buyer_eid": buyer_eid, "item_id": item_id, "total_amount": total_amount},
+            })
+            return
+
+        quote_rows = quote.get("quote_rows", [])
+        courier_choice = quote.get("courier_choice", "")
+        target_fee = None
+        if courier_choice:
+            for row in quote_rows:
+                if str(row.get("courier", "")).strip() == courier_choice.strip():
+                    target_fee = row.get("total_fee")
+                    break
+        if target_fee is None and quote_rows:
+            fees = [r.get("total_fee", 0) for r in quote_rows if r.get("total_fee")]
+            if fees:
+                target_fee = min(fees)
+
+        if target_fee is None:
+            ctx.send_json({"ok": False, "error": "报价记录中无有效价格", "quote": quote})
+            return
+
+        target_cents = round(float(target_fee) * 100)
+        express_fee_cents = int(float(apm_cfg.get("default_express_fee", 0)) * 100)
+
+        if target_cents == total_amount and total_amount > 0:
+            ctx.send_json({
+                "ok": True,
+                "modified": False,
+                "reason": "price_already_correct",
+                "total_amount": total_amount,
+                "target_cents": target_cents,
+            })
+            return
+
+        modify_resp = client.modify_order_price({
+            "order_no": order_no,
+            "order_price": target_cents,
+            "express_fee": express_fee_cents,
+        })
+
+        ctx.send_json({
+            "ok": modify_resp.ok,
+            "modified": modify_resp.ok,
+            "order_no": order_no,
+            "from_cents": total_amount,
+            "to_cents": target_cents,
+            "express_fee_cents": express_fee_cents,
+            "courier_choice": courier_choice or "(auto-min)",
+            "api_response": {
+                "ok": modify_resp.ok,
+                "error_message": modify_resp.error_message if not modify_resp.ok else None,
+                "error_code": modify_resp.error_code if not modify_resp.ok else None,
+            },
+        })
+
+    except Exception as exc:
+        logger.error("auto-price test-modify error: %s", exc, exc_info=True)
+        ctx.send_json({"ok": False, "error": str(exc)}, status=500)
+
+
+# ---------------------------------------------------------------------------
 # POST /api/xgj/order/receive, /api/xgj/product/receive  (webhook callbacks)
 # ---------------------------------------------------------------------------
 

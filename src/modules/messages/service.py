@@ -687,9 +687,9 @@ class MessagesService:
         if any(keyword in text for keyword in self.quote_intent_keywords):
             return True
 
-        has_weight = bool(re.search(r"\d+(?:\.\d+)?\s*(?:kg|公斤|斤|g|克)(?![a-zA-Z])", text, flags=re.IGNORECASE))
+        has_weight = bool(re.search(r"\d+(?:\.\d+)?\s*(?:kg|公斤|千克|斤|g|克)(?![a-zA-Z])", text, flags=re.IGNORECASE))
         if not has_weight:
-            has_weight = bool(re.search(r"[一二两三四五六七八九十半]+\s*(?:kg|公斤|斤|g|克)", text))
+            has_weight = bool(re.search(r"[一二两三四五六七八九十半]+\s*(?:kg|公斤|千克|斤|g|克)", text))
         if not has_weight:
             return False
 
@@ -737,7 +737,7 @@ class MessagesService:
     )
 
     _SHIPPING_SIGNAL_RE = re.compile(
-        r"\d+\s*(?:kg|公斤|斤|g|克)(?![a-zA-Z])"
+        r"\d+\s*(?:kg|公斤|千克|斤|g|克)(?![a-zA-Z])"
         r"|[\u4e00-\u9fa5]{2,6}(?:省|市|区|县|镇)"
         r"|[\u4e00-\u9fa5]{2,10}\s*(?:到|寄到|发到)\s*[\u4e00-\u9fa5]{2,10}"
         r"|[\u4e00-\u9fa5]{2,10}\s*[~～\-\u2013\u2014\u2015→➔>＞]+\s*[\u4e00-\u9fa5]{2,10}",
@@ -958,6 +958,8 @@ class MessagesService:
         r"|你当前宝贝拍下|在\d+.*内付款"
     )
 
+    _BARE_NUMBER_RE = re.compile(r"^\s*(\d+(?:\.\d+)?)\s*$")
+
     def _is_quote_followup_candidate(self, message_text: str) -> bool:
         text = (message_text or "").strip()
         if not text:
@@ -979,6 +981,8 @@ class MessagesService:
             if not any(exclude in text for exclude in ["代下单", "帮我下单", "你帮下"]):
                 return True
         if text in self._QUOTE_CONFIRM_WORDS:
+            return True
+        if self._BARE_NUMBER_RE.match(text):
             return True
         return False
 
@@ -1231,8 +1235,28 @@ class MessagesService:
             _greeting_rules = frozenset({"express_availability", "express_first_weight"})
             if pre_matched.name in _greeting_rules:
                 origin, dest = self._extract_locations(message_text)
+                if not origin and session_id:
+                    origin = context_before.get("origin") or None
+                if not dest and session_id:
+                    dest = context_before.get("destination") or None
                 if origin or dest:
                     _weight = self._extract_weight_kg(message_text)
+                    if _weight is None and session_id:
+                        ctx_w = context_before.get("weight")
+                        if ctx_w is not None:
+                            try:
+                                ctx_w = float(ctx_w)
+                                if ctx_w > 0:
+                                    _weight = ctx_w
+                            except (TypeError, ValueError):
+                                pass
+                    if _weight is None and self._BARE_NUMBER_RE.match((message_text or "").strip()):
+                        try:
+                            bv = float(self._BARE_NUMBER_RE.match(message_text.strip()).group(1))
+                            if 0 < bv < 10000:
+                                _weight = bv
+                        except (TypeError, ValueError):
+                            pass
                     if _weight is None and re.search(r"首重", message_text or ""):
                         _weight = 1.0
                     if _weight is None and re.search(r"续重", message_text or ""):
@@ -1263,6 +1287,7 @@ class MessagesService:
 
             _QUOTE_YIELDABLE_RULES = frozenset(
                 {
+                    "express_availability",
                     "express_large",
                     "express_volume",
                     "express_remote_area",
@@ -1277,10 +1302,21 @@ class MessagesService:
             if is_quote_intent and pre_matched.name in _QUOTE_YIELDABLE_RULES:
                 _origin, _dest = self._extract_locations(message_text)
                 _weight = self._extract_weight_kg(message_text)
+                if _weight is None and self._BARE_NUMBER_RE.match((message_text or "").strip()):
+                    try:
+                        bv = float(self._BARE_NUMBER_RE.match(message_text.strip()).group(1))
+                        if 0 < bv < 10000:
+                            _weight = bv
+                    except (TypeError, ValueError):
+                        pass
                 if _weight is None and re.search(r"首重", message_text or ""):
                     _weight = 1.0
                 if _weight is None and re.search(r"续重", message_text or ""):
                     _weight = 2.0
+                if not _origin and session_id:
+                    _origin = context_before.get("origin") or None
+                if not _dest and session_id:
+                    _dest = context_before.get("destination") or None
                 if _origin and _dest and _weight is not None and _weight > 0:
                     use_rule_reply = False
                     self.logger.info(
@@ -1288,7 +1324,6 @@ class MessagesService:
                         pre_matched.name,
                     )
                 else:
-                    # 部分信息：存入上下文并返回智能追问，不再用固定规则回复
                     has_partial = _origin or _dest or (_weight is not None and _weight > 0)
                     if has_partial and session_id:
                         if _origin is not None or _dest is not None:
@@ -1321,6 +1356,8 @@ class MessagesService:
                                 "quote_missing_fields": missing,
                                 "rule_matched": pre_matched.name,
                             }
+                        else:
+                            use_rule_reply = False
 
             if use_rule_reply:
                 reply = pre_matched.reply
