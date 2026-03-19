@@ -432,6 +432,7 @@ export default function IntentRulesManager({ config, onConfigChange, onSave }: I
 
       {/* Rules Tab */}
       {activeTab === 'rules' && (
+      <>
       <div className="flex flex-wrap items-center gap-3">
         <input
           className="xy-input px-3 py-1.5 text-sm flex-1 min-w-[200px]"
@@ -573,6 +574,7 @@ export default function IntentRulesManager({ config, onConfigChange, onSave }: I
         <p>4. 通用报价引导模板（兜底）</p>
         <p className="text-amber-600 mt-1">保存后自动生效，无需重启服务</p>
       </div>
+      </>
       )}
 
       {/* Suggestions Tab */}
