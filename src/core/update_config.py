@@ -3,6 +3,6 @@
 import os
 
 GITHUB_OWNER = os.getenv("GITHUB_UPDATE_OWNER", "G3niusYukki")
-GITHUB_REPO = os.getenv("GITHUB_UPDATE_REPO", "xianyu-guanjia")
+GITHUB_REPO = os.getenv("GITHUB_UPDATE_REPO", "realxianyu")
 GITHUB_TOKEN = os.getenv("GITHUB_UPDATE_TOKEN", "")
 UPDATE_ASSET_SUFFIX = "-update.tar.gz"
