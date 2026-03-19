@@ -60,10 +60,11 @@ check_port() {
 }
 
 check_port 8091
+check_port 5173
 
-# 启动后端（SPA 由后端从 client/dist 提供，无需单独启动 vite）
+# 启动后端
 echo ""
-echo "[*] 启动后端 (端口 8091)..."
+echo "[*] 启动 Python 后端 (端口 8091)..."
 python3 -m src.dashboard_server --port 8091 &
 BACKEND_PID=$!
 echo "    PID: $BACKEND_PID"
@@ -71,12 +72,28 @@ echo "    PID: $BACKEND_PID"
 # 等待后端就绪
 sleep 2
 
+# 启动前端
+FRONTEND_PID=""
+if [ -d "client" ] && [ -f "client/package.json" ]; then
+    if command -v node >/dev/null 2>&1; then
+        echo "[*] 启动前端 (端口 5173)..."
+        cd client && npx vite --host &
+        FRONTEND_PID=$!
+        echo "    PID: $FRONTEND_PID"
+        cd "$PROJECT_ROOT"
+    else
+        echo "[!!] 未找到 Node.js，跳过前端启动"
+        echo "     可直接访问后端: http://localhost:8091"
+    fi
+fi
+
 echo ""
 echo "========================================="
 echo "  服务已启动!"
 echo "========================================="
 echo ""
-echo "  管理面板: http://localhost:8091"
+echo "  管理面板: http://localhost:5173"
+echo "  后端 API: http://localhost:8091"
 echo ""
 echo "  关闭此窗口将停止所有服务"
 echo "  按 Ctrl+C 手动停止"
@@ -86,13 +103,14 @@ echo ""
 # 自动打开浏览器
 if command -v open >/dev/null 2>&1; then
     sleep 3
-    open "http://localhost:8091" 2>/dev/null || true
+    open "http://localhost:5173" 2>/dev/null || true
 fi
 
 cleanup() {
     echo ""
     echo "[*] 正在停止服务..."
     kill "$BACKEND_PID" 2>/dev/null || true
+    [ -n "$FRONTEND_PID" ] && kill "$FRONTEND_PID" 2>/dev/null || true
     echo "[OK] 服务已停止"
     exit 0
 }
