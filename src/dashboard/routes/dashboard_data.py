@@ -150,7 +150,7 @@ def handle_logs_realtime_stream(ctx: RouteContext) -> None:
     try:
         # First event: include available files list
         payload = ctx.mimic_ops.read_log_content(file_name=file_name, tail=tail)
-        lines = payload.get("lines", []) if payload.get("success") else [payload.get("error", "log not found")]
+        lines = payload.get("lines", []) if payload.get("success") else []
         text = "\n".join(lines)
         last = text
         first_event = {
@@ -164,7 +164,7 @@ def handle_logs_realtime_stream(ctx: RouteContext) -> None:
 
         for _ in range(179):
             payload = ctx.mimic_ops.read_log_content(file_name=file_name, tail=tail)
-            lines = payload.get("lines", []) if payload.get("success") else [payload.get("error", "log not found")]
+            lines = payload.get("lines", []) if payload.get("success") else []
             text = "\n".join(lines)
             if text != last:
                 event = json.dumps(

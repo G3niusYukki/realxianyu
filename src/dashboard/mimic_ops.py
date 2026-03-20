@@ -2342,6 +2342,16 @@ class MimicOps:
         name = str(file_name or "").strip()
         if name in {"presales", "operations", "aftersales"}:
             return self._module_runtime_log(name)
+        if name == "app":
+            # 找到最新的 app_*.log 文件
+            app_logs = sorted(
+                (p for p in self.logs_dir.glob("app_*.log") if p.is_file()),
+                key=lambda p: p.stat().st_mtime,
+                reverse=True,
+            )
+            if app_logs:
+                return app_logs[0]
+            return self.logs_dir / "app.log"
         if name.startswith("runtime/"):
             return self.project_root / "data" / "module_runtime" / name.replace("runtime/", "", 1)
         if name.startswith("app/"):
