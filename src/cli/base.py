@@ -399,17 +399,26 @@ def _start_background_module(target: str, args: Any) -> dict[str, Any]:
     else:
         popen_kwargs["preexec_fn"] = os.setsid
 
-    proc = subprocess.Popen(cmd, **popen_kwargs)
-    handle.close()
-    state = {
+    # Write state BEFORE Popen. The child process (after setsid+exec) will read this
+    # when it calls _start_background_module; seeing pid=-1 (not > 0) means it was
+    # started by a parent and should exit immediately rather than becoming a second
+    # daemon.  The parent updates the real pid after Popen returns.
+    pre_state: dict[str, Any] = {
         "target": target,
-        "pid": proc.pid,
+        "pid": -1,
         "python_exec": python_exec,
         "log_file": str(log_file),
         "started_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
         "command": cmd,
     }
-    _write_module_state(target, state)
+    _write_module_state(target, pre_state)
+
+    proc = subprocess.Popen(cmd, **popen_kwargs)
+    handle.close()
+
+    post_state = dict(pre_state)
+    post_state["pid"] = proc.pid
+    _write_module_state(target, post_state)
     return {"target": target, "started": True, "pid": proc.pid, "log_file": str(log_file)}
 
 
