@@ -12,6 +12,7 @@ import json
 import os
 import random
 import re
+import threading
 import time
 from pathlib import Path
 from time import perf_counter
@@ -128,6 +129,7 @@ class MessageServiceRegistry:
     """Singleton registry for the active MessagesService instance."""
 
     _instance: MessageServiceRegistry | None = None
+    _lock = threading.Lock()
 
     def __init__(self) -> None:
         self._service: MessagesService | None = None
@@ -135,7 +137,9 @@ class MessageServiceRegistry:
     @classmethod
     def get_instance(cls) -> MessageServiceRegistry:
         if cls._instance is None:
-            cls._instance = cls()
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = cls()
         return cls._instance
 
     def register(self, service: MessagesService) -> None:
@@ -168,6 +172,9 @@ class MessagesService:
             try:
                 with open(sys_cfg_path, encoding="utf-8") as f:
                     sys_cfg = json.load(f)
+            except (OSError, ValueError) as exc:
+                _logger.debug("Could not load system config at %s: %s", sys_cfg_path, exc)
+            else:
                 ar = sys_cfg.get("auto_reply", {})
                 if isinstance(ar, dict):
                     if "enabled" in ar:
@@ -186,8 +193,6 @@ class MessagesService:
                 ai_sys = sys_cfg.get("ai", {})
                 if isinstance(ai_sys, dict):
                     self._sys_ai_config = ai_sys
-            except Exception:
-                pass
 
         self.quote_config = {
             **app_config.get_section("quote", {}),

@@ -11,6 +11,7 @@ import ProductList from './pages/products/ProductList'
 import SystemConfig from './pages/config/SystemConfig'
 import AccountList from './pages/accounts/AccountList'
 import Messages from './pages/messages/Messages'
+import LogTerminal from './pages/LogTerminal'
 
 function App() {
   return (
@@ -26,6 +27,7 @@ function App() {
               <Route path="/products/auto-publish" element={<AutoPublish />} />
               <Route path="/orders" element={<Orders />} />
               <Route path="/messages" element={<Messages />} />
+              <Route path="/logs" element={<LogTerminal />} />
               <Route path="/accounts" element={<AccountList />} />
               <Route path="/config" element={<SystemConfig />} />
               <Route path="/analytics" element={<Navigate to="/dashboard" replace />} />

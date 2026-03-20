@@ -279,8 +279,15 @@ ai:
         """测试环境变量解析"""
         monkeypatch.setenv("TEST_API_KEY", "resolved_key")
         monkeypatch.setenv("TEST_BASE_URL", "https://resolved.url")
+        monkeypatch.delenv("XIANYU_COOKIE_1", raising=False)
 
+        Config.reset_for_testing()
         config = Config(str(config_file_with_env))
+        # Prevent _merge_system_config from overwriting env-var-resolved values
+        monkeypatch.setattr(config, "_merge_system_config", lambda: None)
+        # Re-run load to apply env var resolution without system config merge
+        config.reload(str(config_file_with_env))
+
         assert config.get("ai.api_key") == "resolved_key"
         assert config.get("ai.base_url") == "https://resolved.url"
 
@@ -288,7 +295,12 @@ ai:
         """测试缺失环境变量"""
         monkeypatch.delenv("TEST_API_KEY", raising=False)
         monkeypatch.delenv("TEST_BASE_URL", raising=False)
+        monkeypatch.delenv("XIANYU_COOKIE_1", raising=False)
 
+        Config.reset_for_testing()
         config = Config(str(config_file_with_env))
+        monkeypatch.setattr(config, "_merge_system_config", lambda: None)
+        config.reload(str(config_file_with_env))
+
         assert config.get("ai.api_key") == "${TEST_API_KEY}"
         assert config.get("ai.base_url") == "${TEST_BASE_URL}"

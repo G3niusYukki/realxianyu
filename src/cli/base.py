@@ -11,6 +11,7 @@ import random
 import signal
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 from typing import Any
@@ -302,7 +303,15 @@ def _read_module_state(target: str) -> dict[str, Any]:
 
 def _write_module_state(target: str, data: dict[str, Any]) -> None:
     path = _module_state_path(target)
-    path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    parent = path.parent
+    parent.mkdir(parents=True, exist_ok=True)
+    payload = json.dumps(data, ensure_ascii=False, indent=2)
+    with tempfile.NamedTemporaryFile(
+        mode="w", encoding="utf-8", dir=parent, prefix=f"{target}_", suffix=".json.tmp"
+    ) as fh:
+        fh.write(payload)
+        fh.flush()
+        os.replace(fh.name, str(path))
 
 
 def _process_alive(pid: int) -> bool:

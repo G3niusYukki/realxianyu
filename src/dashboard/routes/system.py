@@ -35,6 +35,7 @@ class _HealthCache:
     """Thread-safe TTL cache for health check results."""
 
     _instance: _HealthCache | None = None
+    _lock = threading.Lock()
 
     def __init__(self) -> None:
         self._cache: dict[str, Any] | None = None
@@ -44,7 +45,9 @@ class _HealthCache:
     @classmethod
     def get_instance(cls) -> _HealthCache:
         if cls._instance is None:
-            cls._instance = cls()
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = cls()
         return cls._instance
 
     def get_cached(self, now: float) -> dict[str, Any] | None:
@@ -370,6 +373,7 @@ class _VersionCache:
     """Thread-safe TTL cache for latest version lookups."""
 
     _instance: _VersionCache | None = None
+    _lock = threading.Lock()
 
     def __init__(self) -> None:
         self._cache: dict[str, Any] = {}
@@ -379,7 +383,9 @@ class _VersionCache:
     @classmethod
     def get_instance(cls) -> _VersionCache:
         if cls._instance is None:
-            cls._instance = cls()
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = cls()
         return cls._instance
 
     def get_cached(self, now: float) -> dict[str, Any] | None:

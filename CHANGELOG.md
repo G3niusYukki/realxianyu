@@ -8,15 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- **闲管家订单回调闭环**：
-  - Dashboard 新增 `/api/orders/callback`，支持接收订单推送并在支付后自动同步订单状态
-  - 当已配置闲管家且开启自动履约时，实物订单可在支付后自动触发物流发货
-- **Dashboard 闲管家控制面板**：
-  - 首页新增闲管家可视化配置区，可保存 AppKey/AppSecret、自动改价、自动发货与"支付后自动触发"开关
-  - 新增 Dashboard 手动重试入口：API 改价、API 发货
+- **实时日志终端 UI**：`/日志` 页面新增 4 栏实时日志（售前/运营/售后/应用），SSE 流式推送，支持自动滚动与清屏
+- **MTOP 密钥环境变量覆盖**：`XIANYU_MTOP_APP_KEY` / `XIANYU_MTOP_APP_SECRET` 环境变量可覆盖硬编码默认值
 
 ### Changed
-- 实物订单在未真正提交物流单、仅降级为人工发货任务时，状态保持为 `processing`，避免误标记为 `shipping`
+- **6 个单例类线程安全修复**：使用双检锁（DCL）重构 `GeoKnownCache`、`QuoteLedger`、`WebSocketTransportManager`、`MessageServiceRegistry`、`_HealthCache`、`_VersionCache`，支持多线程/多进程安全访问
+- **静默异常修复**：`MessageServiceRegistry` 加载系统配置时的裸 `except` 改为 `except (OSError, ValueError)` 并记录 debug 日志
+- **模块状态原子写入**：`_write_module_state` 改用 `tempfile.NamedTemporaryFile` + `os.replace()` 实现 POSIX 原子替换，避免进程崩溃时 `.json` 文件损坏
+- **CookieHealthChecker 空字符串判断修复**：使用 `if x is not None else` 替代 `x or fallback`，正确区分"未传参数"与"空字符串"
+
+### Fixed
+- 修复 `test_check_sync_no_cookie` / `test_check_async_no_cookie` / `test_env_variable_resolution` / `test_env_variable_missing` 4 个既有测试失败（单例状态泄漏、空 Cookie 误读环境变量）
 
 ## [8.0.0] - 2026-03-08
 

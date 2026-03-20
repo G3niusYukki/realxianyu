@@ -60,7 +60,7 @@ class CookieHealthChecker:
         timeout_seconds: float = 10.0,
         notifier: Any | None = None,
     ):
-        self._cookie_text = cookie_text or os.getenv("XIANYU_COOKIE_1", "")
+        self._cookie_text = cookie_text if cookie_text is not None else os.getenv("XIANYU_COOKIE_1", "")
         self._check_interval = max(60.0, float(check_interval_seconds))
         self._alert_cooldown = max(60.0, float(alert_cooldown_seconds))
         self._timeout = max(3.0, float(timeout_seconds))

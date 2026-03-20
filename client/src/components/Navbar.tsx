@@ -11,6 +11,7 @@ const Navbar = () => {
     { to: '/products', label: '商品' },
     { to: '/orders', label: '订单' },
     { to: '/messages', label: '消息' },
+    { to: '/logs', label: '日志' },
     { to: '/accounts', label: '账户' },
   ]
 

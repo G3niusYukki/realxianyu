@@ -21,8 +21,8 @@ from src.core.error_handler import BrowserError
 from src.core.logger import get_logger
 from src.modules.messages.manual_mode import ManualModeStore
 
-_MTOP_APP_KEY = "34839810"
-_MTOP_APP_SECRET = "444e9908a51d1cb236a27862abc769c9"
+_MTOP_APP_KEY = os.environ.get("XIANYU_MTOP_APP_KEY", "34839810")
+_MTOP_APP_SECRET = os.environ.get("XIANYU_MTOP_APP_SECRET", "444e9908a51d1cb236a27862abc769c9")
 
 try:
     import websockets
@@ -2035,6 +2035,7 @@ class WebSocketTransportManager:
     """Singleton manager for the Goofish WS transport instance."""
 
     _instance: WebSocketTransportManager | None = None
+    _lock = threading.Lock()
 
     def __init__(self) -> None:
         self._transport: GoofishWsTransport | None = None
@@ -2042,7 +2043,9 @@ class WebSocketTransportManager:
     @classmethod
     def get_instance(cls) -> WebSocketTransportManager:
         if cls._instance is None:
-            cls._instance = cls()
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = cls()
         return cls._instance
 
     def set(self, transport: GoofishWsTransport | None) -> None:

@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import logging
 import sqlite3
+import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -24,11 +25,14 @@ class QuoteLedger:
     """SQLite-backed quote record store."""
 
     _instance: QuoteLedger | None = None
+    _lock = threading.Lock()
 
     @classmethod
     def get_instance(cls, db_path: str | Path | None = None) -> QuoteLedger:
         if cls._instance is None:
-            cls._instance = cls(db_path)
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = cls(db_path)
         return cls._instance
 
     def __init__(self, db_path: str | Path | None = None) -> None:

@@ -141,9 +141,28 @@ def handle_logs_realtime_stream(ctx: RouteContext) -> None:
     ctx.send_header("Connection", "keep-alive")
     ctx.end_headers()
 
+    # Send first event with available files list + current content
+    try:
+        available_files = ctx.mimic_ops.list_log_files()
+    except Exception:
+        available_files = {"files": []}
     last = ""
     try:
-        for _ in range(180):
+        # First event: include available files list
+        payload = ctx.mimic_ops.read_log_content(file_name=file_name, tail=tail)
+        lines = payload.get("lines", []) if payload.get("success") else [payload.get("error", "log not found")]
+        text = "\n".join(lines)
+        last = text
+        first_event = {
+            "success": True,
+            "lines": lines,
+            "updated_at": _now_iso(),
+            "available_files": available_files.get("files", []),
+        }
+        ctx.wfile.write(f"data: {json.dumps(first_event, ensure_ascii=False)}\n\n".encode())
+        ctx.wfile.flush()
+
+        for _ in range(179):
             payload = ctx.mimic_ops.read_log_content(file_name=file_name, tail=tail)
             lines = payload.get("lines", []) if payload.get("success") else [payload.get("error", "log not found")]
             text = "\n".join(lines)

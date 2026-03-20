@@ -75,6 +75,15 @@ class Config:
                     cls._instance._initialized = False
         return cls._instance
 
+    @classmethod
+    def reset_for_testing(cls) -> None:
+        """Reset the singleton state. FOR TESTING ONLY."""
+        cls._instance = None
+        cls._config = {}
+        cls._config_path = None
+        cls._last_mtime_check = 0.0
+        cls._sys_config_mtime = 0.0
+
     def __init__(self, config_path: str | None = None):
         default_path = self._find_config_file()
         if not hasattr(self, "_initialized") or not self._initialized:

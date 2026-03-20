@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import threading
 from pathlib import Path
 
 _SUFFIXES: tuple[str, ...] = tuple(
@@ -20,6 +21,7 @@ class GeoKnownCache:
     """Lazily-built singleton cache of known geo names (cities + provinces)."""
 
     _instance: GeoKnownCache | None = None
+    _lock = threading.Lock()
 
     def __init__(self) -> None:
         self._cache: frozenset[str] | None = None
@@ -27,7 +29,9 @@ class GeoKnownCache:
     @classmethod
     def get_instance(cls) -> GeoKnownCache:
         if cls._instance is None:
-            cls._instance = cls()
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = cls()
         return cls._instance
 
     def _build(self) -> frozenset[str]:
