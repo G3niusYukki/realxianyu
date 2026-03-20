@@ -394,6 +394,11 @@ class _VersionCache:
                 return self._cache
         return None
 
+    def invalidate(self) -> None:
+        with self._lock:
+            self._cache = None
+            self._ts = 0.0
+
     def set_cached(self, result: dict[str, Any], now: float) -> None:
         with self._lock:
             self._cache = result
@@ -465,26 +470,47 @@ def handle_version_latest(ctx: RouteContext) -> None:
             _vc.set_cached(result, _time_mod.time())
             ctx.send_json(result)
         else:
+            # Don't cache errors; 404 may be a transient rate-limit issue
+            _vc.invalidate()
             ctx.send_json({"latest": None, "error": f"GitHub API returned {resp.status_code}"})
     except Exception as exc:
+        _vc.invalidate()
         ctx.send_json({"latest": None, "error": str(exc)})
 
 
 def _fetch_latest_via_gh() -> dict[str, Any] | None:
-    """Use gh CLI to fetch latest release (authenticated, bypasses IP rate limits)."""
-    from src.core.update_config import GITHUB_OWNER, GITHUB_REPO
+    """Use gh CLI to fetch full latest release (authenticated, bypasses IP rate limits)."""
+    from src.core.update_config import GITHUB_OWNER, GITHUB_REPO, UPDATE_ASSET_SUFFIX
 
     try:
+        # Fetch full release JSON so we get the asset URL too
         proc = __import__("subprocess").run(
-            ["gh", "api", f"repos/{GITHUB_OWNER}/{GITHUB_REPO}/releases/latest", "--jq", ".tag_name"],
+            ["gh", "api", f"repos/{GITHUB_OWNER}/{GITHUB_REPO}/releases/latest"],
             capture_output=True,
             text=True,
             timeout=15,
         )
         if proc.returncode == 0 and proc.stdout.strip():
-            tag = proc.stdout.strip()
-            latest = tag.lstrip("v")
-            return {"latest": latest, "tag": tag, "update_asset_url": "", "update_asset_size": 0, "body": ""}
+            import json as _json
+
+            release_data = _json.loads(proc.stdout)
+            tag = release_data.get("tag_name", "")
+            latest = tag.lstrip("v") if tag else None
+            assets = release_data.get("assets", [])
+            update_asset_url = ""
+            update_asset_size = 0
+            for asset in assets:
+                if asset.get("name", "").endswith(UPDATE_ASSET_SUFFIX):
+                    update_asset_url = asset.get("url", "")
+                    update_asset_size = asset.get("size", 0)
+                    break
+            return {
+                "latest": latest,
+                "tag": tag,
+                "update_asset_url": update_asset_url,
+                "update_asset_size": update_asset_size,
+                "body": release_data.get("body", ""),
+            }
     except Exception:
         pass
     return None
