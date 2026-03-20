@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [9.3.0] - 2026-03-20
+
 ### Added
 - **实时日志终端 UI**：`/日志` 页面新增 4 栏实时日志（售前/运营/售后/应用），SSE 流式推送，支持自动滚动与清屏
 - **MTOP 密钥环境变量覆盖**：`XIANYU_MTOP_APP_KEY` / `XIANYU_MTOP_APP_SECRET` 环境变量可覆盖硬编码默认值
