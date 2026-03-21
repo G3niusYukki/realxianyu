@@ -390,6 +390,38 @@ def handle_publish_queue_delete(ctx: RouteContext) -> None:
 
 
 # ---------------------------------------------------------------------------
+# PUT /api/brand-assets/<asset_id>  — rename
+# ---------------------------------------------------------------------------
+# Note: @put_prefix("/api/brand-assets/", ...) lives in _PUT_PREFIX_ROUTES,
+# separate from _GET_PREFIX_ROUTES, so it does not conflict with the existing
+# GET /api/brand-assets/file/ prefix route.
+
+
+@put_prefix("/api/brand-assets/", "asset_id")
+def handle_brand_assets_rename(ctx: RouteContext) -> None:
+    from src.dashboard_server import _error_payload
+    from src.modules.listing.brand_assets import BrandAssetManager
+
+    asset_id = ctx.path_params.get("asset_id", "").strip("/")
+    if not asset_id:
+        ctx.send_json(_error_payload("Missing asset id"), status=400)
+        return
+
+    body = ctx.json_body()
+    new_name = body.get("name", "").strip()
+    if not new_name:
+        ctx.send_json(_error_payload("Missing name field"), status=400)
+        return
+
+    mgr = BrandAssetManager()
+    updated = mgr.rename_asset(asset_id, new_name)
+    if updated is None:
+        ctx.send_json(_error_payload("Asset not found", code="NOT_FOUND"), status=404)
+        return
+    ctx.send_json({"ok": True, "asset": updated})
+
+
+# ---------------------------------------------------------------------------
 # DELETE /api/brand-assets/<asset_id>
 # ---------------------------------------------------------------------------
 
