@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../../api/index';
 import {
-  getBrandAssets, getBrandAssetsGrouped, uploadBrandAsset, uploadBrandAssetsZip, deleteBrandAsset,
+  getBrandAssets, getBrandAssetsGrouped, uploadBrandAsset, uploadBrandAssetsZip,
+  deleteBrandAsset, renameBrandAsset,
   getPublishQueue, generateDailyQueue, updateQueueItem, deleteQueueItem,
   regenerateQueueImages, publishQueueItem, publishQueueBatch,
   type BrandAsset, type QueueItem,
@@ -12,6 +13,7 @@ import {
   Calendar, RefreshCw, Upload, Trash2, Image as ImageIcon,
   ChevronUp, Edit3, Clock,
   CheckCircle2, XCircle, AlertTriangle, Package, Send,
+  Pencil, Check, X,
 } from 'lucide-react';
 
 // ─── Scheduler Panel ─────────────────────────────
@@ -80,6 +82,8 @@ function BrandAssetsTab() {
   const [uploading, setUploading] = useState(false);
   const [newName, setNewName] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
   const [zipUploading, setZipUploading] = useState(false);
   const zipFileRef = useRef<HTMLInputElement>(null);
 
@@ -148,6 +152,20 @@ function BrandAssetsTab() {
         fetchData();
       }
     } catch { toast.error('删除失败'); }
+  };
+
+  const handleRename = async (id: string) => {
+    if (!renameValue.trim()) { toast.error('品牌名称不能为空'); return; }
+    try {
+      const res = await renameBrandAsset(id, renameValue.trim());
+      if (res.data?.ok) {
+        toast.success(`已改名为「${res.data.asset.name}」`);
+        setRenamingId(null);
+        fetchData();
+      }
+    } catch (err: any) {
+      toast.error('改名失败: ' + (err?.response?.data?.error || err.message));
+    }
   };
 
   const brandNames = Object.keys(brands);
@@ -223,11 +241,36 @@ function BrandAssetsTab() {
                 <h4 className="text-sm font-medium text-xy-text-primary mb-2">{brandName} <span className="text-[11px] text-xy-text-muted">({brands[brandName].length} 张)</span></h4>
                 <div className="flex flex-wrap gap-3">
                   {brands[brandName].map(asset => (
-                    <div key={asset.id} className="group relative w-20 h-20 rounded-xl overflow-hidden border border-xy-border bg-white">
-                      <img src={`/api/brand-assets/file/${asset.filename}`} alt={asset.name} className="w-full h-full object-contain p-1" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                      <button onClick={() => handleDelete(asset.id, asset.name)} className="absolute top-0.5 right-0.5 p-0.5 bg-white/80 rounded opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-50">
-                        <Trash2 className="w-3 h-3 text-red-500" />
-                      </button>
+                    <div key={asset.id} className="flex flex-col gap-1">
+                      <div className="group relative w-20 h-20 rounded-xl overflow-hidden border border-xy-border bg-white">
+                        <img src={`/api/brand-assets/file/${asset.filename}`} alt={asset.name} className="w-full h-full object-contain p-1" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                        <button onClick={() => handleDelete(asset.id, asset.name)} className="absolute top-0.5 right-0.5 p-0.5 bg-white/80 rounded opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-50">
+                          <Trash2 className="w-3 h-3 text-red-500" />
+                        </button>
+                        <button onClick={() => { setRenamingId(asset.id); setRenameValue(asset.name); }} className="absolute top-0.5 left-0.5 p-0.5 bg-white/80 rounded opacity-0 group-hover:opacity-100 transition-opacity hover:bg-violet-50">
+                          <Pencil className="w-3 h-3 text-violet-500" />
+                        </button>
+                      </div>
+                      {renamingId === asset.id && (
+                        <div className="flex gap-0.5 items-center w-20">
+                          <input
+                            className="xy-input px-1 py-0.5 text-xs flex-1 min-w-0"
+                            value={renameValue}
+                            onChange={e => setRenameValue(e.target.value)}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') handleRename(asset.id);
+                              if (e.key === 'Escape') setRenamingId(null);
+                            }}
+                            autoFocus
+                          />
+                          <button onClick={() => handleRename(asset.id)} className="p-0.5 text-green-600 hover:text-green-700 shrink-0">
+                            <Check className="w-3 h-3" />
+                          </button>
+                          <button onClick={() => setRenamingId(null)} className="p-0.5 text-xy-text-muted hover:text-red-500 shrink-0">
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
