@@ -182,6 +182,27 @@ class BrandAssetManager:
                 pass
         return True
 
+    def rename_asset(self, asset_id: str, new_name: str) -> dict | None:
+        """
+        修改资产品牌名称，返回更新后的条目，若不存在则返回 None。
+
+        Args:
+            asset_id: 资产 UUID。
+            new_name: 新品牌名称。
+
+        Returns:
+            更新后的资产字典，若资产不存在则 None。
+        """
+        safe_name = re.sub(r"[^\w\u4e00-\u9fff\- ]", "", (new_name or "").strip()) or "unnamed"
+        with self._lock:
+            entries = self._load_manifest()
+            idx = next((i for i, e in enumerate(entries) if e.get("id") == asset_id), None)
+            if idx is None:
+                return None
+            entries[idx]["name"] = safe_name
+            self._save_manifest(entries)
+            return dict(entries[idx])
+
     def get_brands_grouped(self, category: str | None = None) -> dict[str, list[dict]]:
         """按品牌名分组返回素材。
 

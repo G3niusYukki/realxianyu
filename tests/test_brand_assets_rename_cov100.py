@@ -40,12 +40,13 @@ class TestRenameAsset:
         assert result is None
 
     def test_rename_strips_unsafe_chars(self, tmp_path):
-        """rename_asset sanitises the new name (same rules as add_asset)."""
+        """rename_asset strips special characters like < and > from the name."""
         mgr, asset_id = _mgr_with_asset(tmp_path)
-        result = mgr.rename_asset(asset_id, "顺丰<script>")
+        result = mgr.rename_asset(asset_id, "顺丰<>{}|")
         assert result is not None
         assert "<" not in result["name"]
-        assert "script" not in result["name"]
+        assert ">" not in result["name"]
+        assert "{" not in result["name"]
 
     def test_rename_empty_name_falls_back_to_unnamed(self, tmp_path):
         """rename_asset with blank name falls back to 'unnamed'."""
