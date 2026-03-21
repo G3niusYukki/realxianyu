@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../../api/index';
 import {
-  getBrandAssets, getBrandAssetsGrouped, uploadBrandAsset, deleteBrandAsset,
+  getBrandAssets, getBrandAssetsGrouped, uploadBrandAsset, uploadBrandAssetsZip, deleteBrandAsset,
   getPublishQueue, generateDailyQueue, updateQueueItem, deleteQueueItem,
   regenerateQueueImages, publishQueueItem, publishQueueBatch,
   type BrandAsset, type QueueItem,
@@ -80,6 +80,29 @@ function BrandAssetsTab() {
   const [uploading, setUploading] = useState(false);
   const [newName, setNewName] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
+  const [zipUploading, setZipUploading] = useState(false);
+  const zipFileRef = useRef<HTMLInputElement>(null);
+
+  const handleZipUpload = async () => {
+    const file = zipFileRef.current?.files?.[0];
+    if (!file) { toast.error('请选择 ZIP 压缩包'); return; }
+    setZipUploading(true);
+    try {
+      const res = await uploadBrandAssetsZip(file, assetCat);
+      if (res.data?.ok) {
+        const { imported, skipped, errors } = res.data;
+        toast.success(`批量导入完成：${imported} 张成功，${skipped} 张跳过`);
+        if (errors.length > 0) {
+          errors.forEach(e => toast.error(e, { duration: 6000 }));
+        }
+        if (zipFileRef.current) zipFileRef.current.value = '';
+        fetchData();
+      }
+    } catch (err: any) {
+      toast.error('上传失败: ' + (err?.response?.data?.error || err.message));
+    }
+    setZipUploading(false);
+  };
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -164,6 +187,19 @@ function BrandAssetsTab() {
           </div>
           <button onClick={handleUpload} disabled={uploading} className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-violet-50 border border-violet-300 text-violet-700 hover:bg-violet-100 transition-colors disabled:opacity-50">
             {uploading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />} 上传
+          </button>
+        </div>
+        <hr className="my-4 border-xy-border" />
+        <p className="text-xs text-xy-text-secondary mb-3 flex items-center gap-1.5">
+          批量上传：将多张品牌图片打包为 <code className="bg-xy-gray-100 px-1 rounded text-[11px]">.zip</code>，文件名即品牌名
+        </p>
+        <div className="flex items-end gap-3">
+          <div className="flex-1 max-w-xs">
+            <label className="xy-label text-xs">ZIP 压缩包</label>
+            <input ref={zipFileRef} type="file" accept=".zip,application/zip" className="xy-input px-3 py-1.5 text-sm file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:bg-violet-50 file:text-violet-600 file:font-medium file:text-xs" />
+          </div>
+          <button onClick={handleZipUpload} disabled={zipUploading} className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-violet-50 border border-violet-300 text-violet-700 hover:bg-violet-100 transition-colors disabled:opacity-50">
+            {zipUploading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />} 批量导入
           </button>
         </div>
       </div>
