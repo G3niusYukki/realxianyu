@@ -461,6 +461,74 @@ def handle_brand_assets_upload(ctx: RouteContext) -> None:
 
 
 # ---------------------------------------------------------------------------
+# POST /api/brand-assets/upload-zip
+# ---------------------------------------------------------------------------
+
+
+@post("/api/brand-assets/upload-zip")
+def handle_brand_assets_upload_zip(ctx: RouteContext) -> None:
+    import cgi
+    import io
+    import zipfile
+    from pathlib import Path as _Path
+
+    from src.dashboard_server import _error_payload
+    from src.modules.listing.brand_assets import ALLOWED_EXTENSIONS, BrandAssetManager
+
+    content_type_header = ctx.headers.get("Content-Type", "")
+    if "multipart/form-data" not in content_type_header:
+        ctx.send_json(_error_payload("Expected multipart/form-data"), status=400)
+        return
+
+    form = cgi.FieldStorage(
+        fp=ctx._handler.rfile,
+        headers=ctx.headers,
+        environ={"REQUEST_METHOD": "POST", "CONTENT_TYPE": content_type_header},
+    )
+    file_item = form["file"] if "file" in form else None
+    cat = form.getvalue("category", "default")
+
+    if file_item is None or not getattr(file_item, "file", None):
+        ctx.send_json(_error_payload("Missing file field"), status=400)
+        return
+
+    zip_data = file_item.file.read()
+    if not zipfile.is_zipfile(io.BytesIO(zip_data)):
+        ctx.send_json(_error_payload("File is not a valid ZIP archive"), status=400)
+        return
+
+    mgr = BrandAssetManager()
+    imported = 0
+    skipped = 0
+    errors: list[str] = []
+
+    with zipfile.ZipFile(io.BytesIO(zip_data)) as zf:
+        for member in zf.infolist():
+            member_name = member.filename
+            base_name = _Path(member_name).name
+            # Skip directories, macOS metadata, hidden files
+            if member.is_dir() or "__MACOSX" in member_name or base_name.startswith("."):
+                skipped += 1
+                continue
+            stem = _Path(base_name).stem
+            ext = _Path(base_name).suffix.lstrip(".").lower()
+            if not stem or ext not in ALLOWED_EXTENSIONS:
+                skipped += 1
+                if ext and ext not in ALLOWED_EXTENSIONS:
+                    errors.append(f"{base_name}: 不支持的格式 (.{ext})")
+                continue
+            try:
+                file_data = zf.read(member_name)
+                mgr.add_asset(stem, cat, file_data, ext)
+                imported += 1
+            except Exception as exc:
+                errors.append(f"{base_name}: {exc}")
+                skipped += 1
+
+    ctx.send_json({"ok": True, "imported": imported, "skipped": skipped, "errors": errors})
+
+
+# ---------------------------------------------------------------------------
 # POST /api/listing/preview
 # ---------------------------------------------------------------------------
 
