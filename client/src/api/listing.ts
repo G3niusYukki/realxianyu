@@ -31,6 +31,16 @@ export const uploadBrandAsset = (file: File, name: string, category: string): Pr
   return api.post('/brand-assets/upload', form, { headers: { 'Content-Type': 'multipart/form-data' } });
 };
 
+export const uploadBrandAssetsZip = (
+  file: File,
+  category: string,
+): Promise<AxiosResponse<{ ok: boolean; imported: number; skipped: number; errors: string[] }>> => {
+  const form = new FormData();
+  form.append('file', file);
+  form.append('category', category);
+  return api.post('/brand-assets/upload-zip', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+};
+
 export const deleteBrandAsset = (id: string): Promise<AxiosResponse<{ ok: boolean }>> =>
   api.delete(`/brand-assets/${id}`);
 
