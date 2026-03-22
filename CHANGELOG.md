@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [9.4.1] - 2026-03-22
+
+### Added
+- **报价上下文 SQLite 持久化**：`QuoteContextStore` 新增 `data/session_context.db`，内存作 L1 cache，SQLite 作持久化层，进程重启后上下文自动恢复
+- **回复级去重**：`MessageDedup` 新增 `reply_dedup` 表，120 秒窗口内同一会话不发相同回复
+
+### Changed
+- **上下文 TTL 延长**：会话上下文 TTL 从 1 小时延长至 24 小时，适配下沉用户隔夜继续的场景
+- **chat_history 扩容**：双向对话历史从 5 条扩容至 20 条，支持 AI 路由器注入更多上下文
+- **UpdateBanner 直连跳转**：更新后 Vite dev server 关闭时，自动探测 8091 直连并跳转，无需手动刷新
+
 ## [9.3.0] - 2026-03-20
 
 ### Added
