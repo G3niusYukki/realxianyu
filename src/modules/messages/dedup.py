@@ -1,10 +1,11 @@
 """
 消息去重模块 — 防止对同一条消息重复回复
 
-双层策略（借鉴 XianyuAutoAgent context_manager.py）：
+双层策略：
   Layer 1: 精确去重 — 基于 (chat_id, create_time, content) 的 MD5 hash
   Layer 2: 内容去重 — 基于 (chat_id, normalized_content) 的 MD5 hash
            确保相同询问在同一会话中只回复一次
+  Layer 3: 回复去重 — 120 秒窗口内同一会话不发相同回复
 """
 
 from __future__ import annotations
@@ -53,8 +54,17 @@ class MessageDedup:
                     count        INTEGER DEFAULT 1
                 )
             """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS reply_dedup (
+                    reply_hash TEXT PRIMARY KEY,
+                    chat_id    TEXT NOT NULL,
+                    reply      TEXT NOT NULL,
+                    sent_at    TEXT DEFAULT (datetime('now'))
+                )
+            """)
             conn.execute("CREATE INDEX IF NOT EXISTS idx_mr_chat ON message_replies (chat_id)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_cr_chat ON content_replies (chat_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_rd_chat ON reply_dedup (chat_id)")
             conn.commit()
         finally:
             conn.close()
@@ -73,6 +83,9 @@ class MessageDedup:
     def _content_hash(self, chat_id: str, content: str) -> str:
         return self._hash(f"{chat_id}:{self._normalize(content)}")
 
+    def _reply_hash(self, chat_id: str, reply: str) -> str:
+        return self._hash(f"reply:{chat_id}:{self._normalize(reply)}")
+
     def is_duplicate(self, chat_id: str, create_time: int, content: str) -> bool:
         """Layer 1: 完全相同的消息是否已回复过。"""
         h = self._msg_hash(chat_id, create_time, content)
@@ -83,12 +96,15 @@ class MessageDedup:
         finally:
             conn.close()
 
-    def is_content_duplicate(self, chat_id: str, content: str) -> bool:
-        """Layer 2: 同一会话中相同内容的询问是否已回复过。"""
+    def is_content_duplicate(self, chat_id: str, content: str, window_seconds: int = 600) -> bool:
+        """Layer 2: 同一会话中相同内容的询问在 window_seconds 内是否已回复过。"""
         h = self._content_hash(chat_id, content)
         conn = sqlite3.connect(self.db_path)
         try:
-            row = conn.execute("SELECT 1 FROM content_replies WHERE content_hash = ?", (h,)).fetchone()
+            row = conn.execute(
+                "SELECT 1 FROM content_replies WHERE content_hash = ? AND last_at > datetime('now', ?)",
+                (h, f"-{window_seconds} seconds"),
+            ).fetchone()
             return row is not None
         finally:
             conn.close()
@@ -112,6 +128,7 @@ class MessageDedup:
 
         conn = sqlite3.connect(self.db_path)
         try:
+            conn.execute("BEGIN IMMEDIATE")
             conn.execute(
                 "INSERT OR IGNORE INTO message_replies (message_hash, chat_id, content, create_time, reply, replied_at) VALUES (?,?,?,?,?,?)",
                 (msg_h, chat_id, norm, create_time, reply, now),
@@ -129,8 +146,37 @@ class MessageDedup:
                 )
             conn.commit()
         except Exception as exc:
-            logger.warning(f"[dedup] mark_replied error: {exc}")
+            logger.warning("[dedup] mark_replied error: %s", exc)
             conn.rollback()
+        finally:
+            conn.close()
+
+    def is_reply_duplicate(self, chat_id: str, reply_text: str, window_seconds: int = 120) -> bool:
+        """Layer 3: 同一会话短时间窗口内是否发送过相同回复。"""
+        h = self._reply_hash(chat_id, reply_text)
+        conn = sqlite3.connect(self.db_path)
+        try:
+            row = conn.execute(
+                "SELECT 1 FROM reply_dedup WHERE reply_hash = ? AND sent_at > datetime('now', ?)",
+                (h, f"-{window_seconds} seconds"),
+            ).fetchone()
+            return row is not None
+        finally:
+            conn.close()
+
+    def mark_reply_sent(self, chat_id: str, reply_text: str) -> None:
+        """记录已发送的回复。"""
+        h = self._reply_hash(chat_id, reply_text)
+        now = datetime.utcnow().isoformat()
+        conn = sqlite3.connect(self.db_path)
+        try:
+            conn.execute(
+                "INSERT OR REPLACE INTO reply_dedup (reply_hash, chat_id, reply, sent_at) VALUES (?,?,?,?)",
+                (h, chat_id, self._normalize(reply_text), now),
+            )
+            conn.commit()
+        except Exception as exc:
+            logger.warning("[dedup] mark_reply_sent error: %s", exc)
         finally:
             conn.close()
 
@@ -144,10 +190,13 @@ class MessageDedup:
             c2 = conn.execute(
                 "DELETE FROM content_replies WHERE last_at < datetime('now', ?)", (f"-{days} days",)
             ).rowcount
+            c3 = conn.execute(
+                "DELETE FROM reply_dedup WHERE sent_at < datetime('now', ?)", (f"-{days} days",)
+            ).rowcount
             conn.commit()
-            total = c1 + c2
+            total = c1 + c2 + c3
             if total:
-                logger.info(f"[dedup] cleanup: removed {total} records older than {days} days")
+                logger.info("[dedup] cleanup: removed %d records older than %d days", total, days)
             return total
         finally:
             conn.close()
