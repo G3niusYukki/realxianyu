@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [9.4.2] - 2026-03-23
+
 ### Added
 - **议价动态回复**：`BargainTracker` 新增 `get_dynamic_reply()`，4档差异化话术（首轮引导、二轮优惠提示、三轮快递对比、四轮保价锁单），关键词命中即触发，SQLite 持久化轮次
 - **AI 回复速率限制与缓存**：`_ai_generate_express_reply` 新增 30次/分钟速率限制 + 15分钟缓存，防止 AI 调用过载
