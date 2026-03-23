@@ -169,7 +169,7 @@ class CostTableMarkupQuoteProvider(IQuoteProvider):
         courier_divisor = _resolve_volume_divisor(
             self.volume_divisors, category, row.courier, self.volume_divisor_default
         )
-        divisor = _first_positive(courier_divisor, self.volume_divisor_default, row.throw_ratio)
+        divisor = _first_positive(courier_divisor, row.throw_ratio, self.volume_divisor_default)
         volume_weight = _derive_volume_weight_kg(
             volume_cm3=float(request.volume or 0.0),
             explicit_volume_weight=float(request.volume_weight or 0.0),
