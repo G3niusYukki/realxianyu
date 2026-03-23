@@ -229,7 +229,7 @@ class CostRecord:
 class CostTableRepository:
     """加载并查询成本价表（xlsx/csv）。"""
 
-    _SKIP_SHEETS: set[str] = {"申通no2"}
+    _SKIP_SHEETS: set[str] = set()
 
     _HEADER_ALIASES = {
         "courier": {"快递公司", "物流公司", "承运商"},
