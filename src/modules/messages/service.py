@@ -8,6 +8,7 @@ Messages Service
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import os
 import random
@@ -23,6 +24,7 @@ from src.core.config import get_config
 from src.core.error_handler import BrowserError
 from src.core.logger import get_logger
 from src.modules.compliance.center import ComplianceCenter
+from src.modules.messages.bargain_tracker import BargainTracker, get_bargain_tracker
 from src.modules.messages.manual_mode import ManualModeStore
 from src.modules.messages.quote_composer import QuoteReplyComposer
 from src.modules.messages.quote_context import QuoteContextStore
@@ -211,6 +213,10 @@ class MessagesService:
             "volume_template": DEFAULT_VOLUME_REPLY_TEMPLATE,
         }
         self._reply_templates_mtime: float = -1.0
+
+        # AI 回复缓存（15 分钟 TTL）和速率限制（30 次/分钟）
+        self._ai_cache: dict[str, tuple[str, float]] = {}
+        self._ai_timestamps: list[float] = []
 
         browser_config = app_config.browser
         self.delay_range = (
@@ -908,6 +914,20 @@ class MessagesService:
         return self._quote_parser.ai_extract_quote_fields(message_text)
 
     def _ai_generate_express_reply(self, message_text: str, context: dict[str, Any] | None = None) -> str | None:
+        # 速率限制：30 次/分钟
+        now = time.time()
+        cutoff = now - 60
+        self._ai_timestamps = [ts for ts in self._ai_timestamps if ts > cutoff]
+        if len(self._ai_timestamps) >= 30:
+            self.logger.debug("AI reply rate limited")
+            return None
+        # 缓存命中（15 分钟 TTL）
+        cache_key = hashlib.md5(message_text.encode()).hexdigest()[:16]
+        entry = self._ai_cache.get(cache_key)
+        if entry:
+            cached_reply, cached_at = entry
+            if now - cached_at < 900:
+                return cached_reply
         svc = self._get_content_service()
         if not svc or not svc.client:
             return None
@@ -928,14 +948,16 @@ class MessagesService:
             "要求：回复简短（50字以内），友好，不要用markdown格式，不要提及微信。"
         )
         try:
+            self._ai_timestamps.append(now)
             result = svc._call_ai(prompt, max_tokens=150, task="express_reply")
             if result:
                 result = result.strip().strip('"')
                 if len(result) > 5:
+                    self._ai_cache[cache_key] = (result, now)
                     return result
             return None
         except Exception as e:
-            self.logger.warning(f"AI reply generation failed: {e}")
+            self.logger.warning("AI reply generation failed: %s", e)
             return None
 
     def _load_faq_context(self) -> str:
@@ -1209,6 +1231,11 @@ class MessagesService:
         item_title: str = "",
         session_id: str = "",
     ) -> tuple[str, dict[str, Any]]:
+        # 议价拦截：关键词命中时返回动态话术，优先于其他规则
+        if BargainTracker.is_bargain_message(message_text):
+            reply = get_bargain_tracker().get_dynamic_reply(session_id)
+            return self._sanitize_reply(reply), {"bargain": True}
+
         if session_id and message_text:
             self._append_chat_history(session_id, "buyer", message_text)
         context_before = self._get_quote_context(session_id) if session_id else {}

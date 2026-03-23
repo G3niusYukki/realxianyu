@@ -62,7 +62,7 @@ class BargainTracker:
     @staticmethod
     def is_bargain_message(content: str) -> bool:
         """判断消息是否包含议价意图。"""
-        text = content.strip().lower()
+        text = (content or "").strip().lower()
         return any(kw in text for kw in BARGAIN_KEYWORDS)
 
     def get_count(self, chat_id: str) -> int:
@@ -130,15 +130,24 @@ class BargainTracker:
         finally:
             conn.close()
 
-    def cleanup(self, days: int = 30) -> int:
-        conn = sqlite3.connect(self.db_path)
-        try:
-            c = conn.execute(
-                "DELETE FROM bargain_counts WHERE last_updated < datetime('now', ?)", (f"-{days} days",)
-            ).rowcount
-            conn.commit()
-            if c:
-                logger.info(f"[bargain] cleanup: removed {c} records older than {days} days")
-            return c
-        finally:
-            conn.close()
+    def get_dynamic_reply(self, chat_id: str) -> str:
+        """根据议价轮次返回差异化回复。"""
+        count = self.increment(chat_id)
+        if count == 1:
+            return "理解~ 这个价已经比自寄省一半了，而且上门取件不用跑快递站~ 发我路线和重量帮您查具体能省多少~"
+        if count == 2:
+            return "确实想给您更优惠~ 首单价已经是最低了，后续在小程序下单也有折扣哦~ 发我路线和重量帮您对比~"
+        if count == 3:
+            return "亲，要不我帮您看看走别的快递？可能还能再省几块~ 告诉我路线和重量帮您对比~"
+        return "亲，这个真的到底了~ 您要是犹豫的话可以先拍下不付款，价格帮您留着，随时可以付~"
+
+
+# 单例，全局共享
+_tracker: BargainTracker | None = None
+
+
+def get_bargain_tracker() -> BargainTracker:
+    global _tracker
+    if _tracker is None:
+        _tracker = BargainTracker()
+    return _tracker
