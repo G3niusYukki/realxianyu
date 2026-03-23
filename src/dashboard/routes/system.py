@@ -14,10 +14,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from src.dashboard.router import RouteContext, get, post
-
 from src.dashboard.config_service import read_system_config as _read_system_config
 from src.dashboard.config_service import write_system_config as _write_system_config
+from src.dashboard.router import RouteContext, get, post
 
 
 def _now_iso() -> str:
@@ -617,18 +616,26 @@ def handle_update_apply(ctx: RouteContext) -> None:
 
         _write_update_status("checking")
 
-        import httpx
+        # 优先 gh CLI（已认证，绕过 IP 限速），HTTP API 作兜底
+        release_data = _fetch_latest_via_gh()
+        if not release_data:
+            try:
+                import httpx
 
-        with httpx.Client(timeout=15.0) as hc:
-            resp = hc.get(_gh_releases_url(), headers=_gh_api_headers())
-        if resp.status_code != 200:
-            _write_update_status("error", message=f"GitHub API {resp.status_code}")
-            ctx.send_json({"success": False, "error": f"无法获取最新版本: HTTP {resp.status_code}"})
-            return
+                with httpx.Client(timeout=15.0) as hc:
+                    resp = hc.get(_gh_releases_url(), headers=_gh_api_headers())
+                if resp.status_code != 200:
+                    _write_update_status("error", message=f"GitHub API {resp.status_code}")
+                    ctx.send_json({"success": False, "error": f"无法获取最新版本: HTTP {resp.status_code}"})
+                    return
+                release_data = resp.json()
+            except Exception as exc:
+                _write_update_status("error", message=str(exc))
+                ctx.send_json({"success": False, "error": f"无法获取最新版本: {exc}"})
+                return
 
-        release = resp.json()
-        tag = release.get("tag_name", "")
-        latest = tag.lstrip("v") if tag else ""
+        tag = release_data.get("tag_name") or release_data.get("tag") or ""
+        latest = tag.lstrip("v") if tag else release_data.get("latest") or ""
         if not latest:
             _write_update_status("error", message="无法解析版本号")
             ctx.send_json({"success": False, "error": "无法解析最新版本号"})
@@ -640,7 +647,7 @@ def handle_update_apply(ctx: RouteContext) -> None:
             return
 
         asset_url = ""
-        for asset in release.get("assets", []):
+        for asset in release_data.get("assets", []):
             if asset.get("name", "").endswith(UPDATE_ASSET_SUFFIX):
                 asset_url = asset.get("url", "")
                 break
