@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **回复去重写入修复**：`process_session` 现在正确调用 `mark_replied`（Layer 1/2 消息去重）和 `mark_reply_sent`（Layer 3 回复去重），修复之前去重标记未持久化的问题
 - **地理名称疑问词清理**：`quote_parser._normalize_location_for_geo` 新增对"多少/怎么/如何/哪里/哪儿/什么/哪/多少钱"等疑问词后缀的剥离，提升询价解析对口语化输入的命中率
 - **`process_session` 语法修复**：修复 try 块缺少 except 子句导致的 SyntaxError（早期 return 导致 try 块无法正常退出）
+- **报价抛比优先级修复**：`CostTableMarkupQuoteProvider` 的 `_first_positive` 优先级修正为 per-courier配置 > Excel数据 > category默认 > 全局默认，Excel数据比 category default 优先级更高
 
 ## [9.4.2] - 2026-03-23
 
