@@ -8,11 +8,17 @@ from typing import Any
 
 from src.core.config import get_config
 from src.dashboard.config_service import (
-    read_system_config as _read_system_config,
-    write_system_config as _write_system_config,
-    CONFIG_SECTIONS as _CONFIG_SECTIONS,
     _ALLOWED_CONFIG_SECTIONS,
     _SENSITIVE_CONFIG_KEYS,
+)
+from src.dashboard.config_service import (
+    CONFIG_SECTIONS as _CONFIG_SECTIONS,
+)
+from src.dashboard.config_service import (
+    read_system_config as _read_system_config,
+)
+from src.dashboard.config_service import (
+    write_system_config as _write_system_config,
 )
 from src.dashboard.router import RouteContext, get, post, put
 
@@ -66,20 +72,32 @@ def handle_setup_progress(ctx: RouteContext) -> None:
     ar = cfg.get("auto_reply", {})
     notif = cfg.get("notifications", {})
 
+    # 同时检查 YAML（代码配置）和 JSON（Dashboard UI）
+    yaml_cfg = get_config()
+    yaml_store = yaml_cfg.get_section("store", {})
+    yaml_oss = yaml_cfg.get_section("oss", {})
+
     def _has_real(d: dict, key: str) -> bool:
         v = d.get(key, "")
         return bool(v) and "****" not in str(v)
 
+    def _store_category_done() -> bool:
+        return bool(store.get("category")) or bool(yaml_store.get("category"))
+
+    def _oss_done() -> bool:
+        return _has_real(oss_cfg, "access_key_id") or _has_real(yaml_oss, "access_key_id")
+
     checks = {
-        "store_category": bool(store.get("category")),
+        "store_category": _store_category_done(),
         "xianguanjia": _has_real(xgj, "app_key"),
         "ai": _has_real(ai_cfg, "api_key"),
-        "oss": _has_real(oss_cfg, "access_key_id"),
+        "oss": _oss_done(),
         "auto_reply": bool(ar.get("default_reply")),
         "notifications": bool(notif.get("feishu_enabled") or notif.get("wechat_enabled")),
     }
-    done = sum(1 for v in checks.values() if v)
-    total = len(checks)
+    # OSS 非核心功能，不计入完成度分母
+    total = len(checks) - 1
+    done = sum(1 for k, v in checks.items() if k != "oss" and v)
     ctx.send_json(
         {
             "ok": True,
