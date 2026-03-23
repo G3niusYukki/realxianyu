@@ -158,6 +158,7 @@ class MessagesService:
     """闲鱼会话自动回复服务。"""
 
     _MANUAL_CHECK_GRACE_SECONDS = 60.0
+    _SESSION_REPLY_COOLDOWN_S = 3.0
 
     def __init__(self, controller=None, config: dict[str, Any] | None = None):
         MessageServiceRegistry.get_instance().register(self)
@@ -217,6 +218,12 @@ class MessagesService:
         # AI 回复缓存（15 分钟 TTL）和速率限制（30 次/分钟）
         self._ai_cache: dict[str, tuple[str, float]] = {}
         self._ai_timestamps: list[float] = []
+
+        # 会话级冷却（防止快速重复处理同一会话）
+        self._session_last_reply_ts: dict[str, float] = {}
+
+        # 消息去重（按需初始化）
+        self._dedup: Any | None = None
 
         browser_config = app_config.browser
         self.delay_range = (
@@ -677,8 +684,6 @@ class MessagesService:
                     self.logger.warning("WebSocket unread pull unavailable, fallback to DOM session scan")
                     return await self._get_unread_sessions_dom(limit=limit)
                 return ws_result
-            if self.transport_mode == "auto":
-                return await self._get_unread_sessions_dom(limit=limit)
             return ws_result
 
         return await self._get_unread_sessions_dom(limit=limit)
@@ -899,6 +904,16 @@ class MessagesService:
         if sys_ai.get("api_key"):
             return True
         return False
+
+    def _get_dedup(self) -> Any | None:
+        if self._dedup is None:
+            try:
+                from src.modules.messages.dedup import MessageDedup
+
+                self._dedup = MessageDedup()
+            except Exception:
+                return None
+        return self._dedup
 
     def _get_content_service(self):
         if not hasattr(self, "_content_service") or self._content_service is None:
@@ -1909,10 +1924,46 @@ class MessagesService:
             if manual_detected:
                 return {"skipped": True, "reason": "manual_mode", "session_id": session_id}
 
+        # 会话冷却（防止短时间重复处理同一会话）
+        if session_id:
+            last_ts = self._session_last_reply_ts.get(session_id, 0)
+            if time.monotonic() - last_ts < self._SESSION_REPLY_COOLDOWN_S:
+                self.logger.debug(f"process_session cooldown hit: session={session_id}")
+                return {"skipped": True, "reason": "reply_cooldown", "session_id": session_id}
+
         msg = str(session.get("last_message", ""))
         item_title = str(session.get("item_title", ""))
         peer_name = str(session.get("peer_name", ""))
         sender_user_id = str(session.get("sender_user_id", ""))
+        create_time = int(session.get("create_time", 0) or 0)
+
+        # 去重：create_time>0 时走 Layer 1；create_time==0（DOM 扫描场景）走 Layer 2
+        dedup_skipped = False
+        if session_id and msg:
+            dedup = self._get_dedup()
+            if dedup:
+                try:
+                    if create_time > 0:
+                        if dedup.is_duplicate(session_id, create_time, msg):
+                            self.logger.debug(f"process_session dedup hit (Layer1): session={session_id}")
+                            dedup_skipped = True
+                    else:
+                        if dedup.is_content_duplicate(session_id, msg, window_seconds=600):
+                            self.logger.debug(f"process_session dedup hit (Layer2): session={session_id}")
+                            dedup_skipped = True
+                except Exception:
+                    pass
+        if dedup_skipped:
+            return {"skipped": True, "reason": "dedup", "session_id": session_id}
+
+        # 通过去重检查后记录消息已回复（Layer 1 + Layer 2）
+        if session_id and msg:
+            dedup = self._get_dedup()
+            if dedup:
+                try:
+                    dedup.mark_replied(session_id, create_time, msg)
+                except Exception:
+                    pass
 
         reply_text, quote_meta = await self._generate_reply_with_quote(
             msg,
@@ -1978,6 +2029,16 @@ class MessagesService:
                 sent = await self.reply_to_session(session_id, reply_text, page_id=page_id)
             if not sent:
                 self.logger.warning(f"reply_to_session returned False for session={session_id}")
+
+        # 发送成功后记录 Layer 3 回复去重 + 更新会话冷却时间戳
+        if sent and session_id and reply_text:
+            dedup = self._get_dedup()
+            if dedup:
+                try:
+                    dedup.mark_reply_sent(session_id, reply_text)
+                except Exception:
+                    pass
+            self._session_last_reply_ts[session_id] = time.monotonic()
 
         if msg:
             self._check_order_trigger(msg)

@@ -412,6 +412,8 @@ class QuoteMessageParser:
         if province_city:
             return province_city.group(1) + "市"
         city_match = re.search(r"([\u4e00-\u9fa5]{2,6})市", s)
+        # 去除常见疑问词后缀，如"江苏多少" -> "江苏"，"湖北怎么寄" -> "湖北"
+        s = re.sub(r"(多少|怎么|如何|哪里|哪儿|什么|哪|几|多少钱|多少钱)$", "", s)
         for suffix in ("特别行政区", "自治区", "自治州", "地区", "省", "市", "县", "区"):
             if s.endswith(suffix):
                 s = s[: -len(suffix)]
