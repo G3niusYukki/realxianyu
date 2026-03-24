@@ -15,6 +15,7 @@ import LogTerminal from './pages/LogTerminal'
 import ConfigLayout from './pages/config/ConfigLayout'
 import ConfigOverview from './pages/config/sections/ConfigOverview'
 import IntegrationSettings from './pages/config/sections/IntegrationSettings'
+import AutoReplySettings from './pages/config/sections/AutoReplySettings'
 
 function App() {
   return (
@@ -36,7 +37,7 @@ function App() {
                 <Route index element={<ConfigOverview />} />
                 <Route path="store_category" element={<SystemConfig />} />
                 <Route path="integrations" element={<IntegrationSettings />} />
-                <Route path="auto_reply" element={<SystemConfig />} />
+                <Route path="auto_reply" element={<AutoReplySettings />} />
                 <Route path="orders" element={<SystemConfig />} />
                 <Route path="products" element={<SystemConfig />} />
                 <Route path="notifications" element={<SystemConfig />} />
