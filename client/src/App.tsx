@@ -12,6 +12,8 @@ import SystemConfig from './pages/config/SystemConfig'
 import AccountList from './pages/accounts/AccountList'
 import Messages from './pages/messages/Messages'
 import LogTerminal from './pages/LogTerminal'
+import ConfigLayout from './pages/config/ConfigLayout'
+import ConfigOverview from './pages/config/sections/ConfigOverview'
 
 function App() {
   return (
@@ -29,7 +31,15 @@ function App() {
               <Route path="/messages" element={<Messages />} />
               <Route path="/logs" element={<LogTerminal />} />
               <Route path="/accounts" element={<AccountList />} />
-              <Route path="/config" element={<SystemConfig />} />
+              <Route path="/config" element={<ConfigLayout />}>
+                <Route index element={<ConfigOverview />} />
+                <Route path="store_category" element={<SystemConfig />} />
+                <Route path="integrations" element={<SystemConfig />} />
+                <Route path="auto_reply" element={<SystemConfig />} />
+                <Route path="orders" element={<SystemConfig />} />
+                <Route path="products" element={<SystemConfig />} />
+                <Route path="notifications" element={<SystemConfig />} />
+              </Route>
               <Route path="/analytics" element={<Navigate to="/dashboard" replace />} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>

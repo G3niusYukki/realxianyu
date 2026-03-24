@@ -1,7 +1,7 @@
 import React from 'react';
 import { Outlet, useLocation, useNavigate, Link } from 'react-router-dom';
 import { ChevronLeft, Settings } from 'lucide-react';
-import { TAB_GROUPS, SECTION_LABELS } from '../constants';
+import { TAB_GROUPS } from './constants';
 
 export default function ConfigLayout() {
   const location = useLocation();
