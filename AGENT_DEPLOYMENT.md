@@ -1,4 +1,4 @@
-# Xianyu Guanjia - Agent Deployment Guide
+# XianyuFlow | 闲流 - Agent Deployment Guide
 
 This document is specifically designed for AI Agents (like GitHub Copilot, Gemini Code Assist, or Claude) to understand how to deploy and run this project. All legacy one-click `.bat`/`.sh` scripts have been removed in favor of standard Node.js and Python deployment practices.
 

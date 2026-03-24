@@ -2,7 +2,7 @@
 
 > 专为 AI Agent (Claude, GitHub Copilot, Gemini 等) 设计的项目文档
 
-**项目**: 闲鱼管家 (Xianyu Guanjia)  
+**项目**: XianyuFlow | 闲流 (XianyuFlow | 闲流)  
 **仓库**: https://github.com/G3niusYukki/realxianyu  
 **技术栈**: Python 3.12+ (asyncio) + React/Vite + SQLite
 

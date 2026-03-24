@@ -1,6 +1,6 @@
 # API 文档
 
-> 闲鱼管家 HTTP API 完整参考
+> XianyuFlow | 闲流 HTTP API 完整参考
 
 **Base URL**: `http://localhost:8091` (Python Core)
 

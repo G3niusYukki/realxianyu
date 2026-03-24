@@ -3,7 +3,7 @@ setlocal enabledelayedexpansion
 chcp 65001 >nul 2>&1
 
 :: ===========================================
-::   闲鱼管家 - Windows 桌面快捷方式安装
+::   XianyuFlow | 闲流 - Windows 桌面快捷方式安装
 :: ===========================================
 
 set "SCRIPT_DIR=%~dp0"
@@ -12,7 +12,7 @@ set "PROJECT_DIR=%CD%"
 
 echo.
 echo =========================================
-echo   闲鱼管家 - 桌面快捷方式安装
+echo   XianyuFlow | 闲流 - 桌面快捷方式安装
 echo =========================================
 echo.
 
@@ -21,7 +21,7 @@ set "START_BAT=%PROJECT_DIR%\scripts\windows\start-desktop.bat"
 
 :: 创建桌面快捷方式（使用 PowerShell 创建 .lnk）
 set "DESKTOP=%USERPROFILE%\Desktop"
-set "SHORTCUT=%DESKTOP%\闲鱼管家.lnk"
+set "SHORTCUT=%DESKTOP%\XianyuFlow | 闲流.lnk"
 
 echo [*] 创建桌面快捷方式...
 
@@ -30,11 +30,11 @@ powershell -NoProfile -Command ^
    $sc = $ws.CreateShortcut('%SHORTCUT%'); ^
    $sc.TargetPath = '%PROJECT_DIR%\start.bat'; ^
    $sc.WorkingDirectory = '%PROJECT_DIR%'; ^
-   $sc.Description = '闲鱼管家 - 自动化工作台'; ^
+   $sc.Description = 'XianyuFlow | 闲流 - 自动化工作台'; ^
    $sc.Save()"
 
 if exist "%SHORTCUT%" (
-    echo [OK] 已在桌面创建「闲鱼管家」快捷方式
+    echo [OK] 已在桌面创建「XianyuFlow | 闲流」快捷方式
     echo      双击即可启动所有服务
 ) else (
     echo [!!] 快捷方式创建失败，请手动将 start.bat 拖到桌面
@@ -52,7 +52,7 @@ echo.
 echo [*] 正在设置开机自启动...
 
 set "STARTUP_DIR=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup"
-set "STARTUP_SHORTCUT=%STARTUP_DIR%\闲鱼管家.lnk"
+set "STARTUP_SHORTCUT=%STARTUP_DIR%\XianyuFlow | 闲流.lnk"
 
 powershell -NoProfile -Command ^
   "$ws = New-Object -ComObject WScript.Shell; ^
@@ -60,7 +60,7 @@ powershell -NoProfile -Command ^
    $sc.TargetPath = '%PROJECT_DIR%\start.bat'; ^
    $sc.WorkingDirectory = '%PROJECT_DIR%'; ^
    $sc.WindowStyle = 7; ^
-   $sc.Description = '闲鱼管家 - 开机自启动'; ^
+   $sc.Description = 'XianyuFlow | 闲流 - 开机自启动'; ^
    $sc.Save()"
 
 if exist "%STARTUP_SHORTCUT%" (

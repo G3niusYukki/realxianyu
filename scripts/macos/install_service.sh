@@ -1,5 +1,5 @@
 #!/bin/bash
-# 闲鱼管家 — macOS launchd 服务管理
+# XianyuFlow | 闲流 — macOS launchd 服务管理
 # 用法: ./install_service.sh [install|uninstall|status]
 set -e
 

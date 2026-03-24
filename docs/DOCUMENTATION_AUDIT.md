@@ -1,6 +1,6 @@
 # Documentation Audit Report
 
-**Project:** Xianyu Guanjia (闲鱼管家)  
+**Project:** XianyuFlow | 闲流 (XianyuFlow | 闲流)  
 **Repository:** https://github.com/G3niusYukki/realxianyu  
 **Audit Date:** 2026-03-24  
 **Auditor:** AI Agent Analysis

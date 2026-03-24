@@ -7,7 +7,7 @@ DESKTOP="$HOME/Desktop"
 
 echo ""
 echo "========================================="
-echo "  闲鱼管家 - macOS 桌面快捷方式安装"
+echo "  XianyuFlow | 闲流 - macOS 桌面快捷方式安装"
 echo "========================================="
 echo ""
 
@@ -16,12 +16,12 @@ chmod +x "$SCRIPT_DIR/start.command" 2>/dev/null || true
 if [ -d "$DESKTOP" ]; then
     # 动态生成 .command 文件，写入实际的项目绝对路径
     # 注：从 Finder 双击时 PATH 很有限，必须在脚本开头补充 PATH
-    cat > "$DESKTOP/闲鱼管家.command" << CMDEOF
+    cat > "$DESKTOP/XianyuFlow | 闲流.command" << CMDEOF
 #!/usr/bin/env bash
-# 闲鱼管家 - 桌面一键启动（由 install-desktop.sh 生成）
+# XianyuFlow | 闲流 - 桌面一键启动（由 install-desktop.sh 生成）
 # 项目路径: $PROJECT_ROOT
 
-echo "正在启动闲鱼管家..."
+echo "正在启动XianyuFlow | 闲流..."
 echo ""
 
 # 从 Finder 双击时 PATH 不完整，补充常见路径
@@ -44,8 +44,8 @@ else
     exec bash scripts/macos/start.command
 fi
 CMDEOF
-    chmod +x "$DESKTOP/闲鱼管家.command"
-    echo "[OK] 已在桌面创建「闲鱼管家.command」"
+    chmod +x "$DESKTOP/XianyuFlow | 闲流.command"
+    echo "[OK] 已在桌面创建「XianyuFlow | 闲流.command」"
     echo "     双击即可启动所有服务"
     echo "     项目路径: $PROJECT_ROOT"
 else

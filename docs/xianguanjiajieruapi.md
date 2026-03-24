@@ -2062,7 +2062,7 @@ paths:
                               properties:
                                 product_id:
                                   type: integer
-                                  title: 闲鱼管家商品ID
+                                  title: XianyuFlow | 闲流商品ID
                                   format: int64
                                 product_status:
                                   title: 管家商品状态
@@ -4932,7 +4932,7 @@ paths:
                               properties:
                                 product_id:
                                   type: integer
-                                  title: 闲鱼管家商品ID
+                                  title: XianyuFlow | 闲流商品ID
                                   format: int64
                                 sku_items:
                                   type: array

@@ -173,7 +173,7 @@ def run_setup() -> int:
     env_path = root / ".env"
 
     print("=" * 56)
-    print("闲鱼管家 一键部署向导")
+    print("XianyuFlow | 闲流 一键部署向导")
     print("=" * 56)
 
     existing = _read_existing_env(env_path)

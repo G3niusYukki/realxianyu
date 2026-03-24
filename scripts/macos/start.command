@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 闲鱼管家 - macOS 双击启动
+# XianyuFlow | 闲流 - macOS 双击启动
 # 将此文件拖到桌面或 Dock，双击即可启动所有服务
 
 set -euo pipefail
@@ -17,7 +17,7 @@ done
 
 echo ""
 echo "========================================="
-echo "  🐟 闲鱼管家 v9.2.0 - 启动中..."
+echo "  🐟 XianyuFlow | 闲流 v9.2.0 - 启动中..."
 echo "========================================="
 echo ""
 

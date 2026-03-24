@@ -1,6 +1,6 @@
 # 部署指南
 
-> 闲鱼管家 (xianyu-guanjia) 生产部署完整方案
+> XianyuFlow | 闲流 (xianyu-guanjia) 生产部署完整方案
 
 ---
 

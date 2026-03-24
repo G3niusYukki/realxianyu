@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 闲鱼管家 - 离线安装包构建脚本
+# XianyuFlow | 闲流 - 离线安装包构建脚本
 #
 # 产出:
 #   dist/xianyu-openclaw-vX.Y.Z-full.tar.gz       通用包 (macOS + Windows)
@@ -42,7 +42,7 @@ printf "${W}"
 cat << BANNER
 
   ╔══════════════════════════════════════════════╗
-  ║      闲鱼管家 · 安装包构建工具              ║
+  ║      XianyuFlow | 闲流 · 安装包构建工具              ║
   ║      v${VERSION}                                  ║
   ╚══════════════════════════════════════════════╝
 

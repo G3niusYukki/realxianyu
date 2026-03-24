@@ -1,6 +1,6 @@
 # Documentation Index
 
-> 闲鱼管家 (Xianyu Guanjia) 完整文档导航
+> XianyuFlow | 闲流 (XianyuFlow | 闲流) 完整文档导航
 
 ---
 

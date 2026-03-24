@@ -1,4 +1,4 @@
-# CLAUDE.md — 闲鱼管家 (Xianyu Guanjia)
+# CLAUDE.md — XianyuFlow | 闲流 (XianyuFlow | 闲流)
 
 ## 项目概述
 
