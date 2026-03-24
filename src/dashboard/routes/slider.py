@@ -16,7 +16,7 @@ def handle_slider_stats(ctx: RouteContext) -> None:
         store = SliderEventStore.get_instance()
         stats = store.get_stats(hours)
         ctx.send_json({"ok": True, **stats})
-    except Exception as exc:
+    except Exception:
         ctx.send_json({"ok": False, "error": "Internal server error"}, status=500)
 
 
@@ -29,7 +29,7 @@ def handle_slider_events(ctx: RouteContext) -> None:
         store = SliderEventStore.get_instance()
         events = store.get_recent_events(limit)
         ctx.send_json({"ok": True, "events": events})
-    except Exception as exc:
+    except Exception:
         ctx.send_json({"ok": False, "error": "Internal server error"}, status=500)
 
 
