@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [9.5.0] - 2026-03-24
+
+### Added
+- **Dashboard 闲管家控制面板**：在首页右侧栏新增闲管家可视化配置卡片，包含 AppKey/AppSecret 输入、自动改价开关、支付后自动发货开关、测试连接和保存按钮，字段名全程使用 snake_case 与后端对齐
+- **议价动态回复（v9.4.2 归并）**：`BargainTracker` 新增 4 档差异化话术（首轮引导→快递对比→保价锁单），关键词命中即触发，SQLite 持久化轮次
+- **API 重试入口**：手动重试改价/发货按钮，已配置时显示计数
+
+### Changed
+- **rule_suggestions.py / slider.py**：确认完整实现（无需改动，整合目标仓库 brianzhibo-design/XIANYUGUANJIA v9.5.0 对齐）
+
 ## [9.4.4] - 2026-03-23
 
 ### Fixed
