@@ -60,6 +60,16 @@ cp .env.example .env
 python -m src.main
 ```
 
+### 🤖 For LLM Agents
+
+Fetch the installation guide and follow it:
+
+```bash
+curl -s https://raw.githubusercontent.com/G3niusYukki/realxianyu/main/AGENT_DEPLOYMENT.md
+```
+
+Or simply tell your agent: **"Deploy this project following AGENT_DEPLOYMENT.md"**
+
 ---
 
 ## 🏗 架构设计
