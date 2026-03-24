@@ -203,7 +203,7 @@ class CookieGrabber:
             url = f"{host.rstrip('/')}/get/{uuid}"
 
             key_raw = f"{uuid}-{password}"
-            key_hash = hashlib.md5(key_raw.encode("utf-8")).hexdigest()[:16]
+            key_hash = hashlib.sha256(key_raw.encode("utf-8")).hexdigest()[:32]
 
             async with httpx.AsyncClient(timeout=10.0) as client:
                 resp = await client.post(url, json={"password": password})
