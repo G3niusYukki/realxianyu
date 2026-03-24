@@ -5,8 +5,8 @@ Thanks for your interest in contributing! Here's how to get started.
 ## Development Setup
 
 ```bash
-git clone https://github.com/brianzhibo-design/XIANYUGUANJIA.git
-cd XIANYUGUANJIA
+git clone https://github.com/G3niusYukki/realxianyu.git
+cd realxianyu
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
@@ -16,9 +16,10 @@ pip install -r requirements.txt
 
 ```
 src/
-├── cli.py              # CLI entry point
+├── cli/                # CLI entry point (python -m src.cli)
 ├── core/               # Framework: config, logging, drissionpage client, crypto, cookie_grabber
 ├── modules/            # Business logic: listing, operations, messages, orders, analytics
+├── dashboard/          # Dashboard routes and services
 ├── dashboard_server.py # Python Dashboard API server
 └── integrations/       # Third-party integrations (xianguanjia)
 client/                 # React frontend (Vite + Tailwind)
@@ -29,7 +30,7 @@ tests/                  # Python test suite
 
 ### Bug Reports
 
-Open an [issue](https://github.com/brianzhibo-design/XIANYUGUANJIA/issues/new?template=bug_report.md) with:
+Open an [issue](https://github.com/G3niusYukki/realxianyu/issues/new?template=bug_report.md) with:
 - What you expected
 - What actually happened
 - Steps to reproduce
@@ -37,7 +38,7 @@ Open an [issue](https://github.com/brianzhibo-design/XIANYUGUANJIA/issues/new?te
 
 ### Feature Requests
 
-Open an [issue](https://github.com/brianzhibo-design/XIANYUGUANJIA/issues/new?template=feature_request.md) describing the use case.
+Open an [issue](https://github.com/G3niusYukki/realxianyu/issues/new?template=feature_request.md) describing the use case.
 
 ### Pull Requests
 
@@ -105,4 +106,4 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/):
 
 ## Need Help?
 
-Open an issue or start a [discussion](https://github.com/brianzhibo-design/XIANYUGUANJIA/discussions).
+Open an issue or start a [discussion](https://github.com/G3niusYukki/realxianyu/discussions).

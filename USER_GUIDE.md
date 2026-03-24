@@ -46,7 +46,7 @@
 
 ### 3.1 下载本工具
 
-1. 打开 https://github.com/G3niusYukki/xianyu-guanjia
+1. 打开 https://github.com/G3niusYukki/realxianyu
 2. 点击绿色的 "Code" 按钮
 3. 点击 "Download ZIP"
 4. 解压到你想放的位置
@@ -54,8 +54,8 @@
 或者用命令行：
 
 ```bash
-git clone https://github.com/G3niusYukki/xianyu-guanjia.git
-cd xianyu-guanjia
+git clone https://github.com/G3niusYukki/realxianyu.git
+cd realxianyu
 ```
 
 ### 3.2 安装运行环境

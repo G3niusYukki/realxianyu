@@ -39,8 +39,8 @@
 ## 方式一：交互式快速启动（推荐新用户）
 
 ```bash
-git clone https://github.com/brianzhibo-design/XIANYUGUANJIA.git
-cd XIANYUGUANJIA
+git clone https://github.com/G3niusYukki/realxianyu.git
+cd realxianyu
 
 # macOS / Linux
 bash quick-start.sh
@@ -281,4 +281,4 @@ python -m src.cli doctor --skip-quote
 
 - [README.md](../README.md) — 项目概览和功能介绍
 - [SECURITY.md](../SECURITY.md) — 安全最佳实践
-- [GitHub Issues](https://github.com/brianzhibo-design/XIANYUGUANJIA/issues) — 问题反馈
+- [GitHub Issues](https://github.com/G3niusYukki/realxianyu/issues) — 问题反馈
