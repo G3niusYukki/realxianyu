@@ -250,10 +250,19 @@ export default function ProductSettings() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const res = await saveSystemConfig(config);
+      const currentRes = await getSystemConfig();
+      const currentConfig = currentRes.data?.config || {};
+
+      const configToSave = {
+        ...currentConfig,
+        auto_publish: config.auto_publish,
+      };
+
+      const res = await saveSystemConfig(configToSave);
       if (res.data?.ok) {
         toast.success('保存成功');
         setIsDirty(false);
+        setConfig(configToSave);
       } else {
         toast.error(res.data?.error || '保存失败');
       }

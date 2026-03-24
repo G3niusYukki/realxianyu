@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Save, RefreshCw, Settings, Plug, FileText, Receipt, Package, Bell } from 'lucide-react';
+import { Save, RefreshCw, Settings, Plug, FileText, Receipt, Package, Bell, Loader2 } from 'lucide-react';
 import { getSystemConfig, getConfigSections, saveSystemConfig } from '../../../api/config';
+import { api } from '../../../api/index';
 import toast from 'react-hot-toast';
 
 interface ConfigSectionProps {
@@ -20,13 +21,68 @@ function IntegrationConfig({ config, sections, onChange, onSave, saving, isDirty
   const oss = config.oss || {};
   const cookieCloud = config.cookie_cloud || {};
 
+  const [testingXgj, setTestingXgj] = useState(false);
+  const [testingAi, setTestingAi] = useState(false);
+
   const handleTestXgj = async () => {
-    // Test connection logic
-    toast.success('连接测试功能开发中');
+    const appKey = xianguanjia.app_key || '';
+    const appSecret = xianguanjia.app_secret || '';
+
+    if (!appKey) {
+      toast.error('请先填写 App Key');
+      return;
+    }
+    if (!appSecret) {
+      toast.error('请先填写 App Secret');
+      return;
+    }
+
+    setTestingXgj(true);
+    try {
+      const res = await api.post('/xgj/test-connection', {
+        app_key: appKey,
+        app_secret: appSecret,
+        base_url: xianguanjia.base_url || 'https://open.goofish.pro',
+        mode: xianguanjia.mode || 'self_developed',
+        seller_id: xianguanjia.seller_id || '',
+      });
+      if (res.data?.ok) {
+        toast.success(`闲管家连接成功（延迟 ${res.data.latency_ms || '?'}ms）`);
+      } else {
+        toast.error('闲管家连接失败: ' + (res.data?.message || '未知错误'));
+      }
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err.message || '请求失败';
+      toast.error('连接测试异常: ' + msg);
+    } finally {
+      setTestingXgj(false);
+    }
   };
 
   const handleTestAi = async () => {
-    toast.success('AI 测试功能开发中');
+    const apiKey = ai.api_key || '';
+    const baseUrl = ai.base_url || '';
+    const model = ai.model || 'qwen-plus';
+
+    if (!apiKey) {
+      toast.error('请先填写 API Key');
+      return;
+    }
+
+    setTestingAi(true);
+    try {
+      const res = await api.post('/ai/test', { api_key: apiKey, base_url: baseUrl, model });
+      if (res.data?.ok) {
+        toast.success('AI 连接测试成功: ' + res.data.message);
+      } else {
+        toast.error('AI 连接失败: ' + (res.data?.message || '未知错误'));
+      }
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err.message || '请求失败';
+      toast.error('AI 测试异常: ' + msg);
+    } finally {
+      setTestingAi(false);
+    }
   };
 
   return (
@@ -89,9 +145,11 @@ function IntegrationConfig({ config, sections, onChange, onSave, saving, isDirty
           <div className="mt-4 flex gap-2">
             <button
               onClick={handleTestXgj}
-              className="px-4 py-2 border border-xy-border rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
+              disabled={testingXgj}
+              className="px-4 py-2 border border-xy-border rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50 flex items-center gap-2"
             >
-              测试连接
+              {testingXgj ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+              {testingXgj ? '测试中...' : '测试连接'}
             </button>
           </div>
         </div>
@@ -156,9 +214,11 @@ function IntegrationConfig({ config, sections, onChange, onSave, saving, isDirty
           <div className="mt-4 flex gap-2">
             <button
               onClick={handleTestAi}
-              className="px-4 py-2 border border-xy-border rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
+              disabled={testingAi}
+              className="px-4 py-2 border border-xy-border rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50 flex items-center gap-2"
             >
-              测试 AI 连接
+              {testingAi ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+              {testingAi ? '测试中...' : '测试 AI 连接'}
             </button>
           </div>
         </div>
@@ -266,10 +326,22 @@ export default function IntegrationSettings() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const res = await saveSystemConfig(config);
+      const currentRes = await getSystemConfig();
+      const currentConfig = currentRes.data?.config || {};
+
+      const configToSave = {
+        ...currentConfig,
+        xianguanjia: config.xianguanjia,
+        ai: config.ai,
+        oss: config.oss,
+        cookie_cloud: config.cookie_cloud,
+      };
+
+      const res = await saveSystemConfig(configToSave);
       if (res.data?.ok) {
         toast.success('保存成功');
         setIsDirty(false);
+        setConfig(configToSave);
       } else {
         toast.error(res.data?.error || '保存失败');
       }

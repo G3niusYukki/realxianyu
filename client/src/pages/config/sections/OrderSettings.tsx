@@ -308,10 +308,22 @@ export default function OrderSettings() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const res = await saveSystemConfig(config);
+      const currentRes = await getSystemConfig();
+      const currentConfig = currentRes.data?.config || {};
+
+      const configToSave = {
+        ...currentConfig,
+        pricing: config.pricing,
+        delivery: config.delivery,
+        order_reminder: config.order_reminder,
+        auto_price_modify: config.auto_price_modify,
+      };
+
+      const res = await saveSystemConfig(configToSave);
       if (res.data?.ok) {
         toast.success('保存成功');
         setIsDirty(false);
+        setConfig(configToSave);
       } else {
         toast.error(res.data?.error || '保存失败');
       }
