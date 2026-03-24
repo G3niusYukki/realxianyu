@@ -125,7 +125,7 @@ bash scripts/uninstall-launchd.sh
 
 ### 安全项
 
-- [ ] 不要在公网直接暴露 8091/5173 端口，使用反向代理
+- [ ] 不要在公网直接暴露 8091 端口，使用反向代理
 - [ ] 设置独立的 `ENCRYPTION_KEY` 环境变量
 - [ ] 生产环境确认 `quote.providers.remote.allow_mock=false`
 - [ ] 使用非 root 用户运行
@@ -144,16 +144,16 @@ server {
     ssl_certificate     /path/to/cert.pem;
     ssl_certificate_key /path/to/key.pem;
 
-    # 前端 SPA
+    # Python 后端 (Dashboard + API + 静态资源)
     location / {
-        proxy_pass http://127.0.0.1:5173;
+        proxy_pass http://127.0.0.1:8091;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 
-    # Python API
+    # API 路由 (如果需要在根路径区分)
     location /api/ {
         proxy_pass http://127.0.0.1:8091;
         proxy_http_version 1.1;
@@ -163,12 +163,7 @@ server {
         proxy_read_timeout 300s;
     }
 
-    location /py/ {
-        rewrite ^/py/(.*) /$1 break;
-        proxy_pass http://127.0.0.1:8091;
-        proxy_set_header Host $host;
     }
-}
 ```
 
 ---
@@ -220,11 +215,8 @@ bash service.sh restart   # 自动检测并更新依赖后重启
 
 ```bash
 # 检查端口占用
-lsof -ti:8091 -ti:5173 | xargs kill -9   # macOS/Linux
-netstat -ano | findstr "8091 5173"          # Windows
-
-# 查看服务状态
-bash service.sh status
+lsof -ti:8091 | xargs kill -9   # macOS/Linux
+netstat -ano | findstr "8091"          # Windows
 ```
 
 ### Cookie 失效
@@ -255,25 +247,39 @@ python -m src.cli doctor --skip-quote
 
 ```
 ┌─────────────────────────────────────┐
-│  浏览器  →  http://localhost:5173   │
+│  浏览器  →  http://localhost:8091   │
 └───────────────┬─────────────────────┘
                 │
     ┌───────────┴───────────┐
-    │  React 前端 (Vite)    │  静态 SPA + API 代理
-    └───────────┬───────────┘
-                │ /api/ → proxy
-    ┌───────────┴───────────┐
     │  Python 后端 (:8091)  │
-    │  ┌─────┐ ┌─────┐     │
-    │  │ WS  │ │ AI  │     │     WebSocket → 闲鱼消息
-    │  │监听 │ │回复 │     │     HTTP → 闲管家 API
-    │  └─────┘ └─────┘     │     SQLite → 本地存储
-    │  ┌─────┐ ┌─────┐     │
-    │  │报价 │ │订单 │     │
-    │  │引擎 │ │履约 │     │
-    │  └─────┘ └─────┘     │
+    │  ┌───────────────┐   │
+    │  │ 静态资源服务   │   │  ← React 构建产物 (client/dist)
+    │  │ (Dashboard UI)│   │
+    │  └───────┬───────┘   │
+    │          │           │
+    │  ┌───────┴───────┐   │
+    │  │ API 路由       │   │
+    │  │ /api/*         │   │
+    │  └───────┬───────┘   │
+    │          │           │
+    │  ┌───────┴───────┐   │
+    │  │ 业务模块       │   │
+    │  │ ┌───┐ ┌───┐   │   │
+    │  │ │WS │ │AI │   │   │  WebSocket → 闲鱼消息
+    │  │ │监听│ │回复│   │   │  HTTP → 闲管家 API
+    │  │ └───┘ └───┘   │   │  SQLite → 本地存储
+    │  │ ┌───┐ ┌───┐   │   │
+    │  │ │报价│ │订单│   │   │
+    │  │ │引擎│ │履约│   │   │
+    │  │ └───┘ └───┘   │   │
+    │  └───────────────┘   │
     └───────────────────────┘
 ```
+
+**说明：**
+- Python 后端运行在 **8091** 端口，同时提供 API 和静态资源服务
+- React 前端构建后位于 `client/dist/`，由 Python 后端直接托管
+- 无需单独的 Node.js 服务运行前端
 
 ---
 
