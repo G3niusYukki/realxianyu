@@ -1,6 +1,6 @@
 # 部署指南
 
-> XianyuFlow | 闲流 (xianyu-guanjia) 生产部署完整方案
+> XianyuFlow | 闲流 (realxianyu) 生产部署完整方案
 
 ---
 
@@ -200,7 +200,7 @@ tar -xzf backup-20260317.tar.gz
 
 ```bash
 # 每天凌晨 2 点备份
-0 2 * * * cd /path/to/xianyu-guanjia && tar -czf data/backups/backup-$(date +\%Y\%m\%d).tar.gz data/agent.db data/system_config.json data/workflow.db .env
+0 2 * * * cd /path/to/realxianyu && tar -czf data/backups/backup-$(date +\%Y\%m\%d).tar.gz data/agent.db data/system_config.json data/workflow.db .env
 ```
 
 ---

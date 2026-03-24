@@ -2,9 +2,9 @@
 # XianyuFlow | 闲流 - 离线安装包构建脚本
 #
 # 产出:
-#   dist/xianyu-openclaw-vX.Y.Z-full.tar.gz       通用包 (macOS + Windows)
-#   dist/xianyu-openclaw-vX.Y.Z-macos-arm64.tar.gz macOS 专用包
-#   dist/xianyu-openclaw-vX.Y.Z-windows-x64.zip    Windows 专用包
+#   dist/realxianyu-vX.Y.Z-full.tar.gz       通用包 (macOS + Windows)
+#   dist/realxianyu-vX.Y.Z-macos-arm64.tar.gz macOS 专用包
+#   dist/realxianyu-vX.Y.Z-windows-x64.zip    Windows 专用包
 #
 # 用法:
 #   bash scripts/build_release.sh
@@ -34,7 +34,7 @@ done
 # ═══════════════ 读取版本号 ═══════════════
 VERSION=$(python3 -c 'import re,pathlib; m=re.search(r"__version__\s*=\s*[\"'"'"'](.*?)[\"'"'"']", pathlib.Path("src/__init__.py").read_text()); print(m.group(1) if m else "0.0.0")' 2>/dev/null || grep -oP '__version__\s*=\s*"\K[^"]+' src/__init__.py 2>/dev/null || echo "0.0.0")
 
-RELEASE_NAME="xianyu-openclaw-v${VERSION}"
+RELEASE_NAME="realxianyu-v${VERSION}"
 DIST_DIR="$PROJECT_ROOT/dist"
 STAGING_DIR="$DIST_DIR/.staging/${RELEASE_NAME}"
 

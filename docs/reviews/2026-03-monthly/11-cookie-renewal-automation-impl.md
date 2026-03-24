@@ -1,7 +1,7 @@
 # 11-cookie-renewal-automation-impl
 
 ## 目标
-实现并验证 `xianyu-openclaw` 的 cookie 续期自动化闭环，满足：
+实现并验证 `realxianyu` 的 cookie 续期自动化闭环，满足：
 - cookie 失效检测 -> 自动刷新/替换 -> token 重取 -> WS 重连 -> 成功/失败审计
 - 抖动与频控（最小间隔、失败退避、同指纹去重）
 - 可观测性字段可见：`last_cookie_refresh` / `last_token_refresh` / `recover_count`

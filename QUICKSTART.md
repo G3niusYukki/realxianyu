@@ -34,7 +34,7 @@ quick-start.bat
 ## 项目文件结构
 
 ```
-xianyu-guanjia/
+realxianyu/
 ├── quick-start.sh / .bat  # 交互式快速启动（带引导）
 ├── start.sh / start.bat   # 精简版一键启动
 ├── setup.sh               # 仅安装依赖（不启动服务）

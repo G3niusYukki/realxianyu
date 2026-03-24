@@ -83,7 +83,7 @@
 
 ## 🔗 GitHub仓库
 
-- **仓库地址**: https://github.com/G3niusYukki/xianyu-guanjia
+- **仓库地址**: https://github.com/G3niusYukki/realxianyu
 - **最新提交**: f3d8952
 - **CI状态**: 等待GitHub Actions运行结果
 

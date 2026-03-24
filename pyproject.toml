@@ -1,5 +1,5 @@
 [project]
-name = "xianyu-guanjia"
+name = "xianyuflow"
 version = "9.5.0"
 
 [tool.black]

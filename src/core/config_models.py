@@ -238,7 +238,7 @@ class StoreConfig(BaseModel):
 class AppConfig(BaseModel):
     """应用配置模型"""
 
-    name: str = Field(default="xianyu-guanjia", description="应用名称")
+    name: str = Field(default="xianyuflow", description="应用名称")
     version: str = Field(default="9.0.0", description="版本号")
     debug: bool = Field(default=False, description="调试模式")
     log_level: str = Field(default="INFO", description="日志级别")

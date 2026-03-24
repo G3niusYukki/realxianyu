@@ -11,8 +11,8 @@
 ### 0.1 项目路径
 
 ```
-主仓库: ~/openclaw/xianyu-openclaw/
-工作树: ~/openclaw/xianyu-openclaw/.claude/worktrees/heuristic-swartz/   ← 当前活跃开发分支
+主仓库: ~/openclaw/realxianyu/
+工作树: ~/openclaw/realxianyu/.claude/worktrees/heuristic-swartz/   ← 当前活跃开发分支
 ```
 
 ### 0.2 记忆位置一览
