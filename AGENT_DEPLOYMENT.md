@@ -67,7 +67,7 @@ cp .env.example .env
 python -m src.main
 ```
 
-The dashboard will be available at `http://localhost:8080` (or your configured PORT).
+The dashboard will be available at `http://localhost:8091` (or your configured PYTHON_PORT).
 
 ---
 
@@ -184,7 +184,7 @@ cp .env.example .env
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `PORT` | No | Dashboard port (default: 8080) |
+| `PYTHON_PORT` | No | Python backend port (default: 8091) |
 | `XIANYU_COOKIE_1` | Yes | Essential for connecting to Xianyu |
 | `DEEPSEEK_API_KEY` | Yes* | For message auto-reply (*or other AI provider) |
 | `COOKIE_CLOUD_URL` | No | For automatic cookie syncing |
@@ -225,7 +225,7 @@ Start the main backend service. It will automatically load `.env` and serve the 
 python -m src.main
 ```
 
-The dashboard will be available at `http://localhost:<PORT>` (default `http://localhost:8080`).
+The dashboard will be available at `http://localhost:<PYTHON_PORT>` (default `http://localhost:8091`).
 
 ### Service Management
 
@@ -234,7 +234,7 @@ The dashboard will be available at `http://localhost:<PORT>` (default `http://lo
 python -m src.main &
 
 # Check if running
-curl http://localhost:8080/healthz
+curl http://localhost:8091/healthz
 
 # Stop service
 pkill -f "python -m src.main"
@@ -248,15 +248,15 @@ pkill -f "python -m src.main"
 
 ```bash
 # Find process using port
-lsof -ti:8080  # macOS/Linux
-netstat -ano | findstr :8080  # Windows
+lsof -ti:8091  # macOS/Linux
+netstat -ano | findstr :8091  # Windows
 
 # Kill process
-kill -9 $(lsof -ti:8080)  # macOS/Linux
+kill -9 $(lsof -ti:8091)  # macOS/Linux
 taskkill /PID <PID> /F     # Windows
 
 # Or change port in .env
-PORT=8081
+PYTHON_PORT=8092
 ```
 
 ### 7.2 Frontend 404 Error
@@ -405,8 +405,8 @@ After deployment, verify:
 
 - [ ] Frontend built successfully (`client/dist/` exists)
 - [ ] Backend starts without errors
-- [ ] Health check returns 200: `curl http://localhost:8080/healthz`
-- [ ] Dashboard accessible at `http://localhost:8080`
+- [ ] Health check returns 200: `curl http://localhost:8091/healthz`
+- [ ] Dashboard accessible at `http://localhost:8091`
 - [ ] Cookie configured in `.env`
 - [ ] AI provider configured (if using auto-reply)
 
