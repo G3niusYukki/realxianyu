@@ -8,6 +8,20 @@
 
 ---
 
+## 📚 文档导航
+
+| 文档 | 说明 | 目标读者 |
+|------|------|----------|
+| [QUICKSTART.md](./QUICKSTART.md) | 5分钟快速启动 | 新用户 |
+| [USER_GUIDE.md](./USER_GUIDE.md) | 详细使用说明书 | 终端用户 |
+| [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | 系统架构设计 | 开发者 |
+| [docs/API.md](./docs/API.md) | HTTP API 文档 | 前后端开发者 |
+| [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) | 生产部署指南 | 运维人员 |
+| [docs/for-agents/index.md](./docs/for-agents/index.md) | AI Agent 开发指南 | AI Agent |
+| [CONTRIBUTING.md](./CONTRIBUTING.md) | 贡献指南 | 贡献者 |
+
+---
+
 ## 🚀 核心特性
 
 | 特性 | 说明 |
@@ -20,9 +34,9 @@
 
 ---
 
-## 💻 部署指南
+## 💻 快速部署
 
-> 详细步骤请参阅 [AGENT_DEPLOYMENT.md](./AGENT_DEPLOYMENT.md)。
+> 详细部署指南请参阅 [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) | AI Agent 专用指南 [AGENT_DEPLOYMENT.md](./AGENT_DEPLOYMENT.md)
 
 ```bash
 # 1. 构建前端
