@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Save, RefreshCw, Settings, Plug, FileText, Receipt, Package, Bell, Loader2 } from 'lucide-react';
+import { Save, RefreshCw, Settings, Plug, FileText, Receipt, Package, Bell, Loader2, Shield } from 'lucide-react';
 import { getSystemConfig, getConfigSections, saveSystemConfig } from '../../../api/config';
 import { api } from '../../../api/index';
 import toast from 'react-hot-toast';
@@ -275,6 +275,152 @@ function IntegrationConfig({ config, sections, onChange, onSave, saving, isDirty
           </div>
         </div>
 
+        <div className="bg-white rounded-xl border border-xy-border p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2 bg-amber-100 rounded-lg">
+              <Shield className="w-5 h-5 text-amber-600" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-xy-text-primary">风控滑块自动验证</h3>
+              <p className="text-sm text-xy-text-secondary">RGV587 风控触发时自动尝试滑块验证</p>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 p-4 rounded-lg">
+              <p className="text-sm text-amber-900 font-medium flex items-center gap-2">
+                <Shield className="w-4 h-4" /> 风险提示
+              </p>
+              <p className="text-xs text-amber-800 mt-1">
+                自动过滑块使用 Playwright 模拟浏览器操作，存在一定的账号封控风险。建议在了解风险后再开启。
+              </p>
+            </div>
+
+            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-xy-border">
+              <div>
+                <p className="font-medium text-xy-text-primary">启用自动滑块验证</p>
+                <p className="text-xs text-xy-text-secondary mt-0.5">RGV587 触发后自动尝试过滑块</p>
+              </div>
+              <button
+                onClick={() => onChange('slider_auto_solve', 'enabled', !config.slider_auto_solve?.enabled)}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  config.slider_auto_solve?.enabled ? 'bg-xy-primary' : 'bg-gray-200'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    config.slider_auto_solve?.enabled ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
+
+            {config.slider_auto_solve?.enabled && (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-xy-text-primary mb-1">最大尝试次数</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={5}
+                      value={config.slider_auto_solve?.max_attempts ?? 2}
+                      onChange={(e) => onChange('slider_auto_solve', 'max_attempts', Number(e.target.value))}
+                      className="w-full px-3 py-2 border border-xy-border rounded-lg focus:outline-none focus:ring-2 focus:ring-xy-primary/20 focus:border-xy-primary"
+                    />
+                    <p className="text-xs text-gray-400 mt-1">每轮 RGV587 最多自动尝试次数（建议 1-3）</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-xy-text-primary mb-1">冷却间隔（秒）</label>
+                    <input
+                      type="number"
+                      min={60}
+                      max={3600}
+                      value={config.slider_auto_solve?.cooldown_seconds ?? 300}
+                      onChange={(e) => onChange('slider_auto_solve', 'cooldown_seconds', Number(e.target.value))}
+                      className="w-full px-3 py-2 border border-xy-border rounded-lg focus:outline-none focus:ring-2 focus:ring-xy-primary/20 focus:border-xy-primary"
+                    />
+                    <p className="text-xs text-gray-400 mt-1">两次尝试之间的等待时间</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-xy-border">
+                  <div>
+                    <p className="font-medium text-xy-text-primary text-sm">无头模式</p>
+                    <p className="text-xs text-xy-text-secondary mt-0.5">后台静默运行浏览器（关闭后可看到浏览器窗口）</p>
+                  </div>
+                  <button
+                    onClick={() => onChange('slider_auto_solve', 'headless', !config.slider_auto_solve?.headless)}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      config.slider_auto_solve?.headless ? 'bg-xy-primary' : 'bg-gray-200'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        config.slider_auto_solve?.headless ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200">
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <p className="font-medium text-xy-text-primary text-sm">指纹浏览器（BitBrowser）</p>
+                      <p className="text-xs text-xy-text-secondary mt-0.5">通过 BitBrowser 指纹浏览器接管已登录的浏览器实例</p>
+                    </div>
+                    <button
+                      onClick={() => onChange('slider_auto_solve', 'fingerprint_browser', {
+                        ...(config.slider_auto_solve?.fingerprint_browser || {}),
+                        enabled: !config.slider_auto_solve?.fingerprint_browser?.enabled,
+                      })}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                        config.slider_auto_solve?.fingerprint_browser?.enabled ? 'bg-xy-primary' : 'bg-gray-200'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          config.slider_auto_solve?.fingerprint_browser?.enabled ? 'translate-x-6' : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                  {config.slider_auto_solve?.fingerprint_browser?.enabled && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+                      <div>
+                        <label className="block text-sm font-medium text-xy-text-primary mb-1">API 地址</label>
+                        <input
+                          type="text"
+                          value={config.slider_auto_solve?.fingerprint_browser?.api_url ?? 'http://127.0.0.1:54345'}
+                          onChange={(e) => onChange('slider_auto_solve', 'fingerprint_browser', {
+                            ...(config.slider_auto_solve?.fingerprint_browser || {}),
+                            api_url: e.target.value,
+                          })}
+                          className="w-full px-3 py-2 border border-xy-border rounded-lg focus:outline-none focus:ring-2 focus:ring-xy-primary/20 focus:border-xy-primary"
+                          placeholder="http://127.0.0.1:54345"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-xy-text-primary mb-1">浏览器 ID</label>
+                        <input
+                          type="text"
+                          value={config.slider_auto_solve?.fingerprint_browser?.browser_id ?? ''}
+                          onChange={(e) => onChange('slider_auto_solve', 'fingerprint_browser', {
+                            ...(config.slider_auto_solve?.fingerprint_browser || {}),
+                            browser_id: e.target.value,
+                          })}
+                          className="w-full px-3 py-2 border border-xy-border rounded-lg focus:outline-none focus:ring-2 focus:ring-xy-primary/20 focus:border-xy-primary"
+                          placeholder="BitBrowser 浏览器 ID"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
         {/* CookieCloud 配置 */}
         <div className="bg-white rounded-xl border border-xy-border p-6">
           <div className="flex items-center gap-3 mb-4">
@@ -387,6 +533,7 @@ export default function IntegrationSettings() {
         ai: config.ai,
         oss: config.oss,
         cookie_cloud: config.cookie_cloud,
+        slider_auto_solve: config.slider_auto_solve,
       };
 
       const res = await saveSystemConfig(configToSave);
