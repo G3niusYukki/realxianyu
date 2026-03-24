@@ -266,34 +266,41 @@ export default function UpdateBanner() {
     );
   }
 
-  if (isUpdating || phase === 'done') {
+  if (phase === 'done') {
     return (
       <div className="mb-4 px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl text-sm">
         <div className="flex items-center gap-3">
-          {phase === 'done' ? (
-            <CheckCircle className="w-5 h-5 text-green-500 shrink-0" />
-          ) : (
-            <Loader2 className="w-5 h-5 text-blue-500 shrink-0 animate-spin" />
-          )}
+          <CheckCircle className="w-5 h-5 text-green-500 shrink-0" />
           <div className="flex-1">
-            <span className={`font-medium ${phase === 'done' ? 'text-green-700' : 'text-blue-700'}`}>
+            <span className="font-medium text-green-700">
               {PHASE_LABELS[phase] || phase}
             </span>
-            {phase === 'done' && (
-              <span className="text-green-600 ml-2">页面即将刷新...</span>
-            )}
+            <span className="text-green-600 ml-2">页面即将刷新...</span>
           </div>
         </div>
-        {isUpdating && (
-          <div className="mt-2 ml-8">
-            <div className="w-full bg-blue-100 rounded-full h-1.5">
-              <div
-                className="bg-blue-500 h-1.5 rounded-full transition-all duration-500"
-                style={{ width: `${getProgressPercent(phase)}%` }}
-              />
-            </div>
+      </div>
+    );
+  }
+
+  if (isUpdating) {
+    return (
+      <div className="mb-4 px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl text-sm">
+        <div className="flex items-center gap-3">
+          <Loader2 className="w-5 h-5 text-blue-500 shrink-0 animate-spin" />
+          <div className="flex-1">
+            <span className="font-medium text-blue-700">
+              {PHASE_LABELS[phase] || phase}
+            </span>
           </div>
-        )}
+        </div>
+        <div className="mt-2 ml-8">
+          <div className="w-full bg-blue-100 rounded-full h-1.5">
+            <div
+              className="bg-blue-500 h-1.5 rounded-full transition-all duration-500"
+              style={{ width: `${getProgressPercent(phase)}%` }}
+            />
+          </div>
+        </div>
       </div>
     );
   }
