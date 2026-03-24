@@ -16,6 +16,8 @@ import ConfigLayout from './pages/config/ConfigLayout'
 import ConfigOverview from './pages/config/sections/ConfigOverview'
 import IntegrationSettings from './pages/config/sections/IntegrationSettings'
 import AutoReplySettings from './pages/config/sections/AutoReplySettings'
+import OrderSettings from './pages/config/sections/OrderSettings'
+import NotificationSettings from './pages/config/sections/NotificationSettings'
 
 function App() {
   return (
@@ -38,9 +40,9 @@ function App() {
                 <Route path="store_category" element={<SystemConfig />} />
                 <Route path="integrations" element={<IntegrationSettings />} />
                 <Route path="auto_reply" element={<AutoReplySettings />} />
-                <Route path="orders" element={<SystemConfig />} />
+                <Route path="orders" element={<OrderSettings />} />
                 <Route path="products" element={<SystemConfig />} />
-                <Route path="notifications" element={<SystemConfig />} />
+                <Route path="notifications" element={<NotificationSettings />} />
               </Route>
               <Route path="/analytics" element={<Navigate to="/dashboard" replace />} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
