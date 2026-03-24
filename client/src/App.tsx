@@ -14,6 +14,7 @@ import Messages from './pages/messages/Messages'
 import LogTerminal from './pages/LogTerminal'
 import ConfigLayout from './pages/config/ConfigLayout'
 import ConfigOverview from './pages/config/sections/ConfigOverview'
+import IntegrationSettings from './pages/config/sections/IntegrationSettings'
 
 function App() {
   return (
@@ -34,7 +35,7 @@ function App() {
               <Route path="/config" element={<ConfigLayout />}>
                 <Route index element={<ConfigOverview />} />
                 <Route path="store_category" element={<SystemConfig />} />
-                <Route path="integrations" element={<SystemConfig />} />
+                <Route path="integrations" element={<IntegrationSettings />} />
                 <Route path="auto_reply" element={<SystemConfig />} />
                 <Route path="orders" element={<SystemConfig />} />
                 <Route path="products" element={<SystemConfig />} />
