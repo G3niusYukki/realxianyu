@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# XianyuFlow | 闲流 - 在线更新脚本
+# 闲鱼管家 - 在线更新脚本
 #
 # 用法:
 #   bash scripts/update.sh <update-package.tar.gz> [project-root]
@@ -63,7 +63,7 @@ cd "$PROJECT_ROOT"
 mkdir -p logs data/backups
 
 info "========================================="
-info "XianyuFlow | 闲流 · 在线更新"
+info "闲鱼管家 · 在线更新"
 info "========================================="
 info "更新包: $PACKAGE_PATH"
 info "项目目录: $PROJECT_ROOT"

@@ -262,7 +262,7 @@ export default function SetupWizard() {
       {/* Header */}
       <div className="flex-none px-6 py-4 border-b border-xy-border bg-xy-surface">
         <div className="max-w-3xl mx-auto flex items-center justify-between">
-          <h1 className="text-lg font-bold text-xy-text-primary">XianyuFlow | 闲流 - 初始配置向导</h1>
+          <h1 className="text-lg font-bold text-xy-text-primary">闲鱼管家 - 初始配置向导</h1>
           <button
             onClick={handleSkip}
             className="text-sm text-xy-text-muted hover:text-xy-text-secondary transition-colors"

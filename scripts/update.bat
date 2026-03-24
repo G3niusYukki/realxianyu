@@ -2,7 +2,7 @@
 chcp 65001 >nul 2>&1
 setlocal enabledelayedexpansion
 
-REM XianyuFlow | 闲流 - 在线更新脚本 (Windows)
+REM 闲鱼管家 - 在线更新脚本 (Windows)
 REM 用法: scripts\update.bat <update-package.tar.gz> [project-root]
 
 set "PACKAGE_PATH=%~1"
@@ -27,7 +27,7 @@ if not exist "logs" mkdir logs
 if not exist "data\backups" mkdir "data\backups"
 
 echo [^>^>] =========================================
-echo [^>^>] XianyuFlow | 闲流 · 在线更新
+echo [^>^>] 闲鱼管家 · 在线更新
 echo [^>^>] =========================================
 echo [^>^>] 更新包: %PACKAGE_PATH%
 echo [^>^>] 项目目录: %PROJECT_ROOT%

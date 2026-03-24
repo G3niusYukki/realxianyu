@@ -1105,17 +1105,6 @@ class VirtualGoodsService:
                 errors=[{"code": "MISSING_REPLAY_KEY", "message": "replay key is required"}],
             )
 
-        # Validate where_sql to prevent SQL injection
-        allowed_columns = {"external_event_id", "dedupe_key"}
-        if where_sql not in (f"{col} = ?" for col in allowed_columns):
-            return self._resp(
-                ok=False,
-                action=action,
-                code="BAD_REQUEST",
-                message="invalid where clause",
-                errors=[{"code": "INVALID_WHERE", "message": "Invalid column name"}],
-            )
-
         with closing(self._connect()) as conn:
             row = conn.execute(
                 f"SELECT * FROM virtual_goods_callbacks WHERE {where_sql} ORDER BY id DESC LIMIT 1", (target,)

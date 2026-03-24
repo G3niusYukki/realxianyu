@@ -1,18 +1,18 @@
 @echo off
 chcp 65001 >nul 2>&1
-title XianyuFlow | 闲流 - 创建桌面快捷方式
+title 闲鱼管家 - 创建桌面快捷方式
 setlocal enabledelayedexpansion
 
 echo.
 echo =========================================
-echo   XianyuFlow | 闲流 - 桌面快捷方式安装
+echo   闲鱼管家 - 桌面快捷方式安装
 echo =========================================
 echo.
 
 set "PROJECT_ROOT=%~dp0.."
 set "DESKTOP=%USERPROFILE%\Desktop"
 set "STARTUP=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup"
-set "SHORTCUT_NAME=XianyuFlow | 闲流"
+set "SHORTCUT_NAME=闲鱼管家"
 
 :: Create desktop shortcut
 echo [*] 创建桌面快捷方式...
@@ -22,7 +22,7 @@ set "VBS=%TEMP%\create_shortcut.vbs"
     echo Set Shortcut = WshShell.CreateShortcut^("%DESKTOP%\%SHORTCUT_NAME%.lnk"^)
     echo Shortcut.TargetPath = "%PROJECT_ROOT%\start.bat"
     echo Shortcut.WorkingDirectory = "%PROJECT_ROOT%"
-    echo Shortcut.Description = "XianyuFlow | 闲流 - 一键启动所有服务"
+    echo Shortcut.Description = "闲鱼管家 - 一键启动所有服务"
     echo Shortcut.WindowStyle = 1
     echo Shortcut.Save
 ) > "%VBS%"
@@ -46,7 +46,7 @@ if /i "%ADD_STARTUP%"=="y" (
         echo Set Shortcut = WshShell.CreateShortcut^("%STARTUP%\%SHORTCUT_NAME%.lnk"^)
         echo Shortcut.TargetPath = "%PROJECT_ROOT%\start.bat"
         echo Shortcut.WorkingDirectory = "%PROJECT_ROOT%"
-        echo Shortcut.Description = "XianyuFlow | 闲流 - 开机自动启动"
+        echo Shortcut.Description = "闲鱼管家 - 开机自动启动"
         echo Shortcut.WindowStyle = 7
         echo Shortcut.Save
     ) > "!VBS2!"

@@ -27,7 +27,7 @@ const Navbar = () => {
               <div className="bg-xy-brand-50 p-1.5 rounded-lg">
                 <Fish className="h-6 w-6 text-xy-brand-500" />
               </div>
-              <span className="text-lg font-bold text-xy-text-primary hidden sm:block">XianyuFlow | 闲流</span>
+              <span className="text-lg font-bold text-xy-text-primary hidden sm:block">闲鱼管家</span>
             </Link>
 
             <div className="hidden md:flex items-center gap-1">

@@ -500,7 +500,7 @@ def _fetch_latest_via_gh() -> dict[str, Any] | None:
             update_asset_size = 0
             for asset in assets:
                 if asset.get("name", "").endswith(UPDATE_ASSET_SUFFIX):
-                    update_asset_url = asset.get("browser_download_url") or asset.get("url", "")
+                    update_asset_url = asset.get("url", "")
                     update_asset_size = asset.get("size", 0)
                     break
             return {

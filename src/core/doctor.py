@@ -327,7 +327,7 @@ def _extra_checks(skip_quote: bool = False) -> list[dict[str, Any]]:
                 import base64
 
                 key_raw = f"{cc_uuid}-{cc_pwd}"
-                key_hash = hashlib.sha256(key_raw.encode("utf-8")).hexdigest()[:32]
+                key_hash = hashlib.md5(key_raw.encode("utf-8")).hexdigest()[:16]
                 raw_bytes = base64.b64decode(encrypted)
                 iv, ct = raw_bytes[:16], raw_bytes[16:]
                 cipher = Cipher(algorithms.AES(key_hash.encode()), modes.CBC(iv))

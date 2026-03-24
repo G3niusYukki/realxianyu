@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-XianyuFlow | 闲流 — 新设备部署诊断脚本
+闲鱼管家 — 新设备部署诊断脚本
 用法: PYTHONPATH=. python3 scripts/diagnose.py
 
 逐项检测 4 大问题:
@@ -556,7 +556,7 @@ def summary():
 def main():
     print()
     print(f"{BOLD}{'=' * 50}{NC}")
-    print(f"{BOLD}  XianyuFlow | 闲流 — 新设备部署诊断{NC}")
+    print(f"{BOLD}  闲鱼管家 — 新设备部署诊断{NC}")
     print(f"{BOLD}  {time.strftime('%Y-%m-%d %H:%M:%S')}{NC}")
     print(f"{BOLD}  cwd: {os.getcwd()}{NC}")
     print(f"{BOLD}{'=' * 50}{NC}")

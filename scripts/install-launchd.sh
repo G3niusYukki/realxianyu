@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-LABEL="com.xianyuflow"
+LABEL="com.xianyu-guanjia"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 PLIST_TEMPLATE="$SCRIPT_DIR/macos/${LABEL}.plist"

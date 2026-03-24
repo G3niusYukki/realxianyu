@@ -519,7 +519,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 try:
                     from src.core.cookie_grabber import CookieGrabber
 
-                    key_hash = hashlib.sha256(f"{uuid_val}-{pwd}".encode()).hexdigest()[:32]
+                    key_hash = hashlib.md5(f"{uuid_val}-{pwd}".encode()).hexdigest()[:16]
                     decrypted = CookieGrabber._decrypt_cookiecloud(data["encrypted"], key_hash)
                     if decrypted:
                         self._send_json(decrypted)
@@ -562,7 +562,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
         try:
             from src.core.cookie_grabber import CookieGrabber
 
-            key_hash = hashlib.sha256(f"{uuid_val}-{cfg_pwd}".encode()).hexdigest()[:32]
+            key_hash = hashlib.md5(f"{uuid_val}-{cfg_pwd}".encode()).hexdigest()[:16]
             cookie_data = CookieGrabber._decrypt_cookiecloud(encrypted, key_hash)
             if not cookie_data:
                 return False

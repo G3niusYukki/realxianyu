@@ -8,18 +8,10 @@ import Dashboard from './pages/Dashboard'
 import Orders from './pages/Orders'
 import AutoPublish from './pages/products/AutoPublish'
 import ProductList from './pages/products/ProductList'
-
+import SystemConfig from './pages/config/SystemConfig'
 import AccountList from './pages/accounts/AccountList'
 import Messages from './pages/messages/Messages'
 import LogTerminal from './pages/LogTerminal'
-import ConfigLayout from './pages/config/ConfigLayout'
-import ConfigOverview from './pages/config/sections/ConfigOverview'
-import IntegrationSettings from './pages/config/sections/IntegrationSettings'
-import AutoReplySettings from './pages/config/sections/AutoReplySettings'
-import OrderSettings from './pages/config/sections/OrderSettings'
-import NotificationSettings from './pages/config/sections/NotificationSettings'
-import StoreCategorySettings from './pages/config/sections/StoreCategorySettings'
-import ProductSettings from './pages/config/sections/ProductSettings'
 
 function App() {
   return (
@@ -37,15 +29,7 @@ function App() {
               <Route path="/messages" element={<Messages />} />
               <Route path="/logs" element={<LogTerminal />} />
               <Route path="/accounts" element={<AccountList />} />
-              <Route path="/config" element={<ConfigLayout />}>
-                <Route index element={<ConfigOverview />} />
-                <Route path="store_category" element={<StoreCategorySettings />} />
-                <Route path="integrations" element={<IntegrationSettings />} />
-                <Route path="auto_reply" element={<AutoReplySettings />} />
-                <Route path="orders" element={<OrderSettings />} />
-                <Route path="products" element={<ProductSettings />} />
-                <Route path="notifications" element={<NotificationSettings />} />
-              </Route>
+              <Route path="/config" element={<SystemConfig />} />
               <Route path="/analytics" element={<Navigate to="/dashboard" replace />} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>

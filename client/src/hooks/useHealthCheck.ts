@@ -6,7 +6,6 @@ const POLL_INTERVAL = 60_000;
 export interface ServiceHealth {
   ok: boolean;
   message: string;
-  latency_ms?: number;
 }
 
 export interface HealthState {

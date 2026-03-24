@@ -45,9 +45,9 @@ if errorlevel 1 (
 echo.
 echo [4/4] 构建完成！
 echo.
-echo   输出目录: dist\realxianyu-launcher\
-echo   启动程序: dist\realxianyu-launcher\realxianyu-launcher.exe
+echo   输出目录: dist\xianyu-openclaw-launcher\
+echo   启动程序: dist\xianyu-openclaw-launcher\xianyu-openclaw-launcher.exe
 echo.
-echo   发布时，将整个 dist\realxianyu-launcher\ 文件夹打包为 ZIP 即可。
+echo   发布时，将整个 dist\xianyu-openclaw-launcher\ 文件夹打包为 ZIP 即可。
 echo.
 pause

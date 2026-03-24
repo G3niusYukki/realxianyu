@@ -212,7 +212,7 @@ class Config:
         """
         defaults = {
             "app": {
-                "name": "xianyuflow",
+                "name": "xianyu-guanjia",
                 "version": __import__("src").__version__,
                 "debug": False,
                 "log_level": "INFO",

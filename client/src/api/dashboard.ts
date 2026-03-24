@@ -114,38 +114,10 @@ export interface RuleSuggestion {
   reason: string;
 }
 
-export interface GenerateSuggestionsResponse {
-  ok: boolean;
-  suggestions: RuleSuggestion[];
-  analyzed_count?: number;
-  message?: string;
-  error?: string;
-  data?: {
-    ok: boolean;
-    suggestions: RuleSuggestion[];
-    analyzed_count?: number;
-    message?: string;
-    error?: string;
-  };
-}
-
-export interface ApplySuggestionResponse {
-  ok: boolean;
-  message: string;
-  rule: any;
-  error?: string;
-  data?: {
-    ok: boolean;
-    message: string;
-    rule: any;
-    error?: string;
-  };
-}
-
-export const generateRuleSuggestions = (): Promise<AxiosResponse<GenerateSuggestionsResponse>> =>
+export const generateRuleSuggestions = (): Promise<AxiosResponse<{ ok: boolean; suggestions: RuleSuggestion[]; analyzed_count?: number; message?: string }>> =>
   api.post('/rule-suggestions/generate');
 
-export const applyRuleSuggestion = (rule: Omit<RuleSuggestion, 'reason'>): Promise<AxiosResponse<ApplySuggestionResponse>> =>
+export const applyRuleSuggestion = (rule: Omit<RuleSuggestion, 'reason'>): Promise<AxiosResponse<{ ok: boolean; message: string; rule: any }>> =>
   api.post('/rule-suggestions/apply', { rule });
 
 export const getSliderStats = (hours = 24): Promise<AxiosResponse<SliderStats>> =>

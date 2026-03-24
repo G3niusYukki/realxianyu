@@ -16,8 +16,8 @@ def handle_slider_stats(ctx: RouteContext) -> None:
         store = SliderEventStore.get_instance()
         stats = store.get_stats(hours)
         ctx.send_json({"ok": True, **stats})
-    except Exception:
-        ctx.send_json({"ok": False, "error": "Internal server error"}, status=500)
+    except Exception as exc:
+        ctx.send_json({"ok": False, "error": str(exc)}, status=500)
 
 
 @get("/api/slider/events")
@@ -29,8 +29,8 @@ def handle_slider_events(ctx: RouteContext) -> None:
         store = SliderEventStore.get_instance()
         events = store.get_recent_events(limit)
         ctx.send_json({"ok": True, "events": events})
-    except Exception:
-        ctx.send_json({"ok": False, "error": "Internal server error"}, status=500)
+    except Exception as exc:
+        ctx.send_json({"ok": False, "error": str(exc)}, status=500)
 
 
 @get_prefix("/api/slider/screenshot/", param_name="filename")
