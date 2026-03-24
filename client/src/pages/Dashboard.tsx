@@ -191,6 +191,40 @@ function XgjControlPanel() {
   const [saveLoading, setSaveLoading] = useState(false);
   const [retryPriceCount, setRetryPriceCount] = useState(0);
   const [retryShipCount, setRetryShipCount] = useState(0);
+  const [hasConfig, setHasConfig] = useState(false);
+
+  // 从后端加载已有配置
+  useEffect(() => {
+    const loadConfig = async () => {
+      try {
+        const res = await api.get('/config');
+        if (res.data?.ok) {
+          const xgj = res.data.config?.xianguanjia || {};
+          if (xgj.app_key) {
+            setAppKey(xgj.app_key);
+            setHasConfig(true);
+          }
+          if (xgj.app_secret) setAppSecret(xgj.app_secret);
+          if (xgj.auto_price_enabled !== undefined) setAutoPrice(xgj.auto_price_enabled);
+          if (xgj.auto_ship_enabled !== undefined) setAutoShip(xgj.auto_ship_enabled);
+          // 如果已有配置，自动测试连接
+          if (xgj.app_key && xgj.app_secret) {
+            const testRes = await api.post('/xgj/test-connection', {
+              app_key: xgj.app_key,
+              app_secret: xgj.app_secret,
+              mode: xgj.mode || 'self_developed',
+              seller_id: xgj.seller_id || '',
+              base_url: xgj.base_url || 'https://open.goofish.pro',
+            });
+            setConnected(testRes.data?.ok || false);
+          }
+        }
+      } catch {
+        // 静默失败
+      }
+    };
+    loadConfig();
+  }, []);
 
   const handleTest = useCallback(async () => {
     if (!appKey || !appSecret) { toast.error('请先填写 AppKey 和 AppSecret'); return; }
