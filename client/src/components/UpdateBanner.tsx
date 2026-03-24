@@ -266,7 +266,7 @@ export default function UpdateBanner() {
     );
   }
 
-  if (isUpdating || phase === 'done') {
+  if (phase === 'done' || isUpdating) {
     return (
       <div className="mb-4 px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl text-sm">
         <div className="flex items-center gap-3">

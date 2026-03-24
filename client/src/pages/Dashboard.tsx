@@ -381,13 +381,13 @@ const Dashboard = () => {
     setSuggestionsLoading(true);
     try {
       const res = await generateRuleSuggestions();
-      const payload = res.data?.data ?? res.data;
+      const payload = res.data;
       if (payload?.ok && Array.isArray(payload.suggestions)) {
         setRuleSuggestions(payload.suggestions);
         if (payload.suggestions.length === 0) toast('暂无新规则建议', { icon: 'ℹ️' });
         else toast.success(`生成了 ${payload.suggestions.length} 条规则建议`);
       } else {
-        toast.error(payload?.message || payload?.error || '生成失败');
+        toast.error(payload?.message || '生成失败');
       }
     } catch (err: any) {
       toast.error(err?.response?.data?.error || '规则建议生成失败');
@@ -400,12 +400,12 @@ const Dashboard = () => {
     try {
       const { reason, ...rule } = suggestion;
       const res = await applyRuleSuggestion(rule);
-      const payload = res.data?.data ?? res.data;
+      const payload = res.data;
       if (payload?.ok) {
         toast.success(payload.message || '规则已添加');
         setRuleSuggestions(prev => prev.filter(s => s.name !== suggestion.name));
       } else {
-        toast.error(payload?.message || payload?.error || '应用失败');
+        toast.error(payload?.message || '应用失败');
       }
     } catch (err: any) {
       toast.error(err?.response?.data?.error || '规则应用失败');
