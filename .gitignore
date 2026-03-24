@@ -179,12 +179,23 @@ vendor/
 # Runtime PID files
 .pids/
 
-# Cursor / Codex / Roo / Claude
+# Cursor / Codex / Roo / Claude / AI IDE
 .cursor/
 .codex/
 .roo/
 .claude/
 *.bak.*
+.ai/
+.vscode/
+.idea/
+
+# Roo Code specific
+.rooignore
+.roomodes
+
+# Claude specific
+claude_settings*.json
+.claude_settings/
 
 # Server directory (if runtime only)
 server/
