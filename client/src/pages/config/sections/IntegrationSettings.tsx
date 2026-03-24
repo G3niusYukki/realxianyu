@@ -86,7 +86,7 @@ function IntegrationConfig({ config, sections, onChange, onSave, saving, isDirty
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 px-6 py-6">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-semibold text-xy-text-primary">集成服务配置</h2>
@@ -119,27 +119,79 @@ function IntegrationConfig({ config, sections, onChange, onSave, saving, isDirty
             </div>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-xy-text-primary mb-1">App Key</label>
-              <input
-                type="text"
-                value={xianguanjia.app_key || ''}
-                onChange={(e) => onChange('xianguanjia', 'app_key', e.target.value)}
-                className="w-full px-3 py-2 border border-xy-border rounded-lg focus:outline-none focus:ring-2 focus:ring-xy-primary/20 focus:border-xy-primary"
-                placeholder="输入闲管家 App Key"
-              />
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-xy-text-primary mb-1">
+                  接入模式 <span className="text-xs text-gray-400">(Mode)</span>
+                </label>
+                <select
+                  value={xianguanjia.mode || 'self_developed'}
+                  onChange={(e) => onChange('xianguanjia', 'mode', e.target.value)}
+                  className="w-full px-3 py-2 border border-xy-border rounded-lg focus:outline-none focus:ring-2 focus:ring-xy-primary/20 focus:border-xy-primary"
+                >
+                  <option value="self_developed">自研应用</option>
+                  <option value="business">商务对接</option>
+                </select>
+                <p className="text-xs text-gray-400 mt-1">自研：个人/自有ERP；商务：第三方代商家接入</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-xy-text-primary mb-1">
+                  API 网关 <span className="text-xs text-gray-400">(Base URL)</span>
+                </label>
+                <input
+                  type="text"
+                  value={xianguanjia.base_url || 'https://open.goofish.pro'}
+                  onChange={(e) => onChange('xianguanjia', 'base_url', e.target.value)}
+                  className="w-full px-3 py-2 border border-xy-border rounded-lg focus:outline-none focus:ring-2 focus:ring-xy-primary/20 focus:border-xy-primary"
+                  placeholder="https://open.goofish.pro"
+                />
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-xy-text-primary mb-1">App Secret</label>
-              <input
-                type="password"
-                value={xianguanjia.app_secret || ''}
-                onChange={(e) => onChange('xianguanjia', 'app_secret', e.target.value)}
-                className="w-full px-3 py-2 border border-xy-border rounded-lg focus:outline-none focus:ring-2 focus:ring-xy-primary/20 focus:border-xy-primary"
-                placeholder="输入闲管家 App Secret"
-              />
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-xy-text-primary mb-1">
+                  App Key <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={xianguanjia.app_key || ''}
+                  onChange={(e) => onChange('xianguanjia', 'app_key', e.target.value)}
+                  className="w-full px-3 py-2 border border-xy-border rounded-lg focus:outline-none focus:ring-2 focus:ring-xy-primary/20 focus:border-xy-primary"
+                  placeholder="输入闲管家 App Key"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-xy-text-primary mb-1">
+                  App Secret <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="password"
+                  value={xianguanjia.app_secret || ''}
+                  onChange={(e) => onChange('xianguanjia', 'app_secret', e.target.value)}
+                  className="w-full px-3 py-2 border border-xy-border rounded-lg focus:outline-none focus:ring-2 focus:ring-xy-primary/20 focus:border-xy-primary"
+                  placeholder="输入闲管家 App Secret"
+                />
+              </div>
             </div>
+
+            {xianguanjia.mode === 'business' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-xy-text-primary mb-1">
+                    商家 ID (Seller ID) <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={xianguanjia.seller_id || ''}
+                    onChange={(e) => onChange('xianguanjia', 'seller_id', e.target.value)}
+                    className="w-full px-3 py-2 border border-xy-border rounded-lg focus:outline-none focus:ring-2 focus:ring-xy-primary/20 focus:border-xy-primary"
+                    placeholder="商务对接模式下必填"
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="mt-4 flex gap-2">
