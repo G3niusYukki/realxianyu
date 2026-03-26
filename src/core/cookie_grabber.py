@@ -475,10 +475,10 @@ class AutoRefreshStatus:
 
 
 class CookieAutoRefresher:
-    """后台静默 Cookie 刷新器 — 仅使用 Level 1 (rookiepy)。
+    """后台静默 Cookie 刷新器 — 仅从闲管家IM获取。
 
-    在守护线程中定期检查 Cookie 健康状态，失效时自动尝试从浏览器
-    Cookie 数据库静默读取新的 Cookie，无需用户交互。
+    在守护线程中定期检查 Cookie 健康状态，失效时自动从闲管家IM
+    Electron 应用的 SQLite 数据库读取新 Cookie，无需用户交互。
     """
 
     def __init__(
@@ -569,12 +569,11 @@ class CookieAutoRefresher:
             logger.debug(f"Cookie 自动检查: 健康 ({msg})")
             return
 
-        logger.info(f"Cookie 自动检查: 不健康 ({msg})，尝试静默刷新...")
+        logger.info(f"Cookie 自动检查: 不健康 ({msg})，尝试从闲管家IM刷新...")
 
-        # 2) 多级静默获取: 闲管家IM -> CookieCloud -> rookiepy -> Chrome Profile
+        # 仅使用闲管家IM作为Cookie来源
         new_cookie: str | None = None
 
-        # Level IM: 闲管家IM直读（最可靠来源）
         try:
             from src.core.goofish_im_cookie import read_goofish_im_cookies, merge_cookies
 
@@ -590,36 +589,15 @@ class CookieAutoRefresher:
         except Exception as im_exc:
             logger.debug(f"自动刷新: 闲管家IM失败: {im_exc}")
 
-        loop = asyncio.new_event_loop()
-        try:
-            grabber = CookieGrabber()
-            # Level 0: CookieCloud（如已配置）
-            if not new_cookie:
-                try:
-                    cc_cookie = loop.run_until_complete(grabber._grab_from_cookiecloud())
-                    if cc_cookie:
-                        new_cookie = cc_cookie
-                        self._last_refresh_source = "cookiecloud"
-                        logger.info("自动刷新: CookieCloud 获取成功")
-                except Exception as cc_exc:
-                    logger.debug(f"自动刷新: CookieCloud 失败: {cc_exc}")
-            # Level 1: rookiepy 降级
-            if not new_cookie:
-                new_cookie = loop.run_until_complete(grabber._grab_from_browser_db())
-                if new_cookie:
-                    self._last_refresh_source = "browser_db"
-        finally:
-            loop.close()
-
         if not new_cookie:
-            logger.info("Cookie 静默刷新: 所有静默方式均未获取到 Cookie")
+            logger.info("Cookie 静默刷新: 闲管家IM未获取到 Cookie")
             self._last_refresh_ok = False
             self._last_refresh_source = ""
             self._send_notification(
                 "⚠️ Cookie 已失效且自动刷新失败",
                 f"【闲鱼自动化】Cookie 过期告警\n状态: {msg}\n"
-                "静默刷新: 闲管家IM/CookieCloud/浏览器DB 均未获取到新 Cookie\n"
-                "请在 BitBrowser 中登录闲鱼，或手动打开 Dashboard 更新 Cookie",
+                "闲管家IM 未获取到有效 Cookie\n"
+                "请确认闲管家IM已登录，或手动打开 Dashboard 更新 Cookie",
                 event="cookie_expire",
             )
             return
@@ -647,12 +625,7 @@ class CookieAutoRefresher:
 
         save_cookie(new_cookie, persist=True, source=self._last_refresh_source)
 
-        _source_labels = {
-            "goofish_im": "闲管家IM",
-            "cookiecloud": "CookieCloud",
-            "browser_db": "浏览器数据库",
-        }
-        source_label = _source_labels.get(self._last_refresh_source, self._last_refresh_source)
+        source_label = "闲管家IM"
         logger.info(f"Cookie 静默刷新成功 (来源={source_label}, length={len(new_cookie)})")
 
         self._send_notification(
