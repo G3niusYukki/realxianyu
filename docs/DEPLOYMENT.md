@@ -8,10 +8,9 @@
 
 | 方式 | 适用场景 | 难度 | 依赖 |
 |------|---------|------|------|
-| **交互式快速启动** | 首次体验、个人电脑 | ⭐ | Python 3.10+ / Node.js 18+ |
-| **服务控制脚本** | 已配好环境的快速启动 | ⭐ | Python 3.10+ / Node.js 18+ |
-| **进程守护模式** | 生产环境 7×24 运行 | ⭐⭐ | Python 3.10+ / Node.js 18+ |
-| **macOS 后台服务** | Mac 开机自启 | ⭐ | macOS + Python 3.10+ |
+| **手动部署** | 通用方案 | ⭐ | Python 3.12+ / Node.js 18+ |
+| **macOS 后台服务** | Mac 开机自启 | ⭐ | macOS + Python 3.12+ |
+| **后台守护运行** | 生产环境 7×24 运行 | ⭐⭐ | Python 3.12+ / Node.js 18+ |
 
 ---
 
@@ -36,61 +35,34 @@
 
 ---
 
-## 方式一：交互式快速启动（推荐新用户）
+## 方式一：手动部署（通用方案）
 
 ```bash
 git clone https://github.com/G3niusYukki/realxianyu.git
 cd realxianyu
 
-# macOS / Linux
-bash quick-start.sh
+# 1. Python 环境
+python3.12 -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
 
-# Windows
-quick-start.bat
+# 2. 前端构建
+cd client && npm install && npm run build && cd ..
+
+# 3. 配置
+cp .env.example .env
+# 编辑 .env 填入 Cookie、AI Key 等
+
+# 4. 启动
+python -m src.main
 ```
 
-脚本会自动完成 7 步引导：
-1. 检测并安装 Python、Node.js
-2. 安装项目依赖（Python + 前端 + DrissionPage）
-3. 创建配置文件
-4. 启动后端 + 前端服务
-5. CookieCloud / BitBrowser 配置引导
-6. 系统诊断
-7. 显示访问地址和使用指南
+Dashboard 地址：**http://localhost:8091**
 
-> 国内网络自动切换镜像源；也可手动指定 `CHINA_MIRROR=1 bash quick-start.sh`
+> 国内环境使用阿里云镜像：`pip install -r requirements.txt -i https://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com`
 
 ---
 
-## 方式二：服务控制脚本（已有环境）
-
-```bash
-# macOS / Linux
-bash service.sh start
-
-# Windows
-start.bat
-```
-
-适合已安装好 Python 和 Node.js 的环境。脚本自动处理虚拟环境、依赖安装和服务启动。
-
----
-
-## 方式三：进程守护模式（生产环境）
-
-```bash
-./supervisor.sh [--interval 15]
-```
-
-特性：
-- 每 15 秒健康检查（HTTP 级别）
-- 连续 2 次失败自动重启
-- 日志输出到 `logs/supervisor.log`
-- Ctrl+C 优雅停止所有服务
-
----
-
-## 方式四：macOS 后台服务
+## 方式二：macOS 后台服务
 
 ```bash
 # 安装（开机自启）
@@ -101,6 +73,21 @@ bash scripts/uninstall-launchd.sh
 ```
 
 使用 macOS LaunchAgent 管理，崩溃自动重启。日志在 `logs/launchd-*.log`。
+
+---
+
+## 方式三：后台守护运行（生产环境）
+
+```bash
+# nohup 方式
+nohup python -m src.main > logs/app.log 2>&1 &
+echo $! > .pid
+
+# 停止
+kill $(cat .pid)
+```
+
+或使用 systemd（Linux）创建服务单元，实现自动重启和日志管理。
 
 ---
 
@@ -119,7 +106,7 @@ bash scripts/uninstall-launchd.sh
 
 - [ ] 配置飞书/企微告警 Webhook
 - [ ] 设置 `APP_ENV=production`
-- [ ] 使用进程守护或 `supervisor.sh` 保证高可用
+- [ ] 使用进程守护或 nohup 保证高可用
 - [ ] 配置定期数据备份
 - [ ] 如对外暴露，在前面加 Nginx 反向代理 + HTTPS
 
@@ -204,7 +191,9 @@ tar -xzf backup-20260317.tar.gz
 
 ```bash
 git pull origin main
-bash service.sh restart   # 自动检测并更新依赖后重启
+pip install -r requirements.txt
+cd client && npm install && npm run build && cd ..
+python -m src.main
 ```
 
 ---

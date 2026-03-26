@@ -91,8 +91,8 @@ Or simply tell your agent: **"Deploy this project following AGENT_DEPLOYMENT.md"
 └────┬────────────────┬──────────────────┬────────────────┘
      │                │                  │
 ┌────▼────┐   ┌──────▼───┐   ┌────────▼─────────┐
-│ Services/│   │  Modules/ │   │   CLI 包 cli/    │
-│          │   │           │   │                 │
+│ dashboard/ │   │  modules/ │   │   cli/         │
+│ services/  │   │           │   │                 │
 │Cookie    │   │Messages   │   │cmd_main.py      │
 │Service   │   │Orders     │   │cmd_orders.py    │
 │XGJ       │   │Quote      │   │cmd_module.py   │
@@ -130,21 +130,30 @@ ruff format --check src/
 
 ```
 src/
-├── core/               # 核心基础设施（配置、日志、浏览器客户端）
-├── services/           # 核心业务服务（CookieService / XGJService）
+├── core/               # 核心基础设施（配置、日志、浏览器客户端、Cookie 管理、加密）
 ├── modules/            # 业务模块
-│   ├── messages/       #   WS 长连接、消息回复、workflow
-│   ├── orders/         #   订单履约、自动改价
-│   ├── quote/         #   物流报价引擎
-│   ├── listing/       #   商品上架
-│   └── virtual_goods/ #   虚拟商品核销
-├── integrations/       # 闲管家 API 集成
-├── dashboard/          # Dashboard Facade + HTTP Routes
-├── dashboard/services/ # 从 mimic_ops 拆分的服务
-├── cli/               # 模块化 CLI 包
+│   ├── messages/       #   WS 长连接、消息回复引擎、workflow
+│   ├── orders/         #   订单履约、自动改价轮询
+│   ├── quote/          #   物流报价引擎、成本表、地理解析
+│   ├── listing/        #   商品上架、文案模板
+│   ├── virtual_goods/  #   虚拟商品核销
+│   ├── accounts/       #   多账号管理
+│   ├── content/        #   AI 内容生成
+│   ├── analytics/      #   数据分析
+│   ├── ticketing/      #   票务模块
+│   ├── media/          #   媒体处理
+│   ├── operations/     #   运营工具
+│   ├── growth/         #   增长分析
+│   ├── followup/       #   追单
+│   └── compliance/     #   合规检查
+├── integrations/       # 第三方集成（闲管家 API）
+├── dashboard/          # Dashboard Facade (mimic_ops.py) + HTTP Routes
+│   ├── services/       #   CookieService / XGJService（从 mimic_ops 拆分）
+│   └── routes/         #   HTTP 路由处理
+├── cli/                # 模块化 CLI 包
 ├── dashboard_server.py # HTTP 服务器入口
-├── main.py            # Python 程序主入口
-└── setup_wizard.py    # 初始化向导
+├── main.py             # 程序主入口
+└── setup_wizard.py     # 初始化向导
 ```
 
 ---

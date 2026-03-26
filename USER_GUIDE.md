@@ -37,8 +37,8 @@
 | 能上网 | 需要连接互联网 |
 | 闲鱼账号 | 能正常登录的闲鱼账号 |
 | AI 服务密钥（可选） | DeepSeek / 阿里百炼 / 火山方舟 / OpenAI 等，可在管理面板配置 |
-| Python 3.10+ | Python 后端运行所需 |
-| Node.js 18+ | Node.js 后端和 React 前端运行所需 |
+| Python 3.12+ | Python 后端运行所需 |
+| Node.js 18+ | React 前端构建需要（Vite） |
 
 ---
 
@@ -60,7 +60,7 @@ cd realxianyu
 
 ### 3.2 安装运行环境
 
-**安装 Python 3.10+：**
+**安装 Python 3.12+：**
 - Windows：从 https://www.python.org/downloads/ 下载安装，安装时勾选 "Add to PATH"
 - macOS：`brew install python@3.12` 或从官网下载
 
@@ -184,17 +184,18 @@ trusted-host = pypi.tuna.tsinghua.edu.cn
 
 ### 本地开发模式（推荐）
 
-在工具文件夹中打开终端（命令行），执行一键启动脚本：
+在工具文件夹中打开终端（命令行），执行：
 
 ```bash
-# macOS / Linux
-./start.sh
+# 1. 激活虚拟环境
+source venv/bin/activate   # Windows: venv\Scripts\activate
 
-# Windows
-start.bat
+# 2. 构建前端（首次或更新后需要）
+cd client && npm install && npm run build && cd ..
+
+# 3. 启动后端（同时托管前端静态资源）
+python -m src.main
 ```
-
-脚本会自动启动 Node.js 后端、React 前端和 Python 后端。如需 Lite 直连模式（消息自动回复），可另开终端执行 `python3 -m src.lite`。
 
 ### 打开使用
 
@@ -202,32 +203,18 @@ start.bat
 
 | 服务 | 地址 | 说明 |
 |------|------|------|
-| 管理面板 | http://localhost:5173 | React 前端，配置和管理 |
-| Python 看板 | http://localhost:8091 | 趋势图、商品表现、操作日志 |
-| 后端健康检查 | http://localhost:3001/health | Node.js 后端状态 |
-
-### 服务脚本模式（可选）
-
-也可使用一键启动脚本：
-
-```bash
-bash service.sh start
-```
+| 管理面板 | http://localhost:8091 | React 前端，配置和管理 |
+| 健康检查 | http://localhost:8091/healthz | 系统状态 |
 
 ### 关闭
 
-```bash
-# 本地模式：在运行 start.sh / start.bat 的终端按 Ctrl+C 停止
-
-# 服务脚本模式
-bash service.sh stop
-```
+在运行 `python -m src.main` 的终端按 Ctrl+C 停止。
 
 ---
 
 ## 6. 管理面板各页面功能
 
-启动后访问 http://localhost:5173 打开管理面板首页。各页面功能简要说明如下：
+启动后访问 http://localhost:8091 打开管理面板首页。各页面功能简要说明如下：
 
 | 页面 | 路径 | 功能 |
 |------|------|------|
@@ -267,10 +254,9 @@ bash service.sh stop
 ```bash
 git pull
 pip install -r requirements.txt
-cd client && npm install && cd ..
+cd client && npm install && npm run build && cd ..
+python -m src.main
 ```
-
-然后重新启动服务即可。
 
 ---
 
@@ -282,11 +268,11 @@ cd client && npm install && cd ..
 
 ## 9. 常见问题
 
-### Q: 打不开 localhost:5173
+### Q: 打不开 localhost:8091
 
-1. 确认 Node.js 服务是否在运行（终端中有没有报错）
-2. 执行 `npm run dev` 重新启动
-3. 如果端口被占用，检查是否有其他进程占用 5173 端口
+1. 确认 Python 后端是否在运行（终端中有没有报错）
+2. 执行 `python -m src.main` 重新启动
+3. 如果端口被占用：`lsof -ti :8091 | xargs kill -9`
 
 ### Q: AI 不回复
 
@@ -301,10 +287,9 @@ cd client && npm install && cd ..
 ### Q: 怎么看日志
 
 ```bash
-# 本地模式：直接在运行终端查看输出
-
-# 服务脚本模式
-bash service.sh status
+# 直接在运行终端查看输出
+# 或查看 logs/ 目录下的日志文件
+tail -f logs/app.log
 ```
 
 ---
@@ -331,4 +316,4 @@ bash service.sh status
 
 ---
 
-**版本**: v6.2.1 | **更新日期**: 2026-03-07
+**更新日期**: 2026-03-26

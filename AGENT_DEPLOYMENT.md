@@ -384,7 +384,7 @@ python -m src.main
 - **Frontend:** `client/src/`
 - **Backend Entry:** `src/main.py` -> `src/dashboard_server.py`
 - **Routes:** `src/dashboard/routes/`
-- **Business Logic:** `src/modules/` and `src/services/`
+- **Business Logic:** `src/modules/` and `src/dashboard/services/`
 - **Configuration:** `.env`, `config/config.yaml`, `data/system_config.json`
 
 ### Key Files for AI Agents

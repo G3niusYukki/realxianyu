@@ -17,13 +17,15 @@ pip install -r requirements.txt
 ```
 src/
 ├── cli/                # CLI entry point (python -m src.cli)
-├── core/               # Framework: config, logging, drissionpage client, crypto, cookie_grabber
-├── modules/            # Business logic: listing, operations, messages, orders, analytics
-├── dashboard/          # Dashboard routes and services
-├── dashboard_server.py # Python Dashboard API server
-└── integrations/       # Third-party integrations (xianguanjia)
+├── core/               # Config, logging, browser client, crypto, cookie_grabber
+├── modules/            # Business logic: messages, orders, quote, listing, virtual_goods, ...
+├── dashboard/          # Dashboard facade (mimic_ops.py) + routes + services
+├── integrations/       # Third-party integrations (xianguanjia)
+├── dashboard_server.py # HTTP server entry
+└── main.py             # Python program entry
 client/                 # React frontend (Vite + Tailwind)
-tests/                  # Python test suite
+tests/                  # Python test suite (100+ files)
+scripts/                # Build, deploy, and utility scripts
 ```
 
 ## How to Contribute
@@ -34,7 +36,7 @@ Open an [issue](https://github.com/G3niusYukki/realxianyu/issues/new?template=bu
 - What you expected
 - What actually happened
 - Steps to reproduce
-- Logs (from `bash service.sh status` or terminal output)
+- Logs (from `logs/app.log` or terminal output)
 
 ### Feature Requests
 
@@ -46,7 +48,7 @@ Open an [issue](https://github.com/G3niusYukki/realxianyu/issues/new?template=fe
 2. Create a feature branch: `git checkout -b feat/my-feature`
 3. Make your changes
 4. Run linting: `ruff check src/`
-5. Run tests: `python -m pytest tests/ -x`
+5. Run tests: `./venv/bin/python -m pytest tests/ -q`
 6. Commit with a clear message: `git commit -m "feat: add price optimization"`
 7. Push to your fork and open a PR
 
@@ -71,9 +73,9 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/):
 
 | 变更类型 | 版本位 | 何时递增 | 示例 |
 |----------|--------|---------|------|
-| **MAJOR** | 主版本 | 架构重构、破坏性变更、大规模重写 | 移除 Node.js 后端 → 8.0.0 |
-| **MINOR** | 次版本 | 新增功能（向后兼容） | 新增大件快运品类 → 8.1.0 |
-| **PATCH** | 修订号 | Bug 修复、小优化（向后兼容） | 修复报价计算 → 8.1.1 |
+| **MAJOR** | 主版本 | 架构重构、破坏性变更、大规模重写 | 重构消息引擎 → 9.0.0 |
+| **MINOR** | 次版本 | 新增功能（向后兼容） | 新增议价动态回复 → 9.4.0 |
+| **PATCH** | 修订号 | Bug 修复、小优化（向后兼容） | 修复去重标记 → 9.4.1 |
 
 ### 版本号存储位置（唯一真相源）
 
@@ -87,8 +89,8 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/):
 ### 何时更新版本号
 
 - 每次准备发布新 Release 前更新，不要在开发中频繁修改
-- git tag 必须与 `__version__` 一致：`git tag v8.0.0`
-- GitHub Release 标题格式：`v8.0.0`
+- git tag 必须与 `__version__` 一致：`git tag v9.5.0`
+- GitHub Release 标题格式：`v9.5.0`
 
 ### 禁止事项
 
@@ -98,7 +100,7 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/):
 
 ## Code Style
 
-- Python 3.10+
+- Python 3.12+
 - Type hints everywhere
 - Use `async/await` for I/O operations
 - `loguru` for logging (not `print`)

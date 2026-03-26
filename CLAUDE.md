@@ -12,12 +12,10 @@
 ```
 src/
 ├── core/            # 核心基础设施（配置、日志、浏览器客户端）
-├── services/        # 核心业务服务（CookieService / XGJService）
-│                       # 注意：ConfigSyncService 已删除（YAML 同步是死代码）
 ├── modules/         # 业务模块（messages/orders/quote/listing/virtual_goods/...）
 ├── integrations/    # 闲管家 API 集成
 ├── dashboard/        # Dashboard（mimic_ops.py Facade + routes/）
-├── dashboard/services/  # 同 src/services/（从 mimic_ops 拆分）
+│                       # dashboard/services/ 包含 CookieService / XGJService
 ├── cli/             # CLI 命令包（base.py + cmd_main/cmd_orders/cmd_module/cmd_quote）
 └── main.py          # 程序入口
 ```

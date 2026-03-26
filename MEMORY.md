@@ -11,8 +11,7 @@
 ### 0.1 项目路径
 
 ```
-主仓库: ~/openclaw/realxianyu/
-工作树: ~/openclaw/realxianyu/.claude/worktrees/heuristic-swartz/   ← 当前活跃开发分支
+主仓库: ~/realxianyu/
 ```
 
 ### 0.2 记忆位置一览
@@ -84,24 +83,19 @@
 │   ├── unmatched_messages.jsonl   # 未匹配消息
 │   ├── manual_mode.db             # 人工模式 SQLite
 │   └── cost_table_*.xlsx          # 成本表
-├── tests/                         # 161 条自动回复测试 + 服务层测试
+├── tests/                         # 100+ 测试文件
+├── scripts/                       # 工具脚本（backup, doctor, update 等）
 ├── MEMORY.md                      # ← 你正在读的文件
 ├── QUICKSTART.md                  # 快速启动指南
 ├── README.md                      # 项目说明
-├── supervisor.sh                  # ★ 进程守护（健康检查 + 自动重启）— 推荐使用
-├── quick-start.sh / .bat          # 交互式启动脚本
-├── start.sh / .bat                # 一键启动脚本（无守护）
-├── docker-compose.yml             # Docker 编排
-├── Dockerfile.python              # Python 容器
 └── .env                           # 环境变量
 ```
 
 ### 0.5 服务端口
 
-| 服务 | 开发端口 | Docker 端口 | 入口文件 |
-|------|---------|-------------|---------|
-| React 前端 | 5173 | 80 (nginx) | `client/src/main.tsx` |
-| Python 后端 | 8091 | 8091 | `src/dashboard_server.py` |
+| 服务 | 端口 | 入口文件 |
+|------|------|---------|
+| Python 后端 + 前端 | 8091 | `src/dashboard_server.py` |
 
 ### 0.6 数据流
 
@@ -122,7 +116,7 @@
 
 XianyuFlow | 闲流（Xianyu OpenClaw）是为闲鱼卖家设计的 **全自动化运营工作台**。核心场景是**快递代发**（express 品类）：买家在闲鱼询问快递价格 → 机器人自动报价 → 买家下单 → 卖家改价 → 付款后自动发兑换码 → 买家到小程序下单寄件。
 
-技术栈：Python 3.10+ asyncio（后端）+ React 18 + Vite + Tailwind（前端）。
+技术栈：Python 3.12+ asyncio（后端）+ React 18 + Vite + Tailwind（前端）。
 
 ---
 
@@ -301,10 +295,8 @@ priority 越小 = 越优先匹配
 
 ## 六、部署要点
 
-- **端口**：前端 5173（开发）/ 80（Docker），Python 8091
-- **国内部署**：`quick-start.sh` 自动检测网络环境，无外网时切换阿里云 pip/npm/Playwright 镜像
-- **Docker**：`docker-compose build --build-arg MIRROR=china` 使用国内源构建
-- **Chart.js**：本地托管在 `src/dashboard/vendor/chart.umd.min.js`，CDN 作为 fallback
+- **端口**：Python 8091（同时提供 API + 前端静态资源）
+- **国内部署**：pip/npm 使用阿里云镜像源
 - **AI 推荐**：国内环境使用百炼千问（Qwen），兼容 OpenAI 接口
 
 ---
@@ -343,20 +335,15 @@ priority 越小 = 越优先匹配
 **已删除**：
 - `server/` 目录（Express 后端：webhook 验签、XGJ API 代理、config CRUD）— 功能已全部由 Python 实现
 - `src/dashboard/embedded_html.py`（2833 行内嵌 HTML 回退仪表盘）— 死代码
+- Docker 相关文件（docker-compose.yml、Dockerfile.python）
 
 **路径迁移**：
-- `system_config.json` 从 `server/data/` → `data/`（含自动迁移逻辑，10 处代码更新）
-- `.gitignore` 对应更新 `server/data/cookie_cloud/` → `data/cookie_cloud/`
+- `system_config.json` 从 `server/data/` → `data/`（含自动迁移逻辑）
+- `.gitignore` 对应更新
 
 **前端清理**：
 - `useHealthCheck.ts`：移除 `node: ServiceHealth`
 - `SetupGuide.tsx`：移除 `nodeBackend` 检查步骤
-- `ApiStatusPanel.tsx`：确认无需修改
-
-**启动脚本**：
-- `start.sh` / `start.bat` / `quick-start.sh` / `quick-start.bat`：移除 Node.js 进程管理
-
-**文档更新**：README.md、QUICKSTART.md、USER_GUIDE.md、docker-compose.yml、.env.example、package.json
 
 **⚠ 注意**：任何引用 `server/` 目录、端口 3001、或 `Node 薄代理` 的文档/分析已过时。
 
@@ -364,14 +351,9 @@ priority 越小 = 越优先匹配
 
 **问题**：Python `ThreadingHTTPServer` 偶发挂死（进程存活但不响应 HTTP），服务无法自愈。
 
-**方案**：新增 `supervisor.sh`
-- 每 15 秒对 Python（`/api/config`）和 Vite（`/`）发 HTTP 健康检查
-- 连续 2 次无响应 → 强制 kill + 自动重启
-- 进程退出 → 立即重启
-- 日志写入 `logs/supervisor.log`
-- 启动时自动清理残留端口占用
+**方案**：使用 nohup + 健康检查脚本，或 macOS launchd (`scripts/install-launchd.sh`) 实现自动重启。
 
-**推荐启动方式**：`./supervisor.sh` 代替 `./start.sh`
+**推荐启动方式**：`python -m src.main`（前台）或 `nohup python -m src.main &`（后台）。
 
 ### 9.3 自动回复日志修复（2026-03-14）
 

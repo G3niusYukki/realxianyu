@@ -23,7 +23,7 @@ What should have happened.
 ## Logs
 
 ```
-Paste relevant logs here (终端输出 / bash service.sh status)
+Paste relevant logs here (终端输出 / logs/app.log)
 ```
 
 ## Environment

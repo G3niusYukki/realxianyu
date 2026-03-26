@@ -2,18 +2,13 @@
 
 > XianyuFlow | 闲流 HTTP API 完整参考
 
-**Base URL**: `http://localhost:8091` (Python Core)
+**Base URL**: `http://localhost:8091`
 
 ---
 
 ## 概述
 
-当前主线有两套 HTTP 服务：
-
-- **Python Core** (`:8091`)：核心业务接口，主要服务层
-- **Node Proxy** (`:3001`)：薄代理与 webhook 验签（辅助）
-
-前端工作台直接调用 Python 接口；Node 仅负责代理和 webhook 场景。
+Python 后端在 **8091** 端口同时提供 API 和静态资源服务。React 前端编译后由 Python 后端直接托管，无需单独的前端开发服务器。
 
 **内容类型**: `application/json`
 **字符编码**: `UTF-8`
@@ -414,32 +409,6 @@
 
 它们是历史 Dashboard / 内部诊断界面，不是当前主工作台。
 
-## Node Proxy
-
-### 健康检查
-
-- `GET /health`
-
-### 配置代理
-
-- `GET /api/config`
-- `POST /api/config`
-- `PUT /api/config`
-- `GET /api/config/sections`
-
-这些接口只是把请求转发给 Python。
-
-### 闲管家代理 / webhook
-
-- `POST /api/xgj/proxy`
-- `POST /api/xgj/order/receive`
-- `POST /api/xgj/product/receive`
-
-说明：
-
-- `/api/xgj/proxy` 用于透传 Open Platform 请求。
-- `/api/xgj/*/receive` 会先做签名校验，再转发给 Python `/api/orders/callback` 等回调接口。
-
 ## CLI
 
 项目仍保留：
@@ -454,5 +423,5 @@ python -m src.cli
 
 - 所有前端页面都必须走真实接口。
 - 不允许为了展示而在接口层返回 mock 数据。
-- Python 是唯一业务真相源，Node 不是配置真相源。
+- Python 是唯一业务真相源。
 - `Legacy Browser Runtime` 只作为补充链路保留，不能重新成为默认依赖。

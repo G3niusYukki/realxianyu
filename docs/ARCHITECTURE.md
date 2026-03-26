@@ -35,8 +35,8 @@ XianyuFlow | 闲流（XianyuFlow | 闲流）是一个闲鱼平台自动化运营
 └────┬──────────────┬──────────────┬──────────────┬──────────┘
      │              │              │              │
 ┌────▼────┐  ┌──────▼───┐  ┌─────▼─────┐  ┌────▼─────┐
-│Services/│  │ Modules/ │  │Integrations│ │  CLI/    │
-│         │  │          │  │            │  │          │
+│dashboard/│  │ modules/ │  │integrations│ │  cli/    │
+│services/ │  │          │  │            │  │          │
 │Cookie   │  │Messages  │  │Xianguanjia │  │cmd_main  │
 │XGJ      │  │Orders    │  │OpenPlatform│  │cmd_orders│
 │         │  │Quote     │  │            │  │cmd_module│
@@ -62,10 +62,6 @@ src/
 │   ├── error_handler.py          # 统一异常处理
 │   ├── startup_checks.py         # 启动检查
 │   └── doctor.py                 # 运维诊断
-│
-├── services/                     # [重构后] 核心业务服务
-│   ├── cookie_service.py         # CookieService（解析/诊断/导入导出）
-│   └── xgj_service.py            # XGJService（闲管家配置/回调/重试）
 │
 ├── modules/                      # 业务模块（各自独立）
 │   ├── messages/                 # 消息 WS、长连接、回复引擎
@@ -117,7 +113,7 @@ src/
 │
 ├── dashboard/                   # Dashboard 相关
 │   ├── mimic_ops.py             # [精简] Facade 代理 (~3000行)
-│   ├── services/                # 从 mimic_ops 拆分的服务（同 src/services/）
+│   ├── services/                # 核心业务服务（从 mimic_ops 拆分）
 │   │   ├── cookie_service.py    # CookieService
 │   │   └── xgj_service.py       # XGJService
 │   ├── config_service.py        # Dashboard 配置 CRUD（JSON）

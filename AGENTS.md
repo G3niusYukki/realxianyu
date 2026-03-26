@@ -2,7 +2,7 @@
 - Stack: Python 3.12+ (`asyncio`) + React/Vite + SQLite.
 - `src/modules/`: business modules such as `messages`, `orders`, `listing`, and `virtual_goods`.
 - `src/integrations/`: XianGuanjia API integrations.
-- `src/dashboard/`: dashboard routes, facade, and related services.
+- `src/dashboard/services/`: core business services (CookieService, XGJService) split from mimic_ops.
 - `client/`: React/Vite frontend.
 - `config/`: YAML-based configuration and rules.
 - `tests/`: pytest suite.
