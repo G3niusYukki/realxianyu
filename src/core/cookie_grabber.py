@@ -140,9 +140,7 @@ class CookieGrabber:
             valid = await self._validate(im_cookies)
             if valid:
                 self._save(im_cookies, source="goofish_im")
-                self._update(
-                    GrabStage.SUCCESS, "Cookie 获取成功！", "从闲管家 IM 桌面端读取", 100
-                )
+                self._update(GrabStage.SUCCESS, "Cookie 获取成功！", "从闲管家 IM 桌面端读取", 100)
                 return GrabResult(ok=True, cookie_str=im_cookies, source="goofish_im", message="从闲管家 IM 获取成功")
 
         self._update(

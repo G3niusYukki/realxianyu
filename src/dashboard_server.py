@@ -852,9 +852,15 @@ def run_server(host: str = "127.0.0.1", port: int = 8091, db_path: str | None = 
                 action="start",
                 target=_target,
                 extra_args=[
-                    "--mode", "daemon", "--background",
-                    "--interval", "5", "--limit", "20",
-                    "--claim-limit", "10",
+                    "--mode",
+                    "daemon",
+                    "--background",
+                    "--interval",
+                    "5",
+                    "--limit",
+                    "20",
+                    "--claim-limit",
+                    "10",
                 ],
                 timeout_seconds=30,
             )
