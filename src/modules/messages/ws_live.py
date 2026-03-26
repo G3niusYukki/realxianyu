@@ -1692,9 +1692,10 @@ class GoofishWsTransport:
                             )
                             await asyncio.sleep(rgv_backoff)
                             continue
-                        elif not slider_enabled and self._rgv587_consecutive <= 3:
+                        elif not slider_enabled:
                             self.logger.warning(
-                                f"RGV587 风控检测 ({self._rgv587_consecutive}/3)，退避 {rgv_backoff:.0f}s 后重试..."
+                                f"RGV587 风控检测 ({self._rgv587_consecutive})，"
+                                f"退避 {rgv_backoff:.0f}s 后重试..."
                             )
                             await self._try_goofish_im_refresh(urgent=True)
                             if not _fp_enabled and await self._try_active_cookie_refresh():

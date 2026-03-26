@@ -127,18 +127,36 @@ class CookieGrabber:
                 )
                 return GrabResult(ok=True, cookie_str=cookie, source="browser_db", message="从浏览器数据库获取成功")
 
+        # Level 2: goofish-im 闲管家 IM 直读
+        try:
+            from src.core.goofish_im_cookie import read_goofish_im_cookies
+
+            im_cookies = read_goofish_im_cookies()
+        except Exception:
+            im_cookies = None
+        if self._cancel:
+            return GrabResult(ok=False, error="已取消")
+        if im_cookies:
+            valid = await self._validate(im_cookies)
+            if valid:
+                self._save(im_cookies, source="goofish_im")
+                self._update(
+                    GrabStage.SUCCESS, "Cookie 获取成功！", "从闲管家 IM 桌面端读取", 100
+                )
+                return GrabResult(ok=True, cookie_str=im_cookies, source="goofish_im", message="从闲管家 IM 获取成功")
+
         self._update(
             GrabStage.FAILED,
             "Cookie 获取失败",
-            "自动方式未成功。请在 BitBrowser 中登录闲鱼，或手动粘贴 Cookie",
+            "自动方式未成功。请手动粘贴 Cookie 或启动闲管家 IM 桌面端后重试",
         )
 
         from src.core.notify import send_system_notification
 
         send_system_notification(
             "【闲鱼自动化】⚠️ Cookie 自动获取失败\n"
-            "CookieCloud 和浏览器数据库均未获取到有效 Cookie。\n"
-            "请在 BitBrowser 中登录闲鱼，或手动打开 Dashboard 更新 Cookie。",
+            "CookieCloud、浏览器数据库和闲管家 IM 均未获取到有效 Cookie。\n"
+            "请手动打开 Dashboard 更新 Cookie。",
             event="cookie_expire",
         )
         return GrabResult(ok=False, error="所有获取方式均失败")

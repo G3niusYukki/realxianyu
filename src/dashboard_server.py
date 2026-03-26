@@ -838,61 +838,86 @@ def run_server(host: str = "127.0.0.1", port: int = 8091, db_path: str | None = 
 
     # -- 看门狗守护线程 --
     module_console = DashboardHandler.module_console
-    _wd_restart_count = 0
-    _wd_last_restart_at = 0.0
     _WD_COOLDOWN = 1800
     _WD_MAX_RESTARTS = 3
     _WD_INTERVAL = 120
+    _WD_MODULES = ("presales", "operations", "aftersales")
+    _wd_restart_counts: dict[str, int] = {m: 0 for m in _WD_MODULES}
+    _wd_last_restart_at: dict[str, float] = {m: 0.0 for m in _WD_MODULES}
+
+    # 启动时自动拉起所有业务模块
+    for _target in _WD_MODULES:
+        try:
+            module_console._run_module_cli(
+                action="start",
+                target=_target,
+                extra_args=[
+                    "--mode", "daemon", "--background",
+                    "--interval", "5", "--limit", "20",
+                    "--claim-limit", "10",
+                ],
+                timeout_seconds=30,
+            )
+            logger.info("Auto-start: %s 已启动", _target)
+        except Exception as _exc:
+            logger.warning("Auto-start: %s 启动失败: %s", _target, _exc)
 
     def _watchdog_loop() -> None:
-        nonlocal _wd_restart_count, _wd_last_restart_at
         shutdown_event.wait(60)
         while not shutdown_event.is_set():
             shutdown_event.wait(_WD_INTERVAL)
             if shutdown_event.is_set():
                 break
-            now_ts = time.time()
-            if _wd_restart_count >= _WD_MAX_RESTARTS and (now_ts - _wd_last_restart_at) < _WD_COOLDOWN:
-                continue
-            if (now_ts - _wd_last_restart_at) >= _WD_COOLDOWN:
-                _wd_restart_count = 0
 
             try:
                 status_result = module_console.status(window_minutes=5, limit=5)
                 modules = status_result.get("modules") or {}
-                presales_running = False
-                if isinstance(modules, dict):
-                    presales_info = modules.get("presales", {})
-                    if isinstance(presales_info, dict):
-                        proc = presales_info.get("process", {})
-                        presales_running = bool(proc.get("alive", False)) if isinstance(proc, dict) else False
-                elif isinstance(modules, list):
-                    for m in modules:
-                        if isinstance(m, dict) and m.get("name") == "presales" and m.get("status") == "running":
-                            presales_running = True
-                            break
 
-                if not presales_running:
-                    logger.warning("Watchdog: presales 模块未运行，尝试自动启动...")
-                    try:
-                        module_console._run_module_cli(action="start", target="presales", timeout_seconds=30)
-                        _wd_restart_count += 1
-                        _wd_last_restart_at = time.time()
-                        logger.info("Watchdog: presales 模块已自动启动 (count=%d)", _wd_restart_count)
-                    except Exception as start_exc:
-                        logger.error("Watchdog: presales 自动启动失败: %s", start_exc)
+                for _mod in _WD_MODULES:
+                    now_ts = time.time()
+                    cnt = _wd_restart_counts[_mod]
+                    last = _wd_last_restart_at[_mod]
 
-                    if _wd_restart_count >= _WD_MAX_RESTARTS:
+                    # 检查冷却
+                    if cnt >= _WD_MAX_RESTARTS and (now_ts - last) < _WD_COOLDOWN:
+                        continue
+                    if (now_ts - last) >= _WD_COOLDOWN:
+                        _wd_restart_counts[_mod] = 0
+
+                    # 检查运行状态
+                    mod_running = False
+                    if isinstance(modules, dict):
+                        mod_info = modules.get(_mod, {})
+                        if isinstance(mod_info, dict):
+                            proc = mod_info.get("process", {})
+                            mod_running = bool(proc.get("alive", False)) if isinstance(proc, dict) else False
+                    elif isinstance(modules, list):
+                        for m in modules:
+                            if isinstance(m, dict) and m.get("name") == _mod and m.get("status") == "running":
+                                mod_running = True
+                                break
+
+                    if not mod_running:
+                        logger.warning("Watchdog: %s 模块未运行，尝试自动启动...", _mod)
                         try:
-                            from src.core.notify import send_system_notification
+                            module_console._run_module_cli(action="start", target=_mod, timeout_seconds=30)
+                            _wd_restart_counts[_mod] += 1
+                            _wd_last_restart_at[_mod] = time.time()
+                            logger.info("Watchdog: %s 模块已自动启动 (count=%d)", _mod, _wd_restart_counts[_mod])
+                        except Exception as start_exc:
+                            logger.error("Watchdog: %s 自动启动失败: %s", _mod, start_exc)
 
-                            send_system_notification(
-                                f"【闲鱼自动化】⚠️ presales 模块连续 {_WD_MAX_RESTARTS} 次异常重启，"
-                                f"进入 {_WD_COOLDOWN // 60} 分钟静默期。请检查日志排查问题。",
-                                event="watchdog_alert",
-                            )
-                        except Exception:
-                            pass
+                        if _wd_restart_counts[_mod] >= _WD_MAX_RESTARTS:
+                            try:
+                                from src.core.notify import send_system_notification
+
+                                send_system_notification(
+                                    f"【闲鱼自动化】⚠️ {_mod} 模块连续 {_WD_MAX_RESTARTS} 次异常重启，"
+                                    f"进入 {_WD_COOLDOWN // 60} 分钟静默期。请检查日志排查问题。",
+                                    event="watchdog_alert",
+                                )
+                            except Exception:
+                                pass
 
                 if refresher and not refresher.running:
                     logger.warning("Watchdog: CookieAutoRefresher 已停止，尝试重启...")
