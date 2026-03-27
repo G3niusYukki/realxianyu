@@ -53,6 +53,7 @@ class TestWorkflowStore:
             result = store.complete_job(jobs[0].id)
             assert result is True
         finally:
+            store._db.close()
             Path(db_path).unlink(missing_ok=True)
 
     def test_complete_job_with_lease(self):
@@ -68,6 +69,7 @@ class TestWorkflowStore:
             result = store.complete_job(jobs[0].id, expected_lease_until=jobs[0].lease_until)
             assert result is True
         finally:
+            store._db.close()
             Path(db_path).unlink(missing_ok=True)
 
     def test_complete_job_with_wrong_lease(self):
@@ -80,6 +82,7 @@ class TestWorkflowStore:
             result = store.complete_job(jobs[0].id, expected_lease_until="wrong_lease")
             assert result is False
         finally:
+            store._db.close()
             Path(db_path).unlink(missing_ok=True)
 
     def test_fail_job_dead_with_lease(self):
@@ -95,6 +98,7 @@ class TestWorkflowStore:
             )
             assert result is True
         finally:
+            store._db.close()
             Path(db_path).unlink(missing_ok=True)
 
     def test_fail_job_not_found(self):
@@ -105,6 +109,7 @@ class TestWorkflowStore:
             result = store.fail_job(999, "error", max_attempts=3, base_backoff_seconds=1)
             assert result is False
         finally:
+            store._db.close()
             Path(db_path).unlink(missing_ok=True)
 
 

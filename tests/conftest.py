@@ -98,7 +98,7 @@ browser:
     max: 3.0
   upload_timeout: 60
 """
-    config_file.write_text(config_content)
+    config_file.write_text(config_content, encoding="utf-8")
     return config_file
 
 

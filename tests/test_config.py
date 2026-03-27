@@ -62,7 +62,7 @@ app:
   name: "updated_name"
   version: "8.0.0"
 """
-        temp_config_file.write_text(config_content)
+        temp_config_file.write_text(config_content, encoding="utf-8")
 
         config.reload()
         assert config.get("app.name") == "updated_name"
