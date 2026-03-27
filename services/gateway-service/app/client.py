@@ -1,6 +1,5 @@
 import json
 import os
-from typing import Any
 
 import httpx
 
@@ -11,9 +10,13 @@ class XianyuConfig:
     """闲管家配置类"""
 
     def __init__(self):
-        self.app_key = os.getenv("XIANYU_APP_KEY", "")
-        self.app_secret = os.getenv("XIANYU_APP_SECRET", "")
-        self.base_url = os.getenv("XIANYU_BASE_URL", "https://api.xianyu.com")
+        self.app_key = os.getenv("XIANYU_APP_KEY") or os.getenv("XGJ_APP_KEY", "")
+        self.app_secret = os.getenv("XIANYU_APP_SECRET") or os.getenv("XGJ_APP_SECRET", "")
+        self.base_url = (
+            os.getenv("XIANYU_BASE_URL")
+            or os.getenv("XGJ_BASE_URL")
+            or "https://open.goofish.pro"
+        )
 
     @property
     def is_configured(self) -> bool:
@@ -45,34 +48,33 @@ class XianGuanJiaClient:
 
         payload = payload or {}
         body = json.dumps(payload, separators=(",", ":"), ensure_ascii=False)
-        timestamp = str(int(time.time() * 1000))
+        timestamp = str(int(time.time()))
 
         # 生成签名
         signature = sign_request(
             self.config.app_key, self.config.app_secret, body, timestamp
         )
 
-        # 构建请求头
-        headers = {
-            "Content-Type": "application/json",
-            "X-App-Key": self.config.app_key,
-            "X-Timestamp": timestamp,
-            "X-Signature": signature,
+        params = {
+            "appid": self.config.app_key,
+            "timestamp": timestamp,
+            "sign": signature,
         }
 
         # 发送请求
         response = await self.client.request(
             method=method.upper(),
             url=path,
+            params=params,
             content=body.encode("utf-8"),
-            headers=headers,
+            headers={"Content-Type": "application/json"},
         )
         response.raise_for_status()
         return response.json()
 
     async def list_authorized_users(self) -> dict:
         """获取已授权用户列表"""
-        return await self._request("POST", "/openapi/users/authorized")
+        return await self._request("POST", "/api/open/user/authorize/list", {})
 
     async def list_products(self, page: int = 1, page_size: int = 20) -> dict:
         """
@@ -83,7 +85,7 @@ class XianGuanJiaClient:
             page_size: 每页数量
         """
         payload = {"page": page, "pageSize": page_size}
-        return await self._request("POST", "/openapi/products/list", payload)
+        return await self._request("POST", "/api/open/product/list", payload)
 
     async def create_product(self, product: dict) -> dict:
         """
@@ -92,7 +94,7 @@ class XianGuanJiaClient:
         Args:
             product: 商品数据
         """
-        return await self._request("POST", "/openapi/products/create", product)
+        return await self._request("POST", "/api/open/product/create", product)
 
     async def list_orders(
         self, status: str | None = None, page: int = 1, page_size: int = 20
@@ -108,7 +110,7 @@ class XianGuanJiaClient:
         payload = {"page": page, "pageSize": page_size}
         if status:
             payload["status"] = status
-        return await self._request("POST", "/openapi/orders/list", payload)
+        return await self._request("POST", "/api/open/order/list", payload)
 
     async def modify_order_price(self, order_id: str, price: float) -> dict:
         """
@@ -119,7 +121,7 @@ class XianGuanJiaClient:
             price: 新价格
         """
         payload = {"orderId": order_id, "price": price}
-        return await self._request("POST", "/openapi/orders/modifyPrice", payload)
+        return await self._request("POST", "/api/open/order/modify/price", payload)
 
     async def ship_order(self, order_id: str, shipping: dict) -> dict:
         """
@@ -130,4 +132,4 @@ class XianGuanJiaClient:
             shipping: 物流信息
         """
         payload = {"orderId": order_id, **shipping}
-        return await self._request("POST", "/openapi/orders/ship", payload)
+        return await self._request("POST", "/api/open/order/ship", payload)
