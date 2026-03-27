@@ -3,6 +3,9 @@
 
 set -e
 
+: "${GRAFANA_ADMIN_PASSWORD:=admin}"
+echo "Grafana admin password: set via GRAFANA_ADMIN_PASSWORD env var"
+
 echo "🚀 Setting up XianyuFlow local infrastructure..."
 
 # Check dependencies
@@ -46,7 +49,7 @@ echo "✅ Infrastructure setup complete!"
 echo ""
 echo "📊 Access your services:"
 echo ""
-echo "  Grafana (admin/xianyu2024):"
+echo "  Grafana (admin/${GRAFANA_ADMIN_PASSWORD}):"
 echo "    kubectl port-forward svc/prometheus-grafana 3000:80 -n monitoring"
 echo "    http://localhost:3000"
 echo ""
