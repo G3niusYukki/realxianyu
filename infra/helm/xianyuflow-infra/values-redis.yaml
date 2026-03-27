@@ -1,0 +1,21 @@
+redis-cluster:
+  enabled: true
+  cluster:
+    nodes: 6
+    replicas: 1
+  password: xianyu2024
+  persistence:
+    enabled: true
+    size: 10Gi
+  resources:
+    requests:
+      memory: 512Mi
+      cpu: 250m
+    limits:
+      memory: 1Gi
+      cpu: 500m
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      namespace: monitoring

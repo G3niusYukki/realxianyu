@@ -88,3 +88,23 @@ resource "kubernetes_namespace" "monitoring" {
 
   depends_on = [kind_cluster.xianyuflow]
 }
+
+# Redis Cluster Helm Release
+resource "helm_release" "redis" {
+  name       = "redis"
+  repository = "https://charts.bitnami.com/bitnami"
+  chart      = "redis-cluster"
+  version    = "9.0.0"
+  namespace  = kubernetes_namespace.xianyuflow.metadata[0].name
+
+  values = [
+    file("${path.module}/../../../helm/xianyuflow-infra/values-redis.yaml")
+  ]
+
+  set_sensitive {
+    name  = "password"
+    value = var.redis_password
+  }
+
+  depends_on = [kubernetes_namespace.xianyuflow]
+}
