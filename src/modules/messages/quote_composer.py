@@ -13,6 +13,7 @@ from typing import Any
 from src.core.logger import get_logger
 from src.modules.quote.geo_resolver import GeoResolver
 from src.modules.quote.models import QuoteRequest, QuoteResult
+from src.modules.quote.utils import format_eta_days as _shared_format_eta_days
 
 _logger = get_logger()
 
@@ -37,17 +38,7 @@ class QuoteReplyComposer:
 
     @staticmethod
     def format_eta_days(minutes: int | float | None) -> str:
-        try:
-            raw = float(minutes or 0)
-        except (TypeError, ValueError):
-            raw = 0.0
-        if raw <= 0:
-            return "1天"
-        days = max(1.0, raw / 1440.0)
-        rounded = round(days, 1)
-        if abs(rounded - round(rounded)) < 1e-9:
-            return f"{round(rounded)}天"
-        return f"{rounded:.1f}天"
+        return _shared_format_eta_days(minutes)
 
     def resolve_candidate_couriers(self, request: QuoteRequest) -> list[str]:
         couriers: list[str] = []
