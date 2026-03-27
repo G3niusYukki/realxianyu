@@ -18,138 +18,151 @@ import httpx
 from src.core.logger import get_logger
 
 
-def handle_controller_errors(default_return: Any = None, raise_on_error: bool = False):
-    """
-    控制器操作异常处理装饰器
-
-    Args:
-        default_return: 发生异常时返回的默认值
-        raise_on_error: 是否在异常时重新抛出
-    """
-
-    def decorator(func: Callable) -> Callable:
-        @wraps(func)
-        async def async_wrapper(self, *args, **kwargs):
-            try:
-                return await func(self, *args, **kwargs)
-            except (ConnectionError, httpx.ConnectError, httpx.NetworkError) as e:
-                self.logger.warning(f"Network connection error in {func.__name__}: {e}")
-                if raise_on_error:
-                    raise
-                return default_return
-            except httpx.TimeoutException as e:
-                self.logger.warning(f"Timeout in {func.__name__}: {e}")
-                if raise_on_error:
-                    raise
-                return default_return
-            except httpx.HTTPStatusError as e:
-                self.logger.error(f"HTTP error in {func.__name__}: {e.response.status_code}")
-                if raise_on_error:
-                    raise
-                return default_return
-            except httpx.HTTPError as e:
-                self.logger.error(f"HTTP request error in {func.__name__}: {e}")
-                if raise_on_error:
-                    raise
-                return default_return
-            except asyncio.CancelledError:
-                self.logger.debug(f"Task cancelled in {func.__name__}")
-                raise
-            except Exception as e:
-                self.logger.error(f"Unexpected error in {func.__name__}: {e}", exc_info=True)
-                if raise_on_error:
-                    raise
-                return default_return
-
-        return async_wrapper
-
-    return decorator
-
-
-def handle_operation_errors(default_return: Any = False, raise_on_error: bool = False):
-    """
-    操作异常处理装饰器（用于返回bool的操作）
-
-    Args:
-        default_return: 发生异常时返回的默认值
-        raise_on_error: 是否在异常时重新抛出
-    """
-
-    def decorator(func: Callable) -> Callable:
-        @wraps(func)
-        async def async_wrapper(self, *args, **kwargs):
-            try:
-                return await func(self, *args, **kwargs)
-            except (ConnectionError, httpx.ConnectError, httpx.NetworkError) as e:
-                self.logger.debug(f"Network error in {func.__name__}: {e}")
-                if raise_on_error:
-                    raise
-                return default_return
-            except httpx.TimeoutException:
-                self.logger.debug(f"Timeout in {func.__name__}")
-                if raise_on_error:
-                    raise
-                return default_return
-            except Exception as e:
-                self.logger.debug(f"Error in {func.__name__}: {e}")
-                if raise_on_error:
-                    raise
-                return default_return
-
-        @wraps(func)
-        def sync_wrapper(self, *args, **kwargs):
-            try:
-                return func(self, *args, **kwargs)
-            except Exception as e:
-                self.logger.debug(f"Error in {func.__name__}: {e}")
-                if raise_on_error:
-                    raise
-                return default_return
-
-        return async_wrapper if inspect.iscoroutinefunction(func) else sync_wrapper
-
-    return decorator
-
-
-def safe_execute(logger=None, default_return: Any = None, raise_on_error: bool = False):
-    """
-    安全执行装饰器（用于可能失败的操作，静默失败）
+def safe_execute(
+    logger=None,
+    default_return: Any = None,
+    raise_on_error: bool = False,
+    log_level: str = "debug",
+    catch: tuple = (Exception,),
+    http_aware: bool = False,
+):
+    """Unified safe execution decorator.
 
     Args:
         logger: 日志记录器，不指定则使用全局logger
         default_return: 发生异常时返回的默认值
         raise_on_error: 是否在异常时重新抛出
+        log_level: "debug" | "warning" | "error"
+        catch: Exception types to catch
+        http_aware: If True, handle httpx errors specifically with detailed messages
     """
-    if logger is None:
-        logger = get_logger()
+
+    _log_level = log_level.lower()
+
+    def _log(logger_instance, msg, *args, **kwargs):
+        if _log_level == "warning":
+            logger_instance.warning(msg, *args, **kwargs)
+        elif _log_level == "error":
+            logger_instance.error(msg, *args, **kwargs)
+        else:
+            logger_instance.debug(msg, *args, **kwargs)
 
     def decorator(func: Callable) -> Callable:
-        @wraps(func)
-        async def async_wrapper(*args, **kwargs):
-            try:
-                return await func(*args, **kwargs)
-            except Exception as e:
-                logger.debug(f"Error in {func.__name__}: {e}")
-                if raise_on_error:
+        if http_aware:
+            # HTTP-aware wrapper: uses self.logger, handles httpx errors specially.
+            # Network/timeout use configured log_level; HTTP status/errors and
+            # unexpected exceptions always log at error level (matching original
+            # handle_controller_errors behavior).
+            @wraps(func)
+            async def async_wrapper(self, *args, **kwargs):
+                _logger = logger or self.logger
+                try:
+                    return await func(self, *args, **kwargs)
+                except (ConnectionError, httpx.ConnectError, httpx.NetworkError) as e:
+                    _log(_logger, f"Network connection error in {func.__name__}: {e}")
+                    if raise_on_error:
+                        raise
+                    return default_return
+                except httpx.TimeoutException as e:
+                    _log(_logger, f"Timeout in {func.__name__}: {e}")
+                    if raise_on_error:
+                        raise
+                    return default_return
+                except httpx.HTTPStatusError as e:
+                    _logger.error(f"HTTP error in {func.__name__}: {e.response.status_code}")
+                    if raise_on_error:
+                        raise
+                    return default_return
+                except httpx.HTTPError as e:
+                    _logger.error(f"HTTP request error in {func.__name__}: {e}")
+                    if raise_on_error:
+                        raise
+                    return default_return
+                except asyncio.CancelledError:
+                    _logger.debug(f"Task cancelled in {func.__name__}")
                     raise
-                return default_return
+                except catch as e:
+                    _logger.error(f"Unexpected error in {func.__name__}: {e}", exc_info=True)
+                    if raise_on_error:
+                        raise
+                    return default_return
 
-        @wraps(func)
-        def sync_wrapper(*args, **kwargs):
-            try:
-                return func(*args, **kwargs)
-            except Exception as e:
-                logger.debug(f"Error in {func.__name__}: {e}")
-                if raise_on_error:
-                    raise
-                return default_return
-
-        if inspect.iscoroutinefunction(func):
             return async_wrapper
+
         else:
-            return sync_wrapper
+            # Standard wrapper: supports both sync and async
+            _logger = logger or get_logger()
+
+            @wraps(func)
+            async def async_wrapper(*args, **kwargs):
+                try:
+                    return await func(*args, **kwargs)
+                except catch as e:
+                    use_exc_info = _log_level == "error"
+                    _log(_logger, f"Error in {func.__name__}: {e}", exc_info=use_exc_info)
+                    if raise_on_error:
+                        raise
+                    return default_return
+
+            @wraps(func)
+            def sync_wrapper(*args, **kwargs):
+                try:
+                    return func(*args, **kwargs)
+                except catch as e:
+                    use_exc_info = _log_level == "error"
+                    _log(_logger, f"Error in {func.__name__}: {e}", exc_info=use_exc_info)
+                    if raise_on_error:
+                        raise
+                    return default_return
+
+            return async_wrapper if inspect.iscoroutinefunction(func) else sync_wrapper
 
     return decorator
+
+
+# ---------------------------------------------------------------------------
+# Backward-compatible aliases (deprecated, will be removed in future version)
+# ---------------------------------------------------------------------------
+
+
+def handle_controller_errors(default_return: Any = None, raise_on_error: bool = False):
+    """控制器操作异常处理装饰器 (deprecated: use safe_execute with http_aware=True)."""
+    return safe_execute(
+        default_return=default_return,
+        raise_on_error=raise_on_error,
+        log_level="warning",
+        http_aware=True,
+    )
+
+
+def handle_operation_errors(default_return: Any = False, raise_on_error: bool = False):
+    """操作异常处理装饰器 (deprecated: use safe_execute)."""
+    return safe_execute(
+        default_return=default_return,
+        raise_on_error=raise_on_error,
+        log_level="debug",
+    )
+
+
+def handle_errors(
+    exceptions: tuple | None = None,
+    default_return: Any = None,
+    logger=None,
+    raise_on_error: bool = False,
+):
+    """通用异常处理装饰器 (deprecated: use safe_execute with log_level='error')."""
+    return safe_execute(
+        logger=logger,
+        default_return=default_return,
+        raise_on_error=raise_on_error,
+        log_level="error",
+        catch=exceptions or (Exception,),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Keep retry and log_execution_time completely unchanged
+# ---------------------------------------------------------------------------
 
 
 def retry(max_attempts: int = 3, delay: float = 1.0, backoff_factor: float = 2.0, exceptions: tuple = (Exception,)):
@@ -309,50 +322,3 @@ class DatabaseError(XianyuError):
     """数据库错误"""
 
     pass
-
-
-def handle_errors(
-    exceptions: tuple | None = None, default_return: Any = None, logger=None, raise_on_error: bool = False
-):
-    """
-    通用异常处理装饰器
-
-    Args:
-        exceptions: 需要捕获的异常类型
-        default_return: 默认返回值
-        logger: 日志记录器
-        raise_on_error: 是否重新抛出异常
-    """
-    if exceptions is None:
-        exceptions = (Exception,)
-
-    if logger is None:
-        logger = get_logger()
-
-    def decorator(func: Callable) -> Callable:
-        @wraps(func)
-        async def async_wrapper(*args, **kwargs):
-            try:
-                return await func(*args, **kwargs)
-            except exceptions as e:
-                logger.error(f"Error in {func.__name__}: {e}", exc_info=True)
-                if raise_on_error:
-                    raise
-                return default_return
-
-        @wraps(func)
-        def sync_wrapper(*args, **kwargs):
-            try:
-                return func(*args, **kwargs)
-            except exceptions as e:
-                logger.error(f"Error in {func.__name__}: {e}", exc_info=True)
-                if raise_on_error:
-                    raise
-                return default_return
-
-        if inspect.iscoroutinefunction(func):
-            return async_wrapper
-        else:
-            return sync_wrapper
-
-    return decorator
