@@ -1,6 +1,4 @@
 """Tests for xianyuflow_common.cache module."""
-import time
-
 import pytest
 
 from xianyuflow_common.cache import CacheConfig, L1MemoryCache
@@ -89,7 +87,8 @@ class TestL1MemoryCache:
         # Should be available immediately
         assert await cache.get("key1") == "value1"
         # Wait for expiry
-        time.sleep(0.1)
+        import asyncio
+        await asyncio.sleep(0.1)
         result = await cache.get("key1")
         assert result is None
 
@@ -98,7 +97,8 @@ class TestL1MemoryCache:
         """Entry should not expire before TTL."""
         cache = L1MemoryCache()
         await cache.set("key1", "value1", ttl_seconds=5.0)
-        time.sleep(0.05)
+        import asyncio
+        await asyncio.sleep(0.05)
         result = await cache.get("key1")
         assert result == "value1"
 

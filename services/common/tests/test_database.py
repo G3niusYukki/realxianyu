@@ -35,18 +35,16 @@ class TestDatabaseConfig:
 class TestDatabase:
     """Tests for Database class."""
 
-    def test_database_requires_connection_before_use(self) -> None:
+    @pytest.mark.asyncio
+    async def test_database_requires_connection_before_use(self) -> None:
         """Session context manager raises RuntimeError if not connected."""
         config = DatabaseConfig()
         db = Database(config)
 
         with pytest.raises(RuntimeError, match="not connected"):
-            # Use an in-memory SQLite DSN so we can at least check the error
             db._session_factory = None
-            # Accessing engine without connection should raise
-            # But since _session_factory is None, session() will raise
-            import asyncio
-            asyncio.get_event_loop().run_until_complete(db.session().__aenter__())
+            async with db.session():
+                pass  # pragma: no cover
 
     def test_database_init_stores_config(self) -> None:
         """Database __init__ should store the config."""
