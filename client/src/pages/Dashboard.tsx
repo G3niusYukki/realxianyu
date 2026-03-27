@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { getDashboardSummary, getRecentOperations, getSystemStatus, getTrendData, getTopProducts, getUnmatchedStats, generateRuleSuggestions, applyRuleSuggestion, type RuleSuggestion } from '../api/dashboard'
-import { Store, ShoppingBag, MessageCircle, FileText, AlertCircle, RefreshCw, Settings, Bot, BarChart3, Clock, Package, TrendingUp, Calendar } from 'lucide-react'
+import { Store, ShoppingBag, MessageCircle, FileText, AlertCircle, RefreshCw, Settings, Bot, BarChart3, Clock, Package, TrendingUp, Calendar, Zap } from 'lucide-react'
 import toast from 'react-hot-toast'
 import SetupGuide from '../components/SetupGuide'
 import SetupWizard from '../components/SetupWizard'
