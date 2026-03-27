@@ -55,6 +55,7 @@ class DualWriteManager:
         self.write_mode = write_mode
         self.read_mode = read_mode
 
+        self._lock = asyncio.Lock()
         self._sqlite_pool: Optional[aiosqlite.Connection] = None
         self._pg_pool: Optional[asyncpg.Pool] = None
         self._migration_progress = 0.0  # 0.0 - 1.0
@@ -258,7 +259,7 @@ class DualWriteManager:
     async def _sqlite_lock(self):
         """SQLite 操作锁（防止并发问题）"""
         # SQLite 不支持高并发写入，需要序列化
-        async with asyncio.Lock():
+        async with self._lock:
             yield
 
 
