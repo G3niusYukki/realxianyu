@@ -360,8 +360,8 @@ const Dashboard = () => {
     conversion_rate_pct: null as number | null,
   });
   const [dataSource, setDataSource] = useState<string>('');
-  const [recentOps, setRecentOps] = useState([]);
-  const [sysStatus, setSysStatus] = useState(null);
+  const [recentOps, setRecentOps] = useState<{ action: string; success: boolean; timestamp: string; message: string }[]>([]);
+  const [sysStatus, setSysStatus] = useState<Record<string, any> | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const refreshingRef = useRef(false);
@@ -370,8 +370,8 @@ const Dashboard = () => {
 
   const [metric, setMetric] = useState('orders');
   const [days, setDays] = useState(30);
-  const [trendData, setTrendData] = useState([]);
-  const [topProducts, setTopProducts] = useState([]);
+  const [trendData, setTrendData] = useState<{ date: string; value: number }[]>([]);
+  const [topProducts, setTopProducts] = useState<{ pic_url?: string; title: string; sold?: number; sales?: number; stock?: number; price?: number }[]>([]);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [unmatchedStats, setUnmatchedStats] = useState<{ total_count: number; top_keywords: Array<{ word: string; count: number }> } | null>(null);
   const [ruleSuggestions, setRuleSuggestions] = useState<RuleSuggestion[]>([]);
@@ -428,7 +428,7 @@ const Dashboard = () => {
   daysRef.current = days;
 
   const applyDashboardResults = useCallback((results: PromiseSettledResult<any>[]) => {
-    const [summaryRes, opsRes, statusRes] = results.map(r => r.status === 'fulfilled' ? r.value : null);
+    const [summaryRes, opsRes, statusRes] = results.map(r => r.status === 'fulfilled' ? r.value : null) as [any, any, any];
 
     if (summaryRes?.data) {
       const raw = summaryRes.data.data || summaryRes.data;
@@ -446,7 +446,7 @@ const Dashboard = () => {
       });
     }
     if (opsRes?.data) {
-      const ops = Array.isArray(opsRes.data) ? opsRes.data : (opsRes.data.operations || []);
+      const ops: any[] = Array.isArray(opsRes.data) ? opsRes.data : (opsRes.data.operations || []);
       setRecentOps(ops.map((op: any) => ({
         action: op.operation_type || op.action || '未知操作',
         success: op.status === 'success' || op.status === 'completed',

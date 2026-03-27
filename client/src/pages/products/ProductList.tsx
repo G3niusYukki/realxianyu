@@ -124,7 +124,7 @@ export default function ProductList() {
     setLoading(true);
     try {
       const res = await getProducts(page, 20);
-      if (res.data?.ok) setProducts(res.data.data?.data?.list || []);
+      if (res.data?.ok) setProducts(res.data.data?.list || []);
       else toast.error(res.data?.error || '无法获取商品列表');
     } catch { toast.error('加载失败'); }
     finally { setLoading(false); }
@@ -522,7 +522,7 @@ export default function ProductList() {
                         <h3 className="text-sm font-semibold text-xy-text-secondary mb-4">快递公司路线分布</h3>
                         <ResponsiveContainer width="100%" height={280}>
                           <PieChart>
-                            <Pie data={chartData} dataKey="count" nameKey="name" cx="50%" cy="50%" outerRadius={100} label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={false}>
+                            <Pie data={chartData} dataKey="count" nameKey="name" cx="50%" cy="50%" outerRadius={100} label={({ name, percent }: { name?: string; percent?: number }) => `${name ?? ''} ${((percent ?? 0) * 100).toFixed(0)}%`} labelLine={false}>
                               {chartData.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
                             </Pie>
                             <Tooltip formatter={(v: number) => v.toLocaleString()} />

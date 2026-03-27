@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { getOrders, proxyXgjApi } from '../api/xianguanjia';
+import { getOrders, proxyXgjApi, type OrderItem, type OrderDetail } from '../api/xianguanjia';
 import { api } from '../api/index';
 import { useStoreCategory } from '../contexts/StoreCategoryContext';
 import toast from 'react-hot-toast';
@@ -37,17 +37,17 @@ function formatTimestamp(ts: number | string | undefined): string {
 
 export default function Orders() {
   const { category } = useStoreCategory();
-  const [orders, setOrders] = useState([]);
+  const [orders, setOrders] = useState<OrderItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
-  const [actionLoading, setActionLoading] = useState({});
+  const [actionLoading, setActionLoading] = useState<Record<string, string | null>>({});
   const [currentPage, setCurrentPage] = useState(1);
   const PAGE_SIZE = 20;
-  const [expandedOrder, setExpandedOrder] = useState(null);
-  const [orderDetail, setOrderDetail] = useState(null);
+  const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
+  const [orderDetail, setOrderDetail] = useState<OrderDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
-  const [priceEditOrder, setPriceEditOrder] = useState(null);
+  const [priceEditOrder, setPriceEditOrder] = useState<string | null>(null);
   const [priceEditValue, setPriceEditValue] = useState('');
 
   useEffect(() => { setCurrentPage(1); fetchOrders(); }, [tab]);
@@ -56,13 +56,13 @@ export default function Orders() {
     setLoading(true);
     try {
       const activeTab = TABS.find(t => t.id === tab);
-      const payload: Record<string, any> = { page_no: 1, page_size: 50 };
+      const payload: Record<string, unknown> = { page_no: 1, page_size: 50 };
       if (activeTab?.status) payload.order_status = activeTab.status;
 
       const res = await getOrders(payload);
       if (res.data?.ok) {
         const d = res.data.data;
-        const list = Array.isArray(d) ? d : (d?.data?.list || d?.list || []);
+        const list = Array.isArray(d) ? d : (d?.list || []);
         setOrders(list);
       }
       else toast.error(res.data?.error || '无法获取订单');
@@ -90,7 +90,7 @@ export default function Orders() {
     const priceInCents = Math.round(Number(priceEditValue) * 100);
     setActionLoading(prev => ({ ...prev, [orderNo]: 'price' }));
     try {
-      const res = await proxyXgjApi('/api/open/order/modify/price', { order_no: orderNo, order_price: priceInCents, express_fee: 0 });
+      const res = await proxyXgjApi('/api/open/order/modify/price', { order_no: orderNo, order_price: priceInCents, express_fee: 0 } as Record<string, unknown>);
       if (res.data?.ok) { toast.success('改价成功'); setPriceEditOrder(null); setPriceEditValue(''); fetchOrders(); }
       else toast.error(res.data?.data?.msg || res.data?.error || '改价失败');
     } catch { toast.error('改价请求失败'); }
@@ -232,7 +232,7 @@ export default function Orders() {
           <>
           <div className="divide-y divide-xy-border">
             {filteredOrders.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE).map((order, idx) => {
-              const statusInfo = getStatusInfo(order.order_status);
+              const statusInfo = getStatusInfo(order.order_status ?? 0);
               const orderNo = order.order_no || order.order_id || `order-${(currentPage - 1) * PAGE_SIZE + idx}-${order.order_time || ''}`;
               const picUrl = order.goods?.images?.[0] || order.pic_url || '';
               const title = order.goods?.title || order.title || '未知商品';
