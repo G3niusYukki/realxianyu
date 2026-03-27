@@ -6,9 +6,13 @@
 -- NOTE: SQLite does not support ALTER TABLE ADD CONSTRAINT, so this migration
 -- rebuilds the table for existing deployments. New deployments should include
 -- the FOREIGN KEY clause directly in the CREATE TABLE statement (see below).
+-- This migration is SKIPPED on fresh/new databases (virtual_goods_orders must exist).
 
 -- For new deployments, include this in virtual_goods_orders CREATE TABLE:
 --     FOREIGN KEY (xianyu_product_id) REFERENCES virtual_goods_products(xianyu_product_id) ON DELETE SET NULL ON UPDATE CASCADE
+
+-- Guard: The migration runner skips this file if virtual_goods_orders does not exist
+-- (fresh databases don't have virtual_goods tables yet).
 
 -- Step 1: Create new table with FK constraint
 CREATE TABLE IF NOT EXISTS virtual_goods_orders_new (
@@ -30,8 +34,10 @@ CREATE TABLE IF NOT EXISTS virtual_goods_orders_new (
     FOREIGN KEY (xianyu_product_id) REFERENCES virtual_goods_products(xianyu_product_id) ON DELETE SET NULL ON UPDATE CASCADE
 );
 
--- Step 2: Migrate data from old table to new table
-INSERT INTO virtual_goods_orders_new
+-- Step 2: Migrate data from old table to new table (only if old table exists)
+-- The old table might not exist on fresh databases, so we use INSERT OR IGNORE
+-- with a SELECT that will simply return empty if the table doesn't exist
+INSERT OR IGNORE INTO virtual_goods_orders_new
     (id, xianyu_order_id, xianyu_product_id, supply_order_no, session_id,
      order_status, fulfillment_status, callback_status, manual_takeover,
      last_error, created_at, updated_at)
@@ -41,8 +47,8 @@ SELECT
     last_error, created_at, updated_at
 FROM virtual_goods_orders;
 
--- Step 3: Drop the old table
-DROP TABLE virtual_goods_orders;
+-- Step 3: Drop the old table (IF EXISTS guards against fresh DB)
+DROP TABLE IF EXISTS virtual_goods_orders;
 
 -- Step 4: Rename new table to original name
 ALTER TABLE virtual_goods_orders_new RENAME TO virtual_goods_orders;

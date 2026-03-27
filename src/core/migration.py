@@ -125,6 +125,19 @@ def run_migrations(db_path: str) -> list[str]:
                 continue
 
             # New migrations: execute and record
+            # Skip 0013_foreign_keys.sql if virtual_goods_orders doesn't exist (fresh DB)
+            if fname.startswith("0013") and fname not in _EXISTING_MIGRATION_NAMES:
+                try:
+                    cur = conn.execute(
+                        "SELECT name FROM sqlite_master WHERE type='table' AND name='virtual_goods_orders'"
+                    )
+                    if cur.fetchone() is None:
+                        logger.info(f"Skipping {fname} — virtual_goods_orders table not found (fresh database)")
+                        _record_migration(conn, fname)
+                        applied.append(fname)
+                        continue
+                except Exception:
+                    pass  # table check failed, try to apply anyway
             try:
                 conn.executescript(sql)
                 conn.commit()
