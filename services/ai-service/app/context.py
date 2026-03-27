@@ -1,7 +1,7 @@
 import json
 from dataclasses import dataclass, field
 from typing import Any, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import redis.asyncio as redis
 import asyncpg
 
@@ -11,7 +11,7 @@ class RequestContext:
     """L0: 单次请求上下文"""
     request_id: str
     user_id: str
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
@@ -22,7 +22,7 @@ class IntentState:
     current_intent: str = ""
     intent_confidence: float = 0.0
     extracted_slots: dict[str, Any] = field(default_factory=dict)
-    updated_at: datetime = field(default_factory=datetime.utcnow)
+    updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -50,8 +50,8 @@ class SessionMemory:
     user_id: str
     session_id: str
     messages: list[dict[str, Any]] = field(default_factory=list)
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    last_active: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    last_active: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -81,8 +81,8 @@ class UserProfile:
     common_routes: list[dict[str, Any]] = field(default_factory=list)
     price_sensitivity: str = "medium"  # low, medium, high
     communication_style: str = "casual"  # formal, casual, concise
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    updated_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -172,7 +172,7 @@ class ContextManager:
         if not self._redis:
             raise RuntimeError("Redis not initialized")
         key = f"session:{memory.user_id}:{memory.session_id}"
-        memory.last_active = datetime.utcnow()
+        memory.last_active = datetime.now(timezone.utc)
         await self._redis.setex(key, ttl, json.dumps(memory.to_dict()))
 
     async def append_session_message(
@@ -211,7 +211,7 @@ class ContextManager:
         """保存用户画像"""
         if not self._pg_pool:
             raise RuntimeError("PostgreSQL not initialized")
-        profile.updated_at = datetime.utcnow()
+        profile.updated_at = datetime.now(timezone.utc)
         async with self._pg_pool.acquire() as conn:
             await conn.execute(
                 """

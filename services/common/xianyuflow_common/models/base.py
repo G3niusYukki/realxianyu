@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from pydantic import BaseModel as PydanticBaseModel
@@ -24,11 +24,11 @@ class TimestampMixin(BaseModel):
     """Mixin for timestamp fields."""
 
     created_at: datetime = Field(
-        default_factory=datetime.utcnow,
+        default_factory=lambda: datetime.now(timezone.utc),
         description="Creation timestamp",
     )
     updated_at: datetime = Field(
-        default_factory=datetime.utcnow,
+        default_factory=lambda: datetime.now(timezone.utc),
         description="Last update timestamp",
     )
 
@@ -39,7 +39,7 @@ class HealthCheckResponse(BaseModel):
     status: str = Field(default="ok", description="Service status")
     version: str = Field(default="0.1.0", description="Service version")
     timestamp: datetime = Field(
-        default_factory=datetime.utcnow,
+        default_factory=lambda: datetime.now(timezone.utc),
         description="Check timestamp",
     )
 

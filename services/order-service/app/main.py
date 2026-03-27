@@ -147,8 +147,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         port=int(os.getenv("DB_PORT", "5432")),
         name=os.getenv("DB_NAME", "xianyuflow"),
         user=os.getenv("DB_USER", "xianyuflow"),
-        password=os.getenv("DB_PASSWORD", "password"),
+        password=os.getenv("DB_PASSWORD", ""),
     )
+    if not db_config.password:
+        logger.warning("DB_PASSWORD not set — using local SQLite fallback")
     db = Database(db_config)
     await db.connect()
     logger.info("Database connected")

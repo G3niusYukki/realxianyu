@@ -13,6 +13,7 @@ Usage:
 """
 
 import asyncio
+import re
 from contextlib import asynccontextmanager
 from enum import Enum
 from typing import Any, Optional
@@ -22,6 +23,8 @@ import asyncpg
 import structlog
 
 logger = structlog.get_logger()
+
+_VALID_TABLE_RE = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*$')
 
 
 class WriteMode(Enum):
@@ -55,6 +58,7 @@ class DualWriteManager:
         self.write_mode = write_mode
         self.read_mode = read_mode
 
+        self._lock = asyncio.Lock()
         self._sqlite_pool: Optional[aiosqlite.Connection] = None
         self._pg_pool: Optional[asyncpg.Pool] = None
         self._migration_progress = 0.0  # 0.0 - 1.0
@@ -194,6 +198,11 @@ class DualWriteManager:
         limit: int = 100,
     ) -> dict[str, Any]:
         """比较 SQLite 和 PostgreSQL 中的数据一致性"""
+        # Input validation
+        if not isinstance(table, str) or not _VALID_TABLE_RE.match(table):
+            raise ValueError(f"Invalid table name: {table!r}")
+        limit = max(1, min(int(limit), 10000))
+
         results = {
             "table": table,
             "sqlite_count": 0,
@@ -207,7 +216,8 @@ class DualWriteManager:
         if self._sqlite_pool:
             async with self._sqlite_lock():
                 cursor = await self._sqlite_pool.execute(
-                    f"SELECT * FROM {table} ORDER BY id LIMIT {limit}"
+                    f"SELECT * FROM {table} ORDER BY id LIMIT ?",
+                    (limit,),
                 )
                 sqlite_data = [dict(row) for row in await cursor.fetchall()]
 
@@ -215,7 +225,10 @@ class DualWriteManager:
         pg_data = []
         if self._pg_pool:
             async with self._pg_pool.acquire() as conn:
-                rows = await conn.fetch(f"SELECT * FROM {table} ORDER BY id LIMIT {limit}")
+                rows = await conn.fetch(
+                    f"SELECT * FROM {table} ORDER BY id LIMIT $1",
+                    limit,
+                )
                 pg_data = [dict(row) for row in rows]
 
         results["sqlite_count"] = len(sqlite_data)
@@ -258,7 +271,7 @@ class DualWriteManager:
     async def _sqlite_lock(self):
         """SQLite 操作锁（防止并发问题）"""
         # SQLite 不支持高并发写入，需要序列化
-        async with asyncio.Lock():
+        async with self._lock:
             yield
 
 

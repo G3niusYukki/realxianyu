@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import secrets
 import string
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 from sqlalchemy import select, update
@@ -158,7 +158,7 @@ class VirtualGoodsService:
 
         # Mark as used
         code_record.used = True
-        code_record.used_at = datetime.utcnow()
+        code_record.used_at = datetime.now(timezone.utc)
 
         # Update order to COMPLETED
         result = await self.session.execute(

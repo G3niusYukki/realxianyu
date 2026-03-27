@@ -22,7 +22,7 @@ from src.core.logger import get_logger
 from src.modules.messages.manual_mode import ManualModeStore
 
 _MTOP_APP_KEY = os.environ.get("XIANYU_MTOP_APP_KEY", "34839810")
-_MTOP_APP_SECRET = os.environ.get("XIANYU_MTOP_APP_SECRET", "444e9908a51d1cb236a27862abc769c9")
+_MTOP_APP_SECRET = os.getenv("MTOP_APP_SECRET", "")
 
 try:
     import websockets
