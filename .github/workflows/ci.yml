@@ -192,7 +192,6 @@ jobs:
         uses: actions/dependency-review-action@v3
         with:
           fail-on-severity: critical
-          fail-on-scopes: write, security-events
         continue-on-error: true
 
   pr-validation:
