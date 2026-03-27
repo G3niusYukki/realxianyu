@@ -1,4 +1,5 @@
 """报价模块共享工具函数。"""
+
 from __future__ import annotations
 
 

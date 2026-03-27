@@ -30,7 +30,7 @@ class CookieCloudClient:
     # ------------------------------------------------------------------
 
     @classmethod
-    def from_env_and_config(cls) -> "CookieCloudClient":
+    def from_env_and_config(cls) -> CookieCloudClient:
         """从环境变量 → data/system_config.json 降级读取凭证。
 
         与原 cookie_grabber.py / dashboard_server.py 中的读取逻辑保持完全一致。

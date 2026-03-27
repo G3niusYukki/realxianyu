@@ -20,7 +20,6 @@ import threading
 import time
 from dataclasses import dataclass
 from enum import Enum
-from pathlib import Path
 from typing import Any
 from collections.abc import Callable
 
@@ -187,8 +186,6 @@ class CookieGrabber:
 
         logger.info("Level 0: 正在从 CookieCloud 拉取 Cookie...")
         try:
-            import hashlib
-            import json
             import httpx
 
             url = f"{host.rstrip('/')}/get/{uuid}"

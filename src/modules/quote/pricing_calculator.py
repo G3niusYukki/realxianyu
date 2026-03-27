@@ -13,7 +13,7 @@ CostTableMarkupQuoteProvider and ApiCostMarkupQuoteProvider:
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 from src.modules.quote.cost_table import normalize_courier_name
@@ -353,9 +353,7 @@ def compute_three_tier_price(
         extra_discount = 0.0
 
     # 2. Volume weight
-    courier_divisor = _resolve_volume_divisor(
-        volume_divisors, inp.category, inp.courier, volume_divisor_default
-    )
+    courier_divisor = _resolve_volume_divisor(volume_divisors, inp.category, inp.courier, volume_divisor_default)
     divisor = _first_positive(courier_divisor, inp.throw_ratio, volume_divisor_default)
     volume_weight = _derive_volume_weight_kg(
         volume_cm3=inp.volume_cm3,

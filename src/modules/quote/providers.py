@@ -10,14 +10,12 @@ from typing import Any
 
 import httpx
 
-from src.modules.quote.cost_table import CostTableRepository, FREIGHT_COURIERS, normalize_courier_name
+from src.modules.quote.cost_table import FREIGHT_COURIERS, CostTableRepository, normalize_courier_name
 from src.modules.quote.models import QuoteRequest, QuoteResult
 from src.modules.quote.pricing_calculator import (
-    DEFAULT_MARKUP_RULE,
     PricingInput,
     _derive_volume_weight_kg,
     _eta_by_service_level,
-    _first_positive,
     _normalize_category_markup,
     _normalize_markup_rules,
     _normalize_xianyu_discount,

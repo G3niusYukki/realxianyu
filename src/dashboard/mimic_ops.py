@@ -248,37 +248,41 @@ class MimicOps:
         self._xgj_service = XGJService(self.project_root)
 
     # ── auto-delegation sets ──────────────────────────────────────────
-    _COOKIE_DELEGATE_METHODS: frozenset[str] = frozenset({
-        "_cookie_fingerprint",
-        "_cookie_pairs_to_text",
-        "_extract_cookie_pairs_from_json",
-        "_is_allowed_cookie_domain",
-        "_extract_cookie_pairs_from_header",
-        "_extract_cookie_pairs_from_lines",
-        "parse_cookie_text",
-        "_recovery_stage_label",
-        "_is_cookie_cloud_configured",
-        "_recovery_advice",
-        "_cookie_domain_filter_stats",
-        "diagnose_cookie",
-        "_parse_m_h5_tk_ttl",
-        "_is_cookie_import_file",
-        "_looks_like_cookie_plugin_bundle",
-        "_cookie_hint_hit_keys",
-        "_score_cookie_candidate",
-        "export_cookie_plugin_bundle",
-    })
+    _COOKIE_DELEGATE_METHODS: frozenset[str] = frozenset(
+        {
+            "_cookie_fingerprint",
+            "_cookie_pairs_to_text",
+            "_extract_cookie_pairs_from_json",
+            "_is_allowed_cookie_domain",
+            "_extract_cookie_pairs_from_header",
+            "_extract_cookie_pairs_from_lines",
+            "parse_cookie_text",
+            "_recovery_stage_label",
+            "_is_cookie_cloud_configured",
+            "_recovery_advice",
+            "_cookie_domain_filter_stats",
+            "diagnose_cookie",
+            "_parse_m_h5_tk_ttl",
+            "_is_cookie_import_file",
+            "_looks_like_cookie_plugin_bundle",
+            "_cookie_hint_hit_keys",
+            "_score_cookie_candidate",
+            "export_cookie_plugin_bundle",
+        }
+    )
 
-    _XGJ_DELEGATE_METHODS: frozenset[str] = frozenset({
-        "get_xianguanjia_settings",
-        "save_xianguanjia_settings",
-        "retry_xianguanjia_delivery",
-        "retry_xianguanjia_price",
-        "handle_order_callback",
-        "handle_order_push",
-        "handle_product_callback",
-        "_xianguanjia_service_config",
-    })
+    _XGJ_DELEGATE_METHODS: frozenset[str] = frozenset(
+        {
+            "get_xianguanjia_settings",
+            "save_xianguanjia_settings",
+            "retry_xianguanjia_delivery",
+            "retry_xianguanjia_price",
+            "handle_order_callback",
+            "handle_order_push",
+            "handle_product_callback",
+            "_xianguanjia_service_config",
+        }
+    )
 
     def __getattr__(self, name: str):
         """自动委托到子服务（替代手动委托方法）。"""

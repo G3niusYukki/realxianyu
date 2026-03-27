@@ -14,9 +14,6 @@ from pathlib import Path
 from typing import Any
 
 from src.core.config import get_config
-from src.dashboard.config_service import (
-    read_system_config as _read_system_config,
-)
 
 logger = logging.getLogger(__name__)
 
