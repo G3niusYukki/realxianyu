@@ -18,10 +18,11 @@
 ```bash
 pip install -r requirements.txt
 cd client && npm install && npm run build && cd ..
-python -m src.main
+python -m src.dashboard_server --host 127.0.0.1 --port 8091
 ./venv/bin/python -m pytest tests/ -q
-ruff check src/
-ruff format src/
+pip install -r requirements-dev.txt
+./venv/bin/python -m ruff check src/
+./venv/bin/python -m ruff format src/ --check
 ```
 - Keep changes minimal and aligned with existing patterns.
 - Run relevant tests before claiming completion when code behavior changes.

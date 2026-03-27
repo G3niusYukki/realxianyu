@@ -32,7 +32,7 @@
 
 | 特性 | 说明 |
 |------|------|
-| **多级 Cookie 降级保活** | 闲管家 IM 直读 → CookieCloud 同步 → 本地直读 → Playwright 硬解，四级降级 |
+| **多级 Cookie 降级保活** | 闲管家 IM 直读 → CookieCloud 同步 → 本地直读 → DrissionPage 硬解，四级降级 |
 | **现代化前后端分离** | React + TailwindCSS Dashboard，状态监控与配置热更新 |
 | **AI 智能客服** | 接入大语言模型（DeepSeek 等），自动报价与智能上下文回复 |
 | **虚拟商品全自动核销** | 卡密自动发货，自动标记已发货，状态全链路闭环 |
@@ -54,10 +54,13 @@ pip install -r requirements.txt
 
 # 3. 配置环境变量
 cp .env.example .env
-# 填入 XIANYU_COOKIE_1、DEEPSEEK_API_KEY 等必要参数
+# 填入 XIANYU_COOKIE_1、AI_API_KEY、XGJ_APP_KEY / XGJ_APP_SECRET 等必要参数
 
-# 4. 启动
-python -m src.main
+# 4. 启动 Dashboard / API 服务
+python -m src.dashboard_server --host 127.0.0.1 --port 8091
+
+# 5. 可选自检
+python -m src.cli doctor --skip-quote
 ```
 
 ### 🤖 For LLM Agents
@@ -81,7 +84,7 @@ Or simply tell your agent: **"Deploy this project following AGENT_DEPLOYMENT.md"
 └────────────────────────┬────────────────────────────────┘
                          │ HTTP / REST
 ┌────────────────────────▼────────────────────────────────┐
-│              网关层  dashboard_server.py                  │
+│            网关层  src/dashboard_server.py                │
 │      BaseHTTPRequestHandler · 路由分发 + 静态服务        │
 └────────────────────────┬────────────────────────────────┘
                          │
@@ -114,12 +117,13 @@ Or simply tell your agent: **"Deploy this project following AGENT_DEPLOYMENT.md"
 ## 🧪 测试与规范
 
 ```bash
-# 运行全部测试（~1172 个）
+# 运行全部测试（当前基线：1733 collected / 1717 passed / 16 skipped）
 ./venv/bin/python -m pytest tests/ -q
 
-# 代码规范检查
-ruff check src/ --extend-ignore I001,E501,UP012,RUF100
-ruff format --check src/
+# 代码规范检查（需先安装 requirements-dev.txt）
+pip install -r requirements-dev.txt
+./venv/bin/python -m ruff check src/
+./venv/bin/python -m ruff format src/ --check
 ```
 
 提交前请确保测试全部通过且 `ruff check` 无报错。
@@ -151,10 +155,14 @@ src/
 │   ├── services/       #   CookieService / XGJService（从 mimic_ops 拆分）
 │   └── routes/         #   HTTP 路由处理
 ├── cli/                # 模块化 CLI 包
-├── dashboard_server.py # HTTP 服务器入口
-├── main.py             # 程序主入口
+├── dashboard_server.py # HTTP 服务器入口（Dashboard + API + 静态资源）
+├── main.py             # 模块预加载入口（非常驻服务）
 └── setup_wizard.py     # 初始化向导
 ```
+
+`infra/` 目录提供可选基础设施样例：当前工作区包含 `infra/terraform/main.tf` 以及
+`infra/helm/xianyuflow-infra/values-kafka.yaml`、`values-monitoring.yaml`，用于补充 Kafka /
+监控栈，不是单机部署的必需项。
 
 ---
 

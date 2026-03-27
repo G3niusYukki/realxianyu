@@ -71,12 +71,12 @@ cd realxianyu
 
 ```bash
 # Python 依赖
-python3 -m venv .venv
-source .venv/bin/activate    # Windows 用: .venv\Scripts\activate
+python3.12 -m venv venv
+source venv/bin/activate    # Windows 用: venv\Scripts\activate
 pip install -r requirements.txt
 
 # 前端依赖（Vite 需要 Node.js）
-cd client && npm install && cd ..
+cd client && npm install && npm run build && cd ..
 ```
 
 ### 3.4 获取 AI 密钥
@@ -194,7 +194,7 @@ source venv/bin/activate   # Windows: venv\Scripts\activate
 cd client && npm install && npm run build && cd ..
 
 # 3. 启动后端（同时托管前端静态资源）
-python -m src.main
+python -m src.dashboard_server --host 127.0.0.1 --port 8091
 ```
 
 ### 打开使用
@@ -208,7 +208,7 @@ python -m src.main
 
 ### 关闭
 
-在运行 `python -m src.main` 的终端按 Ctrl+C 停止。
+在运行 `python -m src.dashboard_server --host 127.0.0.1 --port 8091` 的终端按 Ctrl+C 停止。
 
 ---
 
@@ -255,7 +255,7 @@ python -m src.main
 git pull
 pip install -r requirements.txt
 cd client && npm install && npm run build && cd ..
-python -m src.main
+python -m src.dashboard_server --host 127.0.0.1 --port 8091
 ```
 
 ---
@@ -271,7 +271,7 @@ python -m src.main
 ### Q: 打不开 localhost:8091
 
 1. 确认 Python 后端是否在运行（终端中有没有报错）
-2. 执行 `python -m src.main` 重新启动
+2. 执行 `python -m src.dashboard_server --host 127.0.0.1 --port 8091` 重新启动
 3. 如果端口被占用：`lsof -ti :8091 | xargs kill -9`
 
 ### Q: AI 不回复

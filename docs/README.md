@@ -30,7 +30,7 @@
 |------|------|
 | [for-agents/index.md](for-agents/index.md) | AI Agent 快速参考指南 |
 | [../CLAUDE.md](../CLAUDE.md) | 详细代码约定和仓库参考 |
-| [../AGENT_DEPLOYMENT.md](../AGENT_DEPLOYMENT.md) | Agent 部署专用指南 |
+| [../AGENT_DEPLOYMENT.md](../AGENT_DEPLOYMENT.md) | Agent 部署专用指南（已按当前启动方式修正） |
 
 ---
 
@@ -96,9 +96,9 @@
 
 ## 其他
 
-- [DOCUMENTATION_AUDIT.md](DOCUMENTATION_AUDIT.md) - 文档审计报告 (2026-03-24)
+- [DOCUMENTATION_AUDIT.md](DOCUMENTATION_AUDIT.md) - 文档审计报告（历史记录）
 
 ---
 
 **项目主页**: https://github.com/G3niusYukki/realxianyu  
-**最后更新**: 2026-03-24
+**最后更新**: 2026-03-27

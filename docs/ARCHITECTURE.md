@@ -1,7 +1,7 @@
 # XianyuFlow | 闲流架构设计文档
 
-> 最后更新：2026-03-19
-> 状态：与 `main` 分支同步
+> 最后更新：2026-03-27
+> 状态：按当前本地工作区实测校准
 
 ## 一、系统概述
 
@@ -25,7 +25,7 @@ XianyuFlow | 闲流（XianyuFlow | 闲流）是一个闲鱼平台自动化运营
 └─────────────────────────┬───────────────────────────────────┘
                           │ HTTP/REST
 ┌─────────────────────────▼───────────────────────────────────┐
-│                   网关层 (dashboard_server.py)              │
+│                 网关层 (src/dashboard_server.py)            │
 │   BaseHTTPRequestHandler，轻量路由 + 静态文件服务           │
 └─────────────────────────┬───────────────────────────────────┘
                           │
@@ -138,8 +138,8 @@ src/
 │   ├── cmd_module.py            # module/doctor/automation...
 │   └── cmd_quote.py             # quote
 │
-├── dashboard_server.py          # HTTP 服务器入口
-├── main.py                      # Python 程序主入口
+├── dashboard_server.py          # HTTP 服务器入口（Dashboard + API + 静态资源）
+├── main.py                      # 模块预加载入口（非常驻服务）
 └── setup_wizard.py              # 初始化向导
 ```
 
@@ -150,12 +150,12 @@ src/
 ### 设计原则
 - **YAML 是单一真相来源**（`config/config.yaml`）
 - **JSON 是 Dashboard UI 覆盖**（`data/system_config.json`）
-- **环境变量最高优先级**（`.env`）
+- **环境变量最高优先级**（`.env` / shell environment）
 - **无冗余同步**：Dashboard 编辑后通过 `Config._merge_system_config()` 自动合并
 
 ### 配置合并顺序
 ```
-config.yaml defaults < system_config.json < .env overrides
+config/config.yaml < data/system_config.json < .env / shell environment
 ```
 
 ### 关键配置文件
@@ -253,7 +253,7 @@ client/src/
 └── App.tsx           # 应用入口
 ```
 
-**前端原则**：轻量 API 层（369行）+ 组件化 UI + Redux Toolkit 状态管理
+**前端原则**：轻量 API 层 + 组件化 UI + 通过 Axios / React Context 组织状态
 
 ---
 
@@ -281,8 +281,8 @@ client/src/
 | `src/modules/virtual_goods/` | ~10 |
 | `src/dashboard/` | ~15 |
 
-**运行测试**：`pytest tests/ -v --cov=src`
-**代码规范**：`ruff check src/ && ruff format src/`
+**运行测试**：`./venv/bin/python -m pytest tests/ -q`
+**代码规范**：先安装 `requirements-dev.txt`，再执行 `./venv/bin/python -m ruff check src/` 和 `./venv/bin/python -m ruff format src/ --check`
 
 ---
 

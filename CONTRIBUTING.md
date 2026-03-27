@@ -7,9 +7,12 @@ Thanks for your interest in contributing! Here's how to get started.
 ```bash
 git clone https://github.com/G3niusYukki/realxianyu.git
 cd realxianyu
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
+python3.12 -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
+cd client && npm install && npm run build && cd ..
+# Optional for lint/type tooling:
+pip install -r requirements-dev.txt
 ```
 
 ## Project Layout
@@ -47,8 +50,9 @@ Open an [issue](https://github.com/G3niusYukki/realxianyu/issues/new?template=fe
 1. Fork the repo
 2. Create a feature branch: `git checkout -b feat/my-feature`
 3. Make your changes
-4. Run linting: `ruff check src/`
-5. Run tests: `./venv/bin/python -m pytest tests/ -q`
+4. Run linting: `./venv/bin/python -m ruff check src/`
+5. Run format check: `./venv/bin/python -m ruff format src/ --check`
+6. Run tests: `./venv/bin/python -m pytest tests/ -q`
 6. Commit with a clear message: `git commit -m "feat: add price optimization"`
 7. Push to your fork and open a PR
 
