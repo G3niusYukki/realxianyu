@@ -24,19 +24,21 @@ MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "database" / "migrations"
 # The 11 existing migrations that were already applied in existing deployments.
 # These are recorded in schema_versions but NOT re-executed (they reference
 # tables created by earlier migrations in the same set).
-_EXISTING_MIGRATION_NAMES = frozenset({
-    "20260304_add_order_callback_dedup.sql",
-    "20260306_wave_b4_callbacks_lease_and_dims.sql",
-    "20260306_wave_b_virtual_goods.sql",
-    "20260306_wave_c_manual_takeover_events.sql",
-    "20260306_wave_c_order_events.sql",
-    "20260306_wave_d_listing_product_mappings.sql",
-    "20260306_wave_d_ops_exception_pool.sql",
-    "20260306_wave_d_ops_exception_transition_log.sql",
-    "20260306_wave_d_ops_fulfillment_eff_daily.sql",
-    "20260306_wave_d_ops_funnel_stage_daily.sql",
-    "20260306_wave_d_ops_item_daily_snapshot.sql",
-})
+_EXISTING_MIGRATION_NAMES = frozenset(
+    {
+        "20260304_add_order_callback_dedup.sql",
+        "20260306_wave_b4_callbacks_lease_and_dims.sql",
+        "20260306_wave_b_virtual_goods.sql",
+        "20260306_wave_c_manual_takeover_events.sql",
+        "20260306_wave_c_order_events.sql",
+        "20260306_wave_d_listing_product_mappings.sql",
+        "20260306_wave_d_ops_exception_pool.sql",
+        "20260306_wave_d_ops_exception_transition_log.sql",
+        "20260306_wave_d_ops_fulfillment_eff_daily.sql",
+        "20260306_wave_d_ops_funnel_stage_daily.sql",
+        "20260306_wave_d_ops_item_daily_snapshot.sql",
+    }
+)
 
 
 def _get_connection(db_path: str) -> sqlite3.Connection:
