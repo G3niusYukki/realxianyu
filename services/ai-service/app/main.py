@@ -1,6 +1,7 @@
 """
 AI Service - FastAPI 应用入口
 """
+import json
 import os
 import uuid
 from contextlib import asynccontextmanager
@@ -139,10 +140,31 @@ async def chat_completions(request: ChatCompletionRequest) -> Any:
                 async for chunk in response:
                     if chunk.content:
                         full_content += chunk.content
-                        data = f'{{"choices": [{{"delta": {{"content": "{chunk.content}"}}, "finish_reason": null}}]}}'
+                        data = json.dumps(
+                            {
+                                "choices": [
+                                    {
+                                        "delta": {"content": chunk.content},
+                                        "finish_reason": None,
+                                    }
+                                ]
+                            },
+                            ensure_ascii=False,
+                        )
                         yield f"data: {data}\n\n"
                     if chunk.finish_reason:
-                        yield f'data: {{"choices": [{{"delta": {{}}, "finish_reason": "{chunk.finish_reason}"}}]}}\n\n'
+                        data = json.dumps(
+                            {
+                                "choices": [
+                                    {
+                                        "delta": {},
+                                        "finish_reason": chunk.finish_reason,
+                                    }
+                                ]
+                            },
+                            ensure_ascii=False,
+                        )
+                        yield f"data: {data}\n\n"
                         yield "data: [DONE]\n\n"
 
                 # 保存助手回复到历史
