@@ -3,11 +3,12 @@ import { api } from '../../api/index';
 import {
   Store, Settings, Power, PowerOff, ShieldAlert, RefreshCw, Zap, Loader2,
   CheckCircle, CheckCircle2, XCircle, Monitor, ClipboardPaste, Timer, Activity,
-  ChevronDown, ChevronUp, Download, Plug, Upload, Filter, Info, AlertCircle,
+  Download, Plug, Upload, Filter, Info, AlertCircle,
   Shield, ShieldCheck, Save,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
+import CollapsibleSection from '@/components/CollapsibleSection';
 
 const GRAB_STAGE_CONFIG: Record<string, { color: string; label: string }> = {
   idle: { color: 'text-xy-gray-500', label: '就绪' },
@@ -116,33 +117,6 @@ function getRecoveryGuide(riskLevel: string, recoveryStage: string, cookieCloudC
     };
   }
   return null;
-}
-
-function CollapsibleSection({ title, defaultOpen = true, children, icon, badge }: {
-  title: string;
-  defaultOpen?: boolean;
-  children: React.ReactNode;
-  icon?: React.ReactNode;
-  badge?: React.ReactNode;
-}) {
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <div className="border border-xy-border rounded-xl overflow-hidden">
-      <button
-        onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between px-5 py-4 bg-xy-gray-50 hover:bg-xy-gray-100 transition-colors text-left"
-        type="button"
-      >
-        <div className="flex items-center gap-2">
-          {icon}
-          <span className="font-bold text-xy-text-primary text-sm">{title}</span>
-          {badge}
-        </div>
-        {open ? <ChevronUp className="w-4 h-4 text-xy-text-muted" /> : <ChevronDown className="w-4 h-4 text-xy-text-muted" />}
-      </button>
-      {open && <div className="px-5 py-5">{children}</div>}
-    </div>
-  );
 }
 
 export default function AccountList() {
@@ -299,7 +273,7 @@ export default function AccountList() {
       if (err?.response?.status === 409) {
         toast.error('已有获取任务在运行');
       } else {
-        toast.error('启动失败：' + (err.message || '未知错误'));
+        toast.error('启动失败：' + (err.userMessage || err.message || '未知错误'));
         setGrabbing(false);
         setGrabProgress(null);
         return;
@@ -356,7 +330,7 @@ export default function AccountList() {
         fetchAll();
       } else { toast.error(res.data?.error || '导入失败'); }
     } catch (err: any) {
-      toast.error('导入失败: ' + (err?.response?.data?.error || err.message));
+      toast.error('导入失败: ' + (err?.response?.data?.error || err.userMessage || err.message));
     } finally {
       setPluginImporting(false);
       if (pluginFileRef.current) pluginFileRef.current.value = '';
@@ -380,7 +354,7 @@ export default function AccountList() {
         fetchAll();
       } else { toast.error(data.error || data.hint || '导入失败'); }
     } catch (err: any) {
-      const msg = err?.response?.data?.error || err.message;
+      const msg = err?.response?.data?.error || err.userMessage || err.message;
       setCookieFileResult({ success: false, error: msg });
       toast.error('导入失败: ' + msg);
     } finally {

@@ -103,7 +103,7 @@ export const publishQueueBatch = async (
       await publishQueueItem(id);
       successes.push(id);
     } catch (err: any) {
-      failures.push({ id, error: err?.response?.data?.error || err?.message || String(err) });
+      failures.push({ id, error: err?.response?.data?.error || err?.userMessage || err?.message || String(err) });
     }
     onProgress?.(i + 1, itemIds.length, id);
     if (i < itemIds.length - 1) {

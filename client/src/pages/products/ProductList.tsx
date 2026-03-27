@@ -10,6 +10,7 @@ import {
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Link } from 'react-router-dom';
 import Pagination from '../../components/Pagination';
+import { formatPrice } from '@/utils/format';
 
 const CHART_COLORS = ['#6366f1', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
 
@@ -199,7 +200,7 @@ export default function ProductList() {
       });
       if (res.data?.success) toast.success('定价配置已保存');
       else toast.error(res.data?.error || '保存失败');
-    } catch (e: any) { toast.error(e.message || '保存失败'); }
+    } catch (e: any) { toast.error(e.userMessage || e.message || '保存失败'); }
     finally { setPricingSaving(false); }
   };
 
@@ -297,12 +298,6 @@ export default function ProductList() {
       if (res.data?.ok) { toast.success(`${actionStr}成功`, { id: 'status_toggle' }); fetchProducts(); }
       else toast.error(res.data?.error || `${actionStr}失败`, { id: 'status_toggle' });
     } catch { toast.error(`${actionStr}出错`, { id: 'status_toggle' }); }
-  };
-
-  const formatPrice = (price: any) => {
-    const num = Number(price);
-    if (!num || isNaN(num)) return '¥0.00';
-    return `¥${(num / 100).toFixed(2)}`;
   };
 
   const addPricingCourier = () => {
