@@ -133,3 +133,48 @@ resource "helm_release" "postgresql" {
 
   depends_on = [kubernetes_namespace.xianyuflow]
 }
+
+# Kafka Helm Release
+resource "helm_release" "kafka" {
+  name       = "kafka"
+  repository = "https://charts.bitnami.com/bitnami"
+  chart      = "kafka"
+  version    = "26.4.0"
+  namespace  = kubernetes_namespace.xianyuflow.metadata[0].name
+
+  values = [
+    file("${path.module}/../../../helm/xianyuflow-infra/values-kafka.yaml")
+  ]
+
+  depends_on = [kubernetes_namespace.xianyuflow]
+}
+
+# Prometheus Helm Release
+resource "helm_release" "prometheus" {
+  name       = "prometheus"
+  repository = "https://prometheus-community.github.io/helm-charts"
+  chart      = "kube-prometheus-stack"
+  version    = "55.0.0"
+  namespace  = kubernetes_namespace.monitoring.metadata[0].name
+
+  values = [
+    file("${path.module}/../../../helm/xianyuflow-infra/values-monitoring.yaml")
+  ]
+
+  depends_on = [kubernetes_namespace.monitoring]
+}
+
+# Jaeger Helm Release
+resource "helm_release" "jaeger" {
+  name       = "jaeger"
+  repository = "https://jaegertracing.github.io/helm-charts"
+  chart      = "jaeger"
+  version    = "0.73.0"
+  namespace  = kubernetes_namespace.monitoring.metadata[0].name
+
+  values = [
+    file("${path.module}/../../../helm/xianyuflow-infra/values-jaeger.yaml")
+  ]
+
+  depends_on = [kubernetes_namespace.monitoring]
+}

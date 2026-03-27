@@ -1,0 +1,55 @@
+# Kafka Configuration for XianyuFlow v10 Phase 1
+# Bitnami Kafka Helm Chart values
+
+# Enable Kafka
+kafka:
+  enabled: true
+
+  # Replica count
+  replicaCount: 3
+
+  # Persistence configuration
+  persistence:
+    enabled: true
+    size: 20Gi
+
+  # Resource configuration
+  resources:
+    requests:
+      memory: 1Gi
+      cpu: 500m
+    limits:
+      memory: 2Gi
+      cpu: 1000m
+
+  # Metrics configuration
+  metrics:
+    enabled: true
+
+  # Provisioning - pre-create topics
+  provisioning:
+    enabled: true
+    topics:
+      - name: orders.paid
+        partitions: 3
+        replicationFactor: 2
+      - name: messages.received
+        partitions: 6
+        replicationFactor: 2
+      - name: quotes.calculated
+        partitions: 3
+        replicationFactor: 2
+      - name: listings.published
+        partitions: 2
+        replicationFactor: 2
+      - name: cookies.expired
+        partitions: 2
+        replicationFactor: 2
+
+# Zookeeper configuration
+zookeeper:
+  enabled: true
+  replicaCount: 3
+  persistence:
+    enabled: true
+    size: 10Gi
