@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from src.core.config import get_config
+from src.core.database import SQLiteDatabase
 from src.core.logger import get_logger
 from src.modules.messages.notifications import (
     FeishuNotifier,
@@ -91,6 +92,7 @@ class WorkflowStore:
         default_path = workflow_cfg.get("db_path", "data/workflow.db")
         self.db_path = Path(db_path or default_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._db = SQLiteDatabase(self.db_path)
         self.logger = get_logger()
         self._manual_mode_store: Any | None = None
         self._init_schema()
@@ -107,15 +109,8 @@ class WorkflowStore:
     def _ts_after(seconds: int) -> str:
         return (datetime.now(timezone.utc) + timedelta(seconds=seconds)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
-    def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("PRAGMA busy_timeout=5000")
-        return conn
-
     def _init_schema(self) -> None:
-        with self._connect() as conn:
+        with self._db.transaction() as conn:
             conn.executescript(
                 """
                 CREATE TABLE IF NOT EXISTS session_tasks (
@@ -201,7 +196,7 @@ class WorkflowStore:
         message_hash = hashlib.sha1(last_message.encode("utf-8")).hexdigest()
         now = self._now()
 
-        with self._connect() as conn:
+        with self._db.transaction() as conn:
             conn.execute(
                 """
                 INSERT INTO session_tasks(
@@ -227,13 +222,13 @@ class WorkflowStore:
             )
 
     def get_session(self, session_id: str) -> dict[str, Any] | None:
-        with self._connect() as conn:
+        with self._db.transaction() as conn:
             row = conn.execute("SELECT * FROM session_tasks WHERE session_id=?", (session_id,)).fetchone()
             return dict(row) if row else None
 
     def set_manual_takeover(self, session_id: str, enabled: bool) -> bool:
         now = self._now()
-        with self._connect() as conn:
+        with self._db.transaction() as conn:
             row = conn.execute("SELECT state FROM session_tasks WHERE session_id=?", (session_id,)).fetchone()
             if row is None:
                 conn.execute(
@@ -283,7 +278,7 @@ class WorkflowStore:
         now = self._now()
         metadata_json = json.dumps(metadata or {}, ensure_ascii=False)
 
-        with self._connect() as conn:
+        with self._db.transaction() as conn:
             row = conn.execute("SELECT state FROM session_tasks WHERE session_id=?", (session_id,)).fetchone()
             from_state = WorkflowState.NEW.value if row is None else str(row["state"])
 
@@ -345,7 +340,7 @@ class WorkflowStore:
         now = self._now()
         metadata_json = json.dumps(metadata or {}, ensure_ascii=False)
 
-        with self._connect() as conn:
+        with self._db.transaction() as conn:
             row = conn.execute("SELECT state FROM session_tasks WHERE session_id=?", (session_id,)).fetchone()
             from_state = WorkflowState.NEW.value if row is None else str(row["state"])
 
@@ -397,7 +392,7 @@ class WorkflowStore:
         payload_json = json.dumps(session, ensure_ascii=False)
         now = self._now()
 
-        with self._connect() as conn:
+        with self._db.transaction() as conn:
             conn.execute(
                 """DELETE FROM workflow_jobs
                    WHERE dedupe_key = ? AND status IN ('done', 'dead')""",
@@ -438,7 +433,7 @@ class WorkflowStore:
         now = self._now()
         run_at = (datetime.now(timezone.utc) + timedelta(seconds=delay_seconds)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
-        with self._connect() as conn:
+        with self._db.transaction() as conn:
             conn.execute(
                 """DELETE FROM workflow_jobs
                    WHERE dedupe_key = ? AND status IN ('done', 'dead', 'pending')""",
@@ -457,7 +452,7 @@ class WorkflowStore:
 
     def recover_expired_jobs(self) -> int:
         now = self._now()
-        with self._connect() as conn:
+        with self._db.transaction() as conn:
             cur = conn.execute(
                 """
                 UPDATE workflow_jobs
@@ -472,7 +467,7 @@ class WorkflowStore:
         now = self._now()
         lease_until = self._ts_after(lease_seconds)
 
-        with self._connect() as conn:
+        with self._db.transaction() as conn:
             conn.execute("BEGIN IMMEDIATE")
             rows = conn.execute(
                 """
@@ -510,7 +505,7 @@ class WorkflowStore:
 
     def complete_job(self, job_id: int, expected_lease_until: str | None = None) -> bool:
         now = self._now()
-        with self._connect() as conn:
+        with self._db.transaction() as conn:
             if expected_lease_until:
                 cur = conn.execute(
                     """
@@ -540,7 +535,7 @@ class WorkflowStore:
         expected_lease_until: str | None = None,
     ) -> bool:
         now = self._now()
-        with self._connect() as conn:
+        with self._db.transaction() as conn:
             if expected_lease_until:
                 row = conn.execute(
                     "SELECT attempts FROM workflow_jobs WHERE id=? AND status='running' AND lease_until=?",
@@ -606,7 +601,7 @@ class WorkflowStore:
         quote_fallback: bool = False,
         intent: str = "",
     ) -> None:
-        with self._connect() as conn:
+        with self._db.transaction() as conn:
             conn.execute(
                 """
                 INSERT INTO sla_events(session_id, stage, outcome, latency_ms, quote_fallback, intent, created_at)
@@ -625,7 +620,7 @@ class WorkflowStore:
     def get_sla_summary(self, window_minutes: int = 1440) -> dict[str, Any]:
         cutoff = (datetime.now(timezone.utc) - timedelta(minutes=max(1, window_minutes))).strftime("%Y-%m-%dT%H:%M:%SZ")
 
-        with self._connect() as conn:
+        with self._db.transaction() as conn:
             rows = conn.execute(
                 "SELECT stage, outcome, latency_ms, quote_fallback FROM sla_events WHERE created_at >= ?",
                 (cutoff,),
@@ -657,7 +652,7 @@ class WorkflowStore:
         cutoff = (datetime.now(timezone.utc) - timedelta(minutes=max(1, cooldown_minutes))).strftime(
             "%Y-%m-%dT%H:%M:%SZ"
         )
-        with self._connect() as conn:
+        with self._db.transaction() as conn:
             existed = conn.execute(
                 """
                 SELECT 1 FROM sla_alerts
@@ -703,7 +698,7 @@ class WorkflowStore:
         return alerts
 
     def get_workflow_summary(self) -> dict[str, Any]:
-        with self._connect() as conn:
+        with self._db.transaction() as conn:
             job_rows = conn.execute("SELECT status, COUNT(*) AS c FROM workflow_jobs GROUP BY status").fetchall()
             state_rows = conn.execute("SELECT state, COUNT(*) AS c FROM session_tasks GROUP BY state").fetchall()
             manual = conn.execute("SELECT COUNT(*) AS c FROM session_tasks WHERE manual_takeover=1").fetchone()
@@ -717,7 +712,7 @@ class WorkflowStore:
         }
 
     def get_transitions(self, session_id: str) -> list[dict[str, Any]]:
-        with self._connect() as conn:
+        with self._db.transaction() as conn:
             rows = conn.execute(
                 """
                 SELECT * FROM session_state_transitions

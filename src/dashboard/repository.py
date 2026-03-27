@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 import logging
-import sqlite3
 import threading
 import time
-from collections.abc import Iterator
-from contextlib import closing, contextmanager
 from datetime import datetime, timedelta
 from typing import Any
+
+from src.core.database import SQLiteDatabase
 
 logger = logging.getLogger(__name__)
 
@@ -274,10 +273,11 @@ class LiveDashboardDataSource:
 class DashboardRepository:
     def __init__(self, db_path: str):
         self.db_path = db_path
+        self._db = SQLiteDatabase(db_path)
         self._ensure_tables()
 
     def _ensure_tables(self) -> None:
-        with self._connect() as conn:
+        with self._db.transaction() as conn:
             conn.execute("""CREATE TABLE IF NOT EXISTS operation_logs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 timestamp TEXT DEFAULT (datetime('now','localtime')),
@@ -298,16 +298,8 @@ class DashboardRepository:
                 updated_at TEXT DEFAULT (datetime('now','localtime'))
             )""")
 
-    @contextmanager
-    def _connect(self) -> Iterator[sqlite3.Connection]:
-        with closing(sqlite3.connect(self.db_path)) as conn, conn:
-            conn.row_factory = sqlite3.Row
-            conn.execute("PRAGMA journal_mode=WAL")
-            conn.execute("PRAGMA busy_timeout=5000")
-            yield conn
-
     def get_summary(self) -> dict[str, Any]:
-        with self._connect() as conn:
+        with self._db.transaction() as conn:
             total_operations = conn.execute("SELECT COUNT(*) AS c FROM operation_logs").fetchone()["c"]
             today_operations = conn.execute(
                 "SELECT COUNT(*) AS c FROM operation_logs WHERE date(timestamp)=date('now','localtime')"
@@ -348,7 +340,7 @@ class DashboardRepository:
         """
 
         rows_by_day: dict[str, int] = {}
-        with self._connect() as conn:
+        with self._db.transaction() as conn:
             for row in conn.execute(sql, (start_date,)).fetchall():
                 rows_by_day[str(row["d"])] = int(row["v"])
 
@@ -359,7 +351,7 @@ class DashboardRepository:
         return result
 
     def get_recent_operations(self, limit: int) -> list[dict[str, Any]]:
-        with self._connect() as conn:
+        with self._db.transaction() as conn:
             rows = conn.execute(
                 """
                 SELECT operation_type, product_id, account_id, status, timestamp
@@ -373,7 +365,7 @@ class DashboardRepository:
         return [dict(row) for row in rows]
 
     def get_top_products(self, limit: int) -> list[dict[str, Any]]:
-        with self._connect() as conn:
+        with self._db.transaction() as conn:
             rows = conn.execute(
                 """
                 SELECT
