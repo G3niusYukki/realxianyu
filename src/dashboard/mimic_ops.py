@@ -247,6 +247,47 @@ class MimicOps:
         self._cookie_service = CookieService(self.project_root)
         self._xgj_service = XGJService(self.project_root)
 
+    # ── auto-delegation sets ──────────────────────────────────────────
+    _COOKIE_DELEGATE_METHODS: frozenset[str] = frozenset({
+        "_cookie_fingerprint",
+        "_cookie_pairs_to_text",
+        "_extract_cookie_pairs_from_json",
+        "_is_allowed_cookie_domain",
+        "_extract_cookie_pairs_from_header",
+        "_extract_cookie_pairs_from_lines",
+        "parse_cookie_text",
+        "_recovery_stage_label",
+        "_is_cookie_cloud_configured",
+        "_recovery_advice",
+        "_cookie_domain_filter_stats",
+        "diagnose_cookie",
+        "_parse_m_h5_tk_ttl",
+        "_is_cookie_import_file",
+        "_looks_like_cookie_plugin_bundle",
+        "_cookie_hint_hit_keys",
+        "_score_cookie_candidate",
+        "export_cookie_plugin_bundle",
+    })
+
+    _XGJ_DELEGATE_METHODS: frozenset[str] = frozenset({
+        "get_xianguanjia_settings",
+        "save_xianguanjia_settings",
+        "retry_xianguanjia_delivery",
+        "retry_xianguanjia_price",
+        "handle_order_callback",
+        "handle_order_push",
+        "handle_product_callback",
+        "_xianguanjia_service_config",
+    })
+
+    def __getattr__(self, name: str):
+        """自动委托到子服务（替代手动委托方法）。"""
+        if name in self._COOKIE_DELEGATE_METHODS:
+            return getattr(self._cookie_service, name)
+        if name in self._XGJ_DELEGATE_METHODS:
+            return getattr(self._xgj_service, name)
+        raise AttributeError(f"'{type(self).__name__}' has no attribute '{name}'")
+
     @property
     def env_path(self) -> Path:
         return self.project_root / ".env"
@@ -298,30 +339,6 @@ class MimicOps:
     def _get_env_bool(self, key: str, default: bool = False) -> bool:
         raw = self._get_env_value(key)
         return self._to_bool(raw, default=default)
-
-    def get_xianguanjia_settings(self) -> dict[str, Any]:
-        return self._xgj_service.get_xianguanjia_settings()
-
-    def save_xianguanjia_settings(self, payload: dict[str, Any]) -> dict[str, Any]:
-        return self._xgj_service.save_xianguanjia_settings(payload)
-
-    def _xianguanjia_service_config(self) -> dict[str, Any]:
-        return XGJService._xianguanjia_service_config()
-
-    def retry_xianguanjia_delivery(self, payload: dict[str, Any]) -> dict[str, Any]:
-        return self._xgj_service.retry_xianguanjia_delivery(payload)
-
-    def retry_xianguanjia_price(self, payload: dict[str, Any]) -> dict[str, Any]:
-        return self._xgj_service.retry_xianguanjia_price(payload)
-
-    def handle_order_callback(self, payload: dict[str, Any]) -> dict[str, Any]:
-        return self._xgj_service.handle_order_callback(payload)
-
-    def handle_order_push(self, payload: dict[str, Any]) -> dict[str, Any]:
-        return self._xgj_service.handle_order_push(payload)
-
-    def handle_product_callback(self, payload: dict[str, Any]) -> dict[str, Any]:
-        return self._xgj_service.handle_product_callback(payload)
 
     def _virtual_goods_service(self) -> VirtualGoodsService:
         return VirtualGoodsService(
@@ -774,43 +791,6 @@ class MimicOps:
             "length": len(self._get_env_value("XIANYU_COOKIE_1").strip()),
         }
 
-    @staticmethod
-    def _cookie_fingerprint(cookie_text: str) -> str:
-        return CookieService._cookie_fingerprint(cookie_text)
-
-    @classmethod
-    def _cookie_pairs_to_text(cls, pairs: list[tuple[str, str]]) -> tuple[str, int]:
-        return CookieService._cookie_pairs_to_text(pairs)
-
-    @classmethod
-    def _extract_cookie_pairs_from_json(cls, raw_text: str) -> list[tuple[str, str]]:
-        return CookieService._extract_cookie_pairs_from_json(raw_text)
-
-    @classmethod
-    def _is_allowed_cookie_domain(cls, domain: str) -> bool:
-        return CookieService._is_allowed_cookie_domain(domain)
-
-    @classmethod
-    def _extract_cookie_pairs_from_header(cls, raw_text: str) -> list[tuple[str, str]]:
-        return CookieService._extract_cookie_pairs_from_header(raw_text)
-
-    @classmethod
-    def _extract_cookie_pairs_from_lines(cls, raw_text: str) -> list[tuple[str, str]]:
-        return CookieService._extract_cookie_pairs_from_lines(raw_text)
-
-    @classmethod
-    def parse_cookie_text(cls, text: str) -> dict[str, Any]:
-        return CookieService.parse_cookie_text(text)
-
-    def _recovery_stage_label(self, stage: str) -> str:
-        return CookieService._recovery_stage_label(stage)
-
-    def _is_cookie_cloud_configured(self) -> bool:
-        return CookieService._is_cookie_cloud_configured()
-
-    def _recovery_advice(self, stage: str, token_error: str | None = None) -> str:
-        return CookieService._recovery_advice(stage, token_error)
-
     def _trigger_presales_recover_after_cookie_update(self, cookie_text: str) -> dict[str, Any]:
         cookie_fp = self._cookie_fingerprint(cookie_text)
         if not cookie_fp:
@@ -868,42 +848,12 @@ class MimicOps:
                 payload["message"] = "Cookie updated, but presales recovery failed"
         return payload
 
-    @classmethod
-    def _cookie_domain_filter_stats(cls, raw_text: str) -> dict[str, Any]:
-        return CookieService._cookie_domain_filter_stats(raw_text)
-
-    def diagnose_cookie(self, cookie_text: str) -> dict[str, Any]:
-        return CookieService.diagnose_cookie(cookie_text)
-
-    @staticmethod
-    def _parse_m_h5_tk_ttl(raw: str) -> float | None:
-        return CookieService._parse_m_h5_tk_ttl(raw)
-
-    @classmethod
-    def _is_cookie_import_file(cls, filename: str) -> bool:
-        return CookieService._is_cookie_import_file(filename)
-
-    @classmethod
-    def _looks_like_cookie_plugin_bundle(cls, member_names: list[str]) -> bool:
-        return CookieService._looks_like_cookie_plugin_bundle(member_names)
-
-    @classmethod
-    def _cookie_hint_hit_keys(cls, cookie_text: str) -> list[str]:
-        return CookieService._cookie_hint_hit_keys(cookie_text)
-
-    @classmethod
-    def _score_cookie_candidate(cls, payload: dict[str, Any]) -> tuple[int, int, int]:
-        return CookieService._score_cookie_candidate(payload)
-
     def import_cookie_plugin_files(
         self, files: list[tuple[str, bytes]], *, auto_recover: bool = False
     ) -> dict[str, Any]:
         return self._cookie_service.import_cookie_plugin_files(
             files, module_console=self.module_console, auto_recover=auto_recover
         )
-
-    def export_cookie_plugin_bundle(self) -> tuple[bytes, str]:
-        return self._cookie_service.export_cookie_plugin_bundle()
 
     def _quote_dir(self) -> Path:
         cfg = get_config().get_section("quote", {})

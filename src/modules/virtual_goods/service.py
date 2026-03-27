@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from contextlib import closing
 from datetime import datetime, timedelta, timezone
 from typing import Any
+
+from src.core.database import SQLiteDatabase
 
 from .callbacks import VirtualGoodsCallbackService
 from .ingress import VirtualGoodsIngress
@@ -14,6 +15,7 @@ from .store import VirtualGoodsStore
 class VirtualGoodsService:
     def __init__(self, db_path: str = "data/orders.db", config: dict[str, Any] | None = None) -> None:
         self.store = VirtualGoodsStore(db_path=db_path)
+        self._db = SQLiteDatabase(self.store.db_path)
         merged_config: dict[str, Any] = dict(config or {})
         merged_config.setdefault("auto_reissue_code", False)
         merged_config.setdefault("auto_replenish_order", False)
@@ -50,13 +52,6 @@ class VirtualGoodsService:
             "errors": list(errors or []),
             "ts": cls._ts(),
         }
-
-    def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.store.db_path)
-        conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("PRAGMA busy_timeout=5000")
-        return conn
 
     @staticmethod
     def _loads_json(text: Any, fallback: Any) -> Any:
@@ -107,7 +102,7 @@ class VirtualGoodsService:
         limit = max(1, int(limit))
         cutoff = (self._now() - timedelta(seconds=timeout_seconds)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
-        with closing(self._connect()) as conn:
+        with self._db.transaction() as conn:
             rows = conn.execute(
                 """
                 SELECT *
@@ -155,7 +150,7 @@ class VirtualGoodsService:
     def list_replay_candidates(self, *, limit: int = 100) -> dict[str, Any]:
         limit = max(1, int(limit))
         now = self._ts()
-        with closing(self._connect()) as conn:
+        with self._db.transaction() as conn:
             rows = conn.execute(
                 """
                 SELECT *
@@ -196,7 +191,7 @@ class VirtualGoodsService:
 
     def list_manual_takeover_orders(self, *, limit: int = 100) -> dict[str, Any]:
         limit = max(1, int(limit))
-        with closing(self._connect()) as conn:
+        with self._db.transaction() as conn:
             rows = conn.execute(
                 """
                 SELECT *
@@ -228,7 +223,7 @@ class VirtualGoodsService:
                 errors=[{"code": "MISSING_ORDER_ID", "message": "order_id is required"}],
             )
 
-        with closing(self._connect()) as conn:
+        with self._db.transaction() as conn:
             order = conn.execute("SELECT * FROM virtual_goods_orders WHERE xianyu_order_id=?", (oid,)).fetchone()
             callbacks = conn.execute(
                 "SELECT * FROM virtual_goods_callbacks WHERE xianyu_order_id=? ORDER BY id DESC", (oid,)
@@ -335,7 +330,7 @@ class VirtualGoodsService:
         timeout_seconds = max(0, int(timeout_seconds))
         cutoff = (self._now() - timedelta(seconds=timeout_seconds)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
-        with closing(self._connect()) as conn:
+        with self._db.transaction() as conn:
             total_orders = int(conn.execute("SELECT COUNT(1) FROM virtual_goods_orders").fetchone()[0])
             manual_orders = int(
                 conn.execute("SELECT COUNT(1) FROM virtual_goods_orders WHERE manual_takeover=1").fetchone()[0]
@@ -411,7 +406,7 @@ class VirtualGoodsService:
         sql += " ORDER BY stat_date DESC, stage ASC LIMIT ?"
         params.append(limit)
 
-        with closing(self._connect()) as conn:
+        with self._db.transaction() as conn:
             rows = conn.execute(sql, tuple(params)).fetchall()
             unknown_event_kind = self._to_int(
                 conn.execute(
@@ -482,7 +477,7 @@ class VirtualGoodsService:
         sql += " ORDER BY stat_date DESC, xianyu_product_id ASC LIMIT ?"
         params.append(limit)
 
-        with closing(self._connect()) as conn:
+        with self._db.transaction() as conn:
             rows = conn.execute(sql, tuple(params)).fetchall()
             unknown_event_kind = self._to_int(
                 conn.execute(
@@ -639,7 +634,7 @@ class VirtualGoodsService:
         sql += " ORDER BY stat_date DESC, xianyu_product_id ASC LIMIT ?"
         params.append(limit)
 
-        with closing(self._connect()) as conn:
+        with self._db.transaction() as conn:
             rows = conn.execute(sql, tuple(params)).fetchall()
             unknown_event_kind = self._to_int(
                 conn.execute(
@@ -701,7 +696,7 @@ class VirtualGoodsService:
 
     def list_priority_exceptions(self, *, limit: int = 100, status: str = "open") -> dict[str, Any]:
         limit = max(1, int(limit))
-        with closing(self._connect()) as conn:
+        with self._db.transaction() as conn:
             rows = conn.execute(
                 """
                 SELECT *
@@ -778,11 +773,10 @@ class VirtualGoodsService:
             )
 
         now = self._ts()
-        with closing(self._connect()) as conn:
-            conn.execute("BEGIN IMMEDIATE")
+        updated = None
+        with self._db.transaction() as conn:
             current = conn.execute("SELECT * FROM virtual_goods_orders WHERE xianyu_order_id=?", (oid,)).fetchone()
             if not current:
-                conn.execute("ROLLBACK")
                 return self._resp(
                     ok=False,
                     action="set_manual_takeover",
@@ -802,7 +796,6 @@ class VirtualGoodsService:
                 (1 if enabled else 0, next_fulfillment, now, oid),
             )
             updated = conn.execute("SELECT * FROM virtual_goods_orders WHERE xianyu_order_id=?", (oid,)).fetchone()
-            conn.commit()
 
         return self._resp(
             ok=True,
@@ -1019,8 +1012,7 @@ class VirtualGoodsService:
         unknown_count = 0
         affected_orders: set[str] = set()
 
-        with closing(self._connect()) as conn:
-            conn.execute("BEGIN IMMEDIATE")
+        with self._db.transaction() as conn:
             rows = conn.execute(
                 """
                 SELECT id, xianyu_order_id, event_kind
@@ -1068,7 +1060,6 @@ class VirtualGoodsService:
                     """,
                     (now, oid),
                 )
-            conn.commit()
 
         errors = []
         if unknown_count:
@@ -1105,7 +1096,7 @@ class VirtualGoodsService:
                 errors=[{"code": "MISSING_REPLAY_KEY", "message": "replay key is required"}],
             )
 
-        with closing(self._connect()) as conn:
+        with self._db.transaction() as conn:
             row = conn.execute(
                 f"SELECT * FROM virtual_goods_callbacks WHERE {where_sql} ORDER BY id DESC LIMIT 1", (target,)
             ).fetchone()
@@ -1138,8 +1129,7 @@ class VirtualGoodsService:
                 query_params=query_params if isinstance(query_params, dict) else {},
             )
         except Exception as exc:
-            with closing(self._connect()) as conn:
-                conn.execute("BEGIN IMMEDIATE")
+            with self._db.transaction() as conn:
                 conn.execute(
                     "UPDATE virtual_goods_callbacks SET processed=0, last_process_error=?, processed_at=NULL WHERE id=?",
                     (f"replay_exception:{exc}", int(cb["id"])),
@@ -1149,7 +1139,6 @@ class VirtualGoodsService:
                         "UPDATE virtual_goods_orders SET callback_status='failed', last_error=?, updated_at=? WHERE xianyu_order_id=?",
                         (f"replay_exception:{exc}", self._ts(), str(cb.get("xianyu_order_id"))),
                     )
-                conn.commit()
             return self._resp(
                 ok=False,
                 action=action,
@@ -1160,8 +1149,7 @@ class VirtualGoodsService:
                 metrics={"unknown_event_kind": unknown_count},
             )
 
-        with closing(self._connect()) as conn:
-            conn.execute("BEGIN IMMEDIATE")
+        with self._db.transaction() as conn:
             if cb.get("xianyu_order_id"):
                 conn.execute(
                     "UPDATE virtual_goods_orders SET callback_status=?, updated_at=? WHERE xianyu_order_id=?",
@@ -1171,7 +1159,6 @@ class VirtualGoodsService:
                         str(cb.get("xianyu_order_id")),
                     ),
                 )
-            conn.commit()
 
         return self._resp(
             ok=bool(replay_result.get("ok", False)),

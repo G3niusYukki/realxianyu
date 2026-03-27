@@ -12,6 +12,19 @@ import httpx
 
 from src.modules.quote.cost_table import CostTableRepository, FREIGHT_COURIERS, normalize_courier_name
 from src.modules.quote.models import QuoteRequest, QuoteResult
+from src.modules.quote.pricing_calculator import (
+    DEFAULT_MARKUP_RULE,
+    PricingInput,
+    _derive_volume_weight_kg,
+    _eta_by_service_level,
+    _first_positive,
+    _normalize_category_markup,
+    _normalize_markup_rules,
+    _normalize_xianyu_discount,
+    _resolve_volume_divisor,
+    _to_float,
+    compute_three_tier_price,
+)
 
 SERVICE_CATEGORIES = [
     "线上快递",
@@ -23,13 +36,6 @@ SERVICE_CATEGORIES = [
     "分销",
     "商家寄件",
 ]
-
-DEFAULT_MARKUP_RULE: dict[str, float] = {
-    "normal_first_add": 0.50,
-    "member_first_add": 0.25,
-    "normal_extra_add": 0.50,
-    "member_extra_add": 0.30,
-}
 
 
 class QuoteProviderError(RuntimeError):
@@ -152,55 +158,38 @@ class CostTableMarkupQuoteProvider(IQuoteProvider):
         # 根据运力确定服务类别
         category = "线上快运" if row.service_type == "freight" else "线上快递"
 
-        # 新的三层计价
-        if self.category_markup:
-            first_add, extra_add = _resolve_category_markup(self.category_markup, category, row.courier)
-            first_discount, extra_discount = _resolve_xianyu_discount_value(
-                self.xianyu_discount_rules, category, row.courier
-            )
-        else:
-            # 向后兼容旧格式
-            markup = _resolve_markup(self.markup_rules, row.courier)
-            first_add, extra_add = _profile_markup(markup, self.pricing_profile)
-            first_discount = 0.0
-            extra_discount = 0.0
-
-        actual_weight = max(0.0, float(request.weight))
-        courier_divisor = _resolve_volume_divisor(
-            self.volume_divisors, category, row.courier, self.volume_divisor_default
-        )
-        divisor = _first_positive(courier_divisor, row.throw_ratio, self.volume_divisor_default)
-        volume_weight = _derive_volume_weight_kg(
+        # 使用共享计价器
+        pricing_input = PricingInput(
+            first_cost=float(row.first_cost),
+            extra_cost=float(row.extra_cost),
+            base_weight=row.base_weight,
+            actual_weight=float(request.weight),
             volume_cm3=float(request.volume or 0.0),
-            explicit_volume_weight=float(request.volume_weight or 0.0),
-            divisor=divisor,
+            volume_weight=float(request.volume_weight or 0.0),
+            service_type=row.service_type,
+            courier=row.courier,
+            category=category,
+            service_level=request.service_level,
+            max_dimension_cm=float(request.max_dimension_cm or 0.0),
+            throw_ratio=row.throw_ratio,
         )
-        billing_weight = max(actual_weight, volume_weight)
-
-        # 使用 base_weight 而非硬编码 1.0
-        extra_weight = max(0.0, billing_weight - row.base_weight)
-
-        # 三层计算
-        mini_first = float(row.first_cost) + first_add
-        mini_extra = float(row.extra_cost) + extra_add
-        xianyu_first = max(0.0, mini_first - first_discount)
-        xianyu_extra = max(0.0, mini_extra - extra_discount)
-
-        extra_fee = extra_weight * xianyu_extra
-
-        surcharges: dict[str, float] = {}
-        if extra_fee > 0:
-            surcharges["续重"] = round(extra_fee, 2)
+        out = compute_three_tier_price(
+            pricing_input,
+            category_markup=self.category_markup,
+            xianyu_discount_rules=self.xianyu_discount_rules,
+            markup_rules=self.markup_rules,
+            pricing_profile=self.pricing_profile,
+            volume_divisors=self.volume_divisors,
+            volume_divisor_default=self.volume_divisor_default,
+        )
 
         max_dim = float(request.max_dimension_cm or 0.0)
-        oversize_threshold = 150.0 if row.service_type == "freight" else 120.0
-        oversize_warning = max_dim > oversize_threshold if max_dim > 0 else False
 
         return QuoteResult(
             provider="cost_table_markup",
-            base_fee=round(xianyu_first, 2),
-            surcharges=surcharges,
-            total_fee=round(xianyu_first + extra_fee, 2),
+            base_fee=round(out.xianyu_first, 2),
+            surcharges=out.surcharges,
+            total_fee=round(out.xianyu_first + out.extra_fee, 2),
             eta_minutes=_eta_by_service_level(request.service_level),
             confidence=0.92,
             source_excel=row.source_file,
@@ -215,24 +204,24 @@ class CostTableMarkupQuoteProvider(IQuoteProvider):
                 "base_weight": row.base_weight,
                 "service_type": row.service_type,
                 "markup_category": category,
-                "first_add": first_add,
-                "extra_add": extra_add,
-                "first_discount": first_discount,
-                "extra_discount": extra_discount,
-                "mini_program_first": round(mini_first, 2),
-                "mini_program_extra": round(mini_extra, 2),
-                "xianyu_first": round(xianyu_first, 2),
-                "xianyu_extra": round(xianyu_extra, 2),
-                "actual_weight_kg": round(actual_weight, 3),
-                "billing_weight_kg": round(billing_weight, 3),
+                "first_add": out.first_add,
+                "extra_add": out.extra_add,
+                "first_discount": out.first_discount,
+                "extra_discount": out.extra_discount,
+                "mini_program_first": round(out.mini_first, 2),
+                "mini_program_extra": round(out.mini_extra, 2),
+                "xianyu_first": round(out.xianyu_first, 2),
+                "xianyu_extra": round(out.xianyu_extra, 2),
+                "actual_weight_kg": round(out.actual_weight, 3),
+                "billing_weight_kg": round(out.billing_weight, 3),
                 "volume_cm3": round(float(request.volume or 0.0), 3),
-                "volume_weight_kg": round(volume_weight, 3),
-                "volume_divisor": divisor if divisor > 0 else None,
+                "volume_weight_kg": round(out.volume_weight, 3),
+                "volume_divisor": out.volume_divisor if out.volume_divisor > 0 else None,
                 "source_file": row.source_file,
                 "source_sheet": row.source_sheet,
-                "oversize_warning": oversize_warning,
+                "oversize_warning": out.oversize_warning,
                 "max_dimension_cm": round(max_dim, 1) if max_dim > 0 else None,
-                "oversize_threshold_cm": oversize_threshold if oversize_warning else None,
+                "oversize_threshold_cm": out.oversize_threshold if out.oversize_warning else None,
             },
         )
 
@@ -312,6 +301,9 @@ class ApiCostMarkupQuoteProvider(IQuoteProvider):
 
         is_freight = courier in FREIGHT_COURIERS
         category = "线上快运" if is_freight else "线上快递"
+        base_weight = 30.0 if is_freight else 1.0
+
+        # API-specific pre-computation: derive first_cost from total_cost if needed
         divisor = _resolve_volume_divisor(self.volume_divisors, category, courier, self.volume_divisor_default)
         volume_weight = _derive_volume_weight_kg(
             volume_cm3=float(request.volume or 0.0),
@@ -324,40 +316,42 @@ class ApiCostMarkupQuoteProvider(IQuoteProvider):
             float(api_billable_weight or 0.0),
             float(volume_weight or 0.0),
         )
-        base_weight = 30.0 if is_freight else 1.0
         extra_weight = max(0.0, billing_weight - base_weight)
         if first_cost is None:
             first_cost = max(0.0, float(total_cost or 0.0) - (extra_weight * float(extra_cost or 0.0)))
         if extra_cost is None:
             extra_cost = 0.0
 
-        if self.category_markup:
-            first_add, extra_add = _resolve_category_markup(self.category_markup, category, courier)
-            first_discount, extra_discount = _resolve_xianyu_discount_value(
-                self.xianyu_discount_rules, category, courier
-            )
-        else:
-            markup = _resolve_markup(self.markup_rules, courier)
-            first_add, extra_add = _profile_markup(markup, self.pricing_profile)
-            first_discount = 0.0
-            extra_discount = 0.0
-
-        mini_first = first_cost + first_add
-        mini_extra = extra_cost + extra_add
-        xianyu_first = max(0.0, mini_first - first_discount)
-        xianyu_extra = max(0.0, mini_extra - extra_discount)
-
-        extra_fee = extra_weight * xianyu_extra
-        surcharges: dict[str, float] = {}
-        if extra_fee > 0:
-            surcharges["续重"] = round(extra_fee, 2)
+        # 使用共享计价器
+        pricing_input = PricingInput(
+            first_cost=float(first_cost),
+            extra_cost=float(extra_cost),
+            base_weight=base_weight,
+            actual_weight=float(request.weight or 0.0),
+            volume_cm3=float(request.volume or 0.0),
+            volume_weight=float(request.volume_weight or 0.0),
+            service_type="freight" if is_freight else "express",
+            courier=courier,
+            category=category,
+            service_level=request.service_level,
+            api_billable_weight=float(api_billable_weight) if api_billable_weight is not None else None,
+        )
+        out = compute_three_tier_price(
+            pricing_input,
+            category_markup=self.category_markup,
+            xianyu_discount_rules=self.xianyu_discount_rules,
+            markup_rules=self.markup_rules,
+            pricing_profile=self.pricing_profile,
+            volume_divisors=self.volume_divisors,
+            volume_divisor_default=self.volume_divisor_default,
+        )
 
         provider_name = str(parsed.get("provider") or "api_cost_markup")
         return QuoteResult(
             provider=provider_name,
-            base_fee=round(xianyu_first, 2),
-            surcharges=surcharges,
-            total_fee=round(xianyu_first + extra_fee, 2),
+            base_fee=round(out.xianyu_first, 2),
+            surcharges=out.surcharges,
+            total_fee=round(out.xianyu_first + out.extra_fee, 2),
             eta_minutes=int(parsed.get("eta_minutes") or _eta_by_service_level(request.service_level)),
             confidence=float(parsed.get("confidence") or 0.93),
             explain={
@@ -369,20 +363,20 @@ class ApiCostMarkupQuoteProvider(IQuoteProvider):
                 "base_weight": base_weight,
                 "service_type": "freight" if is_freight else "express",
                 "markup_category": category,
-                "first_add": first_add,
-                "extra_add": extra_add,
-                "first_discount": first_discount,
-                "extra_discount": extra_discount,
-                "mini_program_first": round(mini_first, 2),
-                "mini_program_extra": round(mini_extra, 2),
-                "xianyu_first": round(xianyu_first, 2),
-                "xianyu_extra": round(xianyu_extra, 2),
+                "first_add": out.first_add,
+                "extra_add": out.extra_add,
+                "first_discount": out.first_discount,
+                "extra_discount": out.extra_discount,
+                "mini_program_first": round(out.mini_first, 2),
+                "mini_program_extra": round(out.mini_extra, 2),
+                "xianyu_first": round(out.xianyu_first, 2),
+                "xianyu_extra": round(out.xianyu_extra, 2),
                 "actual_weight_kg": round(float(request.weight or 0.0), 3),
-                "billing_weight_kg": round(billing_weight, 3),
+                "billing_weight_kg": round(out.billing_weight, 3),
                 "volume_cm3": round(float(request.volume or 0.0), 3),
-                "volume_weight_kg": round(volume_weight, 3),
+                "volume_weight_kg": round(out.volume_weight, 3),
                 "api_billable_weight_kg": api_billable_weight,
-                "volume_divisor": divisor if divisor > 0 else None,
+                "volume_divisor": out.volume_divisor if out.volume_divisor > 0 else None,
                 "api_provider": provider_name,
             },
         )
@@ -533,61 +527,6 @@ def _requested_courier(courier: str | None) -> str | None:
     return text
 
 
-def _normalize_markup_rules(raw_rules: dict[str, Any]) -> dict[str, dict[str, float]]:
-    rules: dict[str, dict[str, float]] = {"default": dict(DEFAULT_MARKUP_RULE)}
-    if not isinstance(raw_rules, dict):
-        return rules
-
-    for key, value in raw_rules.items():
-        if not isinstance(value, dict):
-            continue
-        courier_key = normalize_courier_name(str(key).strip()) if str(key).strip() else "default"
-        target = dict(DEFAULT_MARKUP_RULE)
-        for field_name in DEFAULT_MARKUP_RULE:
-            if field_name in value:
-                target[field_name] = float(value[field_name])
-        rules[courier_key or "default"] = target
-
-    if "default" not in rules:
-        rules["default"] = dict(DEFAULT_MARKUP_RULE)
-    return rules
-
-
-def _resolve_markup(markup_rules: dict[str, dict[str, float]], courier: str | None) -> dict[str, float]:
-    normalized = normalize_courier_name(courier)
-    if normalized in markup_rules:
-        return markup_rules[normalized]
-    return markup_rules.get("default", dict(DEFAULT_MARKUP_RULE))
-
-
-def _profile_markup(markup: dict[str, float], pricing_profile: str) -> tuple[float, float]:
-    profile = str(pricing_profile or "normal").strip().lower()
-    if profile == "member":
-        return float(markup.get("member_first_add", 0.0)), float(markup.get("member_extra_add", 0.0))
-    return float(markup.get("normal_first_add", 0.0)), float(markup.get("normal_extra_add", 0.0))
-
-
-def _eta_by_service_level(service_level: str) -> int:
-    text = str(service_level or "").strip().lower()
-    if text == "urgent":
-        return 12 * 60
-    if text == "express":
-        return 24 * 60
-    return 48 * 60
-
-
-def _to_float(value: Any) -> float | None:
-    if value is None:
-        return None
-    text = str(value).strip()
-    if not text:
-        return None
-    try:
-        return float(text)
-    except Exception:
-        return None
-
-
 def _parse_cost_api_response(data: Any) -> dict[str, Any]:
     if isinstance(data, dict):
         payload = data.get("data") if isinstance(data.get("data"), dict) else data
@@ -648,150 +587,3 @@ def _parse_remote_quote_response(data: Any) -> dict[str, Any]:
         "confidence": payload.get("confidence"),
         "explain": explain,
     }
-
-
-def _normalize_category_markup(raw: dict[str, Any]) -> dict[str, dict[str, dict[str, float]]]:
-    """解析分类加价配置。
-
-    返回: { category: { courier: { "first_add": x, "extra_add": y } } }
-    """
-    result: dict[str, dict[str, dict[str, float]]] = {}
-    if not isinstance(raw, dict):
-        return result
-    for category, couriers in raw.items():
-        cat = str(category).strip()
-        if not cat or not isinstance(couriers, dict):
-            continue
-        cat_rules: dict[str, dict[str, float]] = {}
-        for courier_key, rule in couriers.items():
-            key = str(courier_key).strip()
-            if not key or not isinstance(rule, dict):
-                continue
-            cat_rules[key if key == "default" else normalize_courier_name(key)] = {
-                "first_add": float(rule.get("first_add", 0.0)),
-                "extra_add": float(rule.get("extra_add", 0.0)),
-            }
-        if "default" not in cat_rules:
-            cat_rules["default"] = {"first_add": 0.0, "extra_add": 0.0}
-        result[cat] = cat_rules
-    return result
-
-
-def _normalize_xianyu_discount(raw: dict[str, Any]) -> dict[str, dict[str, dict[str, float]]]:
-    """解析闲鱼让利配置。
-
-    返回: { category: { courier: { "first_discount": x, "extra_discount": y } } }
-    """
-    result: dict[str, dict[str, dict[str, float]]] = {}
-    if not isinstance(raw, dict):
-        return result
-    for category, couriers in raw.items():
-        cat = str(category).strip()
-        if not cat or not isinstance(couriers, dict):
-            continue
-        cat_rules: dict[str, dict[str, float]] = {}
-        for courier_key, rule in couriers.items():
-            key = str(courier_key).strip()
-            if not key or not isinstance(rule, dict):
-                continue
-            cat_rules[key if key == "default" else normalize_courier_name(key)] = {
-                "first_discount": float(rule.get("first_discount", 0.0)),
-                "extra_discount": float(rule.get("extra_discount", 0.0)),
-            }
-        if "default" not in cat_rules:
-            cat_rules["default"] = {"first_discount": 0.0, "extra_discount": 0.0}
-        result[cat] = cat_rules
-    return result
-
-
-def _resolve_category_markup(
-    rules: dict[str, dict[str, dict[str, float]]],
-    category: str,
-    courier: str,
-) -> tuple[float, float]:
-    """根据服务类别和运力查找加价值，返回 (first_add, extra_add)。"""
-    cat_rules = _resolve_category_rules(rules, category)
-    courier_rule = cat_rules.get(courier) or cat_rules.get("default") or {}
-    return (
-        float(courier_rule.get("first_add", 0.0)),
-        float(courier_rule.get("extra_add", 0.0)),
-    )
-
-
-def _resolve_xianyu_discount_value(
-    rules: dict[str, dict[str, dict[str, float]]],
-    category: str,
-    courier: str,
-) -> tuple[float, float]:
-    """根据服务类别和运力查找让利值，返回 (first_discount, extra_discount)。"""
-    cat_rules = _resolve_category_rules(rules, category)
-    courier_rule = cat_rules.get(courier) or cat_rules.get("default") or {}
-    return (
-        float(courier_rule.get("first_discount", 0.0)),
-        float(courier_rule.get("extra_discount", 0.0)),
-    )
-
-
-def _first_positive(*values: Any) -> float:
-    for value in values:
-        v = _to_float(value)
-        if v is not None and v > 0:
-            return float(v)
-    return 0.0
-
-
-# 品类 key 别名：中文 ↔ 英文双向映射
-_CATEGORY_KEY_ALIASES: dict[str, str] = {
-    "线上快递": "express",
-    "线下快递": "express_offline",
-    "线上快运": "freight",
-    "线下快运": "freight_offline",
-    "express": "线上快递",
-    "express_offline": "线下快递",
-    "freight": "线上快运",
-    "freight_offline": "线下快运",
-}
-
-
-def _resolve_category_rules(rules: dict[str, Any], category: str) -> dict[str, Any]:
-    """按 category 查找规则，支持英文/中文 key 别名 fallback。"""
-    cat_rules = rules.get(category)
-    if not cat_rules:
-        alias = _CATEGORY_KEY_ALIASES.get(category, "")
-        cat_rules = rules.get(alias) if alias else None
-    return cat_rules if isinstance(cat_rules, dict) else {}
-
-
-def _resolve_volume_divisor(
-    volume_divisors: dict[str, Any],
-    category: str,
-    courier: str,
-    global_default: float,
-) -> float:
-    """解析抛比：per-courier > 类别 default > 全局 default。"""
-    if not isinstance(volume_divisors, dict):
-        return float(global_default or 0.0) or 0.0
-    cat_cfg = volume_divisors.get(category)
-    if not isinstance(cat_cfg, dict):
-        alias = _CATEGORY_KEY_ALIASES.get(category, "")
-        cat_cfg = volume_divisors.get(alias) if alias else None
-    if not isinstance(cat_cfg, dict):
-        return float(global_default or 0.0) or 0.0
-    v = _to_float(cat_cfg.get(courier))
-    if v is not None and v > 0:
-        return float(v)
-    v = _to_float(cat_cfg.get("default"))
-    if v is not None and v > 0:
-        return float(v)
-    return float(global_default or 0.0) or 0.0
-
-
-def _derive_volume_weight_kg(volume_cm3: float, explicit_volume_weight: float, divisor: float) -> float:
-    explicit = _to_float(explicit_volume_weight)
-    if explicit is not None and explicit > 0:
-        return float(explicit)
-    volume = _to_float(volume_cm3)
-    div = _to_float(divisor)
-    if volume is None or volume <= 0 or div is None or div <= 0:
-        return 0.0
-    return round(float(volume) / float(div), 3)
