@@ -1,16 +1,15 @@
-# XianyuFlow | 闲流 (XianyuFlow | 闲流)
+# XianyuFlow | 闲流
 
 [![CI](https://github.com/G3niusYukki/realxianyu/actions/workflows/ci.yml/badge.svg)](https://github.com/G3niusYukki/realxianyu/actions/workflows/ci.yml)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-9.5.0-green.svg)](./CHANGELOG.md)
-[![Code style: Ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
+[![Version](https://img.shields.io/badge/version-10.0.0-green.svg)](./CHANGELOG.md)
+[![Kubernetes](https://img.shields.io/badge/kubernetes-ready-326ce5.svg)](https://kubernetes.io/)
+[![Microservices](https://img.shields.io/badge/architecture-microservices-ff6b6b.svg)](./docs/ARCHITECTURE.md)
 
-> **⚠️ 架构变更通知 (v8.1.0+)**
+> **XianyuFlow v10.0.0** — 云原生微服务架构升级
 >
-> 本项目已进行深度重构，**废弃了所有"一键安装 (.bat/.sh)"和冗余的内置 HTML 打包方式**，全面转向现代化的 **前端 (React/Vite) + 后端 (Python Asyncio)** 分离架构。
->
-> 本项目旨在作为工作室内部部署和 AI Agent 自动化驱动的基础设施。不再面向无编程基础的 C 端用户提供"双击启动包"。
+> 本项目已完成从单体应用到云原生微服务平台的深度重构，基于 Kubernetes 实现弹性伸缩、灰度发布和零停机迁移。
 
 ---
 
@@ -19,11 +18,10 @@
 | 文档 | 说明 | 目标读者 |
 |------|------|----------|
 | [QUICKSTART.md](./QUICKSTART.md) | 5分钟快速启动 | 新用户 |
-| [USER_GUIDE.md](./USER_GUIDE.md) | 详细使用说明书 | 终端用户 |
 | [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | 系统架构设计 | 开发者 |
+| [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) | 部署指南（K8s/本地） | 运维人员 |
+| [docs/MIGRATION_GUIDE.md](./docs/MIGRATION_GUIDE.md) | v9→v10迁移指南 | 现有用户 |
 | [docs/API.md](./docs/API.md) | HTTP API 文档 | 前后端开发者 |
-| [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) | 生产部署指南 | 运维人员 |
-| [docs/for-agents/index.md](./docs/for-agents/index.md) | AI Agent 开发指南 | AI Agent |
 | [CONTRIBUTING.md](./CONTRIBUTING.md) | 贡献指南 | 贡献者 |
 
 ---
@@ -32,129 +30,197 @@
 
 | 特性 | 说明 |
 |------|------|
-| **多级 Cookie 降级保活** | 闲管家 IM 直读 → CookieCloud 同步 → 本地直读 → Playwright 硬解，四级降级 |
-| **现代化前后端分离** | React + TailwindCSS Dashboard，状态监控与配置热更新 |
-| **AI 智能客服** | 接入大语言模型（DeepSeek 等），自动报价与智能上下文回复 |
-| **虚拟商品全自动核销** | 卡密自动发货，自动标记已发货，状态全链路闭环 |
-| **闲管家深度集成** | 兼容闲管家 PC 端登录状态，双重签名算法，降低纯 Web 协议风控概率 |
+| **微服务架构** | 6个独立服务：Gateway、Quote、AI、Message、Order、Scheduler |
+| **Kubernetes 原生** | Kind/EKS 部署，Helm Charts，HPA 自动伸缩 |
+| **4级 AI 上下文** | Request → Intent → Session → Profile 智能上下文管理 |
+| **多级缓存** | L1 (内存 LRU) + L2 (Redis) 双重缓存加速 |
+| **零停机迁移** | 双写模式 SQLite → PostgreSQL 平滑迁移 |
+| **灰度发布** | NGINX Canary 流量控制，渐进式发布 |
+| **全链路可观测** | Prometheus + Grafana + Jaeger 监控追踪 |
+
+---
+
+## 🏗 架构概览
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                           Kubernetes Cluster                            │
+│                                                                         │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  │
+│  │   Gateway   │  │   Quote     │  │     AI      │  │   Message   │  │
+│  │  Service    │  │  Service    │  │  Service    │  │  Service    │  │
+│  │  :8000      │  │  :8001      │  │  :8002      │  │  :8003      │  │
+│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  │
+│         │                 │                 │                 │         │
+│         └─────────────────┼─────────────────┼─────────────────┘         │
+│                           │                 │                          │
+│                    ┌──────▼─────────────────▼──────┐                   │
+│                    │        Kafka Event Bus        │                   │
+│                    └───────────────────────────────┘                   │
+│                                                                         │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  │
+│  │   Order     │  │  Scheduler  │  │    Redis    │  │ PostgreSQL  │  │
+│  │  Service    │  │  Service    │  │  Cluster    │  │   Master    │  │
+│  │  :8004      │  │  :8005      │  │             │  │             │  │
+│  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘  │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### 服务说明
+
+| 服务 | 端口 | 功能 |
+|------|------|------|
+| **gateway-service** | 8000 | API 网关，限流，路由分发 |
+| **quote-service** | 8001 | 物流报价引擎，多级缓存 |
+| **ai-service** | 8002 | 4级上下文管理，LLM 调用 |
+| **message-service** | 8003 | WebSocket 连接池，消息处理 |
+| **order-service** | 8004 | 订单履约，虚拟商品核销 |
+| **scheduler-service** | 8005 | 分布式任务调度 |
 
 ---
 
 ## 💻 快速部署
 
-> 详细部署指南请参阅 [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) | AI Agent 专用指南 [AGENT_DEPLOYMENT.md](./AGENT_DEPLOYMENT.md)
+### 方式一：本地 Kind 集群（推荐开发）
 
 ```bash
-# 1. 构建前端
-cd client && npm install && npm run build && cd ..
+# 1. 安装依赖
+brew install kind kubectl helm docker
 
-# 2. 初始化后端
+# 2. 创建集群
+kind create cluster --name xianyuflow
+
+# 3. 部署基础设施
+cd infra/terraform/environments/local
+terraform init && terraform apply
+
+# 4. 部署应用
+cd ../../..
+helm install xianyuflow ./services/helm/xianyuflow \
+  --set global.image.tag=v10.0.0
+
+# 5. 验证部署
+kubectl get pods -n xianyuflow
+```
+
+### 方式二：本地 Python 开发
+
+```bash
+# 1. 克隆并进入目录
+git clone https://github.com/G3niusYukki/realxianyu.git
+cd realxianyu
+
+# 2. 启动依赖服务
+docker compose up -d redis postgres
+
+# 3. 安装依赖
 python3.12 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 
-# 3. 配置环境变量
+# 4. 配置环境变量
 cp .env.example .env
-# 填入 XIANYU_COOKIE_1、DEEPSEEK_API_KEY 等必要参数
+# 填入 XIANYU_COOKIE_1、DEEPSEEK_API_KEY 等
 
-# 4. 启动
-python -m src.main
+# 5. 启动服务
+python -m services.gateway_service.app
 ```
 
-### 🤖 For LLM Agents
+### 方式三：AWS EKS 生产部署
 
-Fetch the installation guide and follow it:
+```bash
+# 1. 配置 AWS 凭证
+aws configure
+
+# 2. 创建 EKS 集群
+cd infra/terraform/environments/prod
+terraform init && terraform apply
+
+# 3. 配置 kubectl
+aws eks update-kubeconfig --name xianyuflow-prod
+
+# 4. 部署应用
+helm install xianyuflow ./services/helm/xianyuflow \
+  --namespace xianyuflow \
+  --set global.environment=production \
+  --values values.prod.yaml
+```
+
+---
+
+## 🤖 For AI Agents
+
+AI Agent 可通过以下方式自动部署：
 
 ```bash
 curl -s https://raw.githubusercontent.com/G3niusYukki/realxianyu/main/AGENT_DEPLOYMENT.md
 ```
 
-Or simply tell your agent: **"Deploy this project following AGENT_DEPLOYMENT.md"**
+或直接告诉 Agent：**"Deploy this project following AGENT_DEPLOYMENT.md"**
 
 ---
 
-## 🏗 架构设计
-
-```
-┌──────────────────────────────────────────────────────────┐
-│                     前端层  client/                        │
-│     React + TailwindCSS SPA，编译后由后端服务静态托管     │
-└────────────────────────┬────────────────────────────────┘
-                         │ HTTP / REST
-┌────────────────────────▼────────────────────────────────┐
-│              网关层  dashboard_server.py                  │
-│      BaseHTTPRequestHandler · 路由分发 + 静态服务        │
-└────────────────────────┬────────────────────────────────┘
-                         │
-┌────────────────────────▼────────────────────────────────┐
-│           业务中枢  src/dashboard/mimic_ops.py            │
-│             Facade 代理 (~3000 行)                       │
-└────┬────────────────┬──────────────────┬────────────────┘
-     │                │                  │
-┌────▼────┐   ┌──────▼───┐   ┌────────▼─────────┐
-│ dashboard/ │   │  modules/ │   │   cli/         │
-│ services/  │   │           │   │                 │
-│Cookie    │   │Messages   │   │cmd_main.py      │
-│Service   │   │Orders     │   │cmd_orders.py    │
-│XGJ       │   │Quote      │   │cmd_module.py   │
-│Service   │   │Listing    │   │cmd_quote.py    │
-│          │   │Virtual    │   │                 │
-│          │   │Goods      │   │                 │
-└──────────┘   └───────────┘   └─────────────────┘
-```
-
-### 核心设计原则
-
-- **Facade 模式**：`mimic_ops.py` 仅作分发代理，不含业务逻辑
-- **YAML 单一真相**：`config/config.yaml` 是唯一默认值来源，无需手动同步
-- **无 global 声明**：全局状态通过单例类（`WebSocketTransportManager`、`QuoteLedger` 等）管理
-- **CLI 模块化**：`cli/` 包按职责拆分，支持猴子补丁测试
-
----
-
-## 🧪 测试与规范
+## 🧪 测试
 
 ```bash
-# 运行全部测试（~1172 个）
-./venv/bin/python -m pytest tests/ -q
+# 运行所有服务测试
+pytest services/*/tests/ -v
+
+# 运行基础设施测试
+pytest tests/integration/ -v
 
 # 代码规范检查
-ruff check src/ --extend-ignore I001,E501,UP012,RUF100
-ruff format --check src/
-```
+ruff check services/ --extend-ignore I001,E501
 
-提交前请确保测试全部通过且 `ruff check` 无报错。
+# Kubernetes 配置验证
+kubectl lint services/k8s/
+```
 
 ---
 
 ## 📂 目录结构
 
 ```
-src/
-├── core/               # 核心基础设施（配置、日志、浏览器客户端、Cookie 管理、加密）
-├── modules/            # 业务模块
-│   ├── messages/       #   WS 长连接、消息回复引擎、workflow
-│   ├── orders/         #   订单履约、自动改价轮询
-│   ├── quote/          #   物流报价引擎、成本表、地理解析
-│   ├── listing/        #   商品上架、文案模板
-│   ├── virtual_goods/  #   虚拟商品核销
-│   ├── accounts/       #   多账号管理
-│   ├── content/        #   AI 内容生成
-│   ├── analytics/      #   数据分析
-│   ├── ticketing/      #   票务模块
-│   ├── media/          #   媒体处理
-│   ├── operations/     #   运营工具
-│   ├── growth/         #   增长分析
-│   ├── followup/       #   追单
-│   └── compliance/     #   合规检查
-├── integrations/       # 第三方集成（闲管家 API）
-├── dashboard/          # Dashboard Facade (mimic_ops.py) + HTTP Routes
-│   ├── services/       #   CookieService / XGJService（从 mimic_ops 拆分）
-│   └── routes/         #   HTTP 路由处理
-├── cli/                # 模块化 CLI 包
-├── dashboard_server.py # HTTP 服务器入口
-├── main.py             # 程序主入口
-└── setup_wizard.py     # 初始化向导
+realxianyu/
+├── services/                    # 微服务代码
+│   ├── gateway-service/         # API 网关
+│   ├── quote-service/          # 报价服务
+│   ├── ai-service/             # AI 服务
+│   ├── message-service/        # 消息服务
+│   ├── order-service/          # 订单服务
+│   ├── scheduler-service/      # 调度服务
+│   ├── common/                 # 公共库
+│   │   └── xianyuflow_common/ # 配置/缓存/双写
+│   └── helm/                   # Helm Charts
+├── infra/                      # 基础设施代码
+│   ├── terraform/              # Terraform 配置
+│   │   └── environments/      # 环境配置
+│   │       ├── local/         # Kind 本地
+│   │       └── prod/          # AWS EKS
+│   └── k8s/                   # K8s 资源配置
+├── scripts/                    # 运维脚本
+│   ├── migrate_data.py         # 数据迁移
+│   └── rollback.sh             # 应急回滚
+├── docs/                       # 文档
+│   ├── ARCHITECTURE.md        # 架构设计
+│   ├── DEPLOYMENT.md          # 部署指南
+│   └── MIGRATION_GUIDE.md    # 迁移指南
+├── client/                     # React 前端
+├── src/                        # (遗留) 单体代码
+└── CHANGELOG.md               # 版本变更日志
 ```
+
+---
+
+## 🔄 从 v9 升级
+
+如需从 v9.x 升级到 v10，请参考 [迁移指南](./docs/MIGRATION_GUIDE.md)。
+
+**主要变更：**
+- SQLite 数据库迁移到 PostgreSQL
+- 单体应用拆分为 6 个独立服务
+- 新增 Kubernetes 部署支持
+- 配置管理从 `config.yaml` 迁移到 Pydantic 模型
 
 ---
 
