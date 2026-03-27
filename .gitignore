@@ -202,3 +202,4 @@ server/
 
 # Temporary diff files
 *.diff
+.worktrees
