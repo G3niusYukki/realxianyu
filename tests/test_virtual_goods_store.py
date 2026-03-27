@@ -161,7 +161,7 @@ def test_insert_callback_requires_external_event_id_or_dedupe_key(temp_dir) -> N
 
 
 def test_migration_creates_tables_and_indexes(temp_dir) -> None:
-    migration_path = Path("database/migrations/20260306_wave_b1_virtual_goods_tables.sql")
+    migration_path = Path("database/migrations/20260306_wave_b_virtual_goods.sql")
     sql = migration_path.read_text(encoding="utf-8")
     db_path = temp_dir / "migration_b1.db"
 

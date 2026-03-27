@@ -206,7 +206,7 @@ class TestQuoteProviders:
         assert isinstance(result, dict)
 
     def test_first_positive(self):
-        from src.modules.quote.providers import _first_positive
+        from src.modules.quote.pricing_calculator import _first_positive
         assert _first_positive(0, -1, 5) == 5.0
         assert _first_positive(0, 0) == 0.0
         assert _first_positive(None, None) == 0.0

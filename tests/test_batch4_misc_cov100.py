@@ -29,7 +29,7 @@ class TestWorkflowStore:
             store = self._make_store(db_path)
             self._enqueue(store, "session1")
 
-            with store._connect() as conn:
+            with store._db.transaction() as conn:
                 conn.execute(
                     "UPDATE workflow_jobs SET status='running' WHERE id=1"
                 )
@@ -37,6 +37,7 @@ class TestWorkflowStore:
             jobs = store.claim_jobs(limit=1, lease_seconds=60)
             assert len(jobs) == 0
         finally:
+            store._db.close()
             Path(db_path).unlink(missing_ok=True)
 
     def test_complete_job_without_lease(self):
