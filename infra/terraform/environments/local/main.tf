@@ -108,3 +108,28 @@ resource "helm_release" "redis" {
 
   depends_on = [kubernetes_namespace.xianyuflow]
 }
+
+# PostgreSQL Helm Release
+resource "helm_release" "postgresql" {
+  name       = "postgresql"
+  repository = "https://charts.bitnami.com/bitnami"
+  chart      = "postgresql"
+  version    = "13.2.0"
+  namespace  = kubernetes_namespace.xianyuflow.metadata[0].name
+
+  values = [
+    file("${path.module}/../../../helm/xianyuflow-infra/values-postgres.yaml")
+  ]
+
+  set_sensitive {
+    name  = "auth.password"
+    value = var.postgres_password
+  }
+
+  set_sensitive {
+    name  = "auth.postgresPassword"
+    value = var.postgres_password
+  }
+
+  depends_on = [kubernetes_namespace.xianyuflow]
+}
