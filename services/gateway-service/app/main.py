@@ -1,10 +1,11 @@
 import os
+from typing import Annotated
 
-from fastapi import Depends, FastAPI, HTTPException, status
-from fastapi.responses import JSONResponse
+from fastapi import Depends, FastAPI, status
+from fastapi.responses import JSONResponse, Response
 
-from app.client import XianGuanJiaClient, XianyuConfig
-from app.routes import get_client, get_config
+from app.client import XianGuanJiaClient
+from app.routes import get_client
 from app.routes.orders import router as orders_router
 from app.routes.products import router as products_router
 
@@ -13,6 +14,26 @@ app = FastAPI(
     description="Gateway Service for Xianyu API integration",
     version="0.1.0",
 )
+
+
+@app.get("/")
+async def root():
+    """根路径元数据，避免浏览器直开时误判服务未启动。"""
+    return JSONResponse(
+        content={
+            "service": "gateway-service",
+            "status": "healthy",
+            "health": "/health",
+            "docs": "/docs",
+        },
+        status_code=status.HTTP_200_OK,
+    )
+
+
+@app.get("/favicon.ico")
+async def favicon():
+    """避免浏览器自动请求 favicon 产生 404 噪音。"""
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @app.get("/health")
@@ -25,7 +46,7 @@ async def health_check():
 
 
 @app.get("/api/v1/users/authorized")
-async def get_authorized_users(client: XianGuanJiaClient = Depends(get_client)):
+async def get_authorized_users(client: Annotated[XianGuanJiaClient, Depends(get_client)]):
     """获取已授权用户列表"""
     return await client.list_authorized_users()
 
