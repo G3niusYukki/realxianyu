@@ -1,0 +1,333 @@
+# XianyuFlow v10 Phase 5: Canary Deployment Configuration
+# Kubernetes native canary deployment using Flagger or native resources
+
+# ============================================
+# Method 1: Native Kubernetes Canary (Recommended for simplicity)
+# ============================================
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: message-service-stable
+  namespace: xianyuflow
+  labels:
+    app: message-service
+    version: stable
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: message-service
+      version: stable
+  template:
+    metadata:
+      labels:
+        app: message-service
+        version: stable
+    spec:
+      containers:
+      - name: message-service
+        image: xianyuflow/message-service:v1.0.0
+        ports:
+        - containerPort: 8000
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        env:
+        - name: SERVICE_NAME
+          value: "message-service"
+        - name: LOG_LEVEL
+          value: "info"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: message-service-canary
+  namespace: xianyuflow
+  labels:
+    app: message-service
+    version: canary
+spec:
+  replicas: 1  # Start with 1 canary pod
+  selector:
+    matchLabels:
+      app: message-service
+      version: canary
+  template:
+    metadata:
+      labels:
+        app: message-service
+        version: canary
+    spec:
+      containers:
+      - name: message-service
+        image: xianyuflow/message-service:v1.1.0  # New version
+        ports:
+        - containerPort: 8000
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        env:
+        - name: SERVICE_NAME
+          value: "message-service"
+        - name: LOG_LEVEL
+          value: "info"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+---
+# Service with traffic splitting
+apiVersion: v1
+kind: Service
+metadata:
+  name: message-service
+  namespace: xianyuflow
+spec:
+  selector:
+    app: message-service  # Selects both stable and canary
+  ports:
+  - port: 80
+    targetPort: 8000
+    name: http
+---
+# ============================================
+# Ingress with Canary Routing (using NGINX)
+# ============================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: message-service-ingress
+  namespace: xianyuflow
+  annotations:
+    nginx.ingress.kubernetes.io/canary: "true"
+    nginx.ingress.kubernetes.io/canary-weight: "10"  # 10% traffic to canary
+    nginx.ingress.kubernetes.io/canary-by-header: "X-Canary"
+    nginx.ingress.kubernetes.io/canary-by-header-value: "always"
+spec:
+  rules:
+  - host: api.xianyuflow.local
+    http:
+      paths:
+      - path: /api/v1/messages
+        pathType: Prefix
+        backend:
+          service:
+            name: message-service
+            port:
+              number: 80
+---
+# ============================================
+# Method 2: Flagger Canary (Advanced)
+# ============================================
+# apiVersion: flagger.app/v1beta1
+# kind: Canary
+# metadata:
+#   name: message-service
+#   namespace: xianyuflow
+# spec:
+#   provider: nginx
+#   targetRef:
+#     apiVersion: apps/v1
+#     kind: Deployment
+#     name: message-service
+#   autoscalerRef:
+#     apiVersion: autoscaling/v2
+#     kind: HorizontalPodAutoscaler
+#     name: message-service
+#   service:
+#     port: 80
+#     targetPort: 8000
+#     gateways:
+#     - nginx.ingress.kubernetes.io/xianyuflow-gateway
+#   analysis:
+#     interval: 30s
+#     threshold: 5
+#     maxWeight: 50
+#     stepWeight: 10
+#     metrics:
+#     - name: request-success-rate
+#       thresholdRange:
+#         min: 99
+#       interval: 1m
+#     - name: request-duration
+#       thresholdRange:
+#         max: 500
+#       interval: 1m
+#     webhooks:
+#     - name: load-test
+#       url: http://flagger-loadtester.test/
+#       timeout: 5s
+#       metadata:
+#         cmd: "hey -z 1m -q 10 -c 2 http://message-service:8000/health"
+#     - name: conformance-test
+#       type: pre-rollout
+#       url: http://flagger-tester.test/
+#       timeout: 30s
+#       metadata:
+#         type: bash
+#         cmd: "curl -s http://message-service:8000/health | grep ok"
+#     - name: promotion-gate
+#       type: confirm-promotion
+#       url: http://flagger-tester.test/gate/check
+#       timeout: 30s
+---
+# ============================================
+# Progressive Canary Strategy ConfigMap
+# ============================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: canary-strategy
+  namespace: xianyuflow
+data:
+  strategy.yaml: |
+    stages:
+      - name: "canary-10"
+        description: "10% traffic to canary"
+        weight: 10
+        duration: "30m"
+        checks:
+          - error_rate < 1%
+          - latency_p99 < 500ms
+
+      - name: "canary-25"
+        description: "25% traffic to canary"
+        weight: 25
+        duration: "1h"
+        checks:
+          - error_rate < 0.5%
+          - latency_p99 < 400ms
+
+      - name: "canary-50"
+        description: "50% traffic to canary"
+        weight: 50
+        duration: "2h"
+        checks:
+          - error_rate < 0.1%
+          - latency_p99 < 300ms
+
+      - name: "canary-100"
+        description: "100% traffic to canary"
+        weight: 100
+        duration: "30m"
+        checks:
+          - error_rate < 0.1%
+
+      - name: "promote"
+        description: "Promote canary to stable"
+        action: promote
+---
+# ============================================
+# Rollback Job (Emergency)
+# ============================================
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: emergency-rollback
+  namespace: xianyuflow
+spec:
+  template:
+    spec:
+      containers:
+      - name: rollback
+        image: bitnami/kubectl:latest
+        command:
+        - /bin/sh
+        - -c
+        - |
+          echo "Scaling down canary..."
+          kubectl scale deployment/message-service-canary --replicas=0 -n xianyuflow
+
+          echo "Scaling up stable..."
+          kubectl scale deployment/message-service-stable --replicas=3 -n xianyuflow
+
+          echo "Removing canary ingress..."
+          kubectl annotate ingress/message-service-ingress nginx.ingress.kubernetes.io/canary- -n xianyuflow
+
+          echo "Rollback complete"
+      restartPolicy: OnFailure
+  backoffLimit: 3
+---
+# ============================================
+# Monitoring for Canary
+# ============================================
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: canary-alerts
+  namespace: monitoring
+spec:
+  groups:
+  - name: canary
+    rules:
+    - alert: CanaryHighErrorRate
+      expr: |
+        (
+          sum(rate(http_requests_total{version="canary",status=~"5.."}[5m]))
+          /
+          sum(rate(http_requests_total{version="canary"}[5m]))
+        ) > 0.01
+      for: 5m
+      labels:
+        severity: warning
+        service: message-service
+      annotations:
+        summary: "Canary has high error rate"
+        description: "Canary error rate is {{ $value | humanizePercentage }}"
+
+    - alert: CanaryHighLatency
+      expr: |
+        histogram_quantile(0.99,
+          sum(rate(http_request_duration_seconds_bucket{version="canary"}[5m])) by (le)
+        ) > 1
+      for: 5m
+      labels:
+        severity: warning
+        service: message-service
+      annotations:
+        summary: "Canary has high latency"
+        description: "Canary P99 latency is {{ $value }}s"
+
+    - alert: CanaryRollbackNeeded
+      expr: |
+        (
+          sum(rate(http_requests_total{version="canary",status=~"5.."}[5m]))
+          /
+          sum(rate(http_requests_total{version="canary"}[5m]))
+        ) > 0.05
+      for: 2m
+      labels:
+        severity: critical
+        service: message-service
+      annotations:
+        summary: "Canary needs immediate rollback"
+        description: "Canary error rate is {{ $value | humanizePercentage }}, rollback triggered"

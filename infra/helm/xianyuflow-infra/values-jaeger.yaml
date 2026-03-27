@@ -1,0 +1,41 @@
+# Jaeger Helm values for XianyuFlow v10 Phase 1
+# Local development environment with all-in-one mode
+
+# Disable data store provisioning
+provisionDataStore:
+  cassandra: false
+  elasticsearch: false
+  kafka: false
+
+# Use in-memory storage for local development
+storage:
+  type: memory
+
+# Enable all-in-one mode (includes agent, collector, query in one pod)
+allInOne:
+  enabled: true
+  resources:
+    limits:
+      cpu: 500m
+      memory: 1Gi
+    requests:
+      cpu: 250m
+      memory: 512Mi
+
+# Disable separate agent (included in all-in-one)
+agent:
+  enabled: false
+
+# Disable separate collector (included in all-in-one)
+collector:
+  enabled: false
+
+# Disable separate query (included in all-in-one)
+query:
+  enabled: false
+
+# Enable ingress for Jaeger UI
+ingress:
+  enabled: true
+  hosts:
+    - jaeger.local

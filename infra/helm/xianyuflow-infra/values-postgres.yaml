@@ -1,0 +1,30 @@
+auth:
+  username: xianyu
+  database: xianyuflow
+  # password and postgresPassword are set via Terraform sensitive variables
+
+architecture: replication
+
+primary:
+  persistence:
+    enabled: true
+    size: 20Gi
+  resources:
+    requests:
+      memory: 1Gi
+      cpu: 500m
+    limits:
+      memory: 2Gi
+      cpu: 1000m
+
+readReplicas:
+  replicaCount: 1
+  persistence:
+    enabled: true
+    size: 20Gi
+
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    namespace: monitoring

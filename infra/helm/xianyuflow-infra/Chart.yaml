@@ -1,0 +1,20 @@
+apiVersion: v2
+name: xianyuflow-infra
+description: XianyuFlow infrastructure Helm chart for Redis, PostgreSQL and Kafka
+version: 0.1.0
+appVersion: "1.0"
+dependencies:
+  - name: redis-cluster
+    version: 9.0.0
+    repository: https://charts.bitnami.com/bitnami
+    condition: redis-cluster.enabled
+  - name: postgresql
+    version: 13.2.0
+    repository: https://charts.bitnami.com/bitnami
+    condition: postgresql.enabled
+    optional: true
+  - name: kafka
+    version: 26.4.0
+    repository: https://charts.bitnami.com/bitnami
+    condition: kafka.enabled
+    optional: true

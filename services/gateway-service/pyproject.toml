@@ -1,0 +1,22 @@
+[project]
+name = "gateway-service"
+version = "0.1.0"
+description = "Gateway Service for Xianyu API integration"
+requires-python = ">=3.12"
+dependencies = [
+    "xianyuflow-common",
+    "fastapi>=0.104",
+    "uvicorn[standard]>=0.24",
+    "httpx>=0.25",
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]
+
+[tool.uv.sources]
+xianyuflow-common = { path = "../common", develop = true }
