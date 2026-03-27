@@ -37,6 +37,7 @@ def temp_dir():
 @pytest.fixture
 def temp_config_file(temp_dir):
     """创建临时配置文件"""
+    Config.reset_for_testing()
     config_file = temp_dir / "config.yaml"
     config_content = """
 app:
@@ -230,6 +231,7 @@ def sample_metrics_data():
 @pytest.fixture
 def config(temp_config_file):
     """测试配置实例"""
+    Config.reset_for_testing()
     monkeypatch = pytest.MonkeyPatch()
     monkeypatch.setenv("OPENAI_API_KEY", "test_openai_key")
     monkeypatch.setenv("DEEPSEEK_API_KEY", "test_deepseek_key")

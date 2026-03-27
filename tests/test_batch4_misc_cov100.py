@@ -38,6 +38,13 @@ class TestWorkflowStore:
             assert len(jobs) == 0
         finally:
             store._db.close()
+            for suffix in ("-wal", "-shm"):
+                journal = db_path + suffix
+                if os.path.exists(journal):
+                    try:
+                        os.unlink(journal)
+                    except OSError:
+                        pass
             Path(db_path).unlink(missing_ok=True)
 
     def test_complete_job_without_lease(self):
@@ -54,6 +61,13 @@ class TestWorkflowStore:
             assert result is True
         finally:
             store._db.close()
+            for suffix in ("-wal", "-shm"):
+                journal = db_path + suffix
+                if os.path.exists(journal):
+                    try:
+                        os.unlink(journal)
+                    except OSError:
+                        pass
             Path(db_path).unlink(missing_ok=True)
 
     def test_complete_job_with_lease(self):
@@ -70,6 +84,13 @@ class TestWorkflowStore:
             assert result is True
         finally:
             store._db.close()
+            for suffix in ("-wal", "-shm"):
+                journal = db_path + suffix
+                if os.path.exists(journal):
+                    try:
+                        os.unlink(journal)
+                    except OSError:
+                        pass
             Path(db_path).unlink(missing_ok=True)
 
     def test_complete_job_with_wrong_lease(self):
@@ -83,6 +104,13 @@ class TestWorkflowStore:
             assert result is False
         finally:
             store._db.close()
+            for suffix in ("-wal", "-shm"):
+                journal = db_path + suffix
+                if os.path.exists(journal):
+                    try:
+                        os.unlink(journal)
+                    except OSError:
+                        pass
             Path(db_path).unlink(missing_ok=True)
 
     def test_fail_job_dead_with_lease(self):
@@ -99,6 +127,13 @@ class TestWorkflowStore:
             assert result is True
         finally:
             store._db.close()
+            for suffix in ("-wal", "-shm"):
+                journal = db_path + suffix
+                if os.path.exists(journal):
+                    try:
+                        os.unlink(journal)
+                    except OSError:
+                        pass
             Path(db_path).unlink(missing_ok=True)
 
     def test_fail_job_not_found(self):
@@ -110,6 +145,13 @@ class TestWorkflowStore:
             assert result is False
         finally:
             store._db.close()
+            for suffix in ("-wal", "-shm"):
+                journal = db_path + suffix
+                if os.path.exists(journal):
+                    try:
+                        os.unlink(journal)
+                    except OSError:
+                        pass
             Path(db_path).unlink(missing_ok=True)
 
 

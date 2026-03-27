@@ -53,6 +53,7 @@ class TestConfig:
 
     def test_config_reload(self, temp_config_file, temp_dir):
         """测试重新加载配置"""
+        Config.reset_for_testing()
         config = Config(str(temp_config_file))
         assert config.get("app.name") == "xianyuflow"
 
