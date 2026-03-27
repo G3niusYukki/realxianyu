@@ -19,7 +19,7 @@ interface StepItem {
   key: string;
   label: string;
   desc: string;
-  done: boolean;
+  done: boolean | null;
   action: string | null;
   actionLabel: string | null;
   icon: React.ComponentType<{ className?: string }> | null;

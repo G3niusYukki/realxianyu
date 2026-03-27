@@ -197,7 +197,7 @@ export default function SetupWizard() {
         await switchCategory(data.storeCategory);
       }
     } catch (err: any) {
-      setErrors({ _save: err.message || '保存失败' });
+      setErrors({ _save: err.userMessage || err.message || '保存失败' });
       setSaving(false);
       return false;
     }

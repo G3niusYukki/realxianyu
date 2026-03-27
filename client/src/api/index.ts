@@ -63,9 +63,10 @@ const friendlyMessage = (error: AxiosError): FriendlyError => {
 const responseErrorInterceptor = (error: AxiosError) => {
   const userMsg = friendlyMessage(error);
   console.error('[API Error]', error.config?.url, error.message, error.response?.data);
-  (error as any).message = userMsg.msg;
-  (error as any).action = userMsg.action;
-  (error as any).statusCode = error.response?.status;
+  error.userMessage = userMsg.msg;
+  error.userAction = userMsg.action;
+  error.isUserFriendly = true;
+  error.statusCode = error.response?.status;
   return Promise.reject(error);
 };
 

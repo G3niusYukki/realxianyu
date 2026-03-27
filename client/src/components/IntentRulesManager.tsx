@@ -262,7 +262,7 @@ export default function IntentRulesManager({ config, onConfigChange, onSave }: I
         setRules(res.data.rules);
       }
     } catch (e: any) {
-      setError(e.message || '加载规则失败');
+      setError(e.userMessage || e.message || '加载规则失败');
     } finally {
       setLoading(false);
     }
@@ -333,7 +333,7 @@ export default function IntentRulesManager({ config, onConfigChange, onSave }: I
       setEditingRule(null);
       await fetchRules();
     } catch (e: any) {
-      setError(e.message || '保存失败');
+      setError(e.userMessage || e.message || '保存失败');
     } finally {
       setSaving(false);
     }
@@ -348,7 +348,7 @@ export default function IntentRulesManager({ config, onConfigChange, onSave }: I
       await saveSystemConfig({ auto_reply: { ...config.auto_reply, custom_intent_rules: updated } });
       await fetchRules();
     } catch (e: any) {
-      setError(e.message || '删除失败');
+      setError(e.userMessage || e.message || '删除失败');
     } finally {
       setSaving(false);
     }
