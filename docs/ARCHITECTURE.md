@@ -1,304 +1,118 @@
-# XianyuFlow | 闲流架构设计文档
+# 架构设计
 
-> 最后更新：2026-03-19
-> 状态：与 `main` 分支同步
+> 当前 `main` 的真实形态是“Dashboard 主线 + 部分服务化资产并存”的混合架构，不是一个已经完整切走 Helm/Kubernetes 的纯微服务仓库。
 
-## 一、系统概述
+## 一、当前运行时主线
 
-XianyuFlow | 闲流（XianyuFlow | 闲流）是一个闲鱼平台自动化运营工具，提供：
-- 自动消息回复与智能报价（物流/虚拟商品）
-- 订单履约与虚拟商品核销
-- 商品上架、擦亮、调价等运营自动化
-- AI 驱动的文案生成和增长分析
-
-**技术栈**：Python 3.12+ (asyncio) + React/Vite + SQLite
-
----
-
-## 二、整体架构
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                        前端层 (client/)                     │
-│   React + TailwindCSS SPA，编译后静态资源由后端服务         │
-│   API 调用 → /api/* HTTP Routes                           │
-└─────────────────────────┬───────────────────────────────────┘
-                          │ HTTP/REST
-┌─────────────────────────▼───────────────────────────────────┐
-│                   网关层 (dashboard_server.py)              │
-│   BaseHTTPRequestHandler，轻量路由 + 静态文件服务           │
-└─────────────────────────┬───────────────────────────────────┘
-                          │
-┌─────────────────────────▼───────────────────────────────────┐
-│                   业务中枢 (mimic_ops.py)                   │
-│   Facade 代理，分发到 Services 和 Modules                  │
-└────┬──────────────┬──────────────┬──────────────┬──────────┘
-     │              │              │              │
-┌────▼────┐  ┌──────▼───┐  ┌─────▼─────┐  ┌────▼─────┐
-│dashboard/│  │ modules/ │  │integrations│ │  cli/    │
-│services/ │  │          │  │            │  │          │
-│Cookie   │  │Messages  │  │Xianguanjia │  │cmd_main  │
-│XGJ      │  │Orders    │  │OpenPlatform│  │cmd_orders│
-│         │  │Quote     │  │            │  │cmd_module│
-│         │  │Listing   │  │            │  │cmd_quote │
-│         │  │VirtualGoods│ │            │  │          │
-│         │  │Growth    │  │            │  │          │
-│         │  │Operations│  │            │  │          │
-└─────────┘  └──────────┘  └────────────┘  └──────────┘
+```text
+浏览器
+  ↓
+Dashboard Server (src/dashboard_server.py, :8091)
+  ├─ 托管 client/dist
+  ├─ 暴露 /healthz
+  └─ 暴露 /api/*
+        ↓
+     src/dashboard/routes/*
+        ↓
+     dashboard/services + modules + integrations
 ```
 
----
+这是当前最完整、最可用的本地运行链路。
 
-## 三、目录结构
+## 二、并存的服务化资产
 
-```
-src/
-├── core/                         # 核心基础设施（不可分割）
-│   ├── config.py                 # YAML 配置管理（单一真相来源）
-│   ├── logger.py                 # 日志基础设施
-│   ├── browser_client.py         # 浏览器客户端抽象
-│   ├── cookie_manager.py         # Cookie 管理
-│   ├── crypto.py                 # 加密工具
-│   ├── error_handler.py          # 统一异常处理
-│   ├── startup_checks.py         # 启动检查
-│   └── doctor.py                 # 运维诊断
-│
-├── modules/                      # 业务模块（各自独立）
-│   ├── messages/                 # 消息 WS、长连接、回复引擎
-│   │   ├── service.py            # MessagesService（消息中枢）
-│   │   ├── ws_live.py            # WebSocket 实时通信
-│   │   ├── reply_engine.py        # 回复引擎
-│   │   ├── workflow.py            # 消息工作流
-│   │   └── quote_parser.py       # 报价解析
-│   │
-│   ├── orders/                   # 订单履约
-│   │   ├── service.py            # OrderService
-│   │   └── auto_price_poller.py  # 自动改价轮询
-│   │
-│   ├── quote/                    # 物流报价引擎
-│   │   ├── engine.py             # QuoteEngine
-│   │   ├── cost_table.py         # 成本表管理
-│   │   ├── route.py              # 路由解析
-│   │   ├── providers.py          # 外部 API 提供方
-│   │   └── setup.py              # 报价设置
-│   │
-│   ├── listing/                  # 商品上架
-│   │   ├── service.py            # ListingService
-│   │   ├── templates/            # 文案模板系统
-│   │   │   ├── frames/          # 15 种样式框架
-│   │   │   ├── layers/          # 内容分层
-│   │   │   └── registry.py      # 模板注册表
-│   │   └── publish_queue.py      # 上架队列
-│   │
-│   ├── virtual_goods/            # 虚拟商品核销
-│   │   ├── service.py            # VirtualGoodsService
-│   │   ├── store.py              # 店铺管理
-│   │   ├── scheduler.py          # 调度器
-│   │   └── callbacks.py          # 回调处理
-│   │
-│   ├── growth/                   # 增长分析
-│   │   └── service.py            # GrowthService
-│   │
-│   ├── operations/               # 运营操作
-│   │   └── service.py            # OperationsService
-│   │
-│   └── ticketing/                # 电影票服务
-│       └── service.py            # TicketingService
-│
-├── integrations/                 # 外部 API 集成
-│   └── xianguanjia/             # 闲管家 API
-│       ├── open_platform_client.py
-│       ├── virtual_supply_client.py
-│       └── signing.py           # 签名算法
-│
-├── dashboard/                   # Dashboard 相关
-│   ├── mimic_ops.py             # [精简] Facade 代理 (~3000行)
-│   ├── services/                # 核心业务服务（从 mimic_ops 拆分）
-│   │   ├── cookie_service.py    # CookieService
-│   │   └── xgj_service.py       # XGJService
-│   ├── config_service.py        # Dashboard 配置 CRUD（JSON）
-│   ├── module_console.py        # 模块控制台
-│   ├── repository.py            # 数据仓库
-│   └── routes/                  # HTTP 路由
-│       ├── accounts.py
-│       ├── config.py
-│       ├── messages.py
-│       ├── orders.py
-│       ├── products.py
-│       ├── rule_suggestions.py
-│       └── system.py
-│
-├── cli/                         # [重构后] CLI 命令包
-│   ├── __init__.py              # 兼容垫片
-│   ├── __main__.py              # python -m src.cli
-│   ├── base.py                  # 公共辅助函数
-│   ├── main.py                  # CLI 入口
-│   ├── cmd_main.py              # publish/polish/price/delist...
-│   ├── cmd_orders.py            # orders/virtual-goods
-│   ├── cmd_module.py            # module/doctor/automation...
-│   └── cmd_quote.py             # quote
-│
-├── dashboard_server.py          # HTTP 服务器入口
-├── main.py                      # Python 程序主入口
-└── setup_wizard.py              # 初始化向导
-```
+仓库中同时存在 `services/` 目录：
 
----
+- `gateway-service`
+- `quote-service`
+- `ai-service`
+- `message-service`
+- `order-service`
+- `common`
 
-## 四、配置系统
+这些目录说明仓库已经开始服务化拆分，但当前现实是：
 
-### 设计原则
-- **YAML 是单一真相来源**（`config/config.yaml`）
-- **JSON 是 Dashboard UI 覆盖**（`data/system_config.json`）
-- **环境变量最高优先级**（`.env`）
-- **无冗余同步**：Dashboard 编辑后通过 `Config._merge_system_config()` 自动合并
+- `gateway-service` 可单独运行，且已能打通闲管家 Open Platform
+- 其他服务主要是代码骨架和实验性拆分结果
+- `services/scheduler-service` 当前不存在
+- `services/helm/xianyuflow` 当前不存在
 
-### 配置合并顺序
-```
-config.yaml defaults < system_config.json < .env overrides
-```
+所以不能把当前主线描述成“六服务 + Helm Chart 已全部就绪”。
 
-### 关键配置文件
-| 文件 | 用途 |
-|------|------|
-| `config/config.yaml` | 主配置（含所有运行时默认值） |
-| `data/system_config.json` | Dashboard UI 持久化（敏感信息在此） |
-| `.env` | 环境变量（API 密钥、凭证等） |
+## 三、核心目录职责
 
----
+### `src/`
 
-## 五、数据流
+当前主线 Python 代码：
 
-### 消息自动回复流程
-```
-用户发消息
-    ↓
-WS 连接通知 (ws_live.py)
-    ↓
-MessagesService.receive_message()
-    ↓
-ReplyEngine 生成回复（含 AI 报价）
-    ↓
-QuoteEngine 计算物流价格
-    ↓
-WS 发送回复
-```
+- `src/dashboard_server.py`：HTTP 入口，服务 `8091`
+- `src/dashboard/routes/`：Dashboard API 路由
+- `src/dashboard/services/`：Cookie/XGJ 等服务层
+- `src/modules/`：消息、订单、报价、商品、虚拟商品等业务模块
+- `src/integrations/xianguanjia/`：闲管家 Open Platform / Virtual Supply 集成
+- `src/cli/`：CLI 入口与运维命令
 
-### 商品上架流程
-```
-CLI / Dashboard 触发
-    ↓
-ListingService.publish_item()
-    ↓
-Xianguanjia OpenPlatform API
-    ↓
-TemplateRegistry 生成文案
-    ↓
-上传图片到 OSS
-    ↓
-回调确认
-```
+### `client/`
 
-### 虚拟商品核销流程
-```
-订单支付通知
-    ↓
-VirtualGoodsService.handle_order()
-    ↓
-卡密发货 / 自动标记已发货
-    ↓
-回调确认完成
-```
+React/Vite 前端。开发期走 `5173`，构建后由 `src.dashboard_server` 托管。
 
----
+### `services/`
 
-## 六、前端架构 (client/)
+服务化代码与公共库：
 
-```
-client/src/
-├── api/              # API 客户端层（369行，极简）
-│   ├── index.ts      # 统一导出
-│   ├── accounts.ts   # 账号 API
-│   ├── config.ts     # 配置 API
-│   ├── dashboard.ts  # Dashboard API
-│   ├── listing.ts    # 商品 API
-│   └── xianguanjia.ts
-│
-├── components/       # 通用 UI 组件
-│   ├── ApiStatusPanel.tsx
-│   ├── ErrorBoundary.tsx
-│   ├── IntentRulesManager.tsx
-│   ├── Navbar.tsx
-│   ├── Pagination.tsx
-│   ├── SetupGuide.tsx
-│   ├── SetupWizard.tsx
-│   └── UpdateBanner.tsx
-│
-├── contexts/         # React Context（全局状态）
-│   └── StoreCategoryContext.tsx
-│
-├── hooks/            # 自定义 Hooks
-│   └── useHealthCheck.ts
-│
-├── pages/            # 页面
-│   ├── accounts/
-│   ├── analytics/
-│   ├── config/
-│   ├── Dashboard.tsx
-│   ├── messages/
-│   ├── Orders.tsx
-│   └── products/
-│
-├── styles/           # 全局样式
-└── App.tsx           # 应用入口
-```
+- `services/gateway-service`：FastAPI 网关，服务 `8000`
+- `services/common`：共享配置、数据库、缓存、双写等库
 
-**前端原则**：轻量 API 层（369行）+ 组件化 UI + Redux Toolkit 状态管理
+### `infra/`
 
----
+本地基础设施脚本、Terraform 和 Helm 资产。当前更准确的定位是“基础设施与实验性部署资产”，不是“完整应用交付层”。
 
-## 七、依赖注入现状
+## 四、端口职责
 
-目前项目中混用了两种模式：
-1. **全局函数**：`get_config()` — 被 24 个文件使用
-2. **构造函数注入**：部分 Service 使用
+| 端口 | 服务 | 用途 |
+|------|------|------|
+| `8091` | `src.dashboard_server` | 主 UI + Dashboard API |
+| `8000` | `gateway-service` | Open Platform 适配 API |
+| `5173` | `vite` | 前端开发服务器 |
 
-**改进方向**：
-- 逐步将 `get_config()` 替换为通过构造函数注入 `ConfigService`
-- 已抽取的 Services（`CookieService`、`XGJService`）接受 `project_root` 参数
+如果浏览器要打开“页面”，默认应看 `8091`，不是 `8000`。
 
----
+## 五、配置优先级
 
-## 八、测试覆盖
+当前主线遵循：
 
-| 模块 | 覆盖文件数 |
-|------|-----------|
-| `src/core/` | ~15 |
-| `src/modules/messages/` | ~10 |
-| `src/modules/orders/` | ~8 |
-| `src/modules/quote/` | ~14 |
-| `src/modules/listing/` | ~30 |
-| `src/modules/virtual_goods/` | ~10 |
-| `src/dashboard/` | ~15 |
+1. `.env`
+2. `data/system_config.json`
+3. `config/config.yaml`
 
-**运行测试**：`pytest tests/ -v --cov=src`
-**代码规范**：`ruff check src/ && ruff format src/`
+说明：
 
----
+- `config/config.yaml` 是主配置默认值
+- `data/system_config.json` 是 Dashboard 持久化覆盖
+- `.env` 拥有最高优先级
 
-## 九、已知的架构问题与改进计划
+## 六、当前真实判断
 
-### 已完成
-- [x] `mimic_ops.py` 拆分为 Services（4241行 → 3070行）
-- [x] CLI 拆分为独立模块（cli.py 2022行 → cli/ 包）
-- [x] 识别并保留 ticketing/growth（存在功能依赖）
-- [x] 识别并保留 templates/frames（Dashboard 使用）
-- [x] 消除所有 `global` 声明（ws_live.py、service.py、ledger.py、routes/system.py 等 → 单例类）
-- [x] 统一配置系统，删除 ConfigSyncService（YAML 同步是死代码，Config._merge_system_config() 已处理）
+### 已落地
 
-### 进行中
-- [ ] `mimic_ops.py` 进一步拆分（目标：降至 2000 行以内）
-- [ ] `get_config()` 全局函数逐步替换为 DI
+- Dashboard UI 与 `/api/*` 主链路
+- React 构建产物由 Python 托管
+- 闲管家 Open Platform 集成
+- 独立 `gateway-service` 基础可运行
 
-### 待办
-- [ ] 前端 API 层审视（当前 369 行，轻量，暂无明显问题）
+### 未完整落地
+
+- 完整 Helm 应用 Chart
+- 一键式 K8s 应用部署
+- 完整六服务生产编排
+- 纯服务化替代 `dashboard_server`
+
+## 七、阅读建议
+
+如果你要理解当前仓库，优先顺序应是：
+
+1. `README.md`
+2. `docs/DEPLOYMENT.md`
+3. `src/dashboard_server.py`
+4. `src/dashboard/routes/`
+5. `services/gateway-service/`

@@ -1,5 +1,13 @@
 # 接入说明
 
+> 仓库对齐说明（2026-03-27）：
+>
+> - 当前 `gateway-service` 已按本说明使用 `https://open.goofish.pro`
+> - 路径风格为 `/api/open/*`
+> - 签名参数走 query：`appid`、`timestamp`、`sign`
+> - `timestamp` 使用秒级
+> - 本说明是第三方接入协议参考，不是仓库前端/UI 部署文档
+
 ## 钉钉咨询群：
 
 ![二维码.jpg](https://api.apifox.com/api/v1/projects/2973339/resources/598392/image-preview)

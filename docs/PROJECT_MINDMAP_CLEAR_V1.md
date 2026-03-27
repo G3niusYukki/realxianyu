@@ -2,6 +2,7 @@
 
 > 目标：5 分钟看懂当前项目的主线、已完成内容和下一步收口重点。
 > 说明：这份文档描述的是当前 `main`，不再沿用旧的 OpenClaw 主路径口径。
+> 补充：当前运行时默认入口仍是 `src.dashboard_server` (`8091`)，`gateway-service` (`8000`) 是并行存在的 API 网关，不是前端页面。
 
 ## Mermaid 思维导图
 
@@ -17,6 +18,8 @@ mindmap
 
     当前能力
       工作台总览
+      Dashboard Server 主入口
+      Gateway API 网关
       商品管理
       自动上架
       订单中心
@@ -54,7 +57,7 @@ mindmap
 
 ### 1. 当前项目是什么
 
-一句话：把闲鱼运营动作收敛到 `React 工作台 + Python 核心引擎 + Node 薄代理`，主路径优先使用闲管家 / Open Platform API。
+一句话：把闲鱼运营动作收敛到 `Dashboard Server + React 工作台 + Python 核心引擎`，并逐步补齐 `services/` 下的服务化资产；闲管家 / Open Platform API 仍是业务主路径之一。
 
 ### 2. 现在做到哪一步
 

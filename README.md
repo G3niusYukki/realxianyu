@@ -3,227 +3,126 @@
 [![CI](https://github.com/G3niusYukki/realxianyu/actions/workflows/ci.yml/badge.svg)](https://github.com/G3niusYukki/realxianyu/actions/workflows/ci.yml)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-10.0.0-green.svg)](./CHANGELOG.md)
-[![Kubernetes](https://img.shields.io/badge/kubernetes-ready-326ce5.svg)](https://kubernetes.io/)
-[![Microservices](https://img.shields.io/badge/architecture-microservices-ff6b6b.svg)](./docs/ARCHITECTURE.md)
 
-> **XianyuFlow v10.0.0** — 云原生微服务架构升级
->
-> 本项目已完成从单体应用到云原生微服务平台的深度重构，基于 Kubernetes 实现弹性伸缩、灰度发布和零停机迁移。
+闲鱼运营自动化工具，覆盖消息自动回复、智能报价、订单履约、商品上架、Cookie 管理和运维诊断。
 
----
+## 当前主线状态
 
-## 📚 文档导航
+当前 `main` 是混合形态：
 
-| 文档 | 说明 | 目标读者 |
-|------|------|----------|
-| [QUICKSTART.md](./QUICKSTART.md) | 5分钟快速启动 | 新用户 |
-| [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | 系统架构设计 | 开发者 |
-| [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) | 部署指南（K8s/本地） | 运维人员 |
-| [docs/MIGRATION_GUIDE.md](./docs/MIGRATION_GUIDE.md) | v9→v10迁移指南 | 现有用户 |
-| [docs/API.md](./docs/API.md) | HTTP API 文档 | 前后端开发者 |
-| [CONTRIBUTING.md](./CONTRIBUTING.md) | 贡献指南 | 贡献者 |
+- 主入口仍是 Python Dashboard 服务 `src/dashboard_server.py`
+- React 前端构建产物由 Dashboard 服务托管
+- `services/` 下存在 v10 服务化代码与基础设施资产，但并非“完整 Helm/K8s 一键应用部署”
+- `gateway-service` 现在可单独运行，并已对齐闲管家 Open Platform 请求契约
 
----
+这意味着：
 
-## 🚀 核心特性
+- 浏览器里的管理界面默认看 `8091`
+- `8000` 是 API 网关，不是前端页面
+- `services/helm/xianyuflow` 当前不存在
+- `services/scheduler-service` 当前不存在
 
-| 特性 | 说明 |
-|------|------|
-| **微服务架构** | 6个独立服务：Gateway、Quote、AI、Message、Order、Scheduler |
-| **Kubernetes 原生** | Kind/EKS 部署，Helm Charts，HPA 自动伸缩 |
-| **4级 AI 上下文** | Request → Intent → Session → Profile 智能上下文管理 |
-| **多级缓存** | L1 (内存 LRU) + L2 (Redis) 双重缓存加速 |
-| **零停机迁移** | 双写模式 SQLite → PostgreSQL 平滑迁移 |
-| **灰度发布** | NGINX Canary 流量控制，渐进式发布 |
-| **全链路可观测** | Prometheus + Grafana + Jaeger 监控追踪 |
+## 运行入口
 
----
+| 用途 | 地址/命令 | 说明 |
+|------|-----------|------|
+| Dashboard UI | `http://127.0.0.1:8091/` | 主工作台，托管 `client/dist` |
+| Dashboard 健康检查 | `http://127.0.0.1:8091/healthz` | Python 主服务健康状态 |
+| Gateway API | `http://127.0.0.1:8000/` | Open Platform 适配网关，根路径返回 JSON |
+| Gateway Swagger | `http://127.0.0.1:8000/docs` | FastAPI 文档 |
+| Vite 开发端口 | `http://127.0.0.1:5173/` | 仅前端开发时使用，不是生产入口 |
 
-## 🏗 架构概览
+## 本地启动
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                           Kubernetes Cluster                            │
-│                                                                         │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  │
-│  │   Gateway   │  │   Quote     │  │     AI      │  │   Message   │  │
-│  │  Service    │  │  Service    │  │  Service    │  │  Service    │  │
-│  │  :8000      │  │  :8001      │  │  :8002      │  │  :8003      │  │
-│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  │
-│         │                 │                 │                 │         │
-│         └─────────────────┼─────────────────┼─────────────────┘         │
-│                           │                 │                          │
-│                    ┌──────▼─────────────────▼──────┐                   │
-│                    │        Kafka Event Bus        │                   │
-│                    └───────────────────────────────┘                   │
-│                                                                         │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  │
-│  │   Order     │  │  Scheduler  │  │    Redis    │  │ PostgreSQL  │  │
-│  │  Service    │  │  Service    │  │  Cluster    │  │   Master    │  │
-│  │  :8004      │  │  :8005      │  │             │  │             │  │
-│  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘  │
-│                                                                         │
-└─────────────────────────────────────────────────────────────────────────┘
-```
-
-### 服务说明
-
-| 服务 | 端口 | 功能 |
-|------|------|------|
-| **gateway-service** | 8000 | API 网关，限流，路由分发 |
-| **quote-service** | 8001 | 物流报价引擎，多级缓存 |
-| **ai-service** | 8002 | 4级上下文管理，LLM 调用 |
-| **message-service** | 8003 | WebSocket 连接池，消息处理 |
-| **order-service** | 8004 | 订单履约，虚拟商品核销 |
-| **scheduler-service** | 8005 | 分布式任务调度 |
-
----
-
-## 💻 快速部署
-
-### 方式一：本地 Kind 集群（推荐开发）
+### 1. 安装依赖
 
 ```bash
-# 1. 安装依赖
-brew install kind kubectl helm docker
-
-# 2. 创建集群
-kind create cluster --name xianyuflow
-
-# 3. 部署基础设施
-cd infra/terraform/environments/local
-terraform init && terraform apply
-
-# 4. 部署应用
-cd ../../..
-helm install xianyuflow ./services/helm/xianyuflow \
-  --set global.image.tag=v10.0.0
-
-# 5. 验证部署
-kubectl get pods -n xianyuflow
-```
-
-### 方式二：本地 Python 开发
-
-```bash
-# 1. 克隆并进入目录
-git clone https://github.com/G3niusYukki/realxianyu.git
-cd realxianyu
-
-# 2. 启动依赖服务
-docker compose up -d redis postgres
-
-# 3. 安装依赖
-python3.12 -m venv venv && source venv/bin/activate
+python3.12 -m venv venv
+source venv/bin/activate
 pip install -r requirements.txt
+cd client && npm install && npm run build && cd ..
+```
 
-# 4. 配置环境变量
+### 2. 配置环境
+
+```bash
 cp .env.example .env
-# 填入 XIANYU_COOKIE_1、DEEPSEEK_API_KEY 等
-
-# 5. 启动服务
-python -m services.gateway_service.app
 ```
 
-### 方式三：AWS EKS 生产部署
+运行时优先级：
+
+1. `.env`
+2. `data/system_config.json`
+3. `config/config.yaml`
+
+### 3. 启动 Dashboard 主服务
 
 ```bash
-# 1. 配置 AWS 凭证
-aws configure
-
-# 2. 创建 EKS 集群
-cd infra/terraform/environments/prod
-terraform init && terraform apply
-
-# 3. 配置 kubectl
-aws eks update-kubeconfig --name xianyuflow-prod
-
-# 4. 部署应用
-helm install xianyuflow ./services/helm/xianyuflow \
-  --namespace xianyuflow \
-  --set global.environment=production \
-  --values values.prod.yaml
+python -m src.dashboard_server --host 127.0.0.1 --port 8091
 ```
 
----
+打开：
 
-## 🤖 For AI Agents
+- `http://127.0.0.1:8091/` 看管理界面
+- `http://127.0.0.1:8091/healthz` 看健康检查
 
-AI Agent 可通过以下方式自动部署：
+### 4. 可选：启动 Gateway Service
 
 ```bash
-curl -s https://raw.githubusercontent.com/G3niusYukki/realxianyu/main/AGENT_DEPLOYMENT.md
+pip install -e services/common -e services/gateway-service
+cd services/gateway-service
+../../venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-或直接告诉 Agent：**"Deploy this project following AGENT_DEPLOYMENT.md"**
+打开：
 
----
+- `http://127.0.0.1:8000/`
+- `http://127.0.0.1:8000/docs`
 
-## 🧪 测试
+## 已验证的当前行为
+
+- `src.dashboard_server` 会在 `8091` 提供 UI 和 `/api/*`
+- `client/dist` 已存在时，`8091` 根路径返回前端 HTML
+- `gateway-service` 会在 `8000` 提供 Open Platform 适配接口
+- `gateway-service` 当前已兼容旧 `XGJ_*` 环境变量，并使用 `/api/open/*` + `appid/timestamp/sign`
+
+## 测试与校验
 
 ```bash
-# 运行所有服务测试
-pytest services/*/tests/ -v
-
-# 运行基础设施测试
-pytest tests/integration/ -v
-
-# 代码规范检查
-ruff check services/ --extend-ignore I001,E501
-
-# Kubernetes 配置验证
-kubectl lint services/k8s/
+./venv/bin/python -m pytest tests/ -q
+ruff check src/
+cd client && npm run build
 ```
 
----
+网关相关回归：
 
-## 📂 目录结构
-
-```
-realxianyu/
-├── services/                    # 微服务代码
-│   ├── gateway-service/         # API 网关
-│   ├── quote-service/          # 报价服务
-│   ├── ai-service/             # AI 服务
-│   ├── message-service/        # 消息服务
-│   ├── order-service/          # 订单服务
-│   ├── scheduler-service/      # 调度服务
-│   ├── common/                 # 公共库
-│   │   └── xianyuflow_common/ # 配置/缓存/双写
-│   └── helm/                   # Helm Charts
-├── infra/                      # 基础设施代码
-│   ├── terraform/              # Terraform 配置
-│   │   └── environments/      # 环境配置
-│   │       ├── local/         # Kind 本地
-│   │       └── prod/          # AWS EKS
-│   └── k8s/                   # K8s 资源配置
-├── scripts/                    # 运维脚本
-│   ├── migrate_data.py         # 数据迁移
-│   └── rollback.sh             # 应急回滚
-├── docs/                       # 文档
-│   ├── ARCHITECTURE.md        # 架构设计
-│   ├── DEPLOYMENT.md          # 部署指南
-│   └── MIGRATION_GUIDE.md    # 迁移指南
-├── client/                     # React 前端
-├── src/                        # (遗留) 单体代码
-└── CHANGELOG.md               # 版本变更日志
+```bash
+./venv/bin/python -m pytest \
+  tests/test_gateway_service_client.py \
+  tests/test_gateway_service_app.py \
+  tests/test_xianguanjia_open_platform_client.py \
+  -q --no-cov
 ```
 
----
+## 目录概览
 
-## 🔄 从 v9 升级
+```text
+client/                     React/Vite 前端
+config/                     YAML 主配置
+data/system_config.json     Dashboard UI 覆盖配置
+docs/                       开发/部署/架构文档
+infra/                      Terraform / Helm / 本地基础设施脚本
+services/                   v10 服务化代码（当前为部分落地）
+src/                        当前主线 Python 业务与 Dashboard 服务
+tests/                      pytest 测试
+```
 
-如需从 v9.x 升级到 v10，请参考 [迁移指南](./docs/MIGRATION_GUIDE.md)。
+## 文档
 
-**主要变更：**
-- SQLite 数据库迁移到 PostgreSQL
-- 单体应用拆分为 6 个独立服务
-- 新增 Kubernetes 部署支持
-- 配置管理从 `config.yaml` 迁移到 Pydantic 模型
-
----
-
-## 📜 许可协议
-
-[MIT License](./LICENSE)
+- [QUICKSTART.md](./QUICKSTART.md)
+- [docs/API.md](./docs/API.md)
+- [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)
+- [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md)
+- [docs/DEPLOYMENT_INFRA.md](./docs/DEPLOYMENT_INFRA.md)
+- [docs/MIGRATION_GUIDE.md](./docs/MIGRATION_GUIDE.md)
+- [docs/README.md](./docs/README.md)

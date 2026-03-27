@@ -1,5 +1,7 @@
 # UI重构计划：配置模块拆分与初始化向导简化
 
+> 状态说明：这是一份计划文档，不代表当前 `main` 已经完成拆分。当前运行时仍是 `src.dashboard_server` 托管 `client/dist` 到 `8091`，`5173` 仅用于开发，`8000` 为 Gateway API。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development or superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** 将SystemConfig.tsx (2156行) 拆分为独立的配置模块组件，简化SetupWizard.tsx (807行)，实现"快速设置"vs"高级设置"分层架构
