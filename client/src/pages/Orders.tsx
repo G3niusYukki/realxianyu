@@ -8,6 +8,7 @@ import {
   RotateCcw, Eye, X, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import Pagination from '../components/Pagination';
+import { formatPrice } from '@/utils/format';
 
 const ORDER_STATUS_MAP: Record<number, { label: string; color: string }> = {
   11: { label: '待付款', color: 'bg-orange-100 text-orange-700' },
@@ -164,12 +165,6 @@ export default function Orders() {
       setOrderDetail(detail);
     } catch { setOrderDetail(null); }
     finally { setDetailLoading(false); }
-  };
-
-  const formatPrice = (fee: number | string) => {
-    const num = Number(fee);
-    if (!num || isNaN(num)) return '¥0.00';
-    return `¥${(num / 100).toFixed(2)}`;
   };
 
   const getStatusInfo = (status: number) => ORDER_STATUS_MAP[status] || { label: `状态${status}`, color: 'bg-xy-gray-100 text-xy-text-secondary' };

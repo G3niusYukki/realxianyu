@@ -22,7 +22,6 @@ from src.dashboard.repository import DashboardRepository, LiveDashboardDataSourc
 from src.dashboard.router import RouteContext, dispatch_delete, dispatch_get, dispatch_post, dispatch_put
 from src.dashboard.mimic_ops import MimicOps, _error_payload
 
-import hashlib
 import re
 import gzip as _gzip_mod
 
@@ -517,10 +516,10 @@ class DashboardHandler(BaseHTTPRequestHandler):
             pwd = str(body.get("password", "")).strip() if body else ""
             if pwd and data.get("encrypted"):
                 try:
-                    from src.core.cookie_grabber import CookieGrabber
+                    from src.core.cookie_cloud_client import CookieCloudClient
 
-                    key_hash = hashlib.md5(f"{uuid_val}-{pwd}".encode()).hexdigest()[:16]
-                    decrypted = CookieGrabber._decrypt_cookiecloud(data["encrypted"], key_hash)
+                    key_hash = CookieCloudClient(uuid=uuid_val, password=pwd).derive_key()
+                    decrypted = CookieCloudClient.decrypt(data["encrypted"], key_hash)
                     if decrypted:
                         self._send_json(decrypted)
                         return
@@ -538,21 +537,10 @@ class DashboardHandler(BaseHTTPRequestHandler):
     @staticmethod
     def _read_cc_credentials() -> tuple[str, str]:
         """Read CookieCloud uuid and password from env or system_config.json."""
-        uuid_val = os.environ.get("COOKIE_CLOUD_UUID", "").strip()
-        password = os.environ.get("COOKIE_CLOUD_PASSWORD", "").strip()
-        if not uuid_val or not password:
-            try:
-                cfg_path = Path(__file__).resolve().parents[1] / "data" / "system_config.json"
-                if cfg_path.exists():
-                    cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
-                    cc = cfg.get("cookie_cloud", {}) if isinstance(cfg.get("cookie_cloud"), dict) else {}
-                    uuid_val = uuid_val or str(cc.get("cookie_cloud_uuid") or cfg.get("cookie_cloud_uuid", "")).strip()
-                    password = (
-                        password or str(cc.get("cookie_cloud_password") or cfg.get("cookie_cloud_password", "")).strip()
-                    )
-            except Exception:
-                pass
-        return uuid_val, password
+        from src.core.cookie_cloud_client import CookieCloudClient
+
+        cc = CookieCloudClient.from_env_and_config()
+        return cc.uuid, cc.password
 
     def _try_instant_cookie_apply(self, encrypted: str, uuid_val: str) -> bool:
         """After /cookie-cloud/update writes data, immediately decrypt and apply if UUID matches."""
@@ -560,10 +548,10 @@ class DashboardHandler(BaseHTTPRequestHandler):
         if not cfg_pwd or not cfg_uuid or uuid_val != cfg_uuid:
             return False
         try:
-            from src.core.cookie_grabber import CookieGrabber
+            from src.core.cookie_cloud_client import CookieCloudClient
 
-            key_hash = hashlib.md5(f"{uuid_val}-{cfg_pwd}".encode()).hexdigest()[:16]
-            cookie_data = CookieGrabber._decrypt_cookiecloud(encrypted, key_hash)
+            key_hash = CookieCloudClient(uuid=uuid_val, password=cfg_pwd).derive_key()
+            cookie_data = CookieCloudClient.decrypt(encrypted, key_hash)
             if not cookie_data:
                 return False
 

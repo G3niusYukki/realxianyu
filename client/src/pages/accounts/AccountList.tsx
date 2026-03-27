@@ -4,12 +4,11 @@ import {
   Store, Settings, Power, PowerOff, ShieldAlert, RefreshCw, Zap, Loader2,
   CheckCircle, CheckCircle2, XCircle, Monitor, ClipboardPaste, Timer, Activity,
   Download, Plug, Upload, Filter, Info, AlertCircle,
-  Shield, ShieldCheck, Save,
+  Shield, ShieldCheck, Save, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import CollapsibleSection from '@/components/CollapsibleSection';
-
 const GRAB_STAGE_CONFIG: Record<string, { color: string; label: string }> = {
   idle: { color: 'text-xy-gray-500', label: '就绪' },
   reading_db: { color: 'text-blue-600', label: '方式一：读取浏览器数据库' },

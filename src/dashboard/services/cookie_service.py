@@ -355,9 +355,9 @@ class CookieService:
 
     @classmethod
     def _is_cookie_cloud_configured(cls) -> bool:
-        sys_cfg = _read_system_config()
-        cc_cfg = sys_cfg.get("cookie_cloud", {}) if isinstance(sys_cfg.get("cookie_cloud"), dict) else {}
-        return bool(cc_cfg.get("cookie_cloud_uuid") and cc_cfg.get("cookie_cloud_password"))
+        from src.core.cookie_cloud_client import CookieCloudClient
+
+        return CookieCloudClient.from_env_and_config().is_configured
 
     @classmethod
     def _recovery_advice(cls, stage: str, token_error: str | None = None) -> str:
