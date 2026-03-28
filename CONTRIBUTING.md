@@ -4,13 +4,30 @@ Thanks for your interest in contributing! Here's how to get started.
 
 ## Development Setup
 
+### Prerequisites
+
+- Python 3.12+
+- Node.js 18+
+- npm
+
+### Install
+
 ```bash
 git clone https://github.com/G3niusYukki/realxianyu.git
 cd realxianyu
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
+cd client && npm install && cd ..
 ```
+
+### Docker Setup
+
+```bash
+docker-compose up -d
+```
+
+Dashboard UI at `http://127.0.0.1:8091/`, Gateway API at `http://127.0.0.1:8000/`.
 
 ## Project Layout
 
@@ -24,6 +41,9 @@ src/
 ├── dashboard_server.py # HTTP server entry
 └── main.py             # Python program entry
 client/                 # React frontend (Vite + Tailwind)
+services/
+  gateway-service/      # Open Platform gateway (FastAPI)
+  common/               # Shared libraries (Pydantic config)
 tests/                  # Python test suite (100+ files)
 scripts/                # Build, deploy, and utility scripts
 ```
@@ -48,8 +68,10 @@ Open an [issue](https://github.com/G3niusYukki/realxianyu/issues/new?template=fe
 2. Create a feature branch: `git checkout -b feat/my-feature`
 3. Make your changes
 4. Run linting: `ruff check src/`
-5. Run tests: `./venv/bin/python -m pytest tests/ -q`
-6. Commit with a clear message: `git commit -m "feat: add price optimization"`
+5. Run Python tests: `./venv/bin/python -m pytest tests/ -q`
+6. Run frontend tests: `cd client && npm test`
+7. Build frontend: `cd client && npm run build`
+8. Commit with a clear message: `git commit -m "feat: add price optimization"`
 7. Push to your fork and open a PR
 
 ### Commit Convention
@@ -105,6 +127,21 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/):
 - Use `async/await` for I/O operations
 - `loguru` for logging (not `print`)
 - Structured JSON output from CLI commands
+
+## Frontend Testing
+
+The frontend uses [Vitest](https://vitest.dev/) with [React Testing Library](https://testing-library.com/docs/react-testing-library/intro/):
+
+```bash
+cd client
+npm test            # Run all frontend tests
+npm run test:run    # Single run (no watch)
+npm run build       # Verify production build
+```
+
+Test files are co-located alongside source files in `__tests__/` directories (e.g., `src/components/__tests__/Pagination.test.tsx`).
+
+Key dependencies: `vitest`, `@testing-library/react`, `@testing-library/jest-dom`, `jsdom`.
 
 ## Need Help?
 

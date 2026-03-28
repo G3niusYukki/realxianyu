@@ -9,9 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [10.1.0] - 2026-03-28
 
+### Added
+- Frontend test suite (Vitest + React Testing Library, 14 test files, 63 tests)
+- Dockerfile and docker-compose.yml for local development
+- .dockerignore
+- Vitest coverage configuration (v8 provider, text + lcov reporters)
+- CI test script in client/package.json (`npm test`)
+
 ### Changed
-- Removed scaffold services (ai-service, message-service, order-service, quote-service) per MICROSERVICE_ROADMAP.md Option B
-- Simplified to monolith + gateway-service architecture
+- Unified version to 10.0.0 across all files
+- Removed scaffold services per Option B (monolith + gateway only)
+- Updated architecture documentation
+- Simplified services/ to gateway-service + common only
+
+### Removed
+- services/ai-service/ (scaffold)
+- services/message-service/ (scaffold)
+- services/order-service/ (scaffold)
+- services/quote-service/ (scaffold)
+- k8s/canary-deployment.yaml
+- Dead Analytics page route
 
 ## [10.0.0] - 2026-03-27
 
