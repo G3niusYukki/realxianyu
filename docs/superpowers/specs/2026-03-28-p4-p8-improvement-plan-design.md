@@ -8,7 +8,7 @@ status: approved
 
 ## Background
 
-After pulling 29 commits (P0 security fixes, P1 backend refactor, P2 frontend improvements, P3 architecture), the project has a mature monolith in `src/` but accumulated technical debt: lint errors (114), version mismatches across 3 files, stale plan documents, 4 unused microservice scaffolds, minimal frontend tests (2 files), no Docker orchestration, and missing features.
+After pulling 29 commits (P0 security fixes, P1 backend refactor, P2 frontend improvements, P3 architecture), the project has a mature monolith in `src/` but accumulated technical debt: lint errors (39 E501 line-length violations), version mismatches across 3 files (`__init__.py`=10.0.0, `pyproject.toml`=9.5.0, `package.json`=9.2.0), stale plan documents, 4 unused microservice scaffolds, minimal frontend tests (2 files vs 122 backend), no Docker orchestration, and Helm chart referencing unused infrastructure (Redis, PostgreSQL, Kafka).
 
 `MICROSERVICE_ROADMAP.md` recommends **Option B: simplify** — keep `gateway-service` + `common/`, delete scaffolding services. This plan adopts that recommendation.
 
@@ -26,10 +26,10 @@ Zero-risk fixes to restore a clean baseline.
 
 | ID | Task | Details |
 |----|------|---------|
-| 4.1 | Ruff lint fix | `ruff check src/ --fix` (75 auto-fixable), manual fix remaining ~39. Primarily unused `noqa: F401` in `src/cli/*.py` and line-length issues. |
-| 4.2 | Version unification | Set `src/__init__.py`, `pyproject.toml`, `client/package.json` all to `10.0.0`. |
+| 4.1 | Fix E501 line-length errors | 39 remaining errors are all E501 (line too long) in `src/` — none are auto-fixable. Manually break long lines to fit 120-char limit. |
+| 4.2 | Version unification | Update `pyproject.toml` from `9.5.0` → `10.0.0`, update `client/package.json` from `9.2.0` → `10.0.0`. `src/__init__.py` is already `10.0.0`. |
 | 4.3 | Sync P0-P3 plan checkboxes | Mark all completed tasks as `[x]` in `docs/superpowers/plans/2026-03-27-p{0,1,2,3}-*.md`. |
-| 4.4 | Evaluate brand-assets plans | If `test_brand_assets_rename_cov100.py` and `test_brand_assets_zip_cov100.py` exist and pass, mark plans complete. Otherwise mark cancelled. |
+| 4.4 | Evaluate brand-assets plans | If `test_brand_assets_rename_cov100.py`, `test_brand_assets_rename_route_cov100.py`, and `test_brand_assets_zip_cov100.py` exist and pass, mark plans complete. Otherwise mark cancelled. |
 | 4.5 | Cancel infra plans | Mark `phase1-infrastructure.md` and `phase2-service-decomposition.md` as cancelled (incompatible with Option B). |
 
 **Exit criteria**: `ruff check src/` passes with 0 errors. All 3 version strings equal. Plan documents accurately reflect reality.
@@ -44,12 +44,11 @@ Execute the MICROSERVICE_ROADMAP.md Option B recommendation.
 
 | ID | Task | Details |
 |----|------|---------|
-| 5.1 | Delete scaffold services | Remove `services/ai-service/`, `services/message-service/`, `services/order-service/`, `services/quote-service/`. |
-| 5.2 | Verify retained services | Confirm `services/gateway-service/` and `services/common/` pass their tests independently. |
+| 5.1 | Delete scaffold services | Remove `services/ai-service/`, `services/message-service/`, `services/order-service/`, `services/quote-service/` (includes their Dockerfiles). |
+| 5.2 | Verify retained services | Confirm `services/gateway-service/` (11 tests) and `services/common/` (40 tests) pass independently. |
 | 5.3 | Update CI workflow | Remove test matrix entries or scripts referencing deleted services from `.github/workflows/ci.yml`. |
-| 5.4 | Update architecture docs | Rewrite `ARCHITECTURE.md`, `MICROSERVICE_ROADMAP.md`, `DEPLOYMENT.md` to reflect simplified structure. |
+| 5.4 | Update architecture docs | Update `docs/ARCHITECTURE.md`, `docs/MICROSERVICE_ROADMAP.md`, `docs/DEPLOYMENT.md` to reflect simplified structure. |
 | 5.5 | Remove stale K8s manifests | Delete `k8s/canary-deployment.yaml` (references deleted message-service). |
-| 5.6 | Remove stale Dockerfiles | Delete Dockerfiles for the 4 removed services. |
 
 **Exit criteria**: `services/` contains only `gateway-service/` and `common/`. CI passes. No references to deleted services remain in docs or configs.
 
@@ -82,9 +81,9 @@ Enable one-command local development and containerized deployment.
 | ID | Task | Details |
 |----|------|---------|
 | 7.1 | Monolith Dockerfile | Create `Dockerfile` at project root: Python 3.12-slim, install deps, build frontend, serve via `dashboard_server.py`. |
-| 7.2 | docker-compose.yml | Orchestrate: main app (src/) + gateway-service + Redis. Development profile with volume mounts and hot-reload. |
+| 7.2 | docker-compose.yml | Orchestrate: main app (src/) + gateway-service. Development profile with volume mounts and hot-reload. No Redis — app uses SQLite. |
 | 7.3 | .dockerignore | Exclude `vendor/`, `data/*.db`, `node_modules/`, `dist/`, `.git/`, `__pycache__/`. |
-| 7.4 | Helm chart cleanup | Remove deleted services from `infra/helm/xianyuflow-infra/Chart.yaml` dependencies. Keep only main app + gateway + infra components (Redis, PostgreSQL, Kafka). |
+| 7.4 | Helm chart cleanup | Evaluate `infra/helm/xianyuflow-infra/Chart.yaml` — currently lists redis-cluster, postgresql, kafka as dependencies, none of which the app uses. Remove or document as optional future deps. |
 | 7.5 | Quickstart update | Update `QUICKSTART.md` with `docker-compose up` instructions alongside existing bare-metal steps. |
 
 **Exit criteria**: `docker-compose up` starts the full application locally. All services healthy. Documentation accurate.
@@ -110,13 +109,12 @@ Bring the project to a release-ready state.
 ## Dependencies
 
 ```
-P4 (quickfix)
- └─→ P5 (cleanup)
-      └─→ P6 (testing) ──→ P8 (polish)
-      └─→ P7 (infra)  ──→ P8 (polish)
+P4 (quickfix)  ─┐
+P5 (cleanup)    ─┼─→ P6 (testing) ──→ P8 (polish)
+                └─→ P7 (infra)   ──→ P8 (polish)
 ```
 
-P6 and P7 can run in parallel after P5 completes. P8 requires both P6 and P7.
+P4 and P5 are independent but recommended sequential (cleanup before larger changes). P6 and P7 can run in parallel after P5 completes. P8 requires both P6 and P7.
 
 ## Out of Scope
 
