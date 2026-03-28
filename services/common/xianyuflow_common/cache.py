@@ -23,20 +23,22 @@ T = TypeVar("T")
 
 class CacheLevel(Enum):
     """缓存级别"""
-    L1_MEMORY = "l1_memory"      # 进程内内存缓存
-    L2_REDIS = "l2_redis"        # Redis 缓存
+
+    L1_MEMORY = "l1_memory"  # 进程内内存缓存
+    L2_REDIS = "l2_redis"  # Redis 缓存
     L3_DATABASE = "l3_database"  # 数据库（fallback）
 
 
 @dataclass
 class CacheConfig:
     """缓存配置"""
-    l1_ttl_seconds: float = 60          # L1 缓存 TTL
-    l2_ttl_seconds: float = 300         # L2 缓存 TTL
-    l1_max_size: int = 1000             # L1 最大条目数
-    cache_key_prefix: str = "xianyu"    # 缓存键前缀
-    enable_l1: bool = True              # 启用 L1 缓存
-    enable_l2: bool = True              # 启用 L2 缓存
+
+    l1_ttl_seconds: float = 60  # L1 缓存 TTL
+    l2_ttl_seconds: float = 300  # L2 缓存 TTL
+    l1_max_size: int = 1000  # L1 最大条目数
+    cache_key_prefix: str = "xianyu"  # 缓存键前缀
+    enable_l1: bool = True  # 启用 L1 缓存
+    enable_l2: bool = True  # 启用 L2 缓存
 
 
 class L1MemoryCache:
@@ -67,9 +69,7 @@ class L1MemoryCache:
 
             return self._cache[key]
 
-    async def set(
-        self, key: str, value: Any, ttl_seconds: float = 60
-    ) -> None:
+    async def set(self, key: str, value: Any, ttl_seconds: float = 60) -> None:
         """设置缓存值"""
         async with self._lock:
             # 检查是否需要淘汰
@@ -161,9 +161,7 @@ class MultiLevelCache:
 
         return None
 
-    async def set(
-        self, key: str, value: Any, l2_ttl: float | None = None
-    ) -> None:
+    async def set(self, key: str, value: Any, l2_ttl: float | None = None) -> None:
         """设置缓存"""
         # 设置 L1
         if self._l1:
@@ -202,6 +200,7 @@ class MultiLevelCache:
         key_func: Callable | None = None,
     ):
         """装饰器：缓存函数结果"""
+
         def decorator(func: Callable[..., T]) -> Callable[..., T]:
             @wraps(func)
             async def async_wrapper(*args, **kwargs) -> T:
@@ -228,6 +227,7 @@ class MultiLevelCache:
             def sync_wrapper(*args, **kwargs) -> T:
                 # 同步函数使用线程池
                 import asyncio
+
                 return asyncio.run(async_wrapper(*args, **kwargs))
 
             return async_wrapper if asyncio.iscoroutinefunction(func) else sync_wrapper
@@ -265,13 +265,13 @@ class CacheWarmer:
 
 # 常用缓存实例
 _quote_cache_config = CacheConfig(
-    l1_ttl_seconds=30,      # 报价变化快，L1 缓存短
-    l2_ttl_seconds=60,      # L2 缓存也短
+    l1_ttl_seconds=30,  # 报价变化快，L1 缓存短
+    l2_ttl_seconds=60,  # L2 缓存也短
     cache_key_prefix="quote",
 )
 
 _user_cache_config = CacheConfig(
-    l1_ttl_seconds=300,     # 用户数据变化慢，可以缓存久一点
+    l1_ttl_seconds=300,  # 用户数据变化慢，可以缓存久一点
     l2_ttl_seconds=3600,
     cache_key_prefix="user",
 )

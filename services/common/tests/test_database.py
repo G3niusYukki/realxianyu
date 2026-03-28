@@ -1,4 +1,5 @@
 """Tests for xianyuflow_common.database module."""
+
 import pytest
 
 from xianyuflow_common.config import DatabaseConfig

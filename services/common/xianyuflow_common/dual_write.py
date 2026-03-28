@@ -24,23 +24,25 @@ import structlog
 
 logger = structlog.get_logger()
 
-_VALID_TABLE_RE = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*$')
+_VALID_TABLE_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
 
 
 class WriteMode(Enum):
     """写入模式"""
-    SQLITE_ONLY = "sqlite_only"      # 仅写入 SQLite（迁移前）
-    DUAL_WRITE = "dual_write"        # 双写（迁移中）
-    PG_ONLY = "pg_only"              # 仅写入 PostgreSQL（迁移后）
-    PG_PRIMARY = "pg_primary"        # PG 主写，SQLite 备份（过渡）
+
+    SQLITE_ONLY = "sqlite_only"  # 仅写入 SQLite（迁移前）
+    DUAL_WRITE = "dual_write"  # 双写（迁移中）
+    PG_ONLY = "pg_only"  # 仅写入 PostgreSQL（迁移后）
+    PG_PRIMARY = "pg_primary"  # PG 主写，SQLite 备份（过渡）
 
 
 class ReadMode(Enum):
     """读取模式"""
-    SQLITE_ONLY = "sqlite_only"      # 仅从 SQLite 读
-    PG_ONLY = "pg_only"              # 仅从 PostgreSQL 读
+
+    SQLITE_ONLY = "sqlite_only"  # 仅从 SQLite 读
+    PG_ONLY = "pg_only"  # 仅从 PostgreSQL 读
     SQLITE_FALLBACK = "sqlite_fallback"  # PG 优先，失败回退 SQLite
-    PG_FALLBACK = "pg_fallback"      # SQLite 优先，失败回退 PG
+    PG_FALLBACK = "pg_fallback"  # SQLite 优先，失败回退 PG
 
 
 class DualWriteManager:
@@ -239,11 +241,13 @@ class DualWriteManager:
             if sqlite_row != pg_row:
                 results["mismatch_count"] += 1
                 if len(results["sample_mismatches"]) < 5:
-                    results["sample_mismatches"].append({
-                        "row": i,
-                        "sqlite": sqlite_row,
-                        "pg": pg_row,
-                    })
+                    results["sample_mismatches"].append(
+                        {
+                            "row": i,
+                            "sqlite": sqlite_row,
+                            "pg": pg_row,
+                        }
+                    )
 
         return results
 

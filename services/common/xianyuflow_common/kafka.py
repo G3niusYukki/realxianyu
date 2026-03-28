@@ -87,9 +87,7 @@ class KafkaClient:
                 "Message sent to %s:%s", metadata.topic, metadata.partition
             )
         )
-        future.add_errback(
-            lambda exc: logger.error("Failed to send message: %s", exc)
-        )
+        future.add_errback(lambda exc: logger.error("Failed to send message: %s", exc))
 
     def consume(
         self,

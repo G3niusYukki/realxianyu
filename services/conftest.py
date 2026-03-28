@@ -1,4 +1,5 @@
 """Pytest configuration for services directory."""
+
 import os
 import sys
 

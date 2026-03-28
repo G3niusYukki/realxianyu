@@ -1,6 +1,5 @@
 """Tests for xianyuflow_common.dual_write module."""
 
-
 from xianyuflow_common.dual_write import (
     _VALID_TABLE_RE,
     MIGRATION_STAGES,

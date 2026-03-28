@@ -1,4 +1,5 @@
 """Tests for app.main FastAPI application."""
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 

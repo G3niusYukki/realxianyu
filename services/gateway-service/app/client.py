@@ -13,9 +13,7 @@ class XianyuConfig:
         self.app_key = os.getenv("XIANYU_APP_KEY") or os.getenv("XGJ_APP_KEY", "")
         self.app_secret = os.getenv("XIANYU_APP_SECRET") or os.getenv("XGJ_APP_SECRET", "")
         self.base_url = (
-            os.getenv("XIANYU_BASE_URL")
-            or os.getenv("XGJ_BASE_URL")
-            or "https://open.goofish.pro"
+            os.getenv("XIANYU_BASE_URL") or os.getenv("XGJ_BASE_URL") or "https://open.goofish.pro"
         )
 
     @property
@@ -30,9 +28,7 @@ class XianGuanJiaClient:
         self.config = config
         self.client = httpx.AsyncClient(base_url=config.base_url, timeout=30.0)
 
-    async def _request(
-        self, method: str, path: str, payload: dict | None = None
-    ) -> dict:
+    async def _request(self, method: str, path: str, payload: dict | None = None) -> dict:
         """
         发送带签名的请求
 
@@ -51,9 +47,7 @@ class XianGuanJiaClient:
         timestamp = str(int(time.time()))
 
         # 生成签名
-        signature = sign_request(
-            self.config.app_key, self.config.app_secret, body, timestamp
-        )
+        signature = sign_request(self.config.app_key, self.config.app_secret, body, timestamp)
 
         params = {
             "appid": self.config.app_key,

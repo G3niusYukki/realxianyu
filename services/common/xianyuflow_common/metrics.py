@@ -22,125 +22,105 @@ SERVICE_INFO = Info("xianyu_service", "Service information")
 HTTP_REQUESTS_TOTAL = Counter(
     "xianyu_http_requests_total",
     "Total HTTP requests",
-    ["service", "method", "endpoint", "status_code"]
+    ["service", "method", "endpoint", "status_code"],
 )
 
 HTTP_REQUEST_DURATION = Histogram(
     "xianyu_http_request_duration_seconds",
     "HTTP request duration",
     ["service", "method", "endpoint"],
-    buckets=[0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0]
+    buckets=[0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0],
 )
 
 HTTP_REQUEST_SIZE = Histogram(
     "xianyu_http_request_size_bytes",
     "HTTP request size",
     ["service", "method", "endpoint"],
-    buckets=[100, 1000, 10000, 100000, 1000000]
+    buckets=[100, 1000, 10000, 100000, 1000000],
 )
 
 # Database metrics
 DB_QUERIES_TOTAL = Counter(
-    "xianyu_db_queries_total",
-    "Total database queries",
-    ["service", "operation", "table"]
+    "xianyu_db_queries_total", "Total database queries", ["service", "operation", "table"]
 )
 
 DB_QUERY_DURATION = Histogram(
     "xianyu_db_query_duration_seconds",
     "Database query duration",
     ["service", "operation", "table"],
-    buckets=[0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0]
+    buckets=[0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0],
 )
 
 DB_CONNECTIONS = Gauge(
     "xianyu_db_connections",
     "Database connections",
-    ["service", "state"]  # state: active, idle, waiting
+    ["service", "state"],  # state: active, idle, waiting
 )
 
 # Cache metrics
 CACHE_HITS_TOTAL = Counter(
-    "xianyu_cache_hits_total",
-    "Total cache hits",
-    ["service", "cache_level", "cache_name"]
+    "xianyu_cache_hits_total", "Total cache hits", ["service", "cache_level", "cache_name"]
 )
 
 CACHE_MISSES_TOTAL = Counter(
-    "xianyu_cache_misses_total",
-    "Total cache misses",
-    ["service", "cache_level", "cache_name"]
+    "xianyu_cache_misses_total", "Total cache misses", ["service", "cache_level", "cache_name"]
 )
 
-CACHE_SIZE = Gauge(
-    "xianyu_cache_size",
-    "Cache size",
-    ["service", "cache_level", "cache_name"]
-)
+CACHE_SIZE = Gauge("xianyu_cache_size", "Cache size", ["service", "cache_level", "cache_name"])
 
 # Business metrics
 MESSAGES_PROCESSED = Counter(
     "xianyu_messages_processed_total",
     "Total messages processed",
-    ["service", "message_type", "status"]
+    ["service", "message_type", "status"],
 )
 
 QUOTES_CALCULATED = Counter(
-    "xianyu_quotes_calculated_total",
-    "Total quotes calculated",
-    ["service", "courier"]
+    "xianyu_quotes_calculated_total", "Total quotes calculated", ["service", "courier"]
 )
 
 ORDERS_PROCESSED = Counter(
-    "xianyu_orders_processed_total",
-    "Total orders processed",
-    ["service", "status"]
+    "xianyu_orders_processed_total", "Total orders processed", ["service", "status"]
 )
 
 # WebSocket metrics
-WS_CONNECTIONS = Gauge(
-    "xianyu_ws_connections",
-    "WebSocket connections",
-    ["service", "account_id"]
-)
+WS_CONNECTIONS = Gauge("xianyu_ws_connections", "WebSocket connections", ["service", "account_id"])
 
 WS_MESSAGES = Counter(
     "xianyu_ws_messages_total",
     "WebSocket messages",
-    ["service", "direction"]  # direction: sent, received
+    ["service", "direction"],  # direction: sent, received
 )
 
 WS_LATENCY = Histogram(
     "xianyu_ws_latency_seconds",
     "WebSocket message latency",
     ["service"],
-    buckets=[0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5]
+    buckets=[0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5],
 )
 
 # AI metrics
 AI_REQUESTS = Counter(
-    "xianyu_ai_requests_total",
-    "Total AI requests",
-    ["service", "model", "status"]
+    "xianyu_ai_requests_total", "Total AI requests", ["service", "model", "status"]
 )
 
 AI_TOKENS = Counter(
     "xianyu_ai_tokens_total",
     "Total AI tokens",
-    ["service", "model", "token_type"]  # token_type: prompt, completion
+    ["service", "model", "token_type"],  # token_type: prompt, completion
 )
 
 AI_LATENCY = Histogram(
     "xianyu_ai_latency_seconds",
     "AI request latency",
     ["service", "model"],
-    buckets=[0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0]
+    buckets=[0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0],
 )
 
 CONTEXT_LEVELS = Gauge(
     "xianyu_context_levels",
     "Context level cache entries",
-    ["service", "level"]  # level: l1, l2, l3
+    ["service", "level"],  # level: l1, l2, l3
 )
 
 
@@ -170,29 +150,23 @@ class MetricsMiddleware:
 
         # Record metrics
         HTTP_REQUESTS_TOTAL.labels(
-            service=self.service_name,
-            method=method,
-            endpoint=route,
-            status_code=str(status_code)
+            service=self.service_name, method=method, endpoint=route, status_code=str(status_code)
         ).inc()
 
         HTTP_REQUEST_DURATION.labels(
-            service=self.service_name,
-            method=method,
-            endpoint=route
+            service=self.service_name, method=method, endpoint=route
         ).observe(duration)
 
-        HTTP_REQUEST_SIZE.labels(
-            service=self.service_name,
-            method=method,
-            endpoint=route
-        ).observe(request_size)
+        HTTP_REQUEST_SIZE.labels(service=self.service_name, method=method, endpoint=route).observe(
+            request_size
+        )
 
         return response
 
 
 def timed(metric: Histogram, labels: dict | None = None):
     """Decorator to time function execution"""
+
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
         async def async_wrapper(*args, **kwargs):
@@ -219,11 +193,13 @@ def timed(metric: Histogram, labels: dict | None = None):
                     metric.observe(duration)
 
         return async_wrapper if asyncio.iscoroutinefunction(func) else sync_wrapper
+
     return decorator
 
 
 def counted(metric: Counter, labels: dict | None = None):
     """Decorator to count function calls"""
+
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
         async def async_wrapper(*args, **kwargs):
@@ -242,6 +218,7 @@ def counted(metric: Counter, labels: dict | None = None):
             return func(*args, **kwargs)
 
         return async_wrapper if asyncio.iscoroutinefunction(func) else sync_wrapper
+
     return decorator
 
 
@@ -253,16 +230,10 @@ def db_timer(service: str, operation: str, table: str):
         yield
     finally:
         duration = time.time() - start
-        DB_QUERY_DURATION.labels(
-            service=service,
-            operation=operation,
-            table=table
-        ).observe(duration)
-        DB_QUERIES_TOTAL.labels(
-            service=service,
-            operation=operation,
-            table=table
-        ).inc()
+        DB_QUERY_DURATION.labels(service=service, operation=operation, table=table).observe(
+            duration
+        )
+        DB_QUERIES_TOTAL.labels(service=service, operation=operation, table=table).inc()
 
 
 @contextmanager
@@ -270,15 +241,11 @@ def cache_timer(service: str, cache_level: str, cache_name: str, hit: bool):
     """Context manager for cache metrics"""
     if hit:
         CACHE_HITS_TOTAL.labels(
-            service=service,
-            cache_level=cache_level,
-            cache_name=cache_name
+            service=service, cache_level=cache_level, cache_name=cache_name
         ).inc()
     else:
         CACHE_MISSES_TOTAL.labels(
-            service=service,
-            cache_level=cache_level,
-            cache_name=cache_name
+            service=service, cache_level=cache_level, cache_name=cache_name
         ).inc()
     yield
 
@@ -317,7 +284,7 @@ class PerformanceProfiler:
                 "Slow operation detected",
                 operation=name,
                 duration_seconds=duration,
-                service=self.service_name
+                service=self.service_name,
             )
 
         del self._profiles[name]
