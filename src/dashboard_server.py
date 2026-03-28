@@ -765,6 +765,9 @@ def run_server(host: str = "127.0.0.1", port: int = 8091, db_path: str | None = 
     resolved_db = db_path or config.database.get("path", "data/agent.db")
 
     Path(resolved_db).parent.mkdir(parents=True, exist_ok=True)
+    from src.core.migration import run_migrations
+
+    run_migrations(resolved_db)
     DashboardHandler.repo = DashboardRepository(resolved_db)
     DashboardHandler.module_console = ModuleConsole(project_root=Path(__file__).resolve().parents[1])
     DashboardHandler.mimic_ops = MimicOps(
