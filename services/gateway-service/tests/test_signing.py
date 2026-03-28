@@ -1,5 +1,4 @@
 """Tests for app.signing module."""
-import pytest
 
 from app.signing import sign_request
 

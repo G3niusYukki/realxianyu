@@ -2,8 +2,6 @@
 import os
 import sys
 
-import pytest
-
 # Ensure gateway-service and common are on the Python path for imports
 _services_dir = os.path.dirname(os.path.abspath(__file__))
 for _svc in ("common", "gateway-service"):

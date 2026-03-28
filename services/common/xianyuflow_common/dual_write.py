@@ -16,7 +16,7 @@ import asyncio
 import re
 from contextlib import asynccontextmanager
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 import aiosqlite
 import asyncpg
@@ -59,8 +59,8 @@ class DualWriteManager:
         self.read_mode = read_mode
 
         self._lock = asyncio.Lock()
-        self._sqlite_pool: Optional[aiosqlite.Connection] = None
-        self._pg_pool: Optional[asyncpg.Pool] = None
+        self._sqlite_pool: aiosqlite.Connection | None = None
+        self._pg_pool: asyncpg.Pool | None = None
         self._migration_progress = 0.0  # 0.0 - 1.0
 
     async def initialize(self) -> None:
@@ -130,7 +130,7 @@ class DualWriteManager:
         self,
         sql: str,
         params: tuple = (),
-    ) -> Optional[dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """
         执行读取操作（根据 read_mode 决定读取来源）
         """

@@ -7,10 +7,11 @@ import asyncio
 import hashlib
 import json
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
 from functools import wraps
-from typing import Any, Callable, Optional, TypeVar
+from typing import Any, TypeVar
 
 import redis.asyncio as redis
 import structlog
@@ -48,7 +49,7 @@ class L1MemoryCache:
         self._access_order: list[str] = []
         self._lock = asyncio.Lock()
 
-    async def get(self, key: str) -> Optional[Any]:
+    async def get(self, key: str) -> Any | None:
         """获取缓存值"""
         async with self._lock:
             if key not in self._cache:
@@ -123,7 +124,7 @@ class MultiLevelCache:
     def __init__(
         self,
         config: CacheConfig,
-        redis_client: Optional[redis.Redis] = None,
+        redis_client: redis.Redis | None = None,
     ):
         self.config = config
         self._l1 = L1MemoryCache(max_size=config.l1_max_size) if config.enable_l1 else None
@@ -136,7 +137,7 @@ class MultiLevelCache:
         hash_key = hashlib.md5(key_data.encode()).hexdigest()
         return f"{self.config.cache_key_prefix}:{hash_key}"
 
-    async def get(self, key: str) -> Optional[Any]:
+    async def get(self, key: str) -> Any | None:
         """获取缓存（L1 -> L2 -> None）"""
         # 尝试 L1
         if self._l1:
@@ -161,7 +162,7 @@ class MultiLevelCache:
         return None
 
     async def set(
-        self, key: str, value: Any, l2_ttl: Optional[float] = None
+        self, key: str, value: Any, l2_ttl: float | None = None
     ) -> None:
         """设置缓存"""
         # 设置 L1
@@ -197,8 +198,8 @@ class MultiLevelCache:
 
     def cached(
         self,
-        ttl_seconds: Optional[float] = None,
-        key_func: Optional[Callable] = None,
+        ttl_seconds: float | None = None,
+        key_func: Callable | None = None,
     ):
         """装饰器：缓存函数结果"""
         def decorator(func: Callable[..., T]) -> Callable[..., T]:

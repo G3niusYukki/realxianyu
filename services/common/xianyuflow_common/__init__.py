@@ -11,7 +11,7 @@ from xianyuflow_common.config import (
     XianyuConfig,
 )
 from xianyuflow_common.database import Database
-from xianyuflow_common.kafka import KafkaClient, TOPICS
+from xianyuflow_common.kafka import TOPICS, KafkaClient
 from xianyuflow_common.models.base import (
     BaseModel,
     ErrorResponse,

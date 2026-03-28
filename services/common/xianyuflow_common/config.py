@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -45,7 +43,7 @@ class RedisConfig(BaseSettings):
 
     host: str = Field(default="localhost", description="Redis host")
     port: int = Field(default=6379, description="Redis port")
-    password: Optional[SecretStr] = Field(default=None, description="Redis password")
+    password: SecretStr | None = Field(default=None, description="Redis password")
     db: int = Field(default=0, description="Redis database number")
 
 
@@ -63,7 +61,7 @@ class KafkaConfig(BaseSettings):
         default="localhost:9092",
         description="Kafka bootstrap servers (comma-separated)",
     )
-    client_id: Optional[str] = Field(default=None, description="Kafka client ID")
+    client_id: str | None = Field(default=None, description="Kafka client ID")
 
 
 class AIConfig(BaseSettings):

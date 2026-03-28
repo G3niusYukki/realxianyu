@@ -1,14 +1,12 @@
 """Tests for xianyuflow_common.dual_write module."""
-import re
 
-import pytest
 
 from xianyuflow_common.dual_write import (
-    DualWriteManager,
+    _VALID_TABLE_RE,
     MIGRATION_STAGES,
+    DualWriteManager,
     ReadMode,
     WriteMode,
-    _VALID_TABLE_RE,
 )
 
 

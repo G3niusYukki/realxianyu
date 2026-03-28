@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 
-from app.client import XianGuanJiaClient, XianyuConfig
-from app.routes import get_client, get_config
+from app.client import XianGuanJiaClient
+from app.routes import get_client
 
 router = APIRouter()
 

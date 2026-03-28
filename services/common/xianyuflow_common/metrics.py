@@ -5,11 +5,12 @@ Phase 4: Performance optimization
 
 import functools
 import time
+from collections.abc import Callable
 from contextlib import contextmanager
-from typing import Any, Callable, Optional
+from typing import Any
 
-from prometheus_client import Counter, Histogram, Gauge, Info
 import structlog
+from prometheus_client import Counter, Gauge, Histogram, Info
 
 logger = structlog.get_logger()
 
@@ -189,7 +190,7 @@ class MetricsMiddleware:
         return response
 
 
-def timed(metric: Histogram, labels: Optional[dict] = None):
+def timed(metric: Histogram, labels: dict | None = None):
     """Decorator to time function execution"""
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
@@ -220,7 +221,7 @@ def timed(metric: Histogram, labels: Optional[dict] = None):
     return decorator
 
 
-def counted(metric: Counter, labels: Optional[dict] = None):
+def counted(metric: Counter, labels: dict | None = None):
     """Decorator to count function calls"""
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
