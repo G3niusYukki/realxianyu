@@ -1,6 +1,6 @@
 # P0: 安全漏洞修复 Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** 消除代码中所有硬编码密钥、密码和注入漏洞，确保凭据通过环境变量管理。
 
@@ -18,7 +18,7 @@
 
 `ws_live.py` 第 26 行硬编码了 `_MTOP_APP_SECRET = "444e9908a51d1cb236a27862abc769c9"`。这个值应该从环境变量读取。
 
-- [ ] **Step 1: 编写测试验证 secret 来源**
+- [x] **Step 1: 编写测试验证 secret 来源**
 
 在 `tests/test_messages_ws_live.py` 中添加：
 
@@ -32,12 +32,12 @@ def test_mtop_app_secret_from_env(monkeypatch):
     assert ws_live._MTOP_APP_SECRET != "444e9908a51d1cb236a27862abc769c9"
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `python -m pytest tests/test_messages_ws_live.py::test_mtop_app_secret_from_env -v`
 Expected: FAIL (当前硬编码值)
 
-- [ ] **Step 3: 修改 ws_live.py，secret 从环境变量读取**
+- [x] **Step 3: 修改 ws_live.py，secret 从环境变量读取**
 
 ```python
 # Before (line 26):
@@ -55,11 +55,11 @@ _MTOP_APP_SECRET = os.getenv("MTOP_APP_SECRET", "")
 MTOP_APP_SECRET=
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `python -m pytest tests/test_messages_ws_live.py -v`
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add src/modules/messages/ws_live.py .env.example
@@ -73,7 +73,7 @@ git commit -m "fix(security): move MTOP app secret from hardcoded value to env v
 **Files:**
 - Modify: `infra/scripts/setup-local.sh:49`
 
-- [ ] **Step 1: 修改 setup-local.sh**
+- [x] **Step 1: 修改 setup-local.sh**
 
 将硬编码的 Grafana 凭据替换为环境变量：
 
@@ -92,7 +92,7 @@ git commit -m "fix(security): move MTOP app secret from hardcoded value to env v
 echo "Grafana admin password: $GRAFANA_ADMIN_PASSWORD (override with GRAFANA_ADMIN_PASSWORD)"
 ```
 
-- [ ] **Step 2: 提交**
+- [x] **Step 2: 提交**
 
 ```bash
 git add infra/scripts/setup-local.sh
@@ -106,7 +106,7 @@ git commit -m "fix(security): remove hardcoded Grafana password, use env var"
 **Files:**
 - Modify: `services/order-service/app/main.py:150`
 
-- [ ] **Step 1: 修改默认密码为启动时校验**
+- [x] **Step 1: 修改默认密码为启动时校验**
 
 ```python
 # Before:
@@ -118,7 +118,7 @@ if not db_password:
     logger.warning("DB_PASSWORD not set — using local SQLite fallback")
 ```
 
-- [ ] **Step 2: 提交**
+- [x] **Step 2: 提交**
 
 ```bash
 git add services/order-service/app/main.py
@@ -135,7 +135,7 @@ git commit -m "fix(security): remove default DB password from order-service"
 
 Bug 描述：`_sqlite_lock()` 每次调用都创建新的 `asyncio.Lock()`，导致锁永远不被持有。
 
-- [ ] **Step 1: 编写并发测试**
+- [x] **Step 1: 编写并发测试**
 
 ```python
 import asyncio
@@ -165,12 +165,12 @@ async def test_sqlite_lock_prevents_concurrent_access():
     ]
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `python -m pytest tests/test_dual_write.py::test_sqlite_lock_prevents_concurrent_access -v`
 Expected: FAIL (当前锁无效，操作交错)
 
-- [ ] **Step 3: 修复 `_sqlite_lock`**
+- [x] **Step 3: 修复 `_sqlite_lock`**
 
 ```python
 # Before (line 257-262):
@@ -193,11 +193,11 @@ async def _sqlite_lock(self):
 
 确保 `__init__` 中初始化 `self._lock = asyncio.Lock()`。
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `python -m pytest tests/test_dual_write.py -v`
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add services/common/xianyuflow_common/dual_write.py
@@ -213,7 +213,7 @@ git commit -m "fix(concurrency): fix asyncio.Lock bug in dual_write._sqlite_lock
 
 Bug 描述：`table` 和 `limit` 通过 f-string 直接拼接到 SQL 中。
 
-- [ ] **Step 1: 修改 compare_data 方法，添加输入校验**
+- [x] **Step 1: 修改 compare_data 方法，添加输入校验**
 
 ```python
 import re
@@ -239,7 +239,7 @@ async def compare_data(self, table: str, limit: int = 100) -> dict:
     )
 ```
 
-- [ ] **Step 2: 提交**
+- [x] **Step 2: 提交**
 
 ```bash
 git add services/common/xianyuflow_common/dual_write.py
@@ -253,7 +253,7 @@ git commit -m "fix(security): parameterize SQL in dual_write.compare_data, valid
 **Files:**
 - Modify: `services/ai-service/app/main.py:142`
 
-- [ ] **Step 1: 用 json.dumps 替换手动字符串拼接**
+- [x] **Step 1: 用 json.dumps 替换手动字符串拼接**
 
 ```python
 # Before (line 142 附近):
@@ -265,7 +265,7 @@ sse_data = json.dumps({"content": chunk, "type": "delta"}, ensure_ascii=False)
 yield f"data: {sse_data}\n\n"
 ```
 
-- [ ] **Step 2: 提交**
+- [x] **Step 2: 提交**
 
 ```bash
 git add services/ai-service/app/main.py
@@ -279,7 +279,7 @@ git commit -m "fix(security): use json.dumps for SSE data to prevent injection"
 **Files:**
 - Modify: `services/common/xianyuflow_common/models/base.py`
 
-- [ ] **Step 1: 替换为 datetime.now(UTC)**
+- [x] **Step 1: 替换为 datetime.now(UTC)**
 
 ```python
 # Before:
@@ -291,7 +291,7 @@ from datetime import datetime, timezone
 datetime.now(timezone.utc)
 ```
 
-- [ ] **Step 2: 提交**
+- [x] **Step 2: 提交**
 
 ```bash
 git add services/common/xianyuflow_common/models/base.py
@@ -302,8 +302,8 @@ git commit -m "fix: replace deprecated datetime.utcnow with datetime.now(UTC)"
 
 ## 完成标准
 
-- [ ] 所有硬编码密钥/密码已移除或改为环境变量
-- [ ] SQL 注入已修复（参数化查询 + 输入校验）
-- [ ] asyncio.Lock 并发 Bug 已修复
-- [ ] `.env.example` 已更新包含所有新的环境变量
-- [ ] `python -m pytest tests/ -q` 全部通过
+- [x] 所有硬编码密钥/密码已移除或改为环境变量
+- [x] SQL 注入已修复（参数化查询 + 输入校验）
+- [x] asyncio.Lock 并发 Bug 已修复
+- [x] `.env.example` 已更新包含所有新的环境变量
+- [x] `python -m pytest tests/ -q` 全部通过

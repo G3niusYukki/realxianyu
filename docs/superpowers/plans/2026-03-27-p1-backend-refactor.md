@@ -1,6 +1,6 @@
 # P1: 后端 Python 代码重构 Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** 消除代码重复、精简 God Class、外部化硬编码数据、引入连接池、统一错误处理，提升后端代码质量和可维护性。
 
@@ -20,7 +20,7 @@
 
 **问题：** `CostTableMarkupQuoteProvider.get_quote()` 和 `ApiCostMarkupQuoteProvider.get_quote()` 共享 ~80% 的三层定价逻辑（成本→加价→闲鱼折扣、体积重计算、explain dict 构建），各 ~100 行。
 
-- [ ] **Step 1: 创建 `pricing_calculator.py`，提取共享的三层定价计算函数**
+- [x] **Step 1: 创建 `pricing_calculator.py`，提取共享的三层定价计算函数**
 
 ```python
 # src/modules/quote/pricing_calculator.py
@@ -155,7 +155,7 @@ def compute_three_tier_price(
     )
 ```
 
-- [ ] **Step 2: 编写测试**
+- [x] **Step 2: 编写测试**
 
 在 `tests/test_quote_pricing_calculator.py` 中：
 
@@ -187,23 +187,23 @@ def test_basic_three_tier_pricing():
     assert "续重" in out.surcharges
 ```
 
-- [ ] **Step 3: 运行测试确认通过**
+- [x] **Step 3: 运行测试确认通过**
 
 Run: `python -m pytest tests/test_quote_pricing_calculator.py -v`
 
-- [ ] **Step 4: 重构 `CostTableMarkupQuoteProvider.get_quote()` 使用新函数**
+- [x] **Step 4: 重构 `CostTableMarkupQuoteProvider.get_quote()` 使用新函数**
 
 将 `providers.py` 中 `CostTableMarkupQuoteProvider.get_quote()` 的定价计算部分替换为调用 `compute_three_tier_price()`，保持 `QuoteResult` 结构不变。
 
-- [ ] **Step 5: 重构 `ApiCostMarkupQuoteProvider.get_quote()` 使用新函数**
+- [x] **Step 5: 重构 `ApiCostMarkupQuoteProvider.get_quote()` 使用新函数**
 
 同样替换 API provider 的定价计算部分。
 
-- [ ] **Step 6: 运行全量报价测试确认无回归**
+- [x] **Step 6: 运行全量报价测试确认无回归**
 
 Run: `python -m pytest tests/test_quote_engine.py tests/test_quote_engine_full.py tests/test_quote_fuzzy.py -v`
 
-- [ ] **Step 7: 提交**
+- [x] **Step 7: 提交**
 
 ```bash
 git add src/modules/quote/pricing_calculator.py src/modules/quote/providers.py src/modules/quote/__init__.py tests/test_quote_pricing_calculator.py
@@ -221,7 +221,7 @@ git commit -m "refactor(quote): extract shared three-tier pricing logic into pri
 
 **问题：** `QuoteResult._format_days_from_minutes()` 和 `QuoteReplyComposer.format_eta_days()` 逻辑完全相同。
 
-- [ ] **Step 1: 创建 `src/modules/quote/utils.py`**
+- [x] **Step 1: 创建 `src/modules/quote/utils.py`**
 
 ```python
 """报价模块共享工具函数。"""
@@ -243,7 +243,7 @@ def format_eta_days(minutes: int | float | None) -> str:
     return f"{rounded:.1f}天"
 ```
 
-- [ ] **Step 2: 修改 `models.py` 和 `quote_composer.py` 调用共享函数**
+- [x] **Step 2: 修改 `models.py` 和 `quote_composer.py` 调用共享函数**
 
 ```python
 # models.py — 替换 _format_days_from_minutes 为:
@@ -262,11 +262,11 @@ def format_eta_days(minutes):
     return format_eta_days(minutes)
 ```
 
-- [ ] **Step 3: 运行测试**
+- [x] **Step 3: 运行测试**
 
 Run: `python -m pytest tests/test_quote_models.py tests/test_quote_route.py -v`
 
-- [ ] **Step 4: 提交**
+- [x] **Step 4: 提交**
 
 ```bash
 git add src/modules/quote/utils.py src/modules/quote/models.py src/modules/messages/quote_composer.py
@@ -286,7 +286,7 @@ git commit -m "refactor(quote): extract format_eta_days into shared utils"
 
 **问题：** CookieCloud 凭证读取和 AES-CBC 解密在 `cookie_grabber.py`、`mimic_ops.py`、`dashboard_server.py` 三处重复。
 
-- [ ] **Step 1: 创建 `src/core/cookie_cloud_client.py`**
+- [x] **Step 1: 创建 `src/core/cookie_cloud_client.py`**
 
 提取以下内容为独立类：
 - UUID/密码从配置读取的逻辑
@@ -331,7 +331,7 @@ class CookieCloudClient:
         ...
 ```
 
-- [ ] **Step 2: 编写测试**
+- [x] **Step 2: 编写测试**
 
 ```python
 def test_cookie_cloud_client_not_configured():
@@ -343,15 +343,15 @@ def test_cookie_cloud_client_configured():
     assert client.is_configured
 ```
 
-- [ ] **Step 3: 修改三个消费方使用 CookieCloudClient**
+- [x] **Step 3: 修改三个消费方使用 CookieCloudClient**
 
 将 `cookie_grabber.py`、`mimic_ops.py`、`dashboard_server.py` 中的重复代码替换为 `CookieCloudClient.from_config()` 调用。
 
-- [ ] **Step 4: 运行测试**
+- [x] **Step 4: 运行测试**
 
 Run: `python -m pytest tests/test_cookie_cloud_client.py tests/test_cookie_health.py tests/test_cookie_store_full.py -v`
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add src/core/cookie_cloud_client.py src/core/cookie_grabber.py src/dashboard/mimic_ops.py src/dashboard_server.py tests/test_cookie_cloud_client.py
@@ -368,7 +368,7 @@ git commit -m "refactor(cookie): extract CookieCloudClient to unify credential r
 
 **问题：** 6 个装饰器中 `handle_errors` 和 `safe_execute` 几乎相同。`handle_controller_errors` 和 `handle_operation_errors` 逻辑高度相似。
 
-- [ ] **Step 1: 合并为 3 个核心装饰器**
+- [x] **Step 1: 合并为 3 个核心装饰器**
 
 保留：
 - `safe_execute` — 通用安全执行（合并 `handle_errors` 的功能，增加 `log_level` 参数）
@@ -397,15 +397,15 @@ def safe_execute(
     ...
 ```
 
-- [ ] **Step 2: 全局替换引用**
+- [x] **Step 2: 全局替换引用**
 
 搜索所有 `handle_controller_errors`、`handle_operation_errors`、`handle_errors` 的使用处，替换为 `safe_execute` 的对应参数形式。
 
-- [ ] **Step 3: 运行测试确认无回归**
+- [x] **Step 3: 运行测试确认无回归**
 
 Run: `python -m pytest tests/test_error_handler.py tests/test_core_error_handler_full.py -v`
 
-- [ ] **Step 4: 提交**
+- [x] **Step 4: 提交**
 
 ```bash
 git add src/core/error_handler.py
@@ -428,7 +428,7 @@ git commit -m "refactor(error): consolidate 6 error decorators into 3 core ones"
 
 **问题：** 65 条意图规则、73 条快递别名、70+ 条地区别名、115 条物品重量、200+ 行省市区数据硬编码在 Python 源码中。
 
-- [ ] **Step 1: 创建数据目录和 JSON 文件**
+- [x] **Step 1: 创建数据目录和 JSON 文件**
 
 将 `quote_parser.py` 的 `ITEM_WEIGHT_MAP` 提取到 `data/quote_data/item_weights.json`：
 
@@ -447,7 +447,7 @@ git commit -m "refactor(error): consolidate 6 error decorators into 3 core ones"
 
 将 `config_service.py` 的 `SHIPPING_REGIONS` 提取到 `data/shipping_regions.json`。
 
-- [ ] **Step 2: 修改源码加载 JSON 数据**
+- [x] **Step 2: 修改源码加载 JSON 数据**
 
 ```python
 # quote_parser.py — 替换硬编码:
@@ -463,11 +463,11 @@ def _load_item_weights() -> dict[str, float]:
     return {}  # fallback
 ```
 
-- [ ] **Step 3: 运行测试**
+- [x] **Step 3: 运行测试**
 
 Run: `python -m pytest tests/ -q`
 
-- [ ] **Step 4: 提交**
+- [x] **Step 4: 提交**
 
 ```bash
 git add data/quote_data/ data/shipping_regions.json src/modules/quote/quote_parser.py src/modules/quote/cost_table.py src/dashboard/config_service.py
@@ -487,7 +487,7 @@ git commit -m "refactor: externalize hardcoded business data to JSON files"
 
 **问题：** 每个数据库操作都通过 `_connect()` 创建新连接再关闭，增加不必要的开销。
 
-- [ ] **Step 1: 创建 `src/core/database.py`**
+- [x] **Step 1: 创建 `src/core/database.py`**
 
 ```python
 """SQLite 连接池管理。"""
@@ -530,7 +530,7 @@ class SQLiteDatabase:
             self._connection = None
 ```
 
-- [ ] **Step 2: 编写测试**
+- [x] **Step 2: 编写测试**
 
 ```python
 import pytest
@@ -553,15 +553,15 @@ async def test_database_wal_mode():
         await db.close()
 ```
 
-- [ ] **Step 3: 逐个替换 workflow.py、service.py、repository.py 的 `_connect()`**
+- [x] **Step 3: 逐个替换 workflow.py、service.py、repository.py 的 `_connect()`**
 
 在每个文件中，将 `_connect()` 替换为注入的 `SQLiteDatabase` 实例的 `connection()` 上下文管理器。
 
-- [ ] **Step 4: 运行测试**
+- [x] **Step 4: 运行测试**
 
 Run: `python -m pytest tests/test_database_pool.py tests/test_workflow.py tests/test_orders.py -v`
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add src/core/database.py src/modules/messages/workflow.py src/modules/virtual_goods/service.py src/dashboard/repository.py tests/test_database_pool.py
@@ -577,7 +577,7 @@ git commit -m "refactor(db): introduce SQLiteDatabase connection manager, elimin
 
 **问题：** `MimicOps` 中有约 140 行纯委托方法（如 `def diagnose_cookie(self, ...): return CookieService.diagnose_cookie(...)`）。
 
-- [ ] **Step 1: 添加 `__getattr__` 委托**
+- [x] **Step 1: 添加 `__getattr__` 委托**
 
 ```python
 # 在 MimicOps 类中添加:
@@ -610,15 +610,15 @@ def __getattr__(self, name: str):
     raise AttributeError(f"'{type(self).__name__}' has no attribute '{name}'")
 ```
 
-- [ ] **Step 2: 删除原有的 140 行委托方法**
+- [x] **Step 2: 删除原有的 140 行委托方法**
 
 删除 `mimic_ops.py` 中所有一行委托方法（保留有额外逻辑的方法）。
 
-- [ ] **Step 3: 运行测试确认路由正常**
+- [x] **Step 3: 运行测试确认路由正常**
 
 Run: `python -m pytest tests/test_dashboard_routes_full.py tests/test_dashboard_router.py -v`
 
-- [ ] **Step 4: 提交**
+- [x] **Step 4: 提交**
 
 ```bash
 git add src/dashboard/mimic_ops.py
@@ -634,11 +634,11 @@ git commit -m "refactor(mimic_ops): replace 140 lines of delegation boilerplate 
 
 **问题：** `wave_b_virtual_goods.sql` 和 `wave_b1_virtual_goods_tables.sql` 是完全重复的。
 
-- [ ] **Step 1: 确认两个文件内容完全相同**
+- [x] **Step 1: 确认两个文件内容完全相同**
 
 Run: `diff database/migrations/20260306_wave_b_virtual_goods.sql database/migrations/20260306_wave_b1_virtual_goods_tables.sql`
 
-- [ ] **Step 2: 删除重复文件并提交**
+- [x] **Step 2: 删除重复文件并提交**
 
 ```bash
 git rm database/migrations/20260306_wave_b1_virtual_goods_tables.sql
@@ -655,7 +655,7 @@ git commit -m "chore: remove duplicate migration file wave_b1"
 
 **问题：** pytest/pytest-cov 在主依赖中；requirements.lock 过时；同时使用 black 和 ruff。
 
-- [ ] **Step 1: 将 pytest 相关依赖移到 dev 依赖**
+- [x] **Step 1: 将 pytest 相关依赖移到 dev 依赖**
 
 从 `requirements.txt` 移除：
 ```
@@ -666,15 +666,15 @@ pytest-cov>=4.1.0,<6.0.0
 
 添加到 `requirements-dev.txt`。
 
-- [ ] **Step 2: 从 dev 依赖移除 black（已有 ruff format）**
+- [x] **Step 2: 从 dev 依赖移除 black（已有 ruff format）**
 
 从 `requirements-dev.txt` 移除 `black`。
 
-- [ ] **Step 3: 更新 requirements.lock**
+- [x] **Step 3: 更新 requirements.lock**
 
 Run: `pip freeze > requirements.lock`
 
-- [ ] **Step 4: 提交**
+- [x] **Step 4: 提交**
 
 ```bash
 git add requirements.txt requirements-dev.txt requirements.lock
@@ -685,13 +685,13 @@ git commit -m "chore: move pytest to dev deps, remove redundant black, update lo
 
 ## 完成标准
 
-- [ ] Provider 定价逻辑无重复（共享 `pricing_calculator.py`）
-- [ ] `format_eta_days` 单一来源（`quote/utils.py`）
-- [ ] CookieCloud 凭证读取单一来源（`CookieCloudClient`）
-- [ ] 错误处理装饰器从 6 个精简到 3 个
-- [ ] 硬编码业务数据外部化为 JSON 文件
-- [ ] SQLite 使用连接池而非每次新建连接
-- [ ] MimicOps 无委托样板代码
-- [ ] 重复迁移文件已删除
-- [ ] 依赖管理已清理
-- [ ] `python -m pytest tests/ -q` 全部通过
+- [x] Provider 定价逻辑无重复（共享 `pricing_calculator.py`）
+- [x] `format_eta_days` 单一来源（`quote/utils.py`）
+- [x] CookieCloud 凭证读取单一来源（`CookieCloudClient`）
+- [x] 错误处理装饰器从 6 个精简到 3 个
+- [x] 硬编码业务数据外部化为 JSON 文件
+- [x] SQLite 使用连接池而非每次新建连接
+- [x] MimicOps 无委托样板代码
+- [x] 重复迁移文件已删除
+- [x] 依赖管理已清理
+- [x] `python -m pytest tests/ -q` 全部通过

@@ -1,6 +1,6 @@
 # P2: 前端 React 代码改进 Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** 提升 TypeScript 类型安全、消除代码重复、优化性能（代码分割和 memo）、引入前端工程化工具。
 
@@ -21,7 +21,7 @@
 
 **问题：** `tsconfig.json` 设置 `"strict": false`，禁用了所有类型安全检查。多个组件大量使用 `any`。
 
-- [ ] **Step 1: 为 api/accounts.ts 添加类型定义**
+- [x] **Step 1: 为 api/accounts.ts 添加类型定义**
 
 ```typescript
 // client/src/api/accounts.ts
@@ -47,11 +47,11 @@ export async function getAccounts(): Promise<AccountListResponse> {
 }
 ```
 
-- [ ] **Step 2: 为 api/xianguanjia.ts 添加类型定义**
+- [x] **Step 2: 为 api/xianguanjia.ts 添加类型定义**
 
 为产品、订单等核心数据结构定义接口，替换所有 `Promise<AxiosResponse>` 返回类型。
 
-- [ ] **Step 3: 逐步启用 strict 模式**
+- [x] **Step 3: 逐步启用 strict 模式**
 
 ```json
 // tsconfig.json — 先启用最关键的两个:
@@ -67,12 +67,12 @@ export async function getAccounts(): Promise<AccountListResponse> {
 
 这会暴露现有的类型错误。逐文件修复 `any` 类型和 null 检查问题。
 
-- [ ] **Step 4: 修复编译错误，运行构建确认**
+- [x] **Step 4: 修复编译错误，运行构建确认**
 
 Run: `cd client && npx tsc --noEmit`
 然后修复所有报错。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add client/tsconfig.json client/src/api/ client/src/pages/Orders.tsx client/src/pages/Dashboard.tsx
@@ -94,7 +94,7 @@ git commit -m "refactor(frontend): enable strictNullChecks + noImplicitAny, add 
 
 **问题：** `CollapsibleSection` 在 2 个文件重复；`formatPrice` 在 2 个文件重复；loading/error 状态模式在所有页面重复。
 
-- [ ] **Step 1: 提取 CollapsibleSection**
+- [x] **Step 1: 提取 CollapsibleSection**
 
 从 `AccountList.tsx` 或 `SystemConfig.tsx` 中提取较为完整的那一个，创建 `client/src/components/CollapsibleSection.tsx`：
 
@@ -126,7 +126,7 @@ export default function CollapsibleSection({ title, defaultOpen = false, childre
 }
 ```
 
-- [ ] **Step 2: 提取 formatPrice**
+- [x] **Step 2: 提取 formatPrice**
 
 创建 `client/src/utils/format.ts`：
 
@@ -138,7 +138,7 @@ export function formatPrice(price: number | string | null | undefined): string {
 }
 ```
 
-- [ ] **Step 3: 提取 useAsyncData hook**
+- [x] **Step 3: 提取 useAsyncData hook**
 
 创建 `client/src/hooks/useAsyncData.ts`：
 
@@ -175,17 +175,17 @@ export function useAsyncData<T>(
 }
 ```
 
-- [ ] **Step 4: 替换所有消费方**
+- [x] **Step 4: 替换所有消费方**
 
 - `AccountList.tsx` 和 `SystemConfig.tsx`: 删除本地 `CollapsibleSection`，import 共享组件
 - `Orders.tsx` 和 `ProductList.tsx`: 删除本地 `formatPrice`，import 共享函数
 - 逐步在各页面中使用 `useAsyncData` 替换手动的 loading/error 状态
 
-- [ ] **Step 5: 运行构建确认**
+- [x] **Step 5: 运行构建确认**
 
 Run: `cd client && npm run build`
 
-- [ ] **Step 6: 提交**
+- [x] **Step 6: 提交**
 
 ```bash
 git add client/src/components/CollapsibleSection.tsx client/src/utils/format.ts client/src/hooks/useAsyncData.ts client/src/pages/
@@ -202,7 +202,7 @@ git commit -m "refactor(frontend): extract shared CollapsibleSection, formatPric
 
 **问题：** 所有路由同步加载，包括 ~2MB 的 Monaco Editor。无代码分割。
 
-- [ ] **Step 1: 在 App.tsx 中使用 React.lazy**
+- [x] **Step 1: 在 App.tsx 中使用 React.lazy**
 
 ```tsx
 import { lazy, Suspense } from 'react'
@@ -253,7 +253,7 @@ export default function App() {
 }
 ```
 
-- [ ] **Step 2: 在 vite.config.js 添加 manualChunks**
+- [x] **Step 2: 在 vite.config.js 添加 manualChunks**
 
 ```javascript
 // vite.config.js
@@ -277,12 +277,12 @@ export default defineConfig({
 })
 ```
 
-- [ ] **Step 3: 运行构建确认分包效果**
+- [x] **Step 3: 运行构建确认分包效果**
 
 Run: `cd client && npm run build`
 Expected: 产出多个 chunk 文件，Monaco 单独一个 chunk。
 
-- [ ] **Step 4: 提交**
+- [x] **Step 4: 提交**
 
 ```bash
 git add client/src/App.tsx client/vite.config.js
@@ -298,21 +298,21 @@ git commit -m "perf(frontend): add React.lazy code splitting and Vite manual chu
 
 **问题：** `Analytics.tsx` (145行) 被 App.tsx 路由重定向到 `/dashboard`，完全不可达。
 
-- [ ] **Step 1: 删除文件并确认路由已重定向**
+- [x] **Step 1: 删除文件并确认路由已重定向**
 
 确认 `App.tsx` 中已有 `<Route path="/analytics" element={<Navigate to="/dashboard" replace />} />`。
 
-- [ ] **Step 2: 删除 Analytics.tsx**
+- [x] **Step 2: 删除 Analytics.tsx**
 
 Run: `rm client/src/pages/analytics/Analytics.tsx`
 
 如果 `analytics/` 目录为空，也删除目录。
 
-- [ ] **Step 3: 运行构建确认**
+- [x] **Step 3: 运行构建确认**
 
 Run: `cd client && npm run build`
 
-- [ ] **Step 4: 提交**
+- [x] **Step 4: 提交**
 
 ```bash
 git rm client/src/pages/analytics/Analytics.tsx
@@ -328,7 +328,7 @@ git commit -m "chore(frontend): remove unreachable Analytics page (dead code)"
 
 **问题：** 错误拦截器使用 `(error as any).message = userMsg.msg` 来修改错误对象。
 
-- [ ] **Step 1: 用自定义属性替代直接修改 error**
+- [x] **Step 1: 用自定义属性替代直接修改 error**
 
 ```typescript
 // api/index.ts — 响应拦截器中:
@@ -347,7 +347,7 @@ api.interceptors.response.use(
 // toast.error(err.userMessage || err.message || '操作失败')
 ```
 
-- [ ] **Step 2: 添加 AxiosError 类型扩展**
+- [x] **Step 2: 添加 AxiosError 类型扩展**
 
 ```typescript
 // client/src/types/axios.d.ts
@@ -361,11 +361,11 @@ declare module 'axios' {
 }
 ```
 
-- [ ] **Step 3: 运行构建确认**
+- [x] **Step 3: 运行构建确认**
 
 Run: `cd client && npm run build`
 
-- [ ] **Step 4: 提交**
+- [x] **Step 4: 提交**
 
 ```bash
 git add client/src/api/index.ts client/src/types/
@@ -381,11 +381,11 @@ git commit -m "fix(frontend): type-safe error handling, avoid mutating AxiosErro
 - Create: `client/.prettierrc`
 - Modify: `client/package.json` (添加 devDependencies 和 scripts)
 
-- [ ] **Step 1: 安装依赖**
+- [x] **Step 1: 安装依赖**
 
 Run: `cd client && npm install -D eslint @eslint/js typescript-eslint eslint-plugin-react-hooks prettier`
 
-- [ ] **Step 2: 创建 ESLint 配置**
+- [x] **Step 2: 创建 ESLint 配置**
 
 ```javascript
 // client/.eslintrc.cjs
@@ -406,7 +406,7 @@ module.exports = {
 }
 ```
 
-- [ ] **Step 3: 创建 Prettier 配置**
+- [x] **Step 3: 创建 Prettier 配置**
 
 ```json
 // client/.prettierrc
@@ -419,7 +419,7 @@ module.exports = {
 }
 ```
 
-- [ ] **Step 4: 添加 npm scripts**
+- [x] **Step 4: 添加 npm scripts**
 
 ```json
 {
@@ -431,13 +431,13 @@ module.exports = {
 }
 ```
 
-- [ ] **Step 5: 运行 lint 查看当前状态**
+- [x] **Step 5: 运行 lint 查看当前状态**
 
 Run: `cd client && npm run lint`
 
 不要求立即修复所有问题，先建立基线。
 
-- [ ] **Step 6: 提交**
+- [x] **Step 6: 提交**
 
 ```bash
 git add client/.eslintrc.cjs client/.prettierrc client/package.json client/package-lock.json
@@ -448,10 +448,10 @@ git commit -m "chore(frontend): add ESLint + Prettier configuration"
 
 ## 完成标准
 
-- [ ] TypeScript `strictNullChecks` + `noImplicitAny` 已启用
-- [ ] 共享组件 (`CollapsibleSection`, `formatPrice`, `useAsyncData`) 已提取
-- [ ] 路由级代码分割已实现（React.lazy + manual chunks）
-- [ ] 死代码已清理
-- [ ] API 错误处理类型安全
-- [ ] ESLint + Prettier 已配置
-- [ ] `npm run build` 成功，无 TypeScript 错误
+- [x] TypeScript `strictNullChecks` + `noImplicitAny` 已启用
+- [x] 共享组件 (`CollapsibleSection`, `formatPrice`, `useAsyncData`) 已提取
+- [x] 路由级代码分割已实现（React.lazy + manual chunks）
+- [x] 死代码已清理
+- [x] API 错误处理类型安全
+- [x] ESLint + Prettier 已配置
+- [x] `npm run build` 成功，无 TypeScript 错误
