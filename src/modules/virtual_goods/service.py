@@ -349,7 +349,8 @@ class VirtualGoodsService:
             )
             timeout_backlog = int(
                 conn.execute(
-                    "SELECT COUNT(1) FROM virtual_goods_callbacks WHERE processed=0 AND verify_passed=1 AND created_at<=?",
+                    "SELECT COUNT(1) FROM virtual_goods_callbacks "
+                    "WHERE processed=0 AND verify_passed=1 AND created_at<=?",
                     (cutoff,),
                 ).fetchone()[0]
             )
@@ -400,7 +401,11 @@ class VirtualGoodsService:
             where.append("stat_date <= ?")
             params.append(str(end_date))
 
-        sql = "SELECT stat_date, stage, xianyu_product_id, xianyu_listing_id, metric_count, updated_at FROM ops_funnel_stage_daily"
+        sql = (
+            "SELECT stat_date, stage, xianyu_product_id, "
+            "xianyu_listing_id, metric_count, updated_at "
+            "FROM ops_funnel_stage_daily"
+        )
         if where:
             sql += " WHERE " + " AND ".join(where)
         sql += " ORDER BY stat_date DESC, stage ASC LIMIT ?"
@@ -410,7 +415,8 @@ class VirtualGoodsService:
             rows = conn.execute(sql, tuple(params)).fetchall()
             unknown_event_kind = self._to_int(
                 conn.execute(
-                    "SELECT COUNT(1) FROM ops_exception_pool WHERE exception_code='unknown_event_kind' AND status != 'resolved'"
+                    "SELECT COUNT(1) FROM ops_exception_pool "
+                    "WHERE exception_code='unknown_event_kind' AND status != 'resolved'"
                 ).fetchone()[0]
             )
 
@@ -481,7 +487,8 @@ class VirtualGoodsService:
             rows = conn.execute(sql, tuple(params)).fetchall()
             unknown_event_kind = self._to_int(
                 conn.execute(
-                    "SELECT COUNT(1) FROM ops_exception_pool WHERE exception_code='unknown_event_kind' AND status != 'resolved'"
+                    "SELECT COUNT(1) FROM ops_exception_pool "
+                    "WHERE exception_code='unknown_event_kind' AND status != 'resolved'"
                 ).fetchone()[0]
             )
 
@@ -638,7 +645,8 @@ class VirtualGoodsService:
             rows = conn.execute(sql, tuple(params)).fetchall()
             unknown_event_kind = self._to_int(
                 conn.execute(
-                    "SELECT COUNT(1) FROM ops_exception_pool WHERE exception_code='unknown_event_kind' AND status != 'resolved'"
+                    "SELECT COUNT(1) FROM ops_exception_pool "
+                    "WHERE exception_code='unknown_event_kind' AND status != 'resolved'"
                 ).fetchone()[0]
             )
 
@@ -1131,12 +1139,16 @@ class VirtualGoodsService:
         except Exception as exc:
             with self._db.transaction() as conn:
                 conn.execute(
-                    "UPDATE virtual_goods_callbacks SET processed=0, last_process_error=?, processed_at=NULL WHERE id=?",
+                    "UPDATE virtual_goods_callbacks "
+                    "SET processed=0, last_process_error=?, processed_at=NULL "
+                    "WHERE id=?",
                     (f"replay_exception:{exc}", int(cb["id"])),
                 )
                 if cb.get("xianyu_order_id"):
                     conn.execute(
-                        "UPDATE virtual_goods_orders SET callback_status='failed', last_error=?, updated_at=? WHERE xianyu_order_id=?",
+                        "UPDATE virtual_goods_orders "
+                        "SET callback_status='failed', last_error=?, updated_at=? "
+                        "WHERE xianyu_order_id=?",
                         (f"replay_exception:{exc}", self._ts(), str(cb.get("xianyu_order_id"))),
                     )
             return self._resp(

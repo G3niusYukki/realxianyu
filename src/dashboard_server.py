@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import argparse
+import gzip as _gzip_mod
 import json
 import logging
 import mimetypes
 import os
+import re
 import sqlite3
 import sys
 import threading
@@ -17,16 +19,11 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from src.core.config import get_config
+from src.dashboard.config_service import read_system_config as _read_system_config
+from src.dashboard.mimic_ops import MimicOps, _error_payload, _safe_int
 from src.dashboard.module_console import ModuleConsole
 from src.dashboard.repository import DashboardRepository, LiveDashboardDataSource
 from src.dashboard.router import RouteContext, dispatch_delete, dispatch_get, dispatch_post, dispatch_put
-from src.dashboard.mimic_ops import MimicOps, _error_payload
-
-import re
-import gzip as _gzip_mod
-
-from src.dashboard.config_service import read_system_config as _read_system_config
-from src.dashboard.mimic_ops import _safe_int
 
 logger = logging.getLogger(__name__)
 
@@ -596,12 +593,12 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 return
 
             # --- Route dispatch (decorator-registered routes) ---
-            _ctx = RouteContext(
+            ctx = RouteContext(
                 _handler=self,
                 path=path,
                 query=query,
             )
-            if dispatch_get(path, _ctx):
+            if dispatch_get(path, ctx):
                 return
 
             if path in {"/", "/cookie", "/test", "/logs", "/logs/realtime"}:
@@ -630,7 +627,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
         dist_dir = Path(__file__).resolve().parents[1] / "client" / "dist"
         if not dist_dir.exists():
             self._send_html(
-                "<html><body><h1>Dashboard Not Built</h1><p>Please run <code>npm run build</code> in the <code>client/</code> directory.</p></body></html>"
+                "<html><body><h1>Dashboard Not Built</h1>"
+                "<p>Please run <code>npm run build</code> "
+                "in the <code>client/</code> directory.</p></body></html>"
             )
             return
 
@@ -680,12 +679,12 @@ class DashboardHandler(BaseHTTPRequestHandler):
         path = parsed.path
         try:
             # --- Route dispatch (decorator-registered routes) ---
-            _ctx = RouteContext(
+            ctx = RouteContext(
                 _handler=self,
                 path=path,
                 query=parse_qs(parsed.query),
             )
-            if dispatch_put(path, _ctx):
+            if dispatch_put(path, ctx):
                 return
 
             self._send_json(_error_payload("Not Found", code="NOT_FOUND"), status=404)
@@ -696,12 +695,12 @@ class DashboardHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
         try:
-            _ctx = RouteContext(
+            ctx = RouteContext(
                 _handler=self,
                 path=path,
                 query=parse_qs(parsed.query),
             )
-            if dispatch_delete(path, _ctx):
+            if dispatch_delete(path, ctx):
                 return
             self._send_json(_error_payload("Not Found", code="NOT_FOUND"), status=404)
         except Exception as e:
@@ -717,12 +716,12 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 return
 
             # --- Route dispatch (decorator-registered routes) ---
-            _ctx = RouteContext(
+            ctx = RouteContext(
                 _handler=self,
                 path=path,
                 query=parse_qs(urlparse(self.path).query),
             )
-            if dispatch_post(path, _ctx):
+            if dispatch_post(path, ctx):
                 return
 
             self._send_json(_error_payload("Not Found", code="NOT_FOUND"), status=404)
@@ -829,19 +828,19 @@ def run_server(host: str = "127.0.0.1", port: int = 8091, db_path: str | None = 
 
     # -- 看门狗守护线程 --
     module_console = DashboardHandler.module_console
-    _WD_COOLDOWN = 1800
-    _WD_MAX_RESTARTS = 3
-    _WD_INTERVAL = 120
-    _WD_MODULES = ("presales", "operations", "aftersales")
-    _wd_restart_counts: dict[str, int] = {m: 0 for m in _WD_MODULES}
-    _wd_last_restart_at: dict[str, float] = {m: 0.0 for m in _WD_MODULES}
+    WD_COOLDOWN = 1800
+    WD_MAX_RESTARTS = 3
+    WD_INTERVAL = 120
+    WD_MODULES = ("presales", "operations", "aftersales")
+    wd_restart_counts: dict[str, int] = {m: 0 for m in WD_MODULES}
+    wd_last_restart_at: dict[str, float] = {m: 0.0 for m in WD_MODULES}
 
     # 启动时自动拉起所有业务模块
-    for _target in _WD_MODULES:
+    for target in WD_MODULES:
         try:
             module_console._run_module_cli(
                 action="start",
-                target=_target,
+                target=target,
                 extra_args=[
                     "--mode",
                     "daemon",
@@ -855,14 +854,14 @@ def run_server(host: str = "127.0.0.1", port: int = 8091, db_path: str | None = 
                 ],
                 timeout_seconds=30,
             )
-            logger.info("Auto-start: %s 已启动", _target)
-        except Exception as _exc:
-            logger.warning("Auto-start: %s 启动失败: %s", _target, _exc)
+            logger.info("Auto-start: %s 已启动", target)
+        except Exception as exc:
+            logger.warning("Auto-start: %s 启动失败: %s", target, exc)
 
     def _watchdog_loop() -> None:
         shutdown_event.wait(60)
         while not shutdown_event.is_set():
-            shutdown_event.wait(_WD_INTERVAL)
+            shutdown_event.wait(WD_INTERVAL)
             if shutdown_event.is_set():
                 break
 
@@ -870,47 +869,47 @@ def run_server(host: str = "127.0.0.1", port: int = 8091, db_path: str | None = 
                 status_result = module_console.status(window_minutes=5, limit=5)
                 modules = status_result.get("modules") or {}
 
-                for _mod in _WD_MODULES:
+                for mod in WD_MODULES:
                     now_ts = time.time()
-                    cnt = _wd_restart_counts[_mod]
-                    last = _wd_last_restart_at[_mod]
+                    cnt = wd_restart_counts[mod]
+                    last = wd_last_restart_at[mod]
 
                     # 检查冷却
-                    if cnt >= _WD_MAX_RESTARTS and (now_ts - last) < _WD_COOLDOWN:
+                    if cnt >= WD_MAX_RESTARTS and (now_ts - last) < WD_COOLDOWN:
                         continue
-                    if (now_ts - last) >= _WD_COOLDOWN:
-                        _wd_restart_counts[_mod] = 0
+                    if (now_ts - last) >= WD_COOLDOWN:
+                        wd_restart_counts[mod] = 0
 
                     # 检查运行状态
                     mod_running = False
                     if isinstance(modules, dict):
-                        mod_info = modules.get(_mod, {})
+                        mod_info = modules.get(mod, {})
                         if isinstance(mod_info, dict):
                             proc = mod_info.get("process", {})
                             mod_running = bool(proc.get("alive", False)) if isinstance(proc, dict) else False
                     elif isinstance(modules, list):
                         for m in modules:
-                            if isinstance(m, dict) and m.get("name") == _mod and m.get("status") == "running":
+                            if isinstance(m, dict) and m.get("name") == mod and m.get("status") == "running":
                                 mod_running = True
                                 break
 
                     if not mod_running:
-                        logger.warning("Watchdog: %s 模块未运行，尝试自动启动...", _mod)
+                        logger.warning("Watchdog: %s 模块未运行，尝试自动启动...", mod)
                         try:
-                            module_console._run_module_cli(action="start", target=_mod, timeout_seconds=30)
-                            _wd_restart_counts[_mod] += 1
-                            _wd_last_restart_at[_mod] = time.time()
-                            logger.info("Watchdog: %s 模块已自动启动 (count=%d)", _mod, _wd_restart_counts[_mod])
+                            module_console._run_module_cli(action="start", target=mod, timeout_seconds=30)
+                            wd_restart_counts[mod] += 1
+                            wd_last_restart_at[mod] = time.time()
+                            logger.info("Watchdog: %s 模块已自动启动 (count=%d)", mod, wd_restart_counts[mod])
                         except Exception as start_exc:
-                            logger.error("Watchdog: %s 自动启动失败: %s", _mod, start_exc)
+                            logger.error("Watchdog: %s 自动启动失败: %s", mod, start_exc)
 
-                        if _wd_restart_counts[_mod] >= _WD_MAX_RESTARTS:
+                        if wd_restart_counts[mod] >= WD_MAX_RESTARTS:
                             try:
                                 from src.core.notify import send_system_notification
 
                                 send_system_notification(
-                                    f"【闲鱼自动化】⚠️ {_mod} 模块连续 {_WD_MAX_RESTARTS} 次异常重启，"
-                                    f"进入 {_WD_COOLDOWN // 60} 分钟静默期。请检查日志排查问题。",
+                                    f"【闲鱼自动化】⚠️ {mod} 模块连续 {WD_MAX_RESTARTS} 次异常重启，"
+                                    f"进入 {WD_COOLDOWN // 60} 分钟静默期。请检查日志排查问题。",
                                     event="watchdog_alert",
                                 )
                             except Exception:
@@ -930,6 +929,7 @@ def run_server(host: str = "127.0.0.1", port: int = 8091, db_path: str | None = 
     wd_thread.start()
 
     from loguru import logger as _loguru
+
     from src.dashboard.router import all_routes
 
     routes = all_routes()

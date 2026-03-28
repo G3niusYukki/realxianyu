@@ -185,9 +185,15 @@ class QuoteReplyComposer:
             price_str = f"{float(result.total_fee):.2f}元"
             if xianyu_extra is not None and extra_w > 0:
                 if base_w > 1:
-                    price_str += f"（首重{base_w:.0f}kg {float(result.base_fee):.2f} + 续重{extra_w:.1f}kg×{float(xianyu_extra):.2f}）"
+                    price_str += (
+                        f"（首重{base_w:.0f}kg {float(result.base_fee):.2f}"
+                        f" + 续重{extra_w:.1f}kg×{float(xianyu_extra):.2f}）"
+                    )
                 else:
-                    price_str += f"（首重{float(result.base_fee):.2f} + 续重{extra_w:.1f}kg×{float(xianyu_extra):.2f}）"
+                    price_str += (
+                        f"（首重{float(result.base_fee):.2f}"
+                        f" + 续重{extra_w:.1f}kg×{float(xianyu_extra):.2f}）"
+                    )
             elif extra_w > 0:
                 first_cost = exp.get("cost_first")
                 extra_cost = exp.get("cost_extra")

@@ -24,12 +24,11 @@ import yaml
 
 from src.core.config import get_config
 from src.dashboard.module_console import MODULE_TARGETS, ModuleConsole
+from src.dashboard.services import CookieService, XGJService
 from src.modules.messages.service import MessagesService
 from src.modules.quote.cost_table import CostTableRepository, normalize_courier_name
 from src.modules.quote.setup import DEFAULT_MARKUP_RULES, QuoteSetupService
 from src.modules.virtual_goods.service import VirtualGoodsService
-
-from src.dashboard.services import CookieService, XGJService
 
 logger = logging.getLogger(__name__)
 
@@ -2401,7 +2400,7 @@ class MimicOps:
         self, target: str = "presales", tail_lines: int = 300
     ) -> dict[str, Any]:
         fp = self._module_runtime_log(target)
-        _empty = {
+        empty = {
             "last_event": "",
             "last_event_at": "",
             "checked_lines": 0,
@@ -2414,7 +2413,7 @@ class MimicOps:
                 "label": "未检测（无日志）",
                 "score": 0,
                 "signals": ["日志文件不存在"],
-                **_empty,
+                **empty,
             }
 
         try:
@@ -2425,27 +2424,27 @@ class MimicOps:
                 "label": "未检测（读取失败）",
                 "score": 0,
                 "signals": [f"日志读取失败: {e}"],
-                **_empty,
+                **empty,
             }
 
         tail_n = max(50, min(int(tail_lines or 300), 2000))
         recent = [self._strip_ansi(line) for line in lines[-tail_n:] if str(line or "").strip()]
         if not recent:
-            return {"level": "unknown", "label": "未检测（空日志）", "score": 0, "signals": ["日志内容为空"], **_empty}
+            return {"level": "unknown", "label": "未检测（空日志）", "score": 0, "signals": ["日志内容为空"], **empty}
 
         block_hits: list[tuple[int, str]] = []
         warn_hits: list[tuple[int, str]] = []
         ws_400_lines: list[tuple[int, str]] = []
         connected_hits: list[tuple[int, str]] = []
 
-        _RECOVERY_SKIP = ("succeeded", "成功", "已恢复", "已过期")
+        RECOVERY_SKIP = ("succeeded", "成功", "已恢复", "已过期")
 
         for idx, line in enumerate(recent):
             lowered = line.lower()
             if "connected to goofish websocket transport" in lowered:
                 connected_hits.append((idx, line))
             if any(token in lowered for token in self._RISK_BLOCK_PATTERNS):
-                if not any(skip in lowered for skip in _RECOVERY_SKIP):
+                if not any(skip in lowered for skip in RECOVERY_SKIP):
                     block_hits.append((idx, line))
                 continue
             if any(token in lowered for token in self._RISK_WARN_PATTERNS):
@@ -2494,7 +2493,11 @@ class MimicOps:
             label = "正常"
             score = 0
             signals = [
-                f"历史高风险信号 x{len(stale_blocks)}（最后于 {last_block_time}，已超过 {self._RISK_SIGNAL_WINDOW_MINUTES} 分钟，已过期）"
+                (
+                    f"历史高风险信号 x{len(stale_blocks)}"
+                    f"（最后于 {last_block_time}，"
+                    f"已超过 {self._RISK_SIGNAL_WINDOW_MINUTES} 分钟，已过期）"
+                )
             ]
             last_event = stale_blocks[-1][1]
         elif len(active_ws400) >= 10 or active_warns:
@@ -2515,7 +2518,11 @@ class MimicOps:
             label = "正常"
             score = 0
             signals = [
-                f"历史异常信号 x{stale_total}（最后于 {last_stale_time}，已超过 {self._RISK_SIGNAL_WINDOW_MINUTES} 分钟，已过期）"
+                (
+                    f"历史异常信号 x{stale_total}"
+                    f"（最后于 {last_stale_time}，"
+                    f"已超过 {self._RISK_SIGNAL_WINDOW_MINUTES} 分钟，已过期）"
+                )
             ]
             last_event = last_stale[1]
 
@@ -2865,11 +2872,11 @@ class MimicOps:
                     self._shared_cookie_checker = CookieHealthChecker(cookie_text, timeout_seconds=5.0)
                 else:
                     self._shared_cookie_checker.cookie_text = cookie_text
-                _ck_result = self._shared_cookie_checker.check_sync(force=False)
+                ck_result = self._shared_cookie_checker.check_sync(force=False)
                 cookie_health_info = {
-                    "healthy": bool(_ck_result.get("healthy")),
-                    "message": _ck_result.get("message", ""),
-                    "score": 100 if _ck_result.get("healthy") else 0,
+                    "healthy": bool(ck_result.get("healthy")),
+                    "message": ck_result.get("message", ""),
+                    "score": 100 if ck_result.get("healthy") else 0,
                 }
             else:
                 cookie_health_info = {"healthy": False, "message": "Cookie 未配置", "score": 0}

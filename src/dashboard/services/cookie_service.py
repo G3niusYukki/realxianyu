@@ -419,7 +419,8 @@ class CookieService:
                     )
                 return (
                     "触发平台风控，请在闲鱼网页版打开「消息」页面通过滑块验证后，"
-                    "手动复制 Cookie 并粘贴保存（F12 \u2192 Network \u2192 Cookie），然后执行\u201c售前一键恢复\u201d。\n"
+                    "手动复制 Cookie 并粘贴保存"
+                    "（F12 → Network → Cookie），然后执行\u201c售前一键恢复\u201d。\n"
                     "提示：配置 CookieCloud 可实现验证后秒级自动恢复。"
                 )
             return "存在鉴权错误，建议更新 Cookie 后重连。"

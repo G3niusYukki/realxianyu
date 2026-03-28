@@ -18,10 +18,10 @@ from __future__ import annotations
 import os
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any
-from collections.abc import Callable
 
 from src.core.logger import get_logger
 
@@ -526,7 +526,7 @@ class CookieAutoRefresher:
         new_cookie: str | None = None
 
         try:
-            from src.core.goofish_im_cookie import read_goofish_im_cookies, merge_cookies
+            from src.core.goofish_im_cookie import merge_cookies, read_goofish_im_cookies
 
             im_result = read_goofish_im_cookies(min_ttl=60)
             if im_result:
@@ -560,7 +560,11 @@ class CookieAutoRefresher:
             self._last_refresh_ok = False
             self._send_notification(
                 "⚠️ Cookie 自动刷新失败",
-                f"【闲鱼自动化】Cookie 过期告警\n状态: {msg}\n静默刷新: 获取到新 Cookie 但验证失败\n请手动打开 Dashboard 更新 Cookie",
+                (
+                    f"【闲鱼自动化】Cookie 过期告警\n状态: {msg}"
+                    "\n静默刷新: 获取到新 Cookie 但验证失败"
+                    "\n请手动打开 Dashboard 更新 Cookie"
+                ),
                 event="cookie_expire",
             )
             return

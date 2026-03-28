@@ -667,14 +667,14 @@ class GoofishWsTransport:
 
         import asyncio as _asyncio
 
-        _loop = _asyncio.new_event_loop()
+        loop = _asyncio.new_event_loop()
         try:
             grabber = CookieGrabber()
-            return _loop.run_until_complete(grabber._grab_from_browser_db())
+            return loop.run_until_complete(grabber._grab_from_browser_db())
         except Exception:
             return None
         finally:
-            _loop.close()
+            loop.close()
 
     def _send_risk_control_notification(self) -> None:
         """Send alert via Feishu/WeCom when RGV587 triggers infinite wait."""
@@ -697,12 +697,12 @@ class GoofishWsTransport:
             try:
                 from src.core.bitbrowser_cdp import get_fp_config as _gfp
 
-                _fp_on = _gfp(self.config).get("enabled", False)
+                fp_on = _gfp(self.config).get("enabled", False)
             except ImportError:
-                _fp_on = False
+                fp_on = False
 
             if slider_on:
-                if _fp_on:
+                if fp_on:
                     lines.append("正在通过 BitBrowser 直读 Cookie + DrissionPage 自动过滑块尝试恢复...")
                 else:
                     lines.append("系统将自动尝试滑块验证，请稍候...")
@@ -758,9 +758,9 @@ class GoofishWsTransport:
                 self.logger.info("BitBrowser cookie refresh: no cookies read from CDP")
                 return False
 
-        _min_required = {"sgcookie", "cookie2", "_m_h5_tk"}
+        min_required = {"sgcookie", "cookie2", "_m_h5_tk"}
         cdp_keys = {p.split("=")[0].strip() for p in cookie_str.split(";") if "=" in p}
-        missing_min = _min_required - cdp_keys
+        missing_min = min_required - cdp_keys
         if missing_min:
             self.logger.warning(
                 f"BitBrowser cookie refresh: too few fields (missing: {missing_min}), got {len(cdp_keys)} fields"
@@ -888,9 +888,9 @@ class GoofishWsTransport:
             if not cookie_str:
                 return False
 
-            _min_required = {"sgcookie", "cookie2", "_m_h5_tk"}
+            min_required = {"sgcookie", "cookie2", "_m_h5_tk"}
             cookie_keys = {p.split("=")[0].strip() for p in cookie_str.split(";") if "=" in p}
-            missing_min = _min_required - cookie_keys
+            missing_min = min_required - cookie_keys
 
             if missing_min:
                 self.logger.info(
@@ -1413,15 +1413,15 @@ class GoofishWsTransport:
         sender_name = str(event.get("sender_name", "") or "买家")
         if sender_name and sender_name != "买家":
             self._nick_to_session[sender_name] = chat_id
-        _SESSION_PEER_MAX = 1000
-        if len(self._session_peer) > _SESSION_PEER_MAX:
-            oldest_keys = list(self._session_peer.keys())[: len(self._session_peer) - _SESSION_PEER_MAX]
+        SESSION_PEER_MAX = 1000
+        if len(self._session_peer) > SESSION_PEER_MAX:
+            oldest_keys = list(self._session_peer.keys())[: len(self._session_peer) - SESSION_PEER_MAX]
             for k in oldest_keys:
                 peer = self._session_peer.pop(k, None)
                 if peer:
                     self._peer_to_session.pop(peer, None)
-        if len(self._nick_to_session) > _SESSION_PEER_MAX:
-            oldest = list(self._nick_to_session.keys())[: len(self._nick_to_session) - _SESSION_PEER_MAX]
+        if len(self._nick_to_session) > SESSION_PEER_MAX:
+            oldest = list(self._nick_to_session.keys())[: len(self._nick_to_session) - SESSION_PEER_MAX]
             for k in oldest:
                 self._nick_to_session.pop(k, None)
         payload = {
@@ -1473,7 +1473,9 @@ class GoofishWsTransport:
             event = extract_chat_event(decoded)
             if event:
                 self.logger.info(
-                    f"WS chat event: chat={event.get('chat_id', '?')}, sender={event.get('sender_user_id', '?')}, text={event.get('text', '')[:50]}"
+                    f"WS chat event: chat={event.get('chat_id', '?')}, "
+                    f"sender={event.get('sender_user_id', '?')}, "
+                    f"text={event.get('text', '')[:50]}"
                 )
                 await self._push_event(event)
             else:
@@ -1485,12 +1487,12 @@ class GoofishWsTransport:
             raise BrowserError("WebSocket transport requires `websockets`. Install: pip install websockets")
 
         self._ensure_async_primitives()
-        _cdp_preloaded = False
+        cdp_preloaded = False
         while not self._stop_event.is_set():
             try:
                 self._maybe_reload_cookie(reason="connect")
-                if not _cdp_preloaded:
-                    _cdp_preloaded = True
+                if not cdp_preloaded:
+                    cdp_preloaded = True
                     try:
                         from src.core.bitbrowser_cdp import get_fp_config
 
@@ -1621,9 +1623,9 @@ class GoofishWsTransport:
                 try:
                     from src.core.bitbrowser_cdp import get_fp_config as _get_fp_cfg
 
-                    _fp_enabled = _get_fp_cfg(self.config).get("enabled", False)
+                    fp_enabled = _get_fp_cfg(self.config).get("enabled", False)
                 except ImportError:
-                    _fp_enabled = False
+                    fp_enabled = False
 
                 if auth_error:
                     if is_rgv587:
@@ -1671,7 +1673,7 @@ class GoofishWsTransport:
 
                         # Step 3: BitBrowser CDP 直读 cookie (前置补充，不阻断滑块)
                         elif slider_enabled and self._slider_recovery_attempts < self._SLIDER_MAX_ATTEMPTS_PER_CYCLE:
-                            if _fp_enabled:
+                            if fp_enabled:
                                 cdp_refreshed = await self._try_bitbrowser_cookie_refresh()
                                 if cdp_refreshed:
                                     self._connect_failures = 0
@@ -1687,7 +1689,8 @@ class GoofishWsTransport:
                                 self.logger.info("滑块验证通过，标记待验证，立即重试 WS 连接")
                                 continue
                             self.logger.warning(
-                                f"滑块自动恢复失败 ({self._slider_recovery_attempts}/{self._SLIDER_MAX_ATTEMPTS_PER_CYCLE})，"
+                                f"滑块自动恢复失败 "
+                                f"({self._slider_recovery_attempts}/{self._SLIDER_MAX_ATTEMPTS_PER_CYCLE})，"
                                 f"退避 {rgv_backoff:.0f}s..."
                             )
                             await asyncio.sleep(rgv_backoff)
@@ -1697,7 +1700,7 @@ class GoofishWsTransport:
                                 f"RGV587 风控检测 ({self._rgv587_consecutive})，退避 {rgv_backoff:.0f}s 后重试..."
                             )
                             await self._try_goofish_im_refresh(urgent=True)
-                            if not _fp_enabled and await self._try_active_cookie_refresh():
+                            if not fp_enabled and await self._try_active_cookie_refresh():
                                 self.logger.info("Active cookie refresh succeeded during RGV587 backoff")
                             await asyncio.sleep(rgv_backoff)
                             continue
@@ -1723,12 +1726,12 @@ class GoofishWsTransport:
                         self._connect_failures = 0
                         self.logger.info("闲管家IM Cookie刷新成功 (401恢复)，立即重试 WS 连接")
                         continue
-                    elif _fp_enabled and await self._try_bitbrowser_cookie_refresh():
+                    elif fp_enabled and await self._try_bitbrowser_cookie_refresh():
                         self._active_refresh_401_streak = 0
                         self._connect_failures = 0
                         self.logger.info("BitBrowser CDP Cookie刷新成功 (401恢复)，立即重试 WS 连接")
                         continue
-                    elif not _fp_enabled and await self._try_active_cookie_refresh():
+                    elif not fp_enabled and await self._try_active_cookie_refresh():
                         self._active_refresh_401_streak += 1
                         if self._active_refresh_401_streak >= 3:
                             self.logger.warning(
