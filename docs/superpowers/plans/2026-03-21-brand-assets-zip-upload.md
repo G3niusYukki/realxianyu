@@ -1,6 +1,6 @@
 # Brand Assets Zip Upload Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** 允许用户一次性上传包含多张品牌图片的 zip 压缩包，替代逐张上传的操作方式。
 
@@ -15,7 +15,7 @@
 **Files:**
 - Create: `tests/test_brand_assets_zip_cov100.py`
 
-- [ ] **Step 1: 新建测试文件，写第一个失败测试**
+- [x] **Step 1: 新建测试文件，写第一个失败测试**
 
 ```python
 """tests/test_brand_assets_zip_cov100.py — ZIP 批量上传接口测试"""
@@ -88,14 +88,14 @@ class TestUploadZipSuccess:
         assert resp["errors"] == []
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 ```bash
 cd /Users/peterzhang/realxianyu && ./venv/bin/python -m pytest tests/test_brand_assets_zip_cov100.py::TestUploadZipSuccess::test_imports_two_png_images -v
 ```
 Expected: FAIL with `AttributeError` or `ImportError` — `handle_brand_assets_upload_zip` 不存在
 
-- [ ] **Step 3: Commit red step**
+- [x] **Step 3: Commit red step**
 
 ```bash
 cd /Users/peterzhang/realxianyu && git add tests/test_brand_assets_zip_cov100.py && git commit -m "test: add failing test for upload-zip endpoint"
@@ -108,7 +108,7 @@ cd /Users/peterzhang/realxianyu && git add tests/test_brand_assets_zip_cov100.py
 **Files:**
 - Modify: `src/dashboard/routes/products.py` (在 `handle_brand_assets_upload` 定义之后插入，约第 461 行)
 
-- [ ] **Step 1: 在 `products.py` 中添加新路由**
+- [x] **Step 1: 在 `products.py` 中添加新路由**
 
 在第 461 行（`handle_brand_assets_upload` 函数块结束后）插入：
 
@@ -181,14 +181,14 @@ def handle_brand_assets_upload_zip(ctx: RouteContext) -> None:
     ctx.send_json({"ok": True, "imported": imported, "skipped": skipped, "errors": errors})
 ```
 
-- [ ] **Step 2: 运行测试确认通过**
+- [x] **Step 2: 运行测试确认通过**
 
 ```bash
 cd /Users/peterzhang/realxianyu && ./venv/bin/python -m pytest tests/test_brand_assets_zip_cov100.py::TestUploadZipSuccess::test_imports_two_png_images -v
 ```
 Expected: PASS
 
-- [ ] **Step 3: Commit green step**
+- [x] **Step 3: Commit green step**
 
 ```bash
 cd /Users/peterzhang/realxianyu && git add src/dashboard/routes/products.py && git commit -m "feat: implement handle_brand_assets_upload_zip"
@@ -201,7 +201,7 @@ cd /Users/peterzhang/realxianyu && git add src/dashboard/routes/products.py && g
 **Files:**
 - Modify: `tests/test_brand_assets_zip_cov100.py`
 
-- [ ] **Step 1: 添加更多测试用例**
+- [x] **Step 1: 添加更多测试用例**
 
 在测试文件中追加以下测试类：
 
@@ -318,21 +318,21 @@ class TestUploadZipEdgeCases:
         mock_add.assert_called_once_with("德邦", "freight", b"\x89PNG fake", "png")
 ```
 
-- [ ] **Step 2: 运行全部测试**
+- [x] **Step 2: 运行全部测试**
 
 ```bash
 cd /Users/peterzhang/realxianyu && ./venv/bin/python -m pytest tests/test_brand_assets_zip_cov100.py -v
 ```
 Expected: all PASS
 
-- [ ] **Step 3: 确认现有测试不受影响**
+- [x] **Step 3: 确认现有测试不受影响**
 
 ```bash
 cd /Users/peterzhang/realxianyu && ./venv/bin/python -m pytest tests/ -q --tb=short 2>&1 | tail -20
 ```
 Expected: no new failures
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 cd /Users/peterzhang/realxianyu && git add tests/test_brand_assets_zip_cov100.py && git commit -m "test: add edge case coverage for POST /api/brand-assets/upload-zip"
@@ -345,7 +345,7 @@ cd /Users/peterzhang/realxianyu && git add tests/test_brand_assets_zip_cov100.py
 **Files:**
 - Modify: `client/src/api/listing.ts` (在 `uploadBrandAsset` 之后插入)
 
-- [ ] **Step 1: 在 `deleteBrandAsset` 之前（第 34 行前）新增函数**
+- [x] **Step 1: 在 `deleteBrandAsset` 之前（第 34 行前）新增函数**
 
 ```typescript
 export const uploadBrandAssetsZip = (
@@ -359,14 +359,14 @@ export const uploadBrandAssetsZip = (
 };
 ```
 
-- [ ] **Step 2: 确认 TypeScript 编译通过**
+- [x] **Step 2: 确认 TypeScript 编译通过**
 
 ```bash
 cd /Users/peterzhang/realxianyu/client && npx tsc --noEmit 2>&1 | head -20
 ```
 Expected: no errors
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 cd /Users/peterzhang/realxianyu && git add client/src/api/listing.ts && git commit -m "feat: add uploadBrandAssetsZip API function"
@@ -379,7 +379,7 @@ cd /Users/peterzhang/realxianyu && git add client/src/api/listing.ts && git comm
 **Files:**
 - Modify: `client/src/pages/products/AutoPublish.tsx`
 
-- [ ] **Step 1: 添加所需 state 和 handler**
+- [x] **Step 1: 添加所需 state 和 handler**
 
 在 `BrandAssetsTab` 函数体内，`fileRef` 声明（第 82 行）之后插入：
 
@@ -409,7 +409,7 @@ const handleZipUpload = async () => {
 };
 ```
 
-- [ ] **Step 2: 在 import 行引入新 API 函数**
+- [x] **Step 2: 在 import 行引入新 API 函数**
 
 在 `AutoPublish.tsx` 顶部找到引入 `uploadBrandAsset` 的那行，将 `uploadBrandAssetsZip` 加进去：
 
@@ -417,7 +417,7 @@ const handleZipUpload = async () => {
 import { ..., uploadBrandAsset, uploadBrandAssetsZip, ... } from '../../api/listing';
 ```
 
-- [ ] **Step 3: 在上传卡片中追加批量上传区块**
+- [x] **Step 3: 在上传卡片中追加批量上传区块**
 
 在第 168 行（`</div>` — 关闭单文件上传 flex 行）之后，第 169 行（`</div>` — 关闭 `xy-card p-5`）之前插入分隔线和批量区块：
 
@@ -437,21 +437,21 @@ import { ..., uploadBrandAsset, uploadBrandAssetsZip, ... } from '../../api/list
         </div>
 ```
 
-- [ ] **Step 4: 确认 TypeScript 编译通过**
+- [x] **Step 4: 确认 TypeScript 编译通过**
 
 ```bash
 cd /Users/peterzhang/realxianyu/client && npx tsc --noEmit 2>&1 | head -20
 ```
 Expected: no errors
 
-- [ ] **Step 5: 构建前端**
+- [x] **Step 5: 构建前端**
 
 ```bash
 cd /Users/peterzhang/realxianyu/client && npm run build 2>&1 | tail -10
 ```
 Expected: build succeeds
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 cd /Users/peterzhang/realxianyu && git add client/src/pages/products/AutoPublish.tsx && git commit -m "feat: add batch zip upload UI for brand assets"
@@ -461,21 +461,21 @@ cd /Users/peterzhang/realxianyu && git add client/src/pages/products/AutoPublish
 
 ### Task 6: 全量测试 + Push
 
-- [ ] **Step 1: 运行全量测试**
+- [x] **Step 1: 运行全量测试**
 
 ```bash
 cd /Users/peterzhang/realxianyu && ./venv/bin/python -m pytest tests/ -q 2>&1 | tail -20
 ```
 Expected: all pass (no new failures)
 
-- [ ] **Step 2: Lint 检查**
+- [x] **Step 2: Lint 检查**
 
 ```bash
 cd /Users/peterzhang/realxianyu && ./venv/bin/ruff check src/ && ./venv/bin/ruff format src/ --check
 ```
 Expected: no errors
 
-- [ ] **Step 3: Push**
+- [x] **Step 3: Push**
 
 ```bash
 cd /Users/peterzhang/realxianyu && git push origin main

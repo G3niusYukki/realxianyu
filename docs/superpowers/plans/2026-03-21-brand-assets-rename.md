@@ -1,6 +1,6 @@
 # Brand Asset Rename Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** 允许用户对素材库中每张品牌图片单独改名（改名后自动归入对应品牌分组）。
 
@@ -15,7 +15,7 @@
 **Files:**
 - Create: `tests/test_brand_assets_rename_cov100.py`
 
-- [ ] **Step 1: 新建测试文件，写失败测试**
+- [x] **Step 1: 新建测试文件，写失败测试**
 
 ```python
 """tests/test_brand_assets_rename_cov100.py — 品牌资产改名测试"""
@@ -76,14 +76,14 @@ class TestRenameAsset:
         assert result["name"] == "unnamed"
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 ```bash
 cd /Users/peterzhang/realxianyu && ./venv/bin/python -m pytest tests/test_brand_assets_rename_cov100.py -v 2>&1 | tail -15
 ```
 Expected: FAIL — `AttributeError: 'BrandAssetManager' object has no attribute 'rename_asset'`
 
-- [ ] **Step 3: Commit red step**
+- [x] **Step 3: Commit red step**
 
 ```bash
 cd /Users/peterzhang/realxianyu && git add tests/test_brand_assets_rename_cov100.py && git commit -m "test: add failing tests for BrandAssetManager.rename_asset"
@@ -96,7 +96,7 @@ cd /Users/peterzhang/realxianyu && git add tests/test_brand_assets_rename_cov100
 **Files:**
 - Modify: `src/modules/listing/brand_assets.py` (在 `delete_asset` 方法之后，约第 183 行)
 
-- [ ] **Step 1: 在 `delete_asset` 末尾之后插入新方法**
+- [x] **Step 1: 在 `delete_asset` 末尾之后插入新方法**
 
 在第 183 行（`return True` 之后的空行）处，在 `get_brands_grouped` 方法之前插入：
 
@@ -123,14 +123,14 @@ cd /Users/peterzhang/realxianyu && git add tests/test_brand_assets_rename_cov100
             return dict(entries[idx])
 ```
 
-- [ ] **Step 2: 运行测试确认通过**
+- [x] **Step 2: 运行测试确认通过**
 
 ```bash
 cd /Users/peterzhang/realxianyu && ./venv/bin/python -m pytest tests/test_brand_assets_rename_cov100.py -v 2>&1 | tail -15
 ```
 Expected: 5 passed
 
-- [ ] **Step 3: Commit green step**
+- [x] **Step 3: Commit green step**
 
 ```bash
 cd /Users/peterzhang/realxianyu && git add src/modules/listing/brand_assets.py tests/test_brand_assets_rename_cov100.py && git commit -m "feat: add BrandAssetManager.rename_asset"
@@ -143,7 +143,7 @@ cd /Users/peterzhang/realxianyu && git add src/modules/listing/brand_assets.py t
 **Files:**
 - Create: `tests/test_brand_assets_rename_route_cov100.py`
 
-- [ ] **Step 1: 新建路由测试文件**
+- [x] **Step 1: 新建路由测试文件**
 
 ```python
 """tests/test_brand_assets_rename_route_cov100.py — 改名路由测试"""
@@ -204,14 +204,14 @@ class TestBrandAssetsRenameRoute:
         assert ctx.send_json.call_args[1].get("status") == 404
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 ```bash
 cd /Users/peterzhang/realxianyu && ./venv/bin/python -m pytest tests/test_brand_assets_rename_route_cov100.py -v 2>&1 | tail -10
 ```
 Expected: FAIL — `ImportError: cannot import name 'handle_brand_assets_rename'`
 
-- [ ] **Step 3: Commit red step**
+- [x] **Step 3: Commit red step**
 
 ```bash
 cd /Users/peterzhang/realxianyu && git add tests/test_brand_assets_rename_route_cov100.py && git commit -m "test: add failing tests for PUT /api/brand-assets rename route"
@@ -224,7 +224,7 @@ cd /Users/peterzhang/realxianyu && git add tests/test_brand_assets_rename_route_
 **Files:**
 - Modify: `src/dashboard/routes/products.py` (在 `handle_brand_assets_delete` 函数块之前，约第 392 行)
 
-- [ ] **Step 1: 确认 `put_prefix` 已在 import 行中**
+- [x] **Step 1: 确认 `put_prefix` 已在 import 行中**
 
 查看 `products.py` 第 10 行：
 ```python
@@ -232,7 +232,7 @@ from src.dashboard.router import RouteContext, get, post, get_prefix, post_prefi
 ```
 `put_prefix` 已存在，无需修改 import。
 
-- [ ] **Step 2: 在第 392 行（`# DELETE /api/brand-assets/` 注释块之前）插入新路由**
+- [x] **Step 2: 在第 392 行（`# DELETE /api/brand-assets/` 注释块之前）插入新路由**
 
 注：`@put_prefix("/api/brand-assets/", "asset_id")` 与现有 `GET /api/brand-assets/file/` 前缀路由不冲突，因为它们分属不同 HTTP 方法的路由表（`_PUT_PREFIX_ROUTES` vs `_GET_PREFIX_ROUTES`）。
 
@@ -266,21 +266,21 @@ def handle_brand_assets_rename(ctx: RouteContext) -> None:
     ctx.send_json({"ok": True, "asset": updated})
 ```
 
-- [ ] **Step 3: 运行路由测试确认通过**
+- [x] **Step 3: 运行路由测试确认通过**
 
 ```bash
 cd /Users/peterzhang/realxianyu && ./venv/bin/python -m pytest tests/test_brand_assets_rename_route_cov100.py -v 2>&1 | tail -10
 ```
 Expected: 5 passed
 
-- [ ] **Step 4: 确认全量测试不受影响**
+- [x] **Step 4: 确认全量测试不受影响**
 
 ```bash
 cd /Users/peterzhang/realxianyu && ./venv/bin/python -m pytest tests/ -q --tb=short 2>&1 | tail -5
 ```
 Expected: no new failures
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd /Users/peterzhang/realxianyu && git add src/dashboard/routes/products.py tests/test_brand_assets_rename_route_cov100.py && git commit -m "feat: add PUT /api/brand-assets/<id> rename route"
@@ -293,7 +293,7 @@ cd /Users/peterzhang/realxianyu && git add src/dashboard/routes/products.py test
 **Files:**
 - Modify: `client/src/api/listing.ts` (在 `uploadBrandAssetsZip` 之后，约第 44 行)
 
-- [ ] **Step 1: 在 `deleteBrandAsset` 之前插入新函数**
+- [x] **Step 1: 在 `deleteBrandAsset` 之前插入新函数**
 
 ```typescript
 export const renameBrandAsset = (
@@ -303,14 +303,14 @@ export const renameBrandAsset = (
   api.put(`/brand-assets/${id}`, { name });
 ```
 
-- [ ] **Step 2: 确认 TypeScript 编译无新错误**
+- [x] **Step 2: 确认 TypeScript 编译无新错误**
 
 ```bash
 cd /Users/peterzhang/realxianyu/client && npx tsc --noEmit 2>&1 | grep listing
 ```
 Expected: no output (no errors in listing.ts)
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 cd /Users/peterzhang/realxianyu && git add client/src/api/listing.ts && git commit -m "feat: add renameBrandAsset API function"
@@ -323,7 +323,7 @@ cd /Users/peterzhang/realxianyu && git add client/src/api/listing.ts && git comm
 **Files:**
 - Modify: `client/src/pages/products/AutoPublish.tsx`
 
-- [ ] **Step 1: 在 import 中加入 Pencil、Check、X 图标，并引入 renameBrandAsset**
+- [x] **Step 1: 在 import 中加入 Pencil、Check、X 图标，并引入 renameBrandAsset**
 
 将第 5 行的 API import 改为：
 ```typescript
@@ -341,7 +341,7 @@ import {
 } from 'lucide-react';
 ```
 
-- [ ] **Step 2: 在 BrandAssetsTab 的 state 区块新增改名 state**
+- [x] **Step 2: 在 BrandAssetsTab 的 state 区块新增改名 state**
 
 在 `fileRef` 声明（约第 82 行）之后，`zipUploading` 声明之前插入：
 ```typescript
@@ -349,7 +349,7 @@ const [renamingId, setRenamingId] = useState<string | null>(null);
 const [renameValue, setRenameValue] = useState('');
 ```
 
-- [ ] **Step 3: 新增 handleRename 函数**
+- [x] **Step 3: 新增 handleRename 函数**
 
 在 `handleUpload` 函数之后（`fetchData` 已在约第 107 行定义，此处可直接引用）：
 ```typescript
@@ -368,7 +368,7 @@ const handleRename = async (id: string) => {
 };
 ```
 
-- [ ] **Step 4: 替换素材库中每个缩略图的 JSX**
+- [x] **Step 4: 替换素材库中每个缩略图的 JSX**
 
 找到约第 226 行（品牌内每张图的容器），将：
 ```tsx
@@ -419,21 +419,21 @@ const handleRename = async (id: string) => {
                   ))}
 ```
 
-- [ ] **Step 5: 确认 TypeScript 编译无新错误**
+- [x] **Step 5: 确认 TypeScript 编译无新错误**
 
 ```bash
 cd /Users/peterzhang/realxianyu/client && npx tsc --noEmit 2>&1 | grep -i "autopublish\|listing"
 ```
 Expected: no output
 
-- [ ] **Step 6: 构建前端**
+- [x] **Step 6: 构建前端**
 
 ```bash
 cd /Users/peterzhang/realxianyu/client && npm run build 2>&1 | tail -5
 ```
 Expected: `✓ built in ...`
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 cd /Users/peterzhang/realxianyu && git add client/src/pages/products/AutoPublish.tsx && git commit -m "feat: add inline rename UI for brand assets"
@@ -443,14 +443,14 @@ cd /Users/peterzhang/realxianyu && git add client/src/pages/products/AutoPublish
 
 ### Task 7: 全量测试 + Push
 
-- [ ] **Step 1: 全量测试**
+- [x] **Step 1: 全量测试**
 
 ```bash
 cd /Users/peterzhang/realxianyu && ./venv/bin/python -m pytest tests/ -q 2>&1 | tail -5
 ```
 Expected: no new failures
 
-- [ ] **Step 2: Push**
+- [x] **Step 2: Push**
 
 ```bash
 cd /Users/peterzhang/realxianyu && git push origin main
