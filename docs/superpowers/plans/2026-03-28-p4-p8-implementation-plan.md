@@ -409,17 +409,17 @@ Create `client/src/api/__tests__/config.test.ts`:
 ```typescript
 import { getSystemConfig, saveSystemConfig, getConfigSections } from "../config";
 import { api } from "../index";
-vi.mock("../index", () => ({ api: { get: vi.fn(), post: vi.fn() } }));
+vi.mock("../index", () => ({ api: { get: vi.fn(), put: vi.fn() } }));
 describe("config API", () => {
   it("calls GET /config for getSystemConfig", async () => {
     vi.mocked(api.get).mockResolvedValue({ data: { config: {} } });
     await getSystemConfig();
     expect(api.get).toHaveBeenCalledWith("/config");
   });
-  it("calls POST /config for saveSystemConfig", async () => {
-    vi.mocked(api.post).mockResolvedValue({ data: { config: {} } });
+  it("calls PUT /config for saveSystemConfig", async () => {
+    vi.mocked(api.put).mockResolvedValue({ data: { config: {} } });
     await saveSystemConfig({ key: "val" });
-    expect(api.post).toHaveBeenCalledWith("/config", { key: "val" });
+    expect(api.put).toHaveBeenCalledWith("/config", { key: "val" });
   });
   it("calls GET /config/sections for getConfigSections", async () => {
     vi.mocked(api.get).mockResolvedValue({ data: { sections: [] } });
@@ -435,15 +435,15 @@ import { getSystemStatus, getDashboardSummary, serviceControl } from "../dashboa
 import { api } from "../index";
 vi.mock("../index", () => ({ api: { get: vi.fn(), post: vi.fn() } }));
 describe("dashboard API", () => {
-  it("calls GET /health/check for getSystemStatus", async () => {
+  it("calls GET /status for getSystemStatus", async () => {
     vi.mocked(api.get).mockResolvedValue({ data: {} });
     await getSystemStatus();
-    expect(api.get).toHaveBeenCalledWith("/health/check");
+    expect(api.get).toHaveBeenCalledWith("/status");
   });
-  it("calls GET /dashboard/summary for getDashboardSummary", async () => {
+  it("calls GET /summary for getDashboardSummary", async () => {
     vi.mocked(api.get).mockResolvedValue({ data: { data: {} } });
     await getDashboardSummary();
-    expect(api.get).toHaveBeenCalledWith("/dashboard/summary");
+    expect(api.get).toHaveBeenCalledWith("/summary");
   });
   it("calls POST /service/control for serviceControl", async () => {
     vi.mocked(api.post).mockResolvedValue({ data: {} });
@@ -464,15 +464,15 @@ describe("listing API", () => {
     await getTemplates();
     expect(api.get).toHaveBeenCalledWith("/listing/templates");
   });
-  it("calls GET /listing/brand-assets for getBrandAssets", async () => {
+  it("calls GET /brand-assets for getBrandAssets", async () => {
     vi.mocked(api.get).mockResolvedValue({ data: { ok: true, assets: [] } });
     await getBrandAssets();
-    expect(api.get).toHaveBeenCalledWith("/listing/brand-assets", { params: {} });
+    expect(api.get).toHaveBeenCalledWith("/brand-assets", { params: {} });
   });
-  it("calls GET /listing/publish-queue for getPublishQueue", async () => {
+  it("calls GET /publish-queue for getPublishQueue", async () => {
     vi.mocked(api.get).mockResolvedValue({ data: { ok: true, items: [] } });
     await getPublishQueue();
-    expect(api.get).toHaveBeenCalledWith("/listing/publish-queue", { params: {} });
+    expect(api.get).toHaveBeenCalledWith("/publish-queue", { params: {} });
   });
 });
 ```
@@ -580,7 +580,7 @@ describe("Pagination", () => {
     render(
       <Pagination current={1} total={25} pageSize={10} onChange={onChange} />
     );
-    const nextButton = screen.getByText("›");
+    const nextButton = screen.getByLabelText("下一页");
     fireEvent.click(nextButton);
     expect(onChange).toHaveBeenCalledWith(2);
   });
@@ -601,8 +601,8 @@ function ThrowingChild(): JSX.Element {
 }
 
 describe("ErrorBoundary", () => {
-  beforeEach(() => {
-    vi.spyOn(console, "error").mockImplementation(() => {});
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it("renders children when no error", () => {
@@ -708,15 +708,15 @@ describe("SliderStatsCard", () => {
 Create `client/src/pages/dashboard/__tests__/XgjControlPanel.test.tsx`:
 
 ```tsx
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import XgjControlPanel from "../XgjControlPanel";
 
-vi.mock("../../../api/xianguanjia", () => ({
-  proxyXgjApi: vi.fn(),
+vi.mock("../../../api/index", () => ({
+  api: { post: vi.fn() },
 }));
 
-import { proxyXgjApi } from "../../../api/xianguanjia";
+import { api } from "../../../api/index";
 
 describe("XgjControlPanel", () => {
   it("renders form inputs", () => {
@@ -724,26 +724,24 @@ describe("XgjControlPanel", () => {
     expect(screen.getByLabelText(/appKey/i)).toBeInTheDocument();
   });
 
-  it("test button calls proxyXgjApi", async () => {
-    vi.mocked(proxyXgjApi).mockResolvedValue({ data: { ok: true } } as any);
+  it("test button calls api.post", async () => {
+    vi.mocked(api.post).mockResolvedValue({ data: { ok: true } } as any);
     render(<XgjControlPanel />);
     const testBtn = screen.getByRole("button", { name: /test|连接/i });
     fireEvent.click(testBtn);
     await waitFor(() => {
-      expect(proxyXgjApi).toHaveBeenCalled();
+      expect(api.post).toHaveBeenCalled();
     });
   });
 });
 ```
 
-Note: Import `waitFor` from `@testing-library/react` in this test file.
-
-- [ ] **Step 3: Run tests**
+- [ ] **Step 4: Run tests**
 
 Run: `cd client && npm test`
-Expected: All tests pass (10+ total)
+Expected: All tests pass (12+ total)
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
 git add client/src/pages/dashboard/__tests__/
@@ -752,7 +750,52 @@ git commit -m "test(frontend): add dashboard card component tests"
 
 ---
 
-### Task 13: Update coverage configuration and codecov
+### Task 13: Add custom hook tests
+
+**Files:**
+- Modify: `client/src/hooks/__tests__/useHealthCheck.test.tsx` (expand existing)
+
+- [ ] **Step 1: Expand useHealthCheck test**
+
+Read `client/src/hooks/useHealthCheck.test.tsx` (already exists). Add test cases for:
+- Initial loading state is true
+- Calls refresh() triggers re-fetch
+- Handles error gracefully (returns "unreachable" message)
+
+```typescript
+it("starts in loading state", () => {
+  vi.mocked(api.get).mockReturnValue(new Promise(() => {}));
+  const { result } = renderHook(() => useHealthCheck(true));
+  expect(result.current.loading).toBe(true);
+});
+
+it("refresh() triggers re-fetch", async () => {
+  vi.mocked(api.get).mockResolvedValue({ data: { python: { ok: true, message: "up" } } });
+  const { result } = renderHook(() => useHealthCheck(false));
+  await act(async () => {
+    await result.current.refresh();
+  });
+  expect(api.get).toHaveBeenCalledWith("/health/check");
+});
+```
+
+Note: Import `renderHook`, `act` from `@testing-library/react`. Add `@testing-library/react` as devDep if not present.
+
+- [ ] **Step 2: Run tests**
+
+Run: `cd client && npm test`
+Expected: All hook tests pass
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add client/src/hooks/__tests__/
+git commit -m "test(frontend): expand useHealthCheck hook tests"
+```
+
+---
+
+### Task 14: Update coverage configuration and codecov
 
 **Files:**
 - Modify: `client/vitest.config.ts`
@@ -803,7 +846,7 @@ git commit -m "test(frontend): add coverage configuration and codecov frontend s
 
 ## P7: Infra — Infrastructure Integration
 
-### Task 14: Create monolith Dockerfile
+### Task 15: Create monolith Dockerfile
 
 **Files:**
 - Create: `Dockerfile` (project root)
@@ -884,7 +927,7 @@ git commit -m "infra: add monolith Dockerfile with multi-stage frontend build"
 
 ---
 
-### Task 15: Create docker-compose.yml
+### Task 16: Create docker-compose.yml
 
 **Files:**
 - Create: `docker-compose.yml`
@@ -933,7 +976,7 @@ git commit -m "infra: add docker-compose for local development"
 
 ---
 
-### Task 16: Update Helm chart and infrastructure docs
+### Task 17: Update Helm chart and infrastructure docs
 
 **Files:**
 - Modify: `infra/helm/xianyuflow-infra/Chart.yaml`
@@ -975,7 +1018,7 @@ git commit -m "docs: update deployment docs with Docker instructions"
 
 ---
 
-### Task 17: Update QUICKSTART.md
+### Task 18: Update QUICKSTART.md
 
 **Files:**
 - Modify: `QUICKSTART.md`
@@ -1008,7 +1051,7 @@ git commit -m "docs: add Docker quickstart option to QUICKSTART"
 
 ## P8: Polish — Final Touches
 
-### Task 18: Resolve Analytics page
+### Task 19: Resolve Analytics page
 
 **Files:**
 - Modify: `client/src/App.tsx` (if route needs update)
@@ -1032,7 +1075,7 @@ git commit -m "chore: remove dead Analytics route"
 
 ---
 
-### Task 19: Documentation sweep
+### Task 20: Documentation sweep
 
 **Files:**
 - Modify: `README.md`
@@ -1081,7 +1124,7 @@ git commit -m "docs: update documentation for v10.1.0 release"
 
 ---
 
-### Task 20: Final validation
+### Task 21: Final validation
 
 - [ ] **Step 1: Run ruff lint**
 
