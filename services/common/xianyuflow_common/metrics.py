@@ -3,6 +3,7 @@ Performance monitoring and metrics collection
 Phase 4: Performance optimization
 """
 
+import asyncio
 import functools
 import time
 from collections.abc import Callable
@@ -321,7 +322,3 @@ class PerformanceProfiler:
 
         del self._profiles[name]
         return result
-
-
-# Import asyncio for decorator checks
-import asyncio

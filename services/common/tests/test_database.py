@@ -111,7 +111,7 @@ class TestDatabase:
         db = Database(config)
         await db.connect()
         try:
-            with pytest.raises(Exception):
+            with pytest.raises(ValueError, match="test error"):
                 async with db.session() as session:
                     assert session is not None
                     raise ValueError("test error")

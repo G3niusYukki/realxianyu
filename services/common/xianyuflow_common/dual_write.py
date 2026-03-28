@@ -235,7 +235,7 @@ class DualWriteManager:
         results["pg_count"] = len(pg_data)
 
         # 比较数据
-        for i, (sqlite_row, pg_row) in enumerate(zip(sqlite_data, pg_data)):
+        for i, (sqlite_row, pg_row) in enumerate(zip(sqlite_data, pg_data, strict=True)):
             if sqlite_row != pg_row:
                 results["mismatch_count"] += 1
                 if len(results["sample_mismatches"]) < 5:
