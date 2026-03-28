@@ -69,14 +69,15 @@ CLI 命令文件中的 `_json_out`、`_module_check_summary` 等函数**必须**
 pip install -r requirements.txt
 cd client && npm install && npm run build && cd ..
 
-# 启动后端
-python -m src.main
+# 启动 Dashboard / API 服务
+python -m src.dashboard_server --host 127.0.0.1 --port 8091
 
 # 运行测试
 ./venv/bin/python -m pytest tests/ -q
 
-# 代码规范检查
-ruff check src/ && ruff format src/
+# 代码规范检查（需先安装 requirements-dev.txt）
+./venv/bin/python -m ruff check src/
+./venv/bin/python -m ruff format src/ --check
 ```
 
 ## 测试文件命名约定

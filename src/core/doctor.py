@@ -16,13 +16,13 @@ from src.modules.quote import CostTableRepository
 
 _SUGGESTIONS = {
     "浏览器运行时": "可通过 `.env` 设置 `APP_RUNTIME=auto|lite|pro`，推荐先用 `auto`。",
-    "Python版本": "请安装 Python 3.10+，并使用 `python3 -m venv .venv` 创建虚拟环境。",
+    "Python版本": "请安装 Python 3.10+，并使用 `python3 -m venv venv` 创建虚拟环境。",
     "Lite 浏览器驱动": "请执行 `pip install DrissionPage`。",
     "数据库": "请确认数据库目录可写，并检查 `config/config.yaml` 中 database.path 配置。",
     "闲鱼Cookie": "请在 `.env` 中设置有效的 `XIANYU_COOKIE_1`。",
     "Cookie有效性": "请重新抓取并更新闲鱼 Cookie，避免使用过期会话。",
     "Cookie在线有效性": "Cookie 已过期，请重新从浏览器获取并更新 `.env` 中的 `XIANYU_COOKIE_1`。",
-    "AI服务": "可配置 `DEEPSEEK_API_KEY` 或 `OPENAI_API_KEY`，未配置将退化到模板模式。",
+    "AI服务": "可配置 `AI_API_KEY`，或按 provider 使用 `DEEPSEEK_API_KEY` / `OPENAI_API_KEY`，未配置将退化到模板模式。",
     ".env 文件": "请复制 `.env.example` 为 `.env`，并补齐关键配置。",
     "配置文件": "请确保 `config/config.yaml` 存在，或从 `config/config.example.yaml` 复制生成。",
     "Dashboard守护状态": "请使用 `python3 -m src.dashboard_server --port 8091` 或对应 bat 脚本启动面板服务。",
@@ -123,7 +123,10 @@ def _extra_checks(skip_quote: bool = False) -> list[dict[str, Any]]:
             passed=web_listening,
             message=f"检测到监听 127.0.0.1:{web_port}" if web_listening else f"未检测到监听 127.0.0.1:{web_port}",
             critical=False,
-            suggestion="如需启动前端工作台，请执行 `./start.sh` 或 `bash service.sh start`。",
+            suggestion=(
+                "5173 仅用于 Vite 前端开发代理；如需本地前端调试，请在 `client/` 目录执行 `npm run dev`。"
+                "生产部署无需监听 5173，直接启动 `python -m src.dashboard_server --port 8091` 即可托管 `client/dist`。"
+            ),
             meta={"port": web_port},
         )
 

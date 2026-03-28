@@ -102,3 +102,37 @@ def test_extra_checks_dashboard_daemon_status_failed_when_port_closed(monkeypatc
 
     assert dashboard_check["passed"] is False
     assert "端口未监听" in dashboard_check["message"]
+
+
+def test_extra_checks_web_ui_port_suggestion_mentions_vite_dev_only(monkeypatch) -> None:
+    class _Cfg:
+        @staticmethod
+        def get_section(name: str, default=None):
+            if name == "messages":
+                return {"fast_reply_enabled": True, "reply_target_seconds": 3.0}
+            return default if default is not None else {}
+
+    def _check_port_open(port, host="127.0.0.1", timeout=0.3):  # noqa: ARG001
+        return port == 8091
+
+    class _Resp:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            _ = (exc_type, exc, tb)
+            return False
+
+        def read(self) -> bytes:
+            return json.dumps({"service_status": "running"}).encode("utf-8")
+
+    monkeypatch.setattr(doctor, "get_config", lambda: _Cfg())
+    monkeypatch.setattr(doctor, "_check_port_open", _check_port_open)
+    monkeypatch.setattr(doctor.urllib.request, "urlopen", lambda *args, **kwargs: _Resp())
+
+    checks = doctor._extra_checks(skip_quote=True)
+    web_ui_check = next(item for item in checks if item["name"] == "Web UI 端口")
+
+    assert web_ui_check["passed"] is False
+    assert "npm run dev" in web_ui_check["suggestion"]
+    assert "生产部署无需监听 5173" in web_ui_check["suggestion"]

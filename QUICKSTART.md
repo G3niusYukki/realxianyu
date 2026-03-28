@@ -59,10 +59,17 @@ cp .env.example .env
 ### 第 4 步：启动
 
 ```bash
-python -m src.main
+python -m src.dashboard_server --host 127.0.0.1 --port 8091
 ```
 
 Dashboard 地址：**http://localhost:8091**
+
+### 第 5 步：验证
+
+```bash
+curl http://127.0.0.1:8091/healthz
+python -m src.cli doctor --skip-quote
+```
 
 ---
 
@@ -115,7 +122,7 @@ AI 服务推荐使用国内供应商（百炼千问、DeepSeek），无需外网
 |------|------|
 | `scripts/unix/doctor.sh` | 系统诊断 |
 | `scripts/unix/dashboard.sh` | 启动 Dashboard |
-| `scripts/macos/install_service.sh` | macOS 开机自启服务 |
+| `scripts/install-launchd.sh` | macOS 开机自启服务 |
 | `scripts/backup_data.sh` | 数据备份 |
 | `scripts/update.sh` | 更新项目 |
 
@@ -142,6 +149,10 @@ node -v                    # 确认 >= 18
 npm cache clean --force
 npm install
 ```
+
+### doctor 提示 5173 未监听
+
+这是前端开发代理端口，不影响生产运行。只要 `http://localhost:8091/healthz` 正常且 `client/dist/` 已构建，就可以继续使用。
 
 ---
 

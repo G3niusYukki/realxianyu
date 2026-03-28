@@ -6,7 +6,7 @@
 
 闲鱼运营自动化工具，覆盖消息自动回复、智能报价、订单履约、商品上架、Cookie 管理和运维诊断。
 
-**当前版本：v10.0.0**
+**当前版本：v10.1.0**
 
 ## 架构概览
 
@@ -15,6 +15,53 @@ v10 采用单体 + 网关的简化架构：
 - **Python 单体**（`src/`）：Dashboard 服务、消息处理、报价引擎、订单管理等全部业务逻辑
 - **Gateway Service**（`services/gateway-service`）：Open Platform 适配网关，独立 FastAPI 服务
 - **React 前端**（`client/`）：Vite + Tailwind 构建的管理界面，由 Dashboard 服务托管
+
+## 核心特性
+
+| 特性 | 说明 |
+|------|------|
+| **多级 Cookie 降级保活** | 闲管家 IM 直读 → CookieCloud 同步 → 本地直读 → DrissionPage 硬解，四级降级 |
+| **现代化前后端分离** | React + TailwindCSS Dashboard，状态监控与配置热更新 |
+| **AI 智能客服** | 接入大语言模型（DeepSeek 等），自动报价与智能上下文回复 |
+| **虚拟商品全自动核销** | 卡密自动发货，自动标记已发货，状态全链路闭环 |
+| **闲管家深度集成** | 兼容闲管家 PC 端登录状态，双重签名算法，降低纯 Web 协议风控概率 |
+
+## 架构设计
+
+```
+┌──────────────────────────────────────────────────────────┐
+│                     前端层  client/                        │
+│     React + TailwindCSS SPA，编译后由后端服务静态托管     │
+└────────────────────────┬────────────────────────────────┘
+                         │ HTTP / REST
+┌────────────────────────▼────────────────────────────────┐
+│            网关层  src/dashboard_server.py                │
+│      BaseHTTPRequestHandler · 路由分发 + 静态服务        │
+└────────────────────────┬────────────────────────────────┘
+                         │
+┌────────────────────────▼────────────────────────────────┐
+│           业务中枢  src/dashboard/mimic_ops.py            │
+│             Facade 代理 (~3000 行)                       │
+└────┬────────────────┬──────────────────┬────────────────┘
+     │                │                  │
+┌────▼────┐   ┌──────▼───┐   ┌────────▼─────────┐
+│ dashboard/ │   │  modules/ │   │   cli/         │
+│ services/  │   │           │   │                 │
+│Cookie    │   │Messages   │   │cmd_main.py      │
+│Service   │   │Orders     │   │cmd_orders.py    │
+│XGJ       │   │Quote      │   │cmd_module.py   │
+│Service   │   │Listing    │   │cmd_quote.py    │
+│          │   │Virtual    │   │                 │
+│          │   │Goods      │   │                 │
+└──────────┘   └───────────┘   └─────────────────┘
+```
+
+### 核心设计原则
+
+- **Facade 模式**：`mimic_ops.py` 仅作分发代理，不含业务逻辑
+- **YAML 单一真相**：`config/config.yaml` 是唯一默认值来源，无需手动同步
+- **无 global 声明**：全局状态通过单例类（`WebSocketTransportManager`、`QuoteLedger` 等）管理
+- **CLI 模块化**：`cli/` 包按职责拆分，支持猴子补丁测试
 
 ## 运行入口
 
@@ -45,6 +92,8 @@ python3.12 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 cd client && npm install && npm run build && cd ..
+# 可选：lint/类型检查工具
+pip install -r requirements-dev.txt
 ```
 
 #### 2. 配置环境
@@ -83,30 +132,23 @@ cd services/gateway-service
 - `http://127.0.0.1:8000/`
 - `http://127.0.0.1:8000/docs`
 
-## 测试与校验
+## 测试与规范
 
 ```bash
 # Python 后端测试
 ./venv/bin/python -m pytest tests/ -q
 
-# Python lint
-ruff check src/
+# Python lint（需先安装 requirements-dev.txt）
+./venv/bin/python -m ruff check src/ services/
+
+# Python format check
+./venv/bin/python -m ruff format src/ services/ --check
 
 # 前端构建
 cd client && npm run build
 
 # 前端测试
 cd client && npm test
-```
-
-网关相关回归：
-
-```bash
-./venv/bin/python -m pytest \
-  tests/test_gateway_service_client.py \
-  tests/test_gateway_service_app.py \
-  tests/test_xianguanjia_open_platform_client.py \
-  -q --no-cov
 ```
 
 ## 目录概览
