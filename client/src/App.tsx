@@ -40,7 +40,6 @@ function App() {
                 <Route path="/logs" element={<LogTerminal />} />
                 <Route path="/accounts" element={<AccountList />} />
                 <Route path="/config" element={<SystemConfig />} />
-                <Route path="/analytics" element={<Navigate to="/dashboard" replace />} />
                 <Route path="*" element={<Navigate to="/dashboard" replace />} />
               </Routes>
             </Suspense>
