@@ -299,8 +299,7 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
         "name": "express_cancel_order",
         "keywords": ["不想买了", "取消订单", "别发了", "不要了"],
         "reply": (
-            "好的亲，如果还没在小程序下单直接不用管就行~ "
-            "已下单的话请在小程序点击「联系客服」取消，闲鱼这边我帮您退款~"
+            "好的亲，如果还没在小程序下单直接不用管就行~ 已下单的话请在小程序点击「联系客服」取消，闲鱼这边我帮您退款~"
         ),
         "priority": 48,
         "categories": ["express"],

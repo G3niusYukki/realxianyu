@@ -144,8 +144,8 @@ class MessageDedup:
             else:
                 conn.execute(
                     "INSERT INTO content_replies "
-                "(content_hash, chat_id, content, reply, first_at, last_at, count) "
-                "VALUES (?,?,?,?,?,?,1)",
+                    "(content_hash, chat_id, content, reply, first_at, last_at, count) "
+                    "VALUES (?,?,?,?,?,?,1)",
                     (cnt_h, chat_id, norm, reply, now, now),
                 )
             conn.commit()

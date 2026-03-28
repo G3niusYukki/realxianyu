@@ -296,8 +296,7 @@ class Config:
                 ],
                 "standard_format_trigger_keywords": ["你好", "您好", "在吗", "在不", "hi", "hello", "哈喽", "有人吗"],
                 "quote_missing_template": (
-                    "为了给你报最准确的价格，麻烦提供一下：{fields}"
-                    "\n格式示例：广东省 - 浙江省 - 3kg 30x20x15cm"
+                    "为了给你报最准确的价格，麻烦提供一下：{fields}\n格式示例：广东省 - 浙江省 - 3kg 30x20x15cm"
                 ),
                 "strict_format_reply_enabled": True,
                 "quote_reply_all_couriers": True,

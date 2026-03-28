@@ -29,8 +29,7 @@ _SUGGESTIONS = {
     "消息首响SLA": "建议开启 `messages.fast_reply_enabled=true` 且 `reply_target_seconds<=3`。",
     "自动报价成本源": "请提供成本表（data/quote_costs）或配置 `quote.cost_api_url`。",
     "报价Mock门禁": (
-        "请在配置中设置 `quote.providers.remote.allow_mock=false`，"
-        "并确认生产环境未通过环境变量覆盖为 true。"
+        "请在配置中设置 `quote.providers.remote.allow_mock=false`，并确认生产环境未通过环境变量覆盖为 true。"
     ),
     "BitBrowser 指纹浏览器": (
         "请从 https://www.bitbrowser.net 下载安装 BitBrowser，启动后"
