@@ -1,11 +1,17 @@
 {
   "name": "xianyu-guanjia-client",
-  "version": "9.2.0",
+  "version": "10.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "lint": "eslint src/",
+    "lint:fix": "eslint src/ --fix",
+    "format": "prettier --write 'src/**/*.{ts,tsx,css}'",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.6.0",
@@ -14,18 +20,29 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-hot-toast": "^2.4.1",
+    "react-is": "^19.2.4",
     "react-markdown": "^9.0.1",
     "react-router-dom": "^6.20.0",
     "recharts": "^3.8.0"
   },
   "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
     "@types/react": "^18.3.28",
     "@types/react-dom": "^18.3.7",
     "@vitejs/plugin-react": "^4.2.0",
     "autoprefixer": "^10.4.16",
+    "eslint": "^9.0.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "jsdom": "^29.0.1",
     "postcss": "^8.4.31",
+    "prettier": "^3.8.1",
     "tailwindcss": "^3.3.5",
     "typescript": "^5.9.3",
-    "vite": "^5.0.0"
+    "typescript-eslint": "^8.57.2",
+    "vite": "^5.0.0",
+    "vitest": "^4.1.2"
   }
 }

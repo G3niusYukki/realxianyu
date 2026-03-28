@@ -18,11 +18,10 @@ from __future__ import annotations
 import os
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
-from pathlib import Path
 from typing import Any
-from collections.abc import Callable
 
 from src.core.logger import get_logger
 
@@ -165,43 +164,19 @@ class CookieGrabber:
 
     def is_cookiecloud_configured(self) -> bool:
         """判断 CookieCloud 是否已配置（env -> system_config.json 降级）。"""
-        import json
+        from src.core.cookie_cloud_client import CookieCloudClient
 
-        uuid_val = os.environ.get("COOKIE_CLOUD_UUID", "").strip()
-        pwd = os.environ.get("COOKIE_CLOUD_PASSWORD", "").strip()
-        if not uuid_val or not pwd:
-            try:
-                cfg_path = Path("data/system_config.json")
-                if cfg_path.exists():
-                    cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
-                    cc = cfg.get("cookie_cloud", {}) if isinstance(cfg.get("cookie_cloud"), dict) else {}
-                    uuid_val = uuid_val or str(cc.get("cookie_cloud_uuid") or cfg.get("cookie_cloud_uuid", "")).strip()
-                    pwd = pwd or str(cc.get("cookie_cloud_password") or cfg.get("cookie_cloud_password", "")).strip()
-            except Exception:
-                pass
-        return bool(uuid_val and pwd)
+        return CookieCloudClient.from_env_and_config().is_configured
 
     async def _grab_from_cookiecloud(self) -> str | None:
         """从 CookieCloud 服务拉取 Cookie（需配置环境变量或 system_config）。"""
-        host = os.environ.get("COOKIE_CLOUD_HOST", "").strip()
-        uuid = os.environ.get("COOKIE_CLOUD_UUID", "").strip()
-        password = os.environ.get("COOKIE_CLOUD_PASSWORD", "").strip()
+        from src.core.cookie_cloud_client import CookieCloudClient
 
-        if not host or not uuid or not password:
-            try:
-                import json
+        cc = CookieCloudClient.from_env_and_config()
 
-                cfg_path = Path("data/system_config.json")
-                if cfg_path.exists():
-                    cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
-                    cc = cfg.get("cookie_cloud", {}) if isinstance(cfg.get("cookie_cloud"), dict) else {}
-                    host = host or str(cc.get("cookie_cloud_host") or cfg.get("cookie_cloud_host", "")).strip()
-                    uuid = uuid or str(cc.get("cookie_cloud_uuid") or cfg.get("cookie_cloud_uuid", "")).strip()
-                    password = (
-                        password or str(cc.get("cookie_cloud_password") or cfg.get("cookie_cloud_password", "")).strip()
-                    )
-            except Exception:
-                pass
+        host = cc.server
+        uuid = cc.uuid
+        password = cc.password
 
         if not host and uuid and password:
             host = "http://localhost:8091/cookie-cloud"
@@ -211,14 +186,11 @@ class CookieGrabber:
 
         logger.info("Level 0: 正在从 CookieCloud 拉取 Cookie...")
         try:
-            import hashlib
-            import json
             import httpx
 
             url = f"{host.rstrip('/')}/get/{uuid}"
 
-            key_raw = f"{uuid}-{password}"
-            key_hash = hashlib.md5(key_raw.encode("utf-8")).hexdigest()[:16]
+            key_hash = cc.derive_key()
 
             async with httpx.AsyncClient(timeout=10.0) as client:
                 resp = await client.post(url, json={"password": password})
@@ -230,7 +202,7 @@ class CookieGrabber:
 
             encrypted = data.get("encrypted")
             if encrypted:
-                cookie_data = self._decrypt_cookiecloud(encrypted, key_hash)
+                cookie_data = CookieCloudClient.decrypt(encrypted, key_hash)
             else:
                 cookie_data = data.get("cookie_data", {})
 
@@ -273,47 +245,11 @@ class CookieGrabber:
     def _decrypt_cookiecloud(encrypted: str, key: str) -> dict[str, Any]:
         """Decrypt CookieCloud AES-CBC encrypted data.
 
-        Supports both legacy (CryptoJS passphrase mode with Salted__ header,
-        EVP_BytesToKey for key derivation) and aes-128-cbc-fixed (zero IV,
-        direct key) modes.
+        Delegates to CookieCloudClient.decrypt for backward compatibility.
         """
-        try:
-            import base64
-            import json
-            from hashlib import md5 as _md5
+        from src.core.cookie_cloud_client import CookieCloudClient
 
-            from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-            from cryptography.hazmat.primitives import padding as sym_padding
-
-            raw = base64.b64decode(encrypted)
-
-            if raw[:8] == b"Salted__":
-                salt = raw[8:16]
-                ct = raw[16:]
-                passphrase = key.encode("utf-8")
-
-                d = b""
-                last = b""
-                while len(d) < 48:
-                    last = _md5(last + passphrase + salt).digest()
-                    d += last
-                derived_key, iv = d[:32], d[32:48]
-            else:
-                ct = raw
-                derived_key = key.encode("utf-8")[:16]
-                iv = b"\x00" * 16
-
-            cipher = Cipher(algorithms.AES(derived_key), modes.CBC(iv))
-            decryptor = cipher.decryptor()
-            padded = decryptor.update(ct) + decryptor.finalize()
-
-            unpadder = sym_padding.PKCS7(128).unpadder()
-            plaintext = unpadder.update(padded) + unpadder.finalize()
-
-            return json.loads(plaintext.decode("utf-8"))
-        except Exception as exc:
-            logger.debug(f"CookieCloud 解密失败: {exc}")
-            return {}
+        return CookieCloudClient.decrypt(encrypted, key)
 
     # ------------------------------------------------------------------
     # Level 1: rookiepy 直读浏览器 Cookie DB
@@ -590,7 +526,7 @@ class CookieAutoRefresher:
         new_cookie: str | None = None
 
         try:
-            from src.core.goofish_im_cookie import read_goofish_im_cookies, merge_cookies
+            from src.core.goofish_im_cookie import merge_cookies, read_goofish_im_cookies
 
             im_result = read_goofish_im_cookies(min_ttl=60)
             if im_result:
@@ -624,7 +560,11 @@ class CookieAutoRefresher:
             self._last_refresh_ok = False
             self._send_notification(
                 "⚠️ Cookie 自动刷新失败",
-                f"【闲鱼自动化】Cookie 过期告警\n状态: {msg}\n静默刷新: 获取到新 Cookie 但验证失败\n请手动打开 Dashboard 更新 Cookie",
+                (
+                    f"【闲鱼自动化】Cookie 过期告警\n状态: {msg}"
+                    "\n静默刷新: 获取到新 Cookie 但验证失败"
+                    "\n请手动打开 Dashboard 更新 Cookie"
+                ),
                 event="cookie_expire",
             )
             return

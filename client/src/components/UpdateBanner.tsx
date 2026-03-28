@@ -227,7 +227,7 @@ export default function UpdateBanner() {
       if (err?.code === 'ECONNABORTED') return;
       if (pollRef.current) clearInterval(pollRef.current);
       setPhase('error');
-      setErrorMsg(err?.response?.data?.error || err?.message || '请求失败');
+      setErrorMsg(err?.response?.data?.error || err?.userMessage || err?.message || '请求失败');
     }
   };
 

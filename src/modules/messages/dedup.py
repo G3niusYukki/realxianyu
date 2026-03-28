@@ -130,7 +130,9 @@ class MessageDedup:
         try:
             conn.execute("BEGIN IMMEDIATE")
             conn.execute(
-                "INSERT OR IGNORE INTO message_replies (message_hash, chat_id, content, create_time, reply, replied_at) VALUES (?,?,?,?,?,?)",
+                "INSERT OR IGNORE INTO message_replies "
+                "(message_hash, chat_id, content, create_time, reply, replied_at) "
+                "VALUES (?,?,?,?,?,?)",
                 (msg_h, chat_id, norm, create_time, reply, now),
             )
             row = conn.execute("SELECT count FROM content_replies WHERE content_hash = ?", (cnt_h,)).fetchone()
@@ -141,7 +143,9 @@ class MessageDedup:
                 )
             else:
                 conn.execute(
-                    "INSERT INTO content_replies (content_hash, chat_id, content, reply, first_at, last_at, count) VALUES (?,?,?,?,?,?,1)",
+                    "INSERT INTO content_replies "
+                    "(content_hash, chat_id, content, reply, first_at, last_at, count) "
+                    "VALUES (?,?,?,?,?,?,1)",
                     (cnt_h, chat_id, norm, reply, now, now),
                 )
             conn.commit()

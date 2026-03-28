@@ -10,6 +10,7 @@ import {
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Link } from 'react-router-dom';
 import Pagination from '../../components/Pagination';
+import { formatPrice } from '@/utils/format';
 
 const CHART_COLORS = ['#6366f1', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
 
@@ -123,7 +124,7 @@ export default function ProductList() {
     setLoading(true);
     try {
       const res = await getProducts(page, 20);
-      if (res.data?.ok) setProducts(res.data.data?.data?.list || []);
+      if (res.data?.ok) setProducts(res.data.data?.list || []);
       else toast.error(res.data?.error || '无法获取商品列表');
     } catch { toast.error('加载失败'); }
     finally { setLoading(false); }
@@ -199,7 +200,7 @@ export default function ProductList() {
       });
       if (res.data?.success) toast.success('定价配置已保存');
       else toast.error(res.data?.error || '保存失败');
-    } catch (e: any) { toast.error(e.message || '保存失败'); }
+    } catch (e: any) { toast.error(e.userMessage || e.message || '保存失败'); }
     finally { setPricingSaving(false); }
   };
 
@@ -297,12 +298,6 @@ export default function ProductList() {
       if (res.data?.ok) { toast.success(`${actionStr}成功`, { id: 'status_toggle' }); fetchProducts(); }
       else toast.error(res.data?.error || `${actionStr}失败`, { id: 'status_toggle' });
     } catch { toast.error(`${actionStr}出错`, { id: 'status_toggle' }); }
-  };
-
-  const formatPrice = (price: any) => {
-    const num = Number(price);
-    if (!num || isNaN(num)) return '¥0.00';
-    return `¥${(num / 100).toFixed(2)}`;
   };
 
   const addPricingCourier = () => {
@@ -527,7 +522,7 @@ export default function ProductList() {
                         <h3 className="text-sm font-semibold text-xy-text-secondary mb-4">快递公司路线分布</h3>
                         <ResponsiveContainer width="100%" height={280}>
                           <PieChart>
-                            <Pie data={chartData} dataKey="count" nameKey="name" cx="50%" cy="50%" outerRadius={100} label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={false}>
+                            <Pie data={chartData} dataKey="count" nameKey="name" cx="50%" cy="50%" outerRadius={100} label={({ name, percent }: { name?: string; percent?: number }) => `${name ?? ''} ${((percent ?? 0) * 100).toFixed(0)}%`} labelLine={false}>
                               {chartData.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
                             </Pie>
                             <Tooltip formatter={(v: number) => v.toLocaleString()} />

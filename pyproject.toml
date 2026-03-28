@@ -1,6 +1,6 @@
 [project]
 name = "xianyuflow"
-version = "9.5.0"
+version = "10.1.0"
 
 # NOTE: ruff config is in ruff.toml (takes precedence)
 # NOTE: pytest config is in pytest.ini (takes precedence)

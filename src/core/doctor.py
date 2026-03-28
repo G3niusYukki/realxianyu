@@ -28,7 +28,9 @@ _SUGGESTIONS = {
     "Dashboard守护状态": "请使用 `python3 -m src.dashboard_server --port 8091` 或对应 bat 脚本启动面板服务。",
     "消息首响SLA": "建议开启 `messages.fast_reply_enabled=true` 且 `reply_target_seconds<=3`。",
     "自动报价成本源": "请提供成本表（data/quote_costs）或配置 `quote.cost_api_url`。",
-    "报价Mock门禁": "请在配置中设置 `quote.providers.remote.allow_mock=false`，并确认生产环境未通过环境变量覆盖为 true。",
+    "报价Mock门禁": (
+        "请在配置中设置 `quote.providers.remote.allow_mock=false`，并确认生产环境未通过环境变量覆盖为 true。"
+    ),
     "BitBrowser 指纹浏览器": (
         "请从 https://www.bitbrowser.net 下载安装 BitBrowser，启动后"
         "在管理面板 → 系统配置 → 滑块验证 中配置 API 地址和 browser_id。"
@@ -306,9 +308,9 @@ def _extra_checks(skip_quote: bool = False) -> list[dict[str, Any]]:
             try:
                 cfg_path = Path("data/system_config.json")
                 if cfg_path.exists():
-                    _sc = json.loads(cfg_path.read_text(encoding="utf-8"))
-                    _cc = _sc.get("cookie_cloud", {}) if isinstance(_sc.get("cookie_cloud"), dict) else {}
-                    cc_host = str(_cc.get("cookie_cloud_host", "")).strip()
+                    sc = json.loads(cfg_path.read_text(encoding="utf-8"))
+                    cc_ = sc.get("cookie_cloud", {}) if isinstance(sc.get("cookie_cloud"), dict) else {}
+                    cc_host = str(cc_.get("cookie_cloud_host", "")).strip()
             except Exception:
                 pass
         if not cc_host:
@@ -325,9 +327,10 @@ def _extra_checks(skip_quote: bool = False) -> list[dict[str, Any]]:
                 body = json.loads(resp.read().decode("utf-8", errors="ignore"))
             encrypted = body.get("encrypted")
             if encrypted:
-                from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-                from cryptography.hazmat.primitives import padding as sym_padding
                 import base64
+
+                from cryptography.hazmat.primitives import padding as sym_padding
+                from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
                 key_raw = f"{cc_uuid}-{cc_pwd}"
                 key_hash = hashlib.md5(key_raw.encode("utf-8")).hexdigest()[:16]
@@ -364,20 +367,20 @@ def _extra_checks(skip_quote: bool = False) -> list[dict[str, Any]]:
     )
 
     # system_config.json 完整性检测
-    _IMPORTANT_SECTIONS = {"ai", "cookie_cloud", "auto_reply"}
+    IMPORTANT_SECTIONS = {"ai", "cookie_cloud", "auto_reply"}
     sys_cfg_path = Path("data/system_config.json")
     sys_cfg_exists = sys_cfg_path.exists()
     sys_cfg_sections_present: set[str] = set()
     if sys_cfg_exists:
         try:
-            _sys = json.loads(sys_cfg_path.read_text(encoding="utf-8"))
-            if isinstance(_sys, dict):
-                sys_cfg_sections_present = _IMPORTANT_SECTIONS & set(_sys.keys())
+            sys = json.loads(sys_cfg_path.read_text(encoding="utf-8"))
+            if isinstance(sys, dict):
+                sys_cfg_sections_present = IMPORTANT_SECTIONS & set(sys.keys())
         except Exception:
             pass
 
-    sys_cfg_ok = sys_cfg_exists and sys_cfg_sections_present == _IMPORTANT_SECTIONS
-    missing_sections = _IMPORTANT_SECTIONS - sys_cfg_sections_present
+    sys_cfg_ok = sys_cfg_exists and sys_cfg_sections_present == IMPORTANT_SECTIONS
+    missing_sections = IMPORTANT_SECTIONS - sys_cfg_sections_present
     if not sys_cfg_exists:
         sys_cfg_message = "data/system_config.json 不存在，Dashboard 配置尚未初始化"
     elif missing_sections:

@@ -82,7 +82,10 @@ class VirtualGoodsStore:
                     last_error TEXT,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL,
-                    CHECK(order_status IN ('pending_payment','paid_waiting_delivery','delivered','delivery_failed','refund_pending','refunded','closed')),
+                    CHECK(order_status IN (
+                        'pending_payment','paid_waiting_delivery',
+                        'delivered','delivery_failed','refund_pending','refunded','closed'
+                    )),
                     CHECK(fulfillment_status IN ('pending','delivering','fulfilled','failed','manual')),
                     CHECK(callback_status IN ('none','received','processed','failed'))
                 );
@@ -90,8 +93,10 @@ class VirtualGoodsStore:
                 CREATE TABLE IF NOT EXISTS virtual_goods_callbacks (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     callback_type TEXT NOT NULL,
-                    source_family TEXT NOT NULL DEFAULT 'unknown' CHECK(source_family IN ('open_platform','virtual_supply','unknown')),
-                    event_kind TEXT NOT NULL DEFAULT 'unknown' CHECK(event_kind IN ('order','refund','voucher','coupon','code','unknown')),
+                    source_family TEXT NOT NULL DEFAULT 'unknown'
+                        CHECK(source_family IN ('open_platform','virtual_supply','unknown')),
+                    event_kind TEXT NOT NULL DEFAULT 'unknown'
+                        CHECK(event_kind IN ('order','refund','voucher','coupon','code','unknown')),
                     external_event_id TEXT UNIQUE,
                     dedupe_key TEXT,
                     xianyu_order_id TEXT,

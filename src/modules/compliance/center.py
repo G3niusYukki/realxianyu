@@ -281,7 +281,7 @@ class ComplianceCenter:
         result: list[dict[str, Any]] = []
         for row in rows:
             data = dict(row)
-            data["blocked"] = bool(data.get("blocked", 0))
+            data["blocked"] = bool(data.get("blocked"))
             data["hits"] = json.loads(data.get("hits_json") or "[]")
             result.append(data)
         return result

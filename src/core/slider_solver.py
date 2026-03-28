@@ -408,7 +408,8 @@ async def _wait_for_nc_inside_baxia(page: Any, frame: Any, dialog_el: Any) -> tu
                 iframe_name = await iframe_el.get_attribute("name") or ""
                 iframe_src = await iframe_el.get_attribute("src") or ""
                 logger.info(
-                    f"Baxia dialog: found iframe name='{iframe_name}' src='{iframe_src[:100]}' (wait_round={wait_round})"
+                    f"Baxia dialog: found iframe name='{iframe_name}' "
+                    f"src='{iframe_src[:100]}' (wait_round={wait_round})"
                 )
                 for f in page.frames:
                     if f.name == iframe_name or (iframe_src and iframe_src in (f.url or "")):
@@ -971,17 +972,17 @@ def _try_slider_drissionpage(
     import httpx as _httpx
 
     ws_url = None
-    _bb_open_url = f"{api_url.rstrip('/')}/browser/open"
-    for _open_try in range(3):
+    bb_open_url = f"{api_url.rstrip('/')}/browser/open"
+    for open_try in range(3):
         try:
-            resp = _httpx.post(_bb_open_url, json={"id": browser_id}, timeout=10)
+            resp = _httpx.post(bb_open_url, json={"id": browser_id}, timeout=10)
             data = resp.json()
             if data.get("success"):
                 ws_url = data.get("data", {}).get("ws")
                 break
             msg = str(data.get("msg", ""))
             if "正在打开" in msg or "opening" in msg.lower():
-                _log.info(f"DrissionPage: BitBrowser still opening, retry {_open_try + 1}/3...")
+                _log.info(f"DrissionPage: BitBrowser still opening, retry {open_try + 1}/3...")
                 time.sleep(3)
                 continue
             _log.info(f"DrissionPage: BitBrowser open failed: {data}")
@@ -1270,12 +1271,12 @@ async def try_slider_recovery(
 
     Returns {"cookie": str, "attempts": [...]} on success, None on failure.
     """
-    _log = logger or get_logger()
+    log = logger or get_logger()
 
     cleanup_old_screenshots()
 
     if not _has_display():
-        _log.info("Slider recovery: no display available, skipping browser launch")
+        log.info("Slider recovery: no display available, skipping browser launch")
         return None
 
     slider_cfg = _get_slider_config(config)
@@ -1283,8 +1284,8 @@ async def try_slider_recovery(
 
     fp_cfg = slider_cfg.get("fingerprint_browser", {})
     if not fp_cfg.get("enabled"):
-        _log.info("Slider recovery: fingerprint_browser not enabled, skipping")
+        log.info("Slider recovery: fingerprint_browser not enabled, skipping")
         return None
 
-    _log.info("Slider recovery: using DrissionPage (fingerprint_browser enabled)")
-    return await asyncio.to_thread(_try_slider_drissionpage, fp_cfg, cookie_text, max_attempts, _log)
+    log.info("Slider recovery: using DrissionPage (fingerprint_browser enabled)")
+    return await asyncio.to_thread(_try_slider_drissionpage, fp_cfg, cookie_text, max_attempts, log)

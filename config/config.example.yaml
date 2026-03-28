@@ -117,7 +117,7 @@ messages:
       fingerprint_browser:
         enabled: true
         api_url: http://127.0.0.1:54345
-        browser_id: 3213efceee934ab09138ec1100f1c62b
+        browser_id: ${BITBROWSER_BROWSER_ID:}
   max_replies_per_run: 10
   fast_reply_enabled: true
   reply_target_seconds: 3.0

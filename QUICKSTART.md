@@ -4,6 +4,15 @@
 
 ---
 
+## 快速开始（Docker）
+
+    git clone https://github.com/G3niusYukki/realxianyu.git && cd realxianyu
+    cp .env.example .env   # 编辑填写必要配置
+    docker-compose up -d
+    # 访问 http://localhost:8091
+
+---
+
 ## 前提条件
 
 | 依赖 | 版本要求 | 说明 |

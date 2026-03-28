@@ -103,7 +103,7 @@ function BrandAssetsTab() {
         fetchData();
       }
     } catch (err: any) {
-      toast.error('上传失败: ' + (err?.response?.data?.error || err.message));
+      toast.error('上传失败: ' + (err?.response?.data?.error || err.userMessage || err.message));
     }
     setZipUploading(false);
   };
@@ -139,7 +139,7 @@ function BrandAssetsTab() {
         fetchData();
       }
     } catch (err: any) {
-      toast.error('上传失败: ' + (err?.response?.data?.error || err.message));
+      toast.error('上传失败: ' + (err?.response?.data?.error || err.userMessage || err.message));
     }
     setUploading(false);
   };
@@ -164,7 +164,7 @@ function BrandAssetsTab() {
         fetchData();
       }
     } catch (err: any) {
-      toast.error('改名失败: ' + (err?.response?.data?.error || err.message));
+      toast.error('改名失败: ' + (err?.response?.data?.error || err.userMessage || err.message));
     }
   };
 
@@ -330,7 +330,7 @@ function QueueTab() {
         toast.success(`已生成 ${res.data.items?.length || 0} 条待发布内容（快递 + 快运）`);
       }
     } catch (err: any) {
-      toast.error('生成失败: ' + (err?.response?.data?.error || err.message));
+      toast.error('生成失败: ' + (err?.response?.data?.error || err.userMessage || err.message));
     }
     setGenerating(false);
   };
@@ -347,7 +347,7 @@ function QueueTab() {
       }
       fetchQueue();
     } catch (err: any) {
-      const serverError = err?.response?.data?.error || err?.message || '未知错误';
+      const serverError = err?.response?.data?.error || err?.userMessage || err?.message || '未知错误';
       toast.error('发布失败: ' + serverError);
       fetchQueue();
     }
@@ -371,7 +371,7 @@ function QueueTab() {
       }
       fetchQueue();
     } catch (err: any) {
-      const serverError = err?.response?.data?.error || err?.message || '未知错误';
+      const serverError = err?.response?.data?.error || err?.userMessage || err?.message || '未知错误';
       toast.error('批量发布失败: ' + serverError);
     }
     setPublishing(false);

@@ -8,111 +8,27 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Any
 from collections.abc import Callable
+from pathlib import Path
+from typing import Any
 
 from src.core.logger import get_logger
 from src.modules.quote.models import QuoteRequest
 
 _logger = get_logger()
 
+_ITEM_WEIGHT_PATH = Path(__file__).resolve().parent.parent.parent.parent / "data" / "quote_data" / "item_weights.json"
+
+
+def _load_item_weights() -> dict[str, float]:
+    if _ITEM_WEIGHT_PATH.exists():
+        with open(_ITEM_WEIGHT_PATH, encoding="utf-8") as f:
+            return json.load(f)
+    return {}
+
+
 # 常见物品 → 默认重量（kg）
-ITEM_WEIGHT_MAP: dict[str, float] = {
-    # 证件/文件类
-    "护照": 0.2,
-    "证件": 0.1,
-    "文件": 0.2,
-    "合同": 0.3,
-    "发票": 0.1,
-    "证书": 0.2,
-    "身份证": 0.05,
-    # 书籍/文具类
-    "书": 0.8,
-    "书籍": 0.8,
-    "词典": 1.5,
-    "字典": 1.5,
-    "文具": 0.2,
-    # 衣物/纺织品类
-    "衣服": 0.8,
-    "衣物": 0.8,
-    "裙子": 0.4,
-    "裤子": 0.5,
-    "外套": 0.7,
-    "羽绒服": 1.2,
-    "棉服": 1.0,
-    "毛衣": 0.6,
-    "T恤": 0.3,
-    "衬衫": 0.3,
-    "鞋子": 0.8,
-    "鞋": 0.8,
-    "运动鞋": 1.0,
-    "靴子": 1.0,
-    "帽子": 0.2,
-    "围巾": 0.2,
-    "袜子": 0.1,
-    "包": 0.6,
-    "背包": 0.7,
-    "行李箱": 3.0,
-    "箱子": 2.5,
-    # 电子产品类
-    "手机": 0.2,
-    "平板": 0.5,
-    "电脑": 2.5,
-    "笔记本电脑": 2.0,
-    "相机": 0.8,
-    "耳机": 0.3,
-    "充电宝": 0.3,
-    "数据线": 0.1,
-    "充电器": 0.2,
-    "键盘": 0.5,
-    "鼠标": 0.2,
-    # 食品/特产类
-    "茶叶": 0.5,
-    "食品": 1.0,
-    "零食": 0.5,
-    "特产": 1.0,
-    "腊肉": 1.5,
-    "腊肠": 1.0,
-    "干果": 0.8,
-    "蜂蜜": 1.5,
-    "酒": 2.0,
-    "白酒": 2.0,
-    "红酒": 2.0,
-    # 家居/生活类
-    "被子": 2.0,
-    "床单": 0.8,
-    "枕头": 1.0,
-    "玩具": 0.5,
-    "玩偶": 0.4,
-    "手办": 0.3,
-    "模型": 0.5,
-    "摆件": 0.6,
-    "杯子": 0.3,
-    "茶具": 0.8,
-    "餐具": 0.5,
-    "锅": 2.0,
-    "电饭煲": 3.0,
-    # 运动/户外类
-    "球": 0.5,
-    "篮球": 0.6,
-    "足球": 0.4,
-    "羽毛球拍": 0.5,
-    "网球拍": 0.5,
-    "鱼竿": 1.0,
-    "帐篷": 3.0,
-    "自行车": 12.0,
-    # 其他
-    "礼物": 0.5,
-    "饰品": 0.2,
-    "化妆品": 0.3,
-    "护肤品": 0.3,
-    "药": 0.2,
-    "保健品": 0.5,
-    "乐器": 2.0,
-    "吉他": 2.0,
-    "哑铃": 5.0,
-    "杠铃": 10.0,
-}
+ITEM_WEIGHT_MAP: dict[str, float] = _load_item_weights()
 
 try:
     from zhconv import convert as _zhconv_convert
@@ -327,20 +243,20 @@ class QuoteMessageParser:
     def parse_dimensions_cm(message_text: str) -> tuple[float, float, float] | None:
         """从消息中提取三维尺寸并统一转为 cm，返回 (a, b, c) 或 None。"""
         text = message_text or ""
-        _UNIT = r"(?:mm|毫米|cm|厘米|m|米)?"
+        UNIT = r"(?:mm|毫米|cm|厘米|m|米)?"
         m = re.search(
-            rf"(\d+(?:\.\d+)?)\s*{_UNIT}\s*[x×*＊]\s*"
-            rf"(\d+(?:\.\d+)?)\s*{_UNIT}\s*[x×*＊]\s*"
-            rf"(\d+(?:\.\d+)?)\s*({_UNIT})",
+            rf"(\d+(?:\.\d+)?)\s*{UNIT}\s*[x×*＊]\s*"
+            rf"(\d+(?:\.\d+)?)\s*{UNIT}\s*[x×*＊]\s*"
+            rf"(\d+(?:\.\d+)?)\s*({UNIT})",
             text,
             flags=re.IGNORECASE,
         )
         if not m:
-            _UNIT_CN = r"(?:cm|厘米|㎝|CM)?"
+            UNIT_CN = r"(?:cm|厘米|㎝|CM)?"
             m2 = re.search(
-                rf"长[：:]?\s*(\d+\.?\d*)\s*{_UNIT_CN}\s*"
-                rf"宽[：:]?\s*(\d+\.?\d*)\s*{_UNIT_CN}\s*"
-                rf"高[：:]?\s*(\d+\.?\d*)\s*{_UNIT_CN}",
+                rf"长[：:]?\s*(\d+\.?\d*)\s*{UNIT_CN}\s*"
+                rf"宽[：:]?\s*(\d+\.?\d*)\s*{UNIT_CN}\s*"
+                rf"高[：:]?\s*(\d+\.?\d*)\s*{UNIT_CN}",
                 text,
                 flags=re.IGNORECASE,
             )
@@ -661,9 +577,9 @@ class QuoteMessageParser:
     ) -> dict[str, Any]:
         origin, destination = self.extract_locations(message_text)
         weight = self.extract_weight_kg(message_text)
-        if weight is None and re.search(r"首重", message_text or ""):
+        if weight is None and r"首重" in (message_text or ""):
             weight = 1.0
-        if weight is None and re.search(r"续重", message_text or ""):
+        if weight is None and r"续重" in (message_text or ""):
             weight = 2.0
 
         if origin or destination:

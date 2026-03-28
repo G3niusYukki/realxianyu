@@ -89,7 +89,7 @@ export default function Messages() {
         setReplies([]);
       }
     } catch (err: any) {
-      setError(err.message || '无法连接后端');
+      setError(err.userMessage || err.message || '无法连接后端');
     } finally {
       setLoading(false);
     }
@@ -122,7 +122,7 @@ export default function Messages() {
       } : m));
     } catch (e: any) {
       setChatMessages(prev => prev.map(m => m.id === botPlaceholder.id ? {
-        ...m, loading: false, error: true, text: e.message || '请求失败',
+        ...m, loading: false, error: true, text: e.userMessage || e.message || '请求失败',
       } : m));
     } finally {
       setSandboxTesting(false);
@@ -161,7 +161,7 @@ export default function Messages() {
       toast.success(enabled ? '已开启人工模式' : '已恢复自动回复');
       fetchManualMode();
     } catch (e: any) {
-      toast.error(e.message || '操作失败');
+      toast.error(e.userMessage || e.message || '操作失败');
     }
   };
 

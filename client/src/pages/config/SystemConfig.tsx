@@ -6,9 +6,10 @@ import { api } from '../../api/index';
 import { useStoreCategory, CATEGORY_META } from '../../contexts/StoreCategoryContext';
 import toast from 'react-hot-toast';
 import IntentRulesManager from '../../components/IntentRulesManager';
+import CollapsibleSection from '@/components/CollapsibleSection';
 import {
   Settings, Save, RefreshCw, Send, Bell, CheckCircle2, XCircle,
-  ExternalLink, Info, Plug, ChevronDown, ChevronUp, FileText, Zap,
+  ExternalLink, Info, Plug, FileText, Zap,
   DollarSign, Store, X, ArrowRight, Trash2,
   Receipt, Package, TrendingUp, MessageSquare, Eye, Shield,
 } from 'lucide-react';
@@ -488,45 +489,6 @@ function PushUrlDisplay() {
   );
 }
 
-function CollapsibleSection({ title, summary, guide, defaultOpen = false, children, icon }: {
-  title: string;
-  summary?: React.ReactNode;
-  guide?: string;
-  defaultOpen?: boolean;
-  children: React.ReactNode;
-  icon?: React.ReactNode;
-}) {
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <div className="border border-xy-border rounded-xl overflow-hidden">
-      <button
-        onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between px-5 py-4 bg-xy-gray-50 hover:bg-xy-gray-100 transition-colors text-left"
-        type="button"
-      >
-        <div className="flex items-center gap-2 min-w-0">
-          {icon}
-          <span className="font-bold text-xy-text-primary text-sm">{title}</span>
-        </div>
-        <div className="flex items-center gap-3 flex-shrink-0">
-          {!open && summary && (
-            <div className="hidden sm:flex items-center gap-1.5 text-xs text-xy-text-secondary">
-              {summary}
-            </div>
-          )}
-          {open ? <ChevronUp className="w-4 h-4 text-xy-text-muted" /> : <ChevronDown className="w-4 h-4 text-xy-text-muted" />}
-        </div>
-      </button>
-      {open && (
-        <div className="px-5 py-5 space-y-6">
-          {guide && <p className="text-sm text-xy-text-secondary pb-4 border-b border-xy-border">{guide}</p>}
-          {children}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function GuideCard({ summary, children }: { summary: string; children: React.ReactNode }) {
   const [expanded, setExpanded] = useState(false);
   return (
@@ -733,7 +695,7 @@ export default function SystemConfig() {
         toast.error(res.data?.error || '发送失败');
       }
     } catch (err: any) {
-      toast.error('发送失败: ' + (err?.response?.data?.error || err.message));
+      toast.error('发送失败: ' + (err?.response?.data?.error || err.userMessage || err.message));
     } finally {
       setTestingSend(null);
     }
@@ -771,7 +733,7 @@ export default function SystemConfig() {
         toast.error('闲管家连接失败: ' + (res.data?.message || '未知错误'));
       }
     } catch (err: any) {
-      const msg = err?.response?.data?.message || err.message || '请求失败';
+      const msg = err?.response?.data?.message || err.userMessage || err.message || '请求失败';
       setXgjTestResult({ ok: false, message: msg });
       toast.error('连接测试异常: ' + msg);
     } finally {
@@ -803,7 +765,7 @@ export default function SystemConfig() {
         toast.error('AI 连接失败: ' + (res.data?.message || '未知错误'));
       }
     } catch (err: any) {
-      const msg = err?.response?.data?.message || err.message || '请求失败';
+      const msg = err?.response?.data?.message || err.userMessage || err.message || '请求失败';
       setAiTestResult({ ok: false, message: msg });
       toast.error('AI 测试异常: ' + msg);
     } finally {
@@ -1036,7 +998,7 @@ export default function SystemConfig() {
                       toast.success(`查询到 ${list.length} 个可用类目`);
                     }
                   } catch (err: any) {
-                    toast.error('查询类目失败: ' + (err?.response?.data?.error || err?.message || '请检查闲管家配置'));
+                    toast.error('查询类目失败: ' + (err?.response?.data?.error || err?.userMessage || err?.message || '请检查闲管家配置'));
                   } finally {
                     setCategoryLoading(false);
                   }

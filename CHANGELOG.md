@@ -7,6 +7,121 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [10.1.0] - 2026-03-28
+
+### Added
+- Frontend test suite (Vitest + React Testing Library, 14 test files, 63 tests)
+- Dockerfile and docker-compose.yml for local development
+- .dockerignore
+- Vitest coverage configuration (v8 provider, text + lcov reporters)
+- CI test script in client/package.json (`npm test`)
+
+### Changed
+- Unified version to 10.0.0 across all files
+- Removed scaffold services per Option B (monolith + gateway only)
+- Updated architecture documentation
+- Simplified services/ to gateway-service + common only
+
+### Removed
+- services/ai-service/ (scaffold)
+- services/message-service/ (scaffold)
+- services/order-service/ (scaffold)
+- services/quote-service/ (scaffold)
+- k8s/canary-deployment.yaml
+- Dead Analytics page route
+
+## [10.0.0] - 2026-03-27
+
+### Added
+
+#### Phase 1: Infrastructure & Configuration
+- **Terraform 基础设施配置**：
+  - Kind 集群配置（1 控制平面 + 2 工作节点）
+  - AWS EKS 生产集群配置
+  - Helm Charts（Redis、PostgreSQL、Kafka、Prometheus、Jaeger）
+- **Pydantic 配置管理**：
+  - `services/common/xianyuflow_common/config.py`
+  - 替代全局 `get_config()` 状态
+  - 环境变量自动映射
+
+#### Phase 2: Service Architecture
+- **gateway-service** (端口 8000)：
+  - API 网关，限流，中间件
+  - 服务发现和路由分发
+- **quote-service** (端口 8001)：
+  - 物流报价引擎
+  - 多级缓存（L1 LRU + L2 Redis）
+- **ai-service** (端口 8002)：
+  - 4级上下文管理系统
+  - LLM 调用路由
+- **message-service** (端口 8003)：
+  - WebSocket 连接池
+  - 自动重连机制
+- **order-service** (端口 8004)：
+  - 订单履约管理
+  - 虚拟商品核销
+- **scheduler-service** (端口 8005)：
+  - 分布式任务调度
+  - Cron 任务管理
+
+#### Phase 3: AI Enhancement
+- **4级上下文系统**：
+  - L0: Request（请求级）
+  - L1: Intent（意图级，Redis TTL）
+  - L2: Session（会话级，Redis）
+  - L3: Profile（用户画像，PostgreSQL）
+- **上下文管理**：
+  - `services/ai-service/app/context.py`
+  - 自动过期和持久化
+
+#### Phase 4: Performance Optimization
+- **多级缓存**：
+  - L1: 内存 LRU 缓存
+  - L2: Redis 分布式缓存
+- **WebSocket 连接池**：
+  - `services/message-service/app/connection_pool.py`
+  - 健康检查和自动清理
+- **熔断器模式**：
+  - 外部服务故障隔离
+  - 自动恢复
+
+#### Phase 5: Migration & Deployment
+- **双写模式**：
+  - `services/common/xianyuflow_common/dual_write.py`
+  - SQLite → PostgreSQL 零停机迁移
+- **灰度发布配置**：
+  - `k8s/canary-deployment.yaml`
+  - NGINX Ingress 流量控制
+- **应急回滚脚本**：
+  - `scripts/rollback.sh`
+  - 快速回滚到稳定版本
+- **迁移文档**：
+  - `docs/MIGRATION_GUIDE.md`
+  - 完整的 5 阶段迁移流程
+
+### Changed
+
+- **架构升级**：单体应用 → 6 服务微服务架构
+- **数据库**：SQLite → PostgreSQL（双写过渡）
+- **配置管理**：YAML + 全局状态 → Pydantic 模型
+- **部署方式**：Docker Compose → Kubernetes + Helm
+- **前端架构**：保持 React + Vite，API 指向网关服务
+
+### Removed
+
+- **废弃目录**：
+  - `src/dashboard/`（重构为独立服务）
+  - `src/modules/`（拆分为微服务）
+- **废弃脚本**：
+  - `scripts/docker-compose.yml`（替换为 K8s）
+
+### Documentation
+
+- `README.md`：全面更新为 v10 架构
+- `docs/DEPLOYMENT.md`：新增 Kubernetes 部署指南
+- `docs/ARCHITECTURE.md`：微服务架构设计文档
+- `docs/MIGRATION_GUIDE.md`：v9→v10 迁移指南
+
 ## [9.5.0] - 2026-03-24
 
 ### Added

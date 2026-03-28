@@ -249,7 +249,12 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
             "怎么变了",
             "为什么贵了",
         ],
-        "reply": "亲，小程序每个手机号仅限一次首单优惠~ 如果之前用过（包括在其他店铺），这次按正常价计费。不过正常价也比自己寄便宜5折起哦~ 如有疑问可在小程序点击「联系客服」咨询~",
+        "reply": (
+            "亲，小程序每个手机号仅限一次首单优惠~ "
+            "如果之前用过（包括在其他店铺），这次按正常价计费。"
+            "不过正常价也比自己寄便宜5折起哦~ "
+            "如有疑问可在小程序点击「联系客服」咨询~"
+        ),
         "priority": 48,
         "categories": ["express"],
         "needs_human": True,
@@ -279,7 +284,11 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     {
         "name": "express_change_address",
         "keywords": ["改地址", "地址错了", "收件人写错", "地址写错", "改收件", "发错了", "地址改", "能改吗"],
-        "reply": "亲，地址是在小程序下单时填写的~ 如果还没下单可以直接填正确地址，已下单的话请在小程序点击「联系客服」修改哦~",
+        "reply": (
+            "亲，地址是在小程序下单时填写的~ "
+            "如果还没下单可以直接填正确地址，"
+            "已下单的话请在小程序点击「联系客服」修改哦~"
+        ),
         "priority": 48,
         "categories": ["express"],
         "needs_human": True,
@@ -289,7 +298,9 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     {
         "name": "express_cancel_order",
         "keywords": ["不想买了", "取消订单", "别发了", "不要了"],
-        "reply": "好的亲，如果还没在小程序下单直接不用管就行~ 已下单的话请在小程序点击「联系客服」取消，闲鱼这边我帮您退款~",
+        "reply": (
+            "好的亲，如果还没在小程序下单直接不用管就行~ 已下单的话请在小程序点击「联系客服」取消，闲鱼这边我帮您退款~"
+        ),
         "priority": 48,
         "categories": ["express"],
         "needs_human": True,
@@ -299,7 +310,10 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     {
         "name": "express_balance_issue",
         "keywords": ["余额不够", "抵扣不了", "不够支付"],
-        "reply": "亲，可能是因为该手机号之前已用过首单优惠，这次按正常价出的余额。可以试试选其他快递公司，或在小程序点击「联系客服」帮您看看~",
+        "reply": (
+            "亲，可能是因为该手机号之前已用过首单优惠，这次按正常价出的余额。"
+            "可以试试选其他快递公司，或在小程序点击「联系客服」帮您看看~"
+        ),
         "priority": 48,
         "categories": ["express"],
         "needs_human": True,
@@ -390,7 +404,11 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
             "找不到小程序",
             "微信搜不到",
         ],
-        "reply": "小程序就是搜索「商达人快递上门取件」的小程序哦~ 付款后系统自动发兑换码给您，用兑换码在小程序兑换余额，然后填地址选快递下单就行~",
+        "reply": (
+            "小程序就是搜索「商达人快递上门取件」的小程序哦~ "
+            "付款后系统自动发兑换码给您，用兑换码在小程序兑换余额，"
+            "然后填地址选快递下单就行~"
+        ),
         "priority": 50,
         "categories": ["express"],
         "phase": "presale",
@@ -433,7 +451,10 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
             "下一步",
             "拿到码",
         ],
-        "reply": "在小程序搜索「商达人快递上门取件」→ 右下角「我的」→「兑换优惠」输入兑换码 → 返回首页填写地址选快递 → 用余额支付下单~",
+        "reply": (
+            "在小程序搜索「商达人快递上门取件」→ 右下角「我的」→「兑换优惠」"
+            "输入兑换码 → 返回首页填写地址选快递 → 用余额支付下单~"
+        ),
         "priority": 49,
         "categories": ["express"],
         "phase": "presale",
@@ -476,7 +497,10 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     {
         "name": "express_shangdaren",
         "keywords": ["商达人", "商达人取件", "商达人上门"],
-        "reply": "在小程序搜索「商达人」点击进入 → 右下角「我的」→「兑换优惠」兑换余额 → 返回首页填写寄件和收件地址、选快递公司 → 用余额支付下单即可~",
+        "reply": (
+            "在小程序搜索「商达人」点击进入 → 右下角「我的」→「兑换优惠」兑换余额"
+            " → 返回首页填写寄件和收件地址、选快递公司 → 用余额支付下单即可~"
+        ),
         "priority": 50,
         "categories": ["express"],
         "phase": "presale",
@@ -562,7 +586,11 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     {
         "name": "express_first_order",
         "keywords": ["第二次", "再买", "续费", "还能用"],
-        "reply": "亲，闲鱼首单优惠每个手机号限一次~ 后续寄件直接在小程序下单就行，不用再从闲鱼走了，正常价也比自寄便宜5折起，非常划算哦~",
+        "reply": (
+            "亲，闲鱼首单优惠每个手机号限一次~ "
+            "后续寄件直接在小程序下单就行，不用再从闲鱼走了，"
+            "正常价也比自寄便宜5折起，非常划算哦~"
+        ),
         "priority": 50,
         "categories": ["express"],
         "phase": "presale",
@@ -686,7 +714,11 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     {
         "name": "express_multi_pkg",
         "keywords": ["两个包裹", "多个包裹", "子母件", "两个快递", "多个快递", "寄两个", "寄三个", "两件", "多件"],
-        "reply": "每个快递需分别下单哦~ 首单优惠仅限第一次使用小程序的手机号，后续寄件可直接在小程序下单，正常价也比自寄便宜5折起，非常方便~\n您先告诉我每个包裹的 寄件地-收件地-重量，我分别给您报价~",
+        "reply": (
+            "每个快递需分别下单哦~ 首单优惠仅限第一次使用小程序的手机号，"
+            "后续寄件可直接在小程序下单，正常价也比自寄便宜5折起，非常方便~\n"
+            "您先告诉我每个包裹的 寄件地-收件地-重量，我分别给您报价~"
+        ),
         "priority": 50,
         "categories": ["express"],
         "phase": "presale",
@@ -718,7 +750,11 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
             "会泄露",
             "看到我号码",
         ],
-        "reply": "亲，现在主流快递都默认使用隐私面单啦~ 手机号自动脱敏（隐藏6位以上），地址也会隐藏详细门牌号，个人信息会受到保护的哦~",
+        "reply": (
+            "亲，现在主流快递都默认使用隐私面单啦~ "
+            "手机号自动脱敏（隐藏6位以上），地址也会隐藏详细门牌号，"
+            "个人信息会受到保护的哦~"
+        ),
         "priority": 50,
         "categories": ["express"],
         "phase": "presale",
@@ -801,7 +837,11 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     {
         "name": "express_post_payment",
         "keywords": ["付了", "付款了", "付完了", "交钱了", "付好了", "已经付了", "付过了"],
-        "reply": "付款后兑换码会自动发到聊天消息里~ 收到后打开小程序搜索「商达人快递上门取件」→「我的」→「兑换优惠」输入兑换码 → 返回首页填地址选快递 → 用余额支付下单~",
+        "reply": (
+            "付款后兑换码会自动发到聊天消息里~ 收到后打开小程序搜索"
+            "「商达人快递上门取件」→「我的」→「兑换优惠」输入兑换码 → "
+            "返回首页填地址选快递 → 用余额支付下单~"
+        ),
         "priority": 49,
         "categories": ["express"],
         "phase": "checkout",
@@ -916,7 +956,10 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     {
         "name": "express_urgent",
         "keywords": ["加急", "急件", "当天到", "最快"],
-        "reply": "目前支持圆通、韵达、中通、申通，一般1-3天到~ 建议选报价最快的快递公司，有更多时效问题可在小程序「联系客服」咨询~",
+        "reply": (
+            "目前支持圆通、韵达、中通、申通，一般1-3天到~ "
+            "建议选报价最快的快递公司，有更多时效问题可在小程序「联系客服」咨询~"
+        ),
         "priority": 50,
         "categories": ["express"],
         "phase": "presale",
@@ -940,7 +983,11 @@ DEFAULT_INTENT_RULES: list[dict[str, Any]] = [
     {
         "name": "express_already_bought",
         "keywords": ["买了不知道", "拍了不知道", "不知道怎么寄", "不会弄", "太复杂", "买过", "之前买过", "之前用过"],
-        "reply": "很简单的~ 收到兑换码后：小程序搜索「商达人快递上门取件」→「我的」→「兑换优惠」输入码 → 返回首页填地址选快递 → 用余额支付，快递员就会上门取件啦~",
+        "reply": (
+            "很简单的~ 收到兑换码后：小程序搜索「商达人快递上门取件」"
+            "→「我的」→「兑换优惠」输入码 → 返回首页填地址选快递"
+            " → 用余额支付，快递员就会上门取件啦~"
+        ),
         "priority": 49,
         "categories": ["express"],
         "phase": "checkout",
@@ -1292,10 +1339,10 @@ class ReplyStrategyEngine:
         exclude_patterns = [str(p).strip() for p in raw_rule.get("exclude_patterns", []) if str(p).strip()]
         priority = int(raw_rule.get("priority", 100))
         categories = [str(c).strip() for c in raw_rule.get("categories", []) if str(c).strip()]
-        needs_human = bool(raw_rule.get("needs_human", False))
+        needs_human = bool(raw_rule.get("needs_human"))
         human_reason = str(raw_rule.get("human_reason", ""))
         phase = str(raw_rule.get("phase", ""))
-        skip_reply = bool(raw_rule.get("skip_reply", False))
+        skip_reply = bool(raw_rule.get("skip_reply"))
         max_length = int(raw_rule.get("max_length", 0))
 
         return IntentRule(

@@ -14,9 +14,6 @@ from pathlib import Path
 from typing import Any
 
 from src.core.config import get_config
-from src.dashboard.config_service import (
-    read_system_config as _read_system_config,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -355,9 +352,9 @@ class CookieService:
 
     @classmethod
     def _is_cookie_cloud_configured(cls) -> bool:
-        sys_cfg = _read_system_config()
-        cc_cfg = sys_cfg.get("cookie_cloud", {}) if isinstance(sys_cfg.get("cookie_cloud"), dict) else {}
-        return bool(cc_cfg.get("cookie_cloud_uuid") and cc_cfg.get("cookie_cloud_password"))
+        from src.core.cookie_cloud_client import CookieCloudClient
+
+        return CookieCloudClient.from_env_and_config().is_configured
 
     @classmethod
     def _recovery_advice(cls, stage: str, token_error: str | None = None) -> str:
@@ -422,7 +419,8 @@ class CookieService:
                     )
                 return (
                     "触发平台风控，请在闲鱼网页版打开「消息」页面通过滑块验证后，"
-                    "手动复制 Cookie 并粘贴保存（F12 \u2192 Network \u2192 Cookie），然后执行\u201c售前一键恢复\u201d。\n"
+                    "手动复制 Cookie 并粘贴保存"
+                    "（F12 → Network → Cookie），然后执行\u201c售前一键恢复\u201d。\n"
                     "提示：配置 CookieCloud 可实现验证后秒级自动恢复。"
                 )
             return "存在鉴权错误，建议更新 Cookie 后重连。"

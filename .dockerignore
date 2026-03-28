@@ -1,0 +1,17 @@
+.git
+.github
+__pycache__
+*.pyc
+*.pyo
+node_modules
+vendor
+data/*.db
+data/*.db-journal
+dist
+*.egg-info
+.venv
+venv
+.env
+*.log
+.DS_Store
+.claude

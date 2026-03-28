@@ -1,34 +1,22 @@
-# XianyuFlow | 闲流 (XianyuFlow | 闲流)
+# XianyuFlow | 闲流
 
 [![CI](https://github.com/G3niusYukki/realxianyu/actions/workflows/ci.yml/badge.svg)](https://github.com/G3niusYukki/realxianyu/actions/workflows/ci.yml)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-9.5.0-green.svg)](./CHANGELOG.md)
-[![Code style: Ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 
-> **⚠️ 架构变更通知 (v8.1.0+)**
->
-> 本项目已进行深度重构，**废弃了所有"一键安装 (.bat/.sh)"和冗余的内置 HTML 打包方式**，全面转向现代化的 **前端 (React/Vite) + 后端 (Python Asyncio)** 分离架构。
->
-> 本项目旨在作为工作室内部部署和 AI Agent 自动化驱动的基础设施。不再面向无编程基础的 C 端用户提供"双击启动包"。
+闲鱼运营自动化工具，覆盖消息自动回复、智能报价、订单履约、商品上架、Cookie 管理和运维诊断。
 
----
+**当前版本：v10.1.0**
 
-## 📚 文档导航
+## 架构概览
 
-| 文档 | 说明 | 目标读者 |
-|------|------|----------|
-| [QUICKSTART.md](./QUICKSTART.md) | 5分钟快速启动 | 新用户 |
-| [USER_GUIDE.md](./USER_GUIDE.md) | 详细使用说明书 | 终端用户 |
-| [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | 系统架构设计 | 开发者 |
-| [docs/API.md](./docs/API.md) | HTTP API 文档 | 前后端开发者 |
-| [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) | 生产部署指南 | 运维人员 |
-| [docs/for-agents/index.md](./docs/for-agents/index.md) | AI Agent 开发指南 | AI Agent |
-| [CONTRIBUTING.md](./CONTRIBUTING.md) | 贡献指南 | 贡献者 |
+v10 采用单体 + 网关的简化架构：
 
----
+- **Python 单体**（`src/`）：Dashboard 服务、消息处理、报价引擎、订单管理等全部业务逻辑
+- **Gateway Service**（`services/gateway-service`）：Open Platform 适配网关，独立 FastAPI 服务
+- **React 前端**（`client/`）：Vite + Tailwind 构建的管理界面，由 Dashboard 服务托管
 
-## 🚀 核心特性
+## 核心特性
 
 | 特性 | 说明 |
 |------|------|
@@ -38,44 +26,7 @@
 | **虚拟商品全自动核销** | 卡密自动发货，自动标记已发货，状态全链路闭环 |
 | **闲管家深度集成** | 兼容闲管家 PC 端登录状态，双重签名算法，降低纯 Web 协议风控概率 |
 
----
-
-## 💻 快速部署
-
-> 详细部署指南请参阅 [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) | AI Agent 专用指南 [AGENT_DEPLOYMENT.md](./AGENT_DEPLOYMENT.md)
-
-```bash
-# 1. 构建前端
-cd client && npm install && npm run build && cd ..
-
-# 2. 初始化后端
-python3.12 -m venv venv && source venv/bin/activate
-pip install -r requirements.txt
-
-# 3. 配置环境变量
-cp .env.example .env
-# 填入 XIANYU_COOKIE_1、AI_API_KEY、XGJ_APP_KEY / XGJ_APP_SECRET 等必要参数
-
-# 4. 启动 Dashboard / API 服务
-python -m src.dashboard_server --host 127.0.0.1 --port 8091
-
-# 5. 可选自检
-python -m src.cli doctor --skip-quote
-```
-
-### 🤖 For LLM Agents
-
-Fetch the installation guide and follow it:
-
-```bash
-curl -s https://raw.githubusercontent.com/G3niusYukki/realxianyu/main/AGENT_DEPLOYMENT.md
-```
-
-Or simply tell your agent: **"Deploy this project following AGENT_DEPLOYMENT.md"**
-
----
-
-## 🏗 架构设计
+## 架构设计
 
 ```
 ┌──────────────────────────────────────────────────────────┐
@@ -112,60 +63,114 @@ Or simply tell your agent: **"Deploy this project following AGENT_DEPLOYMENT.md"
 - **无 global 声明**：全局状态通过单例类（`WebSocketTransportManager`、`QuoteLedger` 等）管理
 - **CLI 模块化**：`cli/` 包按职责拆分，支持猴子补丁测试
 
----
+## 运行入口
 
-## 🧪 测试与规范
+| 用途 | 地址/命令 | 说明 |
+|------|-----------|------|
+| Dashboard UI | `http://127.0.0.1:8091/` | 主工作台，托管 `client/dist` |
+| Dashboard 健康检查 | `http://127.0.0.1:8091/healthz` | Python 主服务健康状态 |
+| Gateway API | `http://127.0.0.1:8000/` | Open Platform 适配网关，根路径返回 JSON |
+| Gateway Swagger | `http://127.0.0.1:8000/docs` | FastAPI 文档 |
+| Vite 开发端口 | `http://127.0.0.1:5173/` | 仅前端开发时使用，不是生产入口 |
+
+## 快速启动
+
+### Docker（推荐）
 
 ```bash
-# 运行全部测试（当前基线：1733 collected / 1717 passed / 16 skipped）
+docker-compose up -d
+```
+
+Dashboard UI 在 `http://127.0.0.1:8091/`，Gateway API 在 `http://127.0.0.1:8000/`。
+
+### 手动安装
+
+#### 1. 安装依赖
+
+```bash
+python3.12 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+cd client && npm install && npm run build && cd ..
+# 可选：lint/类型检查工具
+pip install -r requirements-dev.txt
+```
+
+#### 2. 配置环境
+
+```bash
+cp .env.example .env
+```
+
+运行时优先级：
+
+1. `.env`
+2. `data/system_config.json`
+3. `config/config.yaml`
+
+#### 3. 启动 Dashboard 主服务
+
+```bash
+python -m src.dashboard_server --host 127.0.0.1 --port 8091
+```
+
+打开：
+
+- `http://127.0.0.1:8091/` 看管理界面
+- `http://127.0.0.1:8091/healthz` 看健康检查
+
+#### 4. 可选：启动 Gateway Service
+
+```bash
+pip install -e services/common -e services/gateway-service
+cd services/gateway-service
+../../venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
+
+打开：
+
+- `http://127.0.0.1:8000/`
+- `http://127.0.0.1:8000/docs`
+
+## 测试与规范
+
+```bash
+# Python 后端测试
 ./venv/bin/python -m pytest tests/ -q
 
-# 代码规范检查（需先安装 requirements-dev.txt）
-pip install -r requirements-dev.txt
-./venv/bin/python -m ruff check src/
-./venv/bin/python -m ruff format src/ --check
+# Python lint（需先安装 requirements-dev.txt）
+./venv/bin/python -m ruff check src/ services/
+
+# Python format check
+./venv/bin/python -m ruff format src/ services/ --check
+
+# 前端构建
+cd client && npm run build
+
+# 前端测试
+cd client && npm test
 ```
 
-提交前请确保测试全部通过且 `ruff check` 无报错。
+## 目录概览
 
----
-
-## 📂 目录结构
-
-```
-src/
-├── core/               # 核心基础设施（配置、日志、浏览器客户端、Cookie 管理、加密）
-├── modules/            # 业务模块
-│   ├── messages/       #   WS 长连接、消息回复引擎、workflow
-│   ├── orders/         #   订单履约、自动改价轮询
-│   ├── quote/          #   物流报价引擎、成本表、地理解析
-│   ├── listing/        #   商品上架、文案模板
-│   ├── virtual_goods/  #   虚拟商品核销
-│   ├── accounts/       #   多账号管理
-│   ├── content/        #   AI 内容生成
-│   ├── analytics/      #   数据分析
-│   ├── ticketing/      #   票务模块
-│   ├── media/          #   媒体处理
-│   ├── operations/     #   运营工具
-│   ├── growth/         #   增长分析
-│   ├── followup/       #   追单
-│   └── compliance/     #   合规检查
-├── integrations/       # 第三方集成（闲管家 API）
-├── dashboard/          # Dashboard Facade (mimic_ops.py) + HTTP Routes
-│   ├── services/       #   CookieService / XGJService（从 mimic_ops 拆分）
-│   └── routes/         #   HTTP 路由处理
-├── cli/                # 模块化 CLI 包
-├── dashboard_server.py # HTTP 服务器入口（Dashboard + API + 静态资源）
-├── main.py             # 模块预加载入口（非常驻服务）
-└── setup_wizard.py     # 初始化向导
+```text
+client/                     React/Vite 前端
+config/                     YAML 主配置
+data/system_config.json     Dashboard UI 覆盖配置
+docs/                       开发/部署/架构文档
+infra/                      Terraform / Helm / 本地基础设施脚本
+services/
+  gateway-service/          Open Platform 适配网关（FastAPI）
+  common/                   服务间共享库（Pydantic config 等）
+src/                        Python 单体业务与 Dashboard 服务
+tests/                      pytest 测试
 ```
 
-`infra/` 目录提供可选基础设施样例：当前工作区包含 `infra/terraform/main.tf` 以及
-`infra/helm/xianyuflow-infra/values-kafka.yaml`、`values-monitoring.yaml`，用于补充 Kafka /
-监控栈，不是单机部署的必需项。
+## 文档
 
----
-
-## 📜 许可协议
-
-[MIT License](./LICENSE)
+- [QUICKSTART.md](./QUICKSTART.md)
+- [CONTRIBUTING.md](./CONTRIBUTING.md)
+- [CHANGELOG.md](./CHANGELOG.md)
+- [docs/API.md](./docs/API.md)
+- [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)
+- [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md)

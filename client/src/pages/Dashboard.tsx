@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import { getDashboardSummary, getRecentOperations, getSystemStatus, getTrendData, getTopProducts, getSliderStats, getUnmatchedStats, generateRuleSuggestions, applyRuleSuggestion, type SliderStats, type RuleSuggestion } from '../api/dashboard'
-import { Store, ShoppingBag, MessageCircle, FileText, AlertCircle, RefreshCw, Settings, Zap, Bot, BarChart3, Clock, Package, TrendingUp, Calendar, Send, Shield, ShieldCheck, ShieldAlert, ShieldX } from 'lucide-react'
+import { getDashboardSummary, getRecentOperations, getSystemStatus, getTrendData, getTopProducts, getUnmatchedStats, generateRuleSuggestions, applyRuleSuggestion, type RuleSuggestion } from '../api/dashboard'
+import { Store, ShoppingBag, MessageCircle, FileText, AlertCircle, RefreshCw, Settings, Bot, BarChart3, Clock, Package, TrendingUp, Calendar, Zap } from 'lucide-react'
 import toast from 'react-hot-toast'
 import SetupGuide from '../components/SetupGuide'
 import SetupWizard from '../components/SetupWizard'
@@ -10,8 +10,9 @@ import ApiStatusPanel from '../components/ApiStatusPanel'
 import { useStoreCategory } from '../contexts/StoreCategoryContext'
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts'
 
-import { getPublishQueue } from '../api/listing';
-import { api } from '../api/index';
+import PublishQueueCard from './dashboard/PublishQueueCard'
+import SliderStatsCard from './dashboard/SliderStatsCard'
+import XgjControlPanel from './dashboard/XgjControlPanel'
 
 const POLL_INTERVAL = 60_000;
 const AGO_TICK = 10_000;
@@ -23,321 +24,6 @@ function formatTimeAgo(ts: number): string {
   const mins = Math.floor(diff / 60);
   if (mins < 60) return `${mins} 分钟前`;
   return `${Math.floor(mins / 60)} 小时前`;
-}
-
-function PublishQueueCard() {
-  const [count, setCount] = useState(0);
-  useEffect(() => {
-    const today = new Date().toISOString().split('T')[0];
-    getPublishQueue(today)
-      .then(res => {
-        if (res.data?.ok) {
-          const pending = (res.data.items || []).filter(
-            (it: any) => it.status === 'draft' || it.status === 'ready'
-          );
-          setCount(pending.length);
-        }
-      })
-      .catch(() => {});
-  }, []);
-
-  return (
-    <Link to="/products/auto-publish?tab=queue" className="flex items-center justify-between p-3 rounded-xl border border-xy-border hover:border-emerald-500 hover:bg-emerald-50 transition-colors group">
-      <div className="flex items-center gap-3">
-        <div className="bg-emerald-100 p-2 rounded-lg group-hover:bg-emerald-200 transition-colors"><Send className="w-5 h-5 text-emerald-600" /></div>
-        <div>
-          <span className="font-medium text-xy-text-primary">今日待发布</span>
-          {count > 0 && <span className="ml-2 px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[11px] font-medium">{count} 条</span>}
-        </div>
-      </div>
-      <span className="text-emerald-500">&rarr;</span>
-    </Link>
-  );
-}
-
-function SliderStatsCard() {
-  const [stats, setStats] = useState<SliderStats | null>(null);
-  const [hours, setHours] = useState(24);
-
-  useEffect(() => {
-    getSliderStats(hours)
-      .then(res => { if (res.data?.ok) setStats(res.data); })
-      .catch(() => {});
-  }, [hours]);
-
-  if (!stats || stats.total_triggers === 0) return null;
-
-  const rateColor = (rate: number) =>
-    rate >= 80 ? 'text-green-600' : rate >= 50 ? 'text-yellow-600' : 'text-red-600';
-  const rateBg = (rate: number) =>
-    rate >= 80 ? 'bg-green-100' : rate >= 50 ? 'bg-yellow-100' : 'bg-red-100';
-
-  const ttlText = stats.avg_cookie_ttl_seconds != null
-    ? stats.avg_cookie_ttl_seconds > 3600
-      ? `${(stats.avg_cookie_ttl_seconds / 3600).toFixed(1)}h`
-      : `${Math.round(stats.avg_cookie_ttl_seconds / 60)}min`
-    : '--';
-
-  return (
-    <div className="xy-card p-5">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-base font-semibold text-xy-text-primary flex items-center gap-2">
-          <Shield className="w-4 h-4 text-blue-500" /> 滑块验证
-        </h3>
-        <select
-          className="text-xs border border-xy-border rounded-lg px-2 py-1 bg-white"
-          value={hours}
-          onChange={e => setHours(Number(e.target.value))}
-        >
-          <option value={6}>6h</option>
-          <option value={24}>24h</option>
-          <option value={72}>3天</option>
-          <option value={168}>7天</option>
-        </select>
-      </div>
-
-      <div className="grid grid-cols-3 gap-3 mb-4">
-        <div className="text-center">
-          <div className={`text-xl font-bold ${rateColor(stats.success_rate)}`}>
-            {stats.success_rate}%
-          </div>
-          <div className="text-[11px] text-xy-text-secondary">总成功率</div>
-        </div>
-        <div className="text-center">
-          <div className="text-xl font-bold text-xy-text-primary">{stats.total_triggers}</div>
-          <div className="text-[11px] text-xy-text-secondary">触发次数</div>
-        </div>
-        <div className="text-center">
-          <div className="text-xl font-bold text-xy-text-primary">{ttlText}</div>
-          <div className="text-[11px] text-xy-text-secondary">Cookie均寿</div>
-        </div>
-      </div>
-
-      <div className="space-y-2">
-        {stats.nc_attempts > 0 && (
-          <div className="flex items-center justify-between text-sm">
-            <span className="flex items-center gap-1.5">
-              {stats.nc_success_rate >= 50
-                ? <ShieldCheck className="w-3.5 h-3.5 text-green-500" />
-                : <ShieldAlert className="w-3.5 h-3.5 text-yellow-500" />}
-              NC 滑块
-            </span>
-            <span>
-              <span className={`font-medium ${rateColor(stats.nc_success_rate)}`}>
-                {stats.nc_passed}/{stats.nc_attempts}
-              </span>
-              <span className={`ml-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${rateBg(stats.nc_success_rate)} ${rateColor(stats.nc_success_rate)}`}>
-                {stats.nc_success_rate}%
-              </span>
-            </span>
-          </div>
-        )}
-        {stats.puzzle_attempts > 0 && (
-          <div className="flex items-center justify-between text-sm">
-            <span className="flex items-center gap-1.5">
-              {stats.puzzle_success_rate >= 50
-                ? <ShieldCheck className="w-3.5 h-3.5 text-green-500" />
-                : <ShieldX className="w-3.5 h-3.5 text-red-500" />}
-              拼图滑块
-            </span>
-            <span>
-              <span className={`font-medium ${rateColor(stats.puzzle_success_rate)}`}>
-                {stats.puzzle_passed}/{stats.puzzle_attempts}
-              </span>
-              <span className={`ml-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${rateBg(stats.puzzle_success_rate)} ${rateColor(stats.puzzle_success_rate)}`}>
-                {stats.puzzle_success_rate}%
-              </span>
-            </span>
-          </div>
-        )}
-      </div>
-
-      {(stats.screenshots?.length ?? 0) > 0 && (
-        <details className="mt-3">
-          <summary className="text-xs text-xy-text-secondary cursor-pointer hover:text-xy-text-primary">
-            查看失败截图 ({stats.screenshots.length})
-          </summary>
-          <div className="mt-2 grid grid-cols-2 gap-2">
-            {stats.screenshots.slice(0, 4).map((s, i) => (
-              <div key={i} className="relative group">
-                <img
-                  src={`/api/slider/screenshot/${s.path.split('/').pop()}`}
-                  alt={`${s.type} ${s.result}`}
-                  className="w-full h-20 object-cover rounded border border-xy-border"
-                  loading="lazy"
-                />
-                <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[10px] px-1 py-0.5 rounded-b">
-                  {s.type} · {s.result}
-                </div>
-              </div>
-            ))}
-          </div>
-        </details>
-      )}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// 闲管家控制面板
-// ---------------------------------------------------------------------------
-function XgjControlPanel() {
-  const [appKey, setAppKey] = useState('');
-  const [appSecret, setAppSecret] = useState('');
-  const [autoPrice, setAutoPrice] = useState(false);
-  const [autoShip, setAutoShip] = useState(false);
-  const [connected, setConnected] = useState<boolean | null>(null); // null=未测试, true=成功, false=失败
-  const [testLoading, setTestLoading] = useState(false);
-  const [saveLoading, setSaveLoading] = useState(false);
-  const [retryPriceCount, setRetryPriceCount] = useState(0);
-  const [retryShipCount, setRetryShipCount] = useState(0);
-
-  const handleTest = useCallback(async () => {
-    if (!appKey || !appSecret) { toast.error('请先填写 AppKey 和 AppSecret'); return; }
-    setTestLoading(true);
-    try {
-      const res = await api.post('/xgj/test-connection', {
-        app_key: appKey, app_secret: appSecret, mode: 'xianguanjia',
-      });
-      const ok = res.data?.ok ?? false;
-      setConnected(ok);
-      toast[ok ? 'success' : 'error'](res.data?.message || (ok ? '连接成功' : '连接失败'));
-    } catch {
-      setConnected(false);
-      toast.error('连接测试失败');
-    } finally {
-      setTestLoading(false);
-    }
-  }, [appKey, appSecret]);
-
-  const handleSave = useCallback(async () => {
-    setSaveLoading(true);
-    try {
-      const res = await api.post('/xgj/settings', {
-        app_key: appKey,
-        app_secret: appSecret,
-        auto_price_enabled: autoPrice,
-        auto_ship_enabled: autoShip,
-      });
-      if (res.data?.success ?? res.data?.ok) {
-        toast.success('闲管家配置已保存');
-      } else {
-        toast.error(res.data?.message || '保存失败');
-      }
-    } catch {
-      toast.error('保存配置失败');
-    } finally {
-      setSaveLoading(false);
-    }
-  }, [appKey, appSecret, autoPrice, autoShip]);
-
-  const handleRetryPrice = useCallback(async () => {
-    try {
-      const res = await api.post('/xgj/retry-price', {});
-      toast.success(res.data?.message || '改价重试已触发');
-    } catch { toast.error('改价重试失败'); }
-  }, []);
-
-  const handleRetryShip = useCallback(async () => {
-    try {
-      const res = await api.post('/xgj/retry-ship', {});
-      toast.success(res.data?.message || '发货重试已触发');
-    } catch { toast.error('发货重试失败'); }
-  }, []);
-
-  const connColor = connected === true ? 'bg-green-500' : connected === false ? 'bg-red-500' : 'bg-gray-300';
-  const connLabel = connected === true ? '已连接' : connected === false ? '连接失败' : '未配置';
-
-  return (
-    <div className="xy-card p-5">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-semibold text-xy-text-primary flex items-center gap-2">
-          <Zap className="w-4 h-4 text-blue-500" /> 闲管家控制面板
-        </h3>
-        <span className={`flex items-center gap-1.5 text-xs font-medium text-xy-text-secondary`}>
-          <span className={`w-2 h-2 rounded-full ${connColor}`} />
-          {connLabel}
-        </span>
-      </div>
-
-      <div className="space-y-3">
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <label className="text-xs text-xy-text-secondary mb-1 block">AppKey</label>
-            <input
-              className="xy-input w-full text-xs py-1.5"
-              value={appKey}
-              onChange={e => setAppKey(e.target.value)}
-              placeholder="填写 AppKey"
-            />
-          </div>
-          <div>
-            <label className="text-xs text-xy-text-secondary mb-1 block">AppSecret</label>
-            <input
-              className="xy-input w-full text-xs py-1.5"
-              type="password"
-              value={appSecret}
-              onChange={e => setAppSecret(e.target.value)}
-              placeholder="填写 AppSecret"
-            />
-          </div>
-        </div>
-
-        <div className="flex gap-4">
-          <label className="flex items-center gap-2 text-xs text-xy-text-secondary cursor-pointer">
-            <input
-              type="checkbox"
-              className="accent-orange-500"
-              checked={autoPrice}
-              onChange={e => setAutoPrice(e.target.checked)}
-            />
-            自动改价
-          </label>
-          <label className="flex items-center gap-2 text-xs text-xy-text-secondary cursor-pointer">
-            <input
-              type="checkbox"
-              className="accent-orange-500"
-              checked={autoShip}
-              onChange={e => setAutoShip(e.target.checked)}
-            />
-            支付后自动发货
-          </label>
-        </div>
-
-        <div className="flex gap-2">
-          <button
-            onClick={handleTest}
-            disabled={testLoading}
-            className="flex-1 px-3 py-1.5 text-xs border border-xy-border rounded-lg hover:bg-xy-gray-50 disabled:opacity-50 transition-colors font-medium"
-          >
-            {testLoading ? '测试中...' : '测试连接'}
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={saveLoading}
-            className="flex-1 px-3 py-1.5 text-xs bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50 transition-colors font-medium"
-          >
-            {saveLoading ? '保存中...' : '保存配置'}
-          </button>
-        </div>
-
-        {(retryPriceCount > 0 || retryShipCount > 0) && (
-          <div className="flex gap-2 pt-1">
-            {retryPriceCount > 0 && (
-              <button onClick={handleRetryPrice} className="text-xs px-2 py-1 rounded border border-orange-200 text-orange-600 hover:bg-orange-50 transition-colors">
-                重试改价 ({retryPriceCount})
-              </button>
-            )}
-            {retryShipCount > 0 && (
-              <button onClick={handleRetryShip} className="text-xs px-2 py-1 rounded border border-orange-200 text-orange-600 hover:bg-orange-50 transition-colors">
-                重试发货 ({retryShipCount})
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
-  );
 }
 
 const TABS = [
@@ -360,8 +46,8 @@ const Dashboard = () => {
     conversion_rate_pct: null as number | null,
   });
   const [dataSource, setDataSource] = useState<string>('');
-  const [recentOps, setRecentOps] = useState([]);
-  const [sysStatus, setSysStatus] = useState(null);
+  const [recentOps, setRecentOps] = useState<{ action: string; success: boolean; timestamp: string; message: string }[]>([]);
+  const [sysStatus, setSysStatus] = useState<Record<string, any> | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const refreshingRef = useRef(false);
@@ -370,8 +56,8 @@ const Dashboard = () => {
 
   const [metric, setMetric] = useState('orders');
   const [days, setDays] = useState(30);
-  const [trendData, setTrendData] = useState([]);
-  const [topProducts, setTopProducts] = useState([]);
+  const [trendData, setTrendData] = useState<{ date: string; value: number }[]>([]);
+  const [topProducts, setTopProducts] = useState<{ pic_url?: string; title: string; sold?: number; sales?: number; stock?: number; price?: number }[]>([]);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [unmatchedStats, setUnmatchedStats] = useState<{ total_count: number; top_keywords: Array<{ word: string; count: number }> } | null>(null);
   const [ruleSuggestions, setRuleSuggestions] = useState<RuleSuggestion[]>([]);
@@ -428,7 +114,7 @@ const Dashboard = () => {
   daysRef.current = days;
 
   const applyDashboardResults = useCallback((results: PromiseSettledResult<any>[]) => {
-    const [summaryRes, opsRes, statusRes] = results.map(r => r.status === 'fulfilled' ? r.value : null);
+    const [summaryRes, opsRes, statusRes] = results.map(r => r.status === 'fulfilled' ? r.value : null) as [any, any, any];
 
     if (summaryRes?.data) {
       const raw = summaryRes.data.data || summaryRes.data;
@@ -446,7 +132,7 @@ const Dashboard = () => {
       });
     }
     if (opsRes?.data) {
-      const ops = Array.isArray(opsRes.data) ? opsRes.data : (opsRes.data.operations || []);
+      const ops: any[] = Array.isArray(opsRes.data) ? opsRes.data : (opsRes.data.operations || []);
       setRecentOps(ops.map((op: any) => ({
         action: op.operation_type || op.action || '未知操作',
         success: op.status === 'success' || op.status === 'completed',

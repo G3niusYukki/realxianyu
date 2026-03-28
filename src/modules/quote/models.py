@@ -6,6 +6,8 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
+from src.modules.quote.utils import format_eta_days as _format_eta_days
+
 DEFAULT_QUOTE_REPLY_TEMPLATE = (
     "您好，{origin} 到 {destination}，预估报价 ¥{price}（{price_breakdown}）。预计时效约 {eta_days}。"
 )
@@ -97,14 +99,7 @@ class QuoteResult:
 
     @staticmethod
     def _format_days_from_minutes(minutes: int | float | None) -> str:
-        raw = float(minutes or 0)
-        if raw <= 0:
-            return "1天"
-        days = max(1.0, raw / 1440.0)
-        rounded = round(days, 1)
-        if abs(rounded - round(rounded)) < 1e-9:
-            return f"{round(rounded)}天"
-        return f"{rounded:.1f}天"
+        return _format_eta_days(minutes)
 
     @staticmethod
     def _strip_validity_clause(text: str) -> str:

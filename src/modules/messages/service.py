@@ -120,7 +120,8 @@ DEFAULT_COURIER_LOCK_TEMPLATE = (
     "2. 我改价后您再付款；\n"
     "3. 付款后系统自动发兑换码，到小程序下单即可。\n"
     "地址和手机号在小程序填写就好，这边不需要提供哦~\n"
-    "新用户福利：以上为首单优惠价（每个手机号限一次）~ 若已使用过小程序，后续可直接在小程序下单，正常价也比自寄便宜5折起"
+    "新用户福利：以上为首单优惠价（每个手机号限一次）~ "
+    "若已使用过小程序，后续可直接在小程序下单，正常价也比自寄便宜5折起"
 )
 
 
@@ -203,9 +204,9 @@ class MessagesService:
         }
         self.transport_mode = self._normalized_transport_mode(self.config.get("transport", "dom"))
         self.ws_config = self.config.get("ws", {}) if isinstance(self.config.get("ws"), dict) else {}
-        for _key in ("manual_mode_timeout", "manual_mode_resume_seconds"):
-            if _key not in self.ws_config and _key in self.config:
-                self.ws_config[_key] = self.config[_key]
+        for key in ("manual_mode_timeout", "manual_mode_resume_seconds"):
+            if key not in self.ws_config and key in self.config:
+                self.ws_config[key] = self.config[key]
         self._ws_transport: Any | None = None
         self._ws_unavailable_reason = ""
         self._reply_templates_path = self._resolve_reply_templates_path()
@@ -239,10 +240,10 @@ class MessagesService:
         self.send_confirm_delay_seconds = tuple(self.config.get("send_confirm_delay_seconds", [0.15, 0.35]))
 
         self.simulate_human_typing = bool(self.config.get("simulate_human_typing", False))
-        _speed_raw = str(self.config.get("typing_speed_range", "0.05-0.15"))
+        speed_raw = str(self.config.get("typing_speed_range", "0.05-0.15"))
         try:
-            _lo, _hi = _speed_raw.split("-", 1)
-            self.typing_speed_range = (float(_lo), float(_hi))
+            lo, hi = speed_raw.split("-", 1)
+            self.typing_speed_range = (float(lo), float(hi))
         except (ValueError, TypeError):
             self.typing_speed_range = (0.05, 0.15)
         self.typing_max_delay = float(self.config.get("typing_max_delay", 8))
@@ -725,8 +726,8 @@ class MessagesService:
             return False
 
         if any(p in text for p in ["到货", "多久到", "什么时候到", "到没", "到了吗", "到哪了"]):
-            _route_markers = ("寄", "发", "收", "从", "由", "~", "～", "-", "\u2013", "—", "→")
-            if not any(marker in text for marker in _route_markers):
+            route_markers = ("寄", "发", "收", "从", "由", "~", "～", "-", "\u2013", "—", "→")
+            if not any(marker in text for marker in route_markers):
                 return False
 
         route_patterns = (
@@ -1294,36 +1295,36 @@ class MessagesService:
                     "rule_matched": pre_matched.name,
                 }
 
-            _greeting_rules = frozenset({"express_availability", "express_first_weight"})
-            if pre_matched.name in _greeting_rules:
+            greeting_rules = frozenset({"express_availability", "express_first_weight"})
+            if pre_matched.name in greeting_rules:
                 origin, dest = self._extract_locations(message_text)
                 if not origin and session_id:
                     origin = context_before.get("origin") or None
                 if not dest and session_id:
                     dest = context_before.get("destination") or None
                 if origin or dest:
-                    _weight = self._extract_weight_kg(message_text)
-                    if _weight is None and session_id:
+                    weight = self._extract_weight_kg(message_text)
+                    if weight is None and session_id:
                         ctx_w = context_before.get("weight")
                         if ctx_w is not None:
                             try:
                                 ctx_w = float(ctx_w)
                                 if ctx_w > 0:
-                                    _weight = ctx_w
+                                    weight = ctx_w
                             except (TypeError, ValueError):
                                 pass
-                    if _weight is None and self._BARE_NUMBER_RE.match((message_text or "").strip()):
+                    if weight is None and self._BARE_NUMBER_RE.match((message_text or "").strip()):
                         try:
                             bv = float(self._BARE_NUMBER_RE.match(message_text.strip()).group(1))
                             if 0 < bv < 10000:
-                                _weight = bv
+                                weight = bv
                         except (TypeError, ValueError):
                             pass
-                    if _weight is None and re.search(r"首重", message_text or ""):
-                        _weight = 1.0
-                    if _weight is None and re.search(r"续重", message_text or ""):
-                        _weight = 2.0
-                    if origin and dest and _weight is not None and _weight > 0:
+                    if weight is None and r"首重" in (message_text or ""):
+                        weight = 1.0
+                    if weight is None and r"续重" in (message_text or ""):
+                        weight = 2.0
+                    if origin and dest and weight is not None and weight > 0:
                         pass  # all fields present, fall through to quote engine
                     else:
                         if session_id:
@@ -1332,7 +1333,9 @@ class MessagesService:
                         sf_kw = re.search(r"顺丰|京东", message_text or "")
                         if sf_kw:
                             parts.append(
-                                "闲鱼特价渠道暂时没有顺丰/京东，小程序内可直接下单且价格更优~ 这边有韵达/圆通/中通/申通可选"
+                                "闲鱼特价渠道暂时没有顺丰/京东，"
+                                "小程序内可直接下单且价格更优~ "
+                                "这边有韵达/圆通/中通/申通可选"
                             )
                         else:
                             parts.append("在的亲")
@@ -1347,7 +1350,7 @@ class MessagesService:
                             "rule_matched": pre_matched.name,
                         }
 
-            _QUOTE_YIELDABLE_RULES = frozenset(
+            QUOTE_YIELDABLE_RULES = frozenset(
                 {
                     "express_availability",
                     "express_large",
@@ -1361,41 +1364,41 @@ class MessagesService:
                 }
             )
             use_rule_reply = True
-            if is_quote_intent and pre_matched.name in _QUOTE_YIELDABLE_RULES:
-                _origin, _dest = self._extract_locations(message_text)
-                _weight = self._extract_weight_kg(message_text)
-                if _weight is None and self._BARE_NUMBER_RE.match((message_text or "").strip()):
+            if is_quote_intent and pre_matched.name in QUOTE_YIELDABLE_RULES:
+                origin_, dest_ = self._extract_locations(message_text)
+                weight = self._extract_weight_kg(message_text)
+                if weight is None and self._BARE_NUMBER_RE.match((message_text or "").strip()):
                     try:
                         bv = float(self._BARE_NUMBER_RE.match(message_text.strip()).group(1))
                         if 0 < bv < 10000:
-                            _weight = bv
+                            weight = bv
                     except (TypeError, ValueError):
                         pass
-                if _weight is None and re.search(r"首重", message_text or ""):
-                    _weight = 1.0
-                if _weight is None and re.search(r"续重", message_text or ""):
-                    _weight = 2.0
-                if not _origin and session_id:
-                    _origin = context_before.get("origin") or None
-                if not _dest and session_id:
-                    _dest = context_before.get("destination") or None
-                if _origin and _dest and _weight is not None and _weight > 0:
+                if weight is None and r"首重" in (message_text or ""):
+                    weight = 1.0
+                if weight is None and r"续重" in (message_text or ""):
+                    weight = 2.0
+                if not origin_ and session_id:
+                    origin_ = context_before.get("origin") or None
+                if not dest_ and session_id:
+                    dest_ = context_before.get("destination") or None
+                if origin_ and dest_ and weight is not None and weight > 0:
                     use_rule_reply = False
                     self.logger.info(
                         "[quote_override] Rule '%s' yielded to quote engine (buyer has quote intent + complete info)",
                         pre_matched.name,
                     )
                 else:
-                    has_partial = _origin or _dest or (_weight is not None and _weight > 0)
+                    has_partial = origin_ or dest_ or (weight is not None and weight > 0)
                     if has_partial and session_id:
-                        if _origin is not None or _dest is not None:
+                        if origin_ is not None or dest_ is not None:
                             self._update_quote_context(
                                 session_id,
-                                origin=_origin or context_before.get("origin"),
-                                destination=_dest or context_before.get("destination"),
+                                origin=origin_ or context_before.get("origin"),
+                                destination=dest_ or context_before.get("destination"),
                             )
-                        if _weight is not None and _weight > 0:
-                            self._update_quote_context(session_id, weight=_weight)
+                        if weight is not None and weight > 0:
+                            self._update_quote_context(session_id, weight=weight)
                         ctx_merged = self._get_quote_context(session_id)
                         missing = []
                         if not ctx_merged.get("origin"):
