@@ -43,7 +43,12 @@ ignore:
   - "**/test_*.py"
   - "**/conftest.py"
   - "src/**/__pycache__/**/*"
-  - "client/**/*"
   - "scripts/**/*"
   - "examples/**/*"
   - "docs/**/*"
+
+component_management:
+  individual_components:
+    - component_id: frontend
+      paths:
+        - client/src/
