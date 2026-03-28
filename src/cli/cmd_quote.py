@@ -16,7 +16,7 @@ import argparse
 
 
 async def cmd_quote(args: argparse.Namespace) -> None:
-    from src.cli import _json_out  # noqa: F401
+    from src.cli import _json_out
     from src.core.config import get_config
     from src.modules.quote import CostTableRepository, QuoteSetupService
 

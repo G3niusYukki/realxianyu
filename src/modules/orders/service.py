@@ -475,7 +475,7 @@ class OrderFulfillmentService:
     @staticmethod
     def _parse_order_row(row: sqlite3.Row) -> dict[str, Any]:
         data = dict(row)
-        data["manual_takeover"] = bool(data.get("manual_takeover", 0))
+        data["manual_takeover"] = bool(data.get("manual_takeover"))
         quote = data.get("quote_snapshot_json") or "{}"
         data["quote_snapshot"] = json.loads(quote)
         return data
@@ -559,7 +559,7 @@ class OrderFulfillmentService:
                 "express_name": express_name,
             }, None
 
-        _SHIP_FIELD_MAP = {
+        SHIP_FIELD_MAP = {
             "ship_province": "ship_prov_name",
             "ship_city": "ship_city_name",
             "ship_area": "ship_area_name",
@@ -581,7 +581,7 @@ class OrderFulfillmentService:
         ):
             val = str(shipping_info.get(key, "")).strip()
             if val:
-                api_key = _SHIP_FIELD_MAP.get(key, key)
+                api_key = SHIP_FIELD_MAP.get(key, key)
                 payload[api_key] = val
         if express_name and "express_name" not in payload:
             payload["express_name"] = express_name

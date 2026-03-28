@@ -37,12 +37,12 @@ def safe_execute(
         http_aware: If True, handle httpx errors specifically with detailed messages
     """
 
-    _log_level = log_level.lower()
+    log_level_ = log_level.lower()
 
     def _log(logger_instance, msg, *args, **kwargs):
-        if _log_level == "warning":
+        if log_level_ == "warning":
             logger_instance.warning(msg, *args, **kwargs)
-        elif _log_level == "error":
+        elif log_level_ == "error":
             logger_instance.error(msg, *args, **kwargs)
         else:
             logger_instance.debug(msg, *args, **kwargs)
@@ -55,34 +55,34 @@ def safe_execute(
             # handle_controller_errors behavior).
             @wraps(func)
             async def async_wrapper(self, *args, **kwargs):
-                _logger = logger or self.logger
+                logger_ = logger or self.logger
                 try:
                     return await func(self, *args, **kwargs)
                 except (ConnectionError, httpx.ConnectError, httpx.NetworkError) as e:
-                    _log(_logger, f"Network connection error in {func.__name__}: {e}")
+                    _log(logger_, f"Network connection error in {func.__name__}: {e}")
                     if raise_on_error:
                         raise
                     return default_return
                 except httpx.TimeoutException as e:
-                    _log(_logger, f"Timeout in {func.__name__}: {e}")
+                    _log(logger_, f"Timeout in {func.__name__}: {e}")
                     if raise_on_error:
                         raise
                     return default_return
                 except httpx.HTTPStatusError as e:
-                    _logger.error(f"HTTP error in {func.__name__}: {e.response.status_code}")
+                    logger_.error(f"HTTP error in {func.__name__}: {e.response.status_code}")
                     if raise_on_error:
                         raise
                     return default_return
                 except httpx.HTTPError as e:
-                    _logger.error(f"HTTP request error in {func.__name__}: {e}")
+                    logger_.error(f"HTTP request error in {func.__name__}: {e}")
                     if raise_on_error:
                         raise
                     return default_return
                 except asyncio.CancelledError:
-                    _logger.debug(f"Task cancelled in {func.__name__}")
+                    logger_.debug(f"Task cancelled in {func.__name__}")
                     raise
                 except catch as e:
-                    _logger.error(f"Unexpected error in {func.__name__}: {e}", exc_info=True)
+                    logger_.error(f"Unexpected error in {func.__name__}: {e}", exc_info=True)
                     if raise_on_error:
                         raise
                     return default_return
@@ -91,15 +91,15 @@ def safe_execute(
 
         else:
             # Standard wrapper: supports both sync and async
-            _logger = logger or get_logger()
+            logger_ = logger or get_logger()
 
             @wraps(func)
             async def async_wrapper(*args, **kwargs):
                 try:
                     return await func(*args, **kwargs)
                 except catch as e:
-                    use_exc_info = _log_level == "error"
-                    _log(_logger, f"Error in {func.__name__}: {e}", exc_info=use_exc_info)
+                    use_exc_info = log_level_ == "error"
+                    _log(logger_, f"Error in {func.__name__}: {e}", exc_info=use_exc_info)
                     if raise_on_error:
                         raise
                     return default_return
@@ -109,8 +109,8 @@ def safe_execute(
                 try:
                     return func(*args, **kwargs)
                 except catch as e:
-                    use_exc_info = _log_level == "error"
-                    _log(_logger, f"Error in {func.__name__}: {e}", exc_info=use_exc_info)
+                    use_exc_info = log_level_ == "error"
+                    _log(logger_, f"Error in {func.__name__}: {e}", exc_info=use_exc_info)
                     if raise_on_error:
                         raise
                     return default_return

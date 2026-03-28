@@ -8,9 +8,9 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
-from collections.abc import Callable
 
 from src.core.logger import get_logger
 from src.modules.quote.models import QuoteRequest
@@ -243,20 +243,20 @@ class QuoteMessageParser:
     def parse_dimensions_cm(message_text: str) -> tuple[float, float, float] | None:
         """从消息中提取三维尺寸并统一转为 cm，返回 (a, b, c) 或 None。"""
         text = message_text or ""
-        _UNIT = r"(?:mm|毫米|cm|厘米|m|米)?"
+        UNIT = r"(?:mm|毫米|cm|厘米|m|米)?"
         m = re.search(
-            rf"(\d+(?:\.\d+)?)\s*{_UNIT}\s*[x×*＊]\s*"
-            rf"(\d+(?:\.\d+)?)\s*{_UNIT}\s*[x×*＊]\s*"
-            rf"(\d+(?:\.\d+)?)\s*({_UNIT})",
+            rf"(\d+(?:\.\d+)?)\s*{UNIT}\s*[x×*＊]\s*"
+            rf"(\d+(?:\.\d+)?)\s*{UNIT}\s*[x×*＊]\s*"
+            rf"(\d+(?:\.\d+)?)\s*({UNIT})",
             text,
             flags=re.IGNORECASE,
         )
         if not m:
-            _UNIT_CN = r"(?:cm|厘米|㎝|CM)?"
+            UNIT_CN = r"(?:cm|厘米|㎝|CM)?"
             m2 = re.search(
-                rf"长[：:]?\s*(\d+\.?\d*)\s*{_UNIT_CN}\s*"
-                rf"宽[：:]?\s*(\d+\.?\d*)\s*{_UNIT_CN}\s*"
-                rf"高[：:]?\s*(\d+\.?\d*)\s*{_UNIT_CN}",
+                rf"长[：:]?\s*(\d+\.?\d*)\s*{UNIT_CN}\s*"
+                rf"宽[：:]?\s*(\d+\.?\d*)\s*{UNIT_CN}\s*"
+                rf"高[：:]?\s*(\d+\.?\d*)\s*{UNIT_CN}",
                 text,
                 flags=re.IGNORECASE,
             )
@@ -577,9 +577,9 @@ class QuoteMessageParser:
     ) -> dict[str, Any]:
         origin, destination = self.extract_locations(message_text)
         weight = self.extract_weight_kg(message_text)
-        if weight is None and re.search(r"首重", message_text or ""):
+        if weight is None and r"首重" in (message_text or ""):
             weight = 1.0
-        if weight is None and re.search(r"续重", message_text or ""):
+        if weight is None and r"续重" in (message_text or ""):
             weight = 2.0
 
         if origin or destination:

@@ -87,10 +87,10 @@ class CookieCloudClient:
         """
         try:
             import base64
+            from hashlib import md5 as _md5
 
             from cryptography.hazmat.primitives import padding as sym_padding
             from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-            from hashlib import md5 as _md5
 
             raw = base64.b64decode(encrypted)
 

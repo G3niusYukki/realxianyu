@@ -131,10 +131,10 @@ def _check_ai_health() -> dict[str, Any]:
         ai_model = os.environ.get("AI_MODEL", "")
         if not ai_key or not ai_base:
             try:
-                _sys_cfg_path = Path(__file__).resolve().parents[3] / "data" / "system_config.json"
-                if _sys_cfg_path.exists():
-                    _sys_cfg = json.loads(_sys_cfg_path.read_text(encoding="utf-8"))
-                    ai_cfg = _sys_cfg.get("ai", {})
+                sys_cfg_path = Path(__file__).resolve().parents[3] / "data" / "system_config.json"
+                if sys_cfg_path.exists():
+                    sys_cfg = json.loads(sys_cfg_path.read_text(encoding="utf-8"))
+                    ai_cfg = sys_cfg.get("ai", {})
                     ai_key = ai_key or str(ai_cfg.get("api_key", "") or "")
                     ai_base = ai_base or str(ai_cfg.get("base_url", "") or "")
                     ai_model = ai_model or str(ai_cfg.get("model", "") or "")
@@ -159,9 +159,9 @@ def _check_ai_health() -> dict[str, Any]:
             latency = int((_time_mod.time() - t0) * 1000)
             if resp.status_code == 200:
                 return {"ok": True, "message": "连通", "latency_ms": latency}
-            _status_msgs = {401: "API Key 无效", 403: "无权访问", 429: "请求过频"}
-            _msg = _status_msgs.get(resp.status_code, f"HTTP {resp.status_code}")
-            return {"ok": False, "message": _msg, "latency_ms": latency}
+            status_msgs = {401: "API Key 无效", 403: "无权访问", 429: "请求过频"}
+            msg = status_msgs.get(resp.status_code, f"HTTP {resp.status_code}")
+            return {"ok": False, "message": msg, "latency_ms": latency}
         return {"ok": False, "message": "API Key 或 Base URL 未配置"}
     except Exception as exc:
         return {"ok": False, "message": f"检查异常: {type(exc).__name__}"}
@@ -191,9 +191,9 @@ def _check_xgj_health() -> dict[str, Any]:
 
 @get("/api/health/check")
 def handle_health_check(ctx: RouteContext) -> None:
-    _hc = _HealthCache.get_instance()
+    hc = _HealthCache.get_instance()
     now = _time_mod.time()
-    cached = _hc.get_cached(now)
+    cached = hc.get_cached(now)
     if cached is not None:
         ctx.send_json(cached)
         return
@@ -218,7 +218,7 @@ def handle_health_check(ctx: RouteContext) -> None:
 
     result["services"] = {"python": {"ok": True, "message": "运行中"}}
 
-    _hc.set_cached(result, _time_mod.time())
+    hc.set_cached(result, _time_mod.time())
     ctx.send_json(result)
 
 
@@ -422,9 +422,9 @@ def _gh_releases_url() -> str:
 @get("/api/version/latest")
 def handle_version_latest(ctx: RouteContext) -> None:
     """Proxy GitHub releases API with 1-hour cache. Uses gh CLI as fallback."""
-    _vc = _VersionCache.get_instance()
+    vc = _VersionCache.get_instance()
     now = _time_mod.time()
-    cached = _vc.get_cached(now)
+    cached = vc.get_cached(now)
     if cached is not None:
         ctx.send_json(cached)
         return
@@ -433,7 +433,7 @@ def handle_version_latest(ctx: RouteContext) -> None:
     try:
         result = _fetch_latest_via_gh()
         if result:
-            _vc.set_cached(result, now)
+            vc.set_cached(result, now)
             ctx.send_json(result)
             return
     except Exception:
@@ -466,14 +466,14 @@ def handle_version_latest(ctx: RouteContext) -> None:
                 "update_asset_size": update_asset_size,
                 "body": release_data.get("body", ""),
             }
-            _vc.set_cached(result, _time_mod.time())
+            vc.set_cached(result, _time_mod.time())
             ctx.send_json(result)
         else:
             # Don't cache errors; 404 may be a transient rate-limit issue
-            _vc.invalidate()
+            vc.invalidate()
             ctx.send_json({"latest": None, "error": f"GitHub API returned {resp.status_code}"})
     except Exception as exc:
-        _vc.invalidate()
+        vc.invalidate()
         ctx.send_json({"latest": None, "error": str(exc)})
 
 

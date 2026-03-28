@@ -19,6 +19,8 @@ from .base import (
     _MODULE_TARGETS,
     _messages_requires_browser_runtime,
     _module_logs,
+)
+from .base import (
     _module_process_status as _module_process_status_mod,  # noqa: F401
 )
 
@@ -300,7 +302,7 @@ async def _start_aftersales_module(args: argparse.Namespace) -> dict[str, Any]:
 
 
 async def cmd_module(args: argparse.Namespace) -> None:
-    from src.cli import (  # noqa: F401
+    from src.cli import (
         _clear_module_runtime_state,
         _json_out,
         _module_check_summary,
@@ -523,9 +525,9 @@ async def cmd_module(args: argparse.Namespace) -> None:
 
 
 async def cmd_doctor(args: argparse.Namespace) -> None:
-    from src.cli import _json_out  # noqa: F401
     from pathlib import Path
 
+    from src.cli import _json_out
     from src.core.doctor import run_doctor
 
     report = run_doctor(skip_quote=bool(args.skip_quote))
@@ -553,7 +555,7 @@ async def cmd_doctor(args: argparse.Namespace) -> None:
 
 
 async def cmd_automation(args: argparse.Namespace) -> None:
-    from src.cli import _json_out  # noqa: F401
+    from src.cli import _json_out
     from src.modules.messages.notifications import FeishuNotifier
     from src.modules.messages.setup import AutomationSetupService
 
@@ -599,7 +601,7 @@ async def cmd_automation(args: argparse.Namespace) -> None:
 
 
 async def cmd_compliance(args: argparse.Namespace) -> None:
-    from src.cli import _json_out  # noqa: F401
+    from src.cli import _json_out
     from src.modules.compliance.center import ComplianceCenter
 
     center = ComplianceCenter(policy_path=args.policy_path, db_path=args.db_path)
@@ -635,7 +637,7 @@ async def cmd_compliance(args: argparse.Namespace) -> None:
 
 
 async def cmd_ai(args: argparse.Namespace) -> None:
-    from src.cli import _json_out  # noqa: F401
+    from src.cli import _json_out
     from src.modules.content.service import ContentService
 
     service = ContentService()
@@ -664,7 +666,7 @@ async def cmd_ai(args: argparse.Namespace) -> None:
 
 
 async def cmd_growth(args: argparse.Namespace) -> None:
-    from src.cli import _json_out  # noqa: F401
+    from src.cli import _json_out
     from src.modules.growth.service import GrowthService
 
     service = GrowthService(db_path=args.db_path or "data/growth.db")

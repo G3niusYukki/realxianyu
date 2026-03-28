@@ -17,7 +17,7 @@ from typing import Any
 
 
 async def cmd_orders(args: argparse.Namespace) -> None:
-    from src.cli import _json_out  # noqa: F401
+    from src.cli import _json_out
     from src.modules.orders.service import OrderFulfillmentService
 
     service_config: dict[str, Any] = {}
@@ -114,7 +114,7 @@ async def cmd_orders(args: argparse.Namespace) -> None:
 
 
 async def cmd_virtual_goods(args: argparse.Namespace) -> None:
-    from src.cli import _json_out  # noqa: F401
+    from src.cli import _json_out
     from src.modules.virtual_goods.service import VirtualGoodsService
 
     service = VirtualGoodsService(db_path=args.db_path or "data/orders.db")
