@@ -1,6 +1,6 @@
 apiVersion: v2
 name: xianyuflow-infra
-description: XianyuFlow infrastructure Helm chart for Redis, PostgreSQL and Kafka
+description: XianyuFlow infrastructure Helm chart (optional — Redis, PostgreSQL, Kafka not currently used by main application)
 version: 0.1.0
 appVersion: "1.0"
 dependencies:
