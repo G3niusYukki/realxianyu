@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [10.1.0] - 2026-03-28
+
+### Changed
+- Removed scaffold services (ai-service, message-service, order-service, quote-service) per MICROSERVICE_ROADMAP.md Option B
+- Simplified to monolith + gateway-service architecture
+
 ## [10.0.0] - 2026-03-27
 
 ### Added

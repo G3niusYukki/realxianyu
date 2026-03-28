@@ -1,6 +1,8 @@
+> **Status: DECIDED — Option B executed on 2026-03-28.** Four scaffold services removed. See git history for details.
+
 # Microservice Migration Roadmap
 
-**Status**: Draft
+**Status**: Decided — Option B executed
 **Last Updated**: 2026-03-28
 **Owner**: Architecture / Backend Team
 

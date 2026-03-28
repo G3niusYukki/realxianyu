@@ -1,7 +1,7 @@
 #!/bin/bash
 # XianyuFlow v10 Phase 5: Emergency Rollback Script
 # Usage: ./rollback.sh [service-name] [version]
-# Example: ./rollback.sh message-service v1.0.0
+# Example: ./rollback.sh gateway-service v1.0.0
 
 set -e
 
@@ -39,16 +39,12 @@ Usage:
     $0 [service-name] [version]
 
 Examples:
-    $0 message-service v1.0.0          # Rollback message-service to v1.0.0
+    $0 gateway-service v1.0.0           # Rollback gateway-service to v1.0.0
     $0 all                             # Rollback all services to last known good
-    $0 message-service --dry-run       # Preview rollback without executing
+    $0 gateway-service --dry-run       # Preview rollback without executing
 
 Services:
     - gateway-service
-    - quote-service
-    - ai-service
-    - message-service
-    - order-service
 
 Options:
     --dry-run      Preview changes without executing
@@ -190,7 +186,7 @@ rollback_all() {
 
     log_info "Rolling back all services..."
 
-    local services=("gateway-service" "quote-service" "ai-service" "message-service" "order-service")
+    local services=("gateway-service")
     local failed_services=()
 
     for service in "${services[@]}"; do
