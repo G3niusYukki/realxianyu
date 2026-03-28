@@ -3,6 +3,7 @@
 import json
 
 import src.core.doctor as doctor
+import src.core.startup_checks as startup_checks
 from src.core.doctor import run_doctor
 from src.core.startup_checks import StartupCheckResult
 
@@ -129,6 +130,7 @@ def test_extra_checks_web_ui_port_suggestion_mentions_vite_dev_only(monkeypatch)
     monkeypatch.setattr(doctor, "get_config", lambda: _Cfg())
     monkeypatch.setattr(doctor, "_check_port_open", _check_port_open)
     monkeypatch.setattr(doctor.urllib.request, "urlopen", lambda *args, **kwargs: _Resp())
+    monkeypatch.setattr(startup_checks, "resolve_runtime_mode", lambda: "auto")
 
     checks = doctor._extra_checks(skip_quote=True)
     web_ui_check = next(item for item in checks if item["name"] == "Web UI 端口")
