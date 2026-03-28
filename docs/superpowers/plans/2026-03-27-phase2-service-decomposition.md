@@ -1,5 +1,7 @@
 # XianyuFlow v10 - Phase 2: 服务拆分实施计划
 
+> **Status: CANCELLED** — Superseded by MICROSERVICE_ROADMAP.md Option B (simplify). Service decomposition halted; scaffolding services will be removed.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development or superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** 将单体 `mimic_ops.py` 拆分为 6 个独立的微服务，实现服务间 gRPC 通信和事件驱动架构

@@ -1,5 +1,7 @@
 # XianyuFlow v10 - Phase 1: 基础设施实施计划
 
+> **Status: CANCELLED** — Superseded by MICROSERVICE_ROADMAP.md Option B (simplify). K8s/Terraform infrastructure for removed services is no longer needed.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development or superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** 搭建完整的云原生基础设施，包括 Kubernetes 集群、数据库、缓存、消息队列和可观测性栈
