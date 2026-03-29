@@ -23,6 +23,7 @@ from src.modules.messages.manual_mode import ManualModeStore
 
 _MTOP_APP_KEY = os.environ.get("XIANYU_MTOP_APP_KEY", "34839810")
 _MTOP_APP_SECRET = os.getenv("MTOP_APP_SECRET") or os.getenv("XIANYU_MTOP_APP_SECRET", "")
+_MTOP_PAYLOAD_APP_KEY_FALLBACK = os.getenv("XIANYU_MTOP_PAYLOAD_APP_KEY", "444e9908a51d1cb236a27862abc769c9")
 
 try:
     import websockets
@@ -51,12 +52,15 @@ def generate_sign(timestamp_ms: str, token: str, data: str, app_key: str = _MTOP
 def _resolve_mtop_payload_app_key() -> str:
     """Resolve payload appKey for token API.
 
-    Prefer explicit MTOP secret env; if missing, fall back to MTOP app key to avoid
-    sending empty appKey (which causes FAIL_BIZ_PARAM_INVALID).
+    Prefer explicit MTOP secret env; if missing, fall back to legacy payload appKey.
+    As the last guard, use MTOP app key to avoid sending an empty appKey.
     """
     value = str(_MTOP_APP_SECRET or "").strip()
     if value:
         return value
+    fallback = str(_MTOP_PAYLOAD_APP_KEY_FALLBACK or "").strip()
+    if fallback:
+        return fallback
     return str(_MTOP_APP_KEY or "").strip()
 
 

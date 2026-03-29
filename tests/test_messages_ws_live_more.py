@@ -178,9 +178,13 @@ async def test_fetch_token_rgv587_recovers_with_im_refresh(ws_enabled, monkeypat
 
 
 @pytest.mark.asyncio
-async def test_fetch_token_uses_app_key_fallback_when_mtop_secret_missing(ws_enabled, monkeypatch):
+async def test_fetch_token_uses_legacy_payload_key_when_mtop_secret_missing(ws_enabled, monkeypatch):
     monkeypatch.setattr("src.modules.messages.ws_live._MTOP_APP_SECRET", "")
     monkeypatch.setattr("src.modules.messages.ws_live._MTOP_APP_KEY", "34839810")
+    monkeypatch.setattr(
+        "src.modules.messages.ws_live._MTOP_PAYLOAD_APP_KEY_FALLBACK",
+        "444e9908a51d1cb236a27862abc769c9",
+    )
 
     t = GoofishWsTransport(
         cookie_text="unb=10001; _m_h5_tk=token_a_123; cookie2=a; _tb_token_=t; sgcookie=s",
@@ -223,7 +227,7 @@ async def test_fetch_token_uses_app_key_fallback_when_mtop_secret_missing(ws_ena
 
     token = await t._fetch_token()
     assert token == "token-ok"
-    assert posted["payload_app_key"] == "34839810"
+    assert posted["payload_app_key"] == "444e9908a51d1cb236a27862abc769c9"
 
 
 @pytest.mark.asyncio
