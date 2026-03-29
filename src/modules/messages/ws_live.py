@@ -48,6 +48,18 @@ def generate_sign(timestamp_ms: str, token: str, data: str, app_key: str = _MTOP
     return hashlib.md5(raw.encode("utf-8")).hexdigest()
 
 
+def _resolve_mtop_payload_app_key() -> str:
+    """Resolve payload appKey for token API.
+
+    Prefer explicit MTOP secret env; if missing, fall back to MTOP app key to avoid
+    sending empty appKey (which causes FAIL_BIZ_PARAM_INVALID).
+    """
+    value = str(_MTOP_APP_SECRET or "").strip()
+    if value:
+        return value
+    return str(_MTOP_APP_KEY or "").strip()
+
+
 def generate_mid() -> str:
     ts = int(time.time() * 1000)
     prefix = random.randint(100, 999)
@@ -1181,8 +1193,9 @@ class GoofishWsTransport:
                     raise BrowserError("Cookie missing `_m_h5_tk`.")
 
             t = str(int(time.time() * 1000))
+            payload_app_key = _resolve_mtop_payload_app_key()
             data_val = json.dumps(
-                {"appKey": _MTOP_APP_SECRET, "deviceId": self.device_id},
+                {"appKey": payload_app_key, "deviceId": self.device_id},
                 ensure_ascii=False,
                 separators=(",", ":"),
             )

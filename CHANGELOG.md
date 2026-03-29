@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `messages/ws_live`: MTOP 密钥环境变量新增别名兼容（`MTOP_APP_SECRET` 或 `XIANYU_MTOP_APP_SECRET` 均可），修复仅配置 `XIANYU_MTOP_APP_SECRET` 时 Token API 可能出现 `FAIL_BIZ_PARAM_INVALID`。
 - `messages/ws_live`: 启动时若未配置 MTOP 密钥输出 warning，明确提示补齐 `MTOP_APP_SECRET / XIANYU_MTOP_APP_SECRET`。
 - `messages/ws_live`: Cookie 合并与 Set-Cookie 吸收时新增 `_m_h5_tk/_m_h5_tk_enc` 成对一致性修正，避免“新 `_m_h5_tk` + 旧 `_m_h5_tk_enc`”混搭导致 Token API 持续 `FAIL_BIZ_PARAM_INVALID`。
+- `messages/ws_live`: Token API payload 的 `appKey` 在 `MTOP_APP_SECRET` 缺失时回退为 `XIANYU_MTOP_APP_KEY`，避免发送空值触发 `FAIL_BIZ_PARAM_INVALID::请求参数不能为空`。
 - `modules/quote/engine`: `api_cost_plus_markup` 回退链路补全 `fallback_reason/fallback_source/failure_class`，并增强网络类错误分类（`transient/unavailable`）。
 - `modules/followup/service`: `from_system_config()` 仅对缺失配置降级，其他读取异常显式抛出，避免静默降级掩盖损坏配置。
 - `modules/messages/reply_engine`: 补充配置读取、依赖初始化与合规检查异常告警日志，降低“静默吞错”。
