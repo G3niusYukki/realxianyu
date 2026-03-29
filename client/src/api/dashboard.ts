@@ -63,7 +63,7 @@ export interface UnmatchedStats {
 }
 
 export const getUnmatchedStats = (): Promise<AxiosResponse<ApiResponse<UnmatchedStats>>> =>
-  api.get('/unmatched-stats').catch(() => ({ data: { ok: true, total_count: 0, top_keywords: [], daily_counts: [] } }) as any);
+  api.get('/unmatched-stats');
 
 export const serviceControl = (action: string): Promise<AxiosResponse> =>
   api.post('/service/control', { action });

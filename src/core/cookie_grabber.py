@@ -130,17 +130,18 @@ class CookieGrabber:
         try:
             from src.core.goofish_im_cookie import read_goofish_im_cookies
 
-            im_cookies = read_goofish_im_cookies()
+            im_result = read_goofish_im_cookies()
         except Exception:
-            im_cookies = None
+            im_result = None
         if self._cancel:
             return GrabResult(ok=False, error="已取消")
-        if im_cookies:
-            valid = await self._validate(im_cookies)
+        if im_result:
+            cookie_str = im_result["cookie_str"]
+            valid = await self._validate(cookie_str)
             if valid:
-                self._save(im_cookies, source="goofish_im")
+                self._save(cookie_str, source="goofish_im")
                 self._update(GrabStage.SUCCESS, "Cookie 获取成功！", "从闲管家 IM 桌面端读取", 100)
-                return GrabResult(ok=True, cookie_str=im_cookies, source="goofish_im", message="从闲管家 IM 获取成功")
+                return GrabResult(ok=True, cookie_str=cookie_str, source="goofish_im", message="从闲管家 IM 获取成功")
 
         self._update(
             GrabStage.FAILED,
@@ -213,7 +214,7 @@ class CookieGrabber:
             parts: list[str] = []
             target_domains = {".goofish.com", ".taobao.com", ".tmall.com", "goofish.com", "taobao.com"}
             for domain, cookies_list in cookie_data.items():
-                domain_lower = domain.lower().strip(".")
+                domain_lower = domain.lower().strip().strip(".")
                 if not any(domain_lower.endswith(d.strip(".")) for d in target_domains):
                     continue
                 if isinstance(cookies_list, list):

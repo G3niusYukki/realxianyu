@@ -71,8 +71,11 @@ class FollowUpEngine:
             from src.dashboard.config_service import read_system_config
 
             cfg = read_system_config().get("order_reminder", {})
-        except Exception:
+        except FileNotFoundError:
             cfg = {}
+        except Exception:
+            # 配置读取异常应显式暴露，避免静默降级掩盖损坏配置。
+            raise
 
         policy = FollowUpPolicy(
             max_touches_per_day=int(cfg.get("max_daily", 2)),

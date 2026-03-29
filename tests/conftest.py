@@ -27,6 +27,28 @@ from src.core.config import Config
 from src.core.logger import Logger
 
 
+class _ControllerSpec:
+    async def connect(self): ...
+    async def disconnect(self): ...
+    async def is_connected(self): ...
+    async def new_page(self): ...
+    async def close_page(self): ...
+    async def navigate(self): ...
+    async def find_element(self): ...
+    async def find_elements(self): ...
+    async def click(self): ...
+    async def type_text(self): ...
+    async def upload_files(self): ...
+    async def upload_file(self): ...
+    async def execute_script(self): ...
+    async def take_screenshot(self): ...
+    async def get_cookies(self): ...
+    async def add_cookie(self): ...
+    async def wait_for_selector(self): ...
+    async def wait_for_url(self): ...
+    async def get_text(self): ...
+
+
 @pytest.fixture
 def temp_dir():
     """创建临时目录"""
@@ -106,7 +128,7 @@ browser:
 @pytest.fixture
 def mock_controller():
     """Mock 浏览器运行时控制器"""
-    controller = Mock()
+    controller = Mock(spec_set=_ControllerSpec)
     controller.connect = AsyncMock(return_value=True)
     controller.disconnect = AsyncMock(return_value=True)
     controller.is_connected = AsyncMock(return_value=True)
@@ -125,6 +147,7 @@ def mock_controller():
     controller.add_cookie = AsyncMock(return_value=True)
     controller.wait_for_selector = AsyncMock(return_value=True)
     controller.wait_for_url = AsyncMock(return_value=True)
+    controller.get_text = AsyncMock(return_value="")
     return controller
 
 
@@ -145,11 +168,19 @@ def mock_http_client():
 @pytest.fixture
 def mock_ai_client():
     """Mock AI客户端"""
-    client = Mock()
-    response = Mock()
-    response.choices = [Mock()]
-    response.choices[0].message.content = "Generated content"
-    client.chat.completions.create.return_value = response
+    response = Mock(spec_set=["choices"])
+    choice = Mock(spec_set=["message"])
+    message = Mock(spec_set=["content"])
+    message.content = "Generated content"
+    choice.message = message
+    response.choices = [choice]
+
+    completions = Mock(spec_set=["create"])
+    completions.create = Mock(return_value=response)
+    chat = Mock(spec_set=["completions"])
+    chat.completions = completions
+    client = Mock(spec_set=["chat"])
+    client.chat = chat
     return client
 
 

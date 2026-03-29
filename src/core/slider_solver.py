@@ -963,40 +963,44 @@ def _try_slider_drissionpage(
 
     api_url = fp_cfg.get("api_url", "")
     browser_id = fp_cfg.get("browser_id", "")
-    if not api_url or not browser_id:
-        _log.warning(
-            "DrissionPage: fingerprint_browser config incomplete (api_url=%s, browser_id=%s)", api_url, bool(browser_id)
-        )
-        return None
 
-    import httpx as _httpx
+    use_local_chrome = not api_url
 
-    ws_url = None
-    bb_open_url = f"{api_url.rstrip('/')}/browser/open"
-    for open_try in range(3):
-        try:
-            resp = _httpx.post(bb_open_url, json={"id": browser_id}, timeout=10)
-            data = resp.json()
-            if data.get("success"):
-                ws_url = data.get("data", {}).get("ws")
-                break
-            msg = str(data.get("msg", ""))
-            if "正在打开" in msg or "opening" in msg.lower():
-                _log.info(f"DrissionPage: BitBrowser still opening, retry {open_try + 1}/3...")
-                time.sleep(3)
-                continue
-            _log.info(f"DrissionPage: BitBrowser open failed: {data}")
-            return None
-        except Exception as exc:
-            _log.info(f"DrissionPage: BitBrowser API error: {exc}")
-            return None
-    if not ws_url:
-        _log.info("DrissionPage: no ws URL from BitBrowser after retries")
+    if use_local_chrome:
+        _log.info("DrissionPage: using local Chrome (port 9222)")
+        ws_url = None
+    elif not browser_id:
+        _log.warning("DrissionPage: api_url set but browser_id missing")
         return None
+    else:
+        import httpx as _httpx
+
+        ws_url = None
+        bb_open_url = f"{api_url.rstrip('/')}/browser/open"
+        for open_try in range(3):
+            try:
+                resp = _httpx.post(bb_open_url, json={"id": browser_id}, timeout=10)
+                data = resp.json()
+                if data.get("success"):
+                    ws_url = data.get("data", {}).get("ws")
+                    break
+                msg = str(data.get("msg", ""))
+                if "正在打开" in msg or "opening" in msg.lower():
+                    _log.info(f"DrissionPage: BitBrowser still opening, retry {open_try + 1}/3...")
+                    time.sleep(3)
+                    continue
+                _log.info(f"DrissionPage: BitBrowser open failed: {data}")
+                return None
+            except Exception as exc:
+                _log.info(f"DrissionPage: BitBrowser API error: {exc}")
+                return None
+        if not ws_url:
+            _log.info("DrissionPage: no ws URL from BitBrowser, falling back to local Chrome")
+            use_local_chrome = True
 
     browser = None
     try:
-        browser = Chromium(ws_url)
+        browser = Chromium() if use_local_chrome else Chromium(ws_url)
 
         tab = None
         for t in browser.get_tabs():
@@ -1227,35 +1231,52 @@ def _try_slider_drissionpage(
 
         time.sleep(2)
 
-        import asyncio as _aio
-
         cookie_str = None
+
+        # First try: DrissionPage's native cookies() — works for both local Chrome and BitBrowser tabs.
         try:
-            from src.core.bitbrowser_cdp import read_cookies_via_cdp
-
-            loop = _aio.new_event_loop()
-            try:
-                cookie_str = loop.run_until_complete(read_cookies_via_cdp(ws_url))
-            finally:
-                loop.close()
+            if tab:
+                dp_cookies = tab.cookies()  # CookiesList: list[dict{name, value, domain, ...}]
+                if dp_cookies:
+                    cookie_str = "; ".join(f"{c['name']}={c['value']}" for c in dp_cookies if c.get("value"))
+                    _log.info(f"DrissionPage: read {len(dp_cookies)} cookies via tab.cookies()")
         except Exception as exc:
-            _log.debug(f"DrissionPage: cookie read failed: {exc}")
+            _log.debug(f"DrissionPage: tab.cookies() failed: {exc}")
 
+        # Fallback: BitBrowser CDP — only works when BitBrowser WS URL is available.
+        if not cookie_str and ws_url:
+            try:
+                import asyncio as _aio
+
+                from src.core.bitbrowser_cdp import read_cookies_via_cdp
+
+                loop = _aio.new_event_loop()
+                try:
+                    cookie_str = loop.run_until_complete(read_cookies_via_cdp(ws_url))
+                finally:
+                    loop.close()
+            except Exception as exc:
+                _log.debug(f"DrissionPage: read_cookies_via_cdp failed: {exc}")
+
+        all_no_slider = all(a.get("fail_reason") == "no_slider_found" for a in attempts_log)
         return {
             "cookie": cookie_str,
             "attempts": attempts_log,
             "browser_strategy": "drissionpage",
             "total_duration_ms": int((time.time() - recovery_start) * 1000),
+            "found": not all_no_slider,
         }
 
     except Exception as exc:
         _log.info(f"DrissionPage slider error: {exc}")
+        all_no_slider = all(a.get("fail_reason") == "no_slider_found" for a in attempts_log)
         return {
             "cookie": None,
             "attempts": attempts_log,
             "error": str(exc),
             "browser_strategy": "drissionpage",
             "total_duration_ms": int((time.time() - recovery_start) * 1000),
+            "found": not all_no_slider,
         }
     finally:
         pass

@@ -1,11 +1,13 @@
 """自动报价引擎测试。"""
 
+import asyncio
 from pathlib import Path
 
 import pytest
 
 from src.modules.quote.engine import AutoQuoteEngine
-from src.modules.quote.models import QuoteRequest
+from src.modules.quote.models import QuoteRequest, QuoteResult
+from src.modules.quote.providers import QuoteProviderError
 
 
 @pytest.mark.asyncio
@@ -226,3 +228,56 @@ async def test_quote_engine_api_cost_plus_markup_fallbacks_to_table(tmp_path) ->
 def test_quote_engine_classify_failure_unknown_and_timeout() -> None:
     assert AutoQuoteEngine._classify_failure(None) == "unknown"
     assert AutoQuoteEngine._classify_failure(RuntimeError("timeout now")) == "timeout"
+
+
+def test_quote_engine_classify_failure_transient_network_and_unavailable() -> None:
+    assert AutoQuoteEngine._classify_failure(ConnectionError("connection reset by peer")) == "transient"
+    assert AutoQuoteEngine._classify_failure(OSError("network unreachable")) == "transient"
+    assert AutoQuoteEngine._classify_failure(RuntimeError("ECONNREFUSED service down")) == "unavailable"
+
+
+@pytest.mark.asyncio
+async def test_quote_engine_parallel_api_error_after_wait_keeps_error_reason(tmp_path) -> None:
+    engine = AutoQuoteEngine(
+        {
+            "mode": "api_cost_plus_markup",
+            "analytics_log_enabled": False,
+            "api_fallback_to_table_parallel": True,
+            "api_prefer_max_wait_seconds": 0.01,
+        }
+    )
+
+    class _SlowFailApi:
+        async def get_quote(self, request, timeout_ms=3000):  # noqa: ARG002
+            await asyncio.sleep(0.02)
+            raise QuoteProviderError("api boom")
+
+        async def health_check(self):
+            return True
+
+    class _SlowerTable:
+        async def get_quote(self, request, timeout_ms=3000):  # noqa: ARG002
+            await asyncio.sleep(0.04)
+            return QuoteResult(
+                provider="cost_table_markup",
+                base_fee=4.0,
+                surcharges={},
+                total_fee=4.0,
+                eta_minutes=60,
+                confidence=0.9,
+                explain={"matched_origin": request.origin, "matched_destination": request.destination},
+            )
+
+        async def health_check(self):
+            return True
+
+    engine.api_cost_provider = _SlowFailApi()
+    engine.cost_table_provider = _SlowerTable()
+
+    req = QuoteRequest(origin="浙江", destination="广东", weight=2.0, service_level="standard")
+    result = await engine.get_quote(req)
+
+    assert result.provider == "cost_table_markup"
+    assert result.fallback_used is True
+    assert str(result.explain.get("fallback_reason", "")).startswith("api_after_wait:")
+    assert result.explain.get("failure_class") in {"provider_error", "timeout", "transient", "unavailable"}

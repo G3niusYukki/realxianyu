@@ -174,6 +174,7 @@ trusted-host = pypi.tuna.tsinghua.edu.cn
 2. 解析失败：先在 `/cookie` 页面点“智能解析”，再点“更新Cookie”。
 3. 字段缺失：说明复制不完整，必须复制完整 Cookie 行。
 4. 账号掉线：浏览器先确认闲鱼页面处于登录态，再重新获取。
+5. 遇到 `RGV587` / `FAIL_SYS_USER_VALIDATE`：系统会自动触发 Cookie 刷新并重试（BitBrowser 或 IM 路径）；若持续失败，请先确认当前账号在闲鱼网页端可正常收发消息，再重新更新 Cookie。
 
 > Cookie 有有效期，通常 7-30 天后需要重新获取。
 > Cookie 等同账号登录态，不要分享给他人。

@@ -55,8 +55,14 @@ def get_word_replacements() -> dict[str, str]:
         from src.dashboard.config_service import read_system_config
 
         cfg = read_system_config()
-        replacement = cfg.get("sensitive_words", {}).get("xiaochengxu", _DEFAULT_XIAOCHENGXU_REPLACEMENT)
-    except Exception:
+        sensitive_cfg = cfg.get("sensitive_words", {}) if isinstance(cfg, dict) else {}
+        replacement = (
+            sensitive_cfg.get("xiaochengxu", _DEFAULT_XIAOCHENGXU_REPLACEMENT)
+            if isinstance(sensitive_cfg, dict)
+            else _DEFAULT_XIAOCHENGXU_REPLACEMENT
+        )
+    except Exception as exc:
+        logger.warning("Failed to load sensitive word replacements: %s", exc)
         replacement = _DEFAULT_XIAOCHENGXU_REPLACEMENT
     return {
         "微信小程序": replacement,
@@ -1092,8 +1098,8 @@ class ReplyStrategyEngine:
                 from src.core.config import load_category_config
 
                 self.category_config = load_category_config(self.category)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Failed to load category config for %s: %s", self.category, exc)
 
         self.default_reply = default_reply
         self.virtual_default_reply = virtual_default_reply or default_reply
@@ -1141,8 +1147,9 @@ class ReplyStrategyEngine:
                 from src.modules.content.service import ContentService
 
                 self._content_service = ContentService()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Failed to initialize ContentService: %s", exc)
+                self._content_service = None
         return self._content_service
 
     def _get_compliance_guard(self):
@@ -1151,8 +1158,9 @@ class ReplyStrategyEngine:
                 from src.core.compliance import get_compliance_guard
 
                 self._compliance_guard = get_compliance_guard()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Failed to initialize compliance guard: %s", exc)
+                self._compliance_guard = None
         return self._compliance_guard
 
     def _get_dedup(self):
@@ -1161,8 +1169,9 @@ class ReplyStrategyEngine:
                 from src.modules.messages.dedup import MessageDedup
 
                 self._dedup = MessageDedup()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Failed to initialize message dedup: %s", exc)
+                self._dedup = None
         return self._dedup
 
     def _get_bargain_tracker(self):
@@ -1171,8 +1180,9 @@ class ReplyStrategyEngine:
                 from src.modules.messages.bargain_tracker import BargainTracker
 
                 self._bargain_tracker = BargainTracker()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Failed to initialize bargain tracker: %s", exc)
+                self._bargain_tracker = None
         return self._bargain_tracker
 
     def classify_intent(self, message_text: str, item_title: str = "") -> str:
@@ -1324,8 +1334,8 @@ class ReplyStrategyEngine:
                 reply_text = re.sub(r"\s{2,}", " ", reply_text).strip()
                 if not reply_text:
                     return self.default_reply
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Compliance guard check failed: %s", exc)
         return reply_text
 
     def _parse_rule(self, raw_rule: dict[str, Any]) -> IntentRule:

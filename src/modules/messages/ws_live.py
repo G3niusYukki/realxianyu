@@ -884,6 +884,12 @@ class GoofishWsTransport:
 
             self._record_slider_events(result, trigger_source)
 
+            # If no slider element was found on the page at all, this is a server-side
+            # rate limit (not a CAPTCHA). Go directly to cookie-wait mode — no point retrying slider.
+            if result.get("found") is False:
+                self.logger.warning("滑块未出现在页面（服务端限流），直接进入 Cookie 等待模式")
+                return "no_slider"
+
             cookie_str = result.get("cookie")
             if not cookie_str:
                 return False
@@ -918,6 +924,29 @@ class GoofishWsTransport:
 
             existing = os.environ.get("XIANYU_COOKIE_1", "") or self.cookie_text
             merged = self._merge_cookie_strings(existing, cookie_str)
+
+            # Restore the existing _m_h5_tk (and _m_h5_tk_enc) after merging.
+            # The DrissionPage browser's _m_h5_tk may be invalid or expired, causing
+            # FAIL_BIZ_PARAM_INVALID from the Token API. The IM's _m_h5_tk is known to
+            # produce RGV587 (server-side risk control) which the recovery loop handles,
+            # vs the browser's _m_h5_tk which produces FAIL_BIZ_PARAM_INVALID (parameter
+            # error that cannot be recovered without manual intervention).
+            # Preserve the existing token; only take other fields (cna, unb, sgcookie, etc.)
+            # from the browser.
+            existing_cookies = {}
+            for part in existing.split(";"):
+                part = part.strip()
+                if "=" not in part:
+                    continue
+                k, v = part.split("=", 1)
+                existing_cookies[k.strip()] = v.strip()
+            for tk in ("_m_h5_tk", "_m_h5_tk_enc"):
+                token_value = existing_cookies.get(tk)
+                if token_value:
+                    merged_parts = {p.split("=")[0].strip(): p for p in merged.split(";") if "=" in p}
+                    merged_parts[tk] = f"{tk}={token_value}"
+                    merged = "; ".join(f"{k}={v}" for k, v in merged_parts.items())
+
             changed = self._apply_cookie_text(merged, reason="slider_recovery")
             if changed:
                 self._last_cookie_applied_at = time.time()
@@ -1182,11 +1211,38 @@ class GoofishWsTransport:
                         await self._preflight_has_login()
                     except Exception as exc:
                         self.logger.debug(f"WS hasLogin retry failed: {exc}")
-                    # 认证/风控错误快速失败，交由上层进入“仅等待 Cookie 更新”流程，避免持续重试加重风险。
+                    refreshed = False
+                    try:
+                        from src.core.bitbrowser_cdp import get_fp_config as _get_fp_cfg
+
+                        fp_enabled = bool(_get_fp_cfg(self.config).get("enabled", False))
+                    except ImportError:
+                        fp_enabled = False
+                    if fp_enabled:
+                        try:
+                            refreshed = await self._try_bitbrowser_cookie_refresh()
+                        except Exception as exc:
+                            self.logger.debug(f"BitBrowser refresh failed during token recovery: {exc}")
+                    if not refreshed:
+                        try:
+                            refreshed = await self._try_goofish_im_refresh(urgent=True)
+                        except Exception as exc:
+                            self.logger.debug(f"IM refresh failed during token recovery: {exc}")
+                    if refreshed and attempt < max_attempts:
+                        self.logger.info("Token API auth/risk failure recovered by cookie refresh, retrying token API")
+                        continue
+                    # 认证/风控错误快速失败，交由上层进入"仅等待 Cookie 更新"流程，避免持续重试加重风险。
                     break
-                if attempt < max_attempts:
+                if attempt < max_attempts and "FAIL_BIZ_PARAM_INVALID" not in ret_text:
                     await asyncio.sleep(min(2.0 * attempt, 6.0))
                     continue
+                # FAIL_BIZ_PARAM_INVALID: on last attempt try IM refresh before giving up.
+                if "FAIL_BIZ_PARAM_INVALID" in ret_text and attempt == max_attempts:
+                    self.logger.info("Token API FAIL_BIZ_PARAM_INVALID on last attempt, trying IM refresh...")
+                    try:
+                        await self._try_goofish_im_refresh(urgent=True)
+                    except Exception as exc:
+                        self.logger.debug(f"IM refresh failed during FAIL_BIZ_PARAM_INVALID: {exc}")
                 break
 
             token = str(payload.get("data", {}).get("accessToken", "") or "").strip()
@@ -1620,6 +1676,14 @@ class GoofishWsTransport:
 
                 is_rgv587 = "RGV587" in reason
 
+                # FAIL_BIZ_PARAM_INVALID is a transient server-side flakiness error,
+                # not a cookie/auth problem. Treat it as a normal reconnect (retry with
+                # backoff) rather than entering the auth_hold → cookie_wait loop.
+                if "FAIL_BIZ_PARAM_INVALID" in reason:
+                    auth_error = False
+                    is_rgv587 = False
+                    self.logger.info("Token API returned FAIL_BIZ_PARAM_INVALID (后端偶发抖动)，普通重试")
+
                 try:
                     from src.core.bitbrowser_cdp import get_fp_config as _get_fp_cfg
 
@@ -1681,19 +1745,38 @@ class GoofishWsTransport:
 
                             # Step 4: 滑块验证
                             self._send_risk_control_notification()
-                            self._slider_recovery_attempts += 1
                             recovered = await self._try_slider_recovery(trigger_source="rgv587")
+                            if recovered == "no_slider":
+                                # 页面无滑块 = 服务端限流，非验证码。直接进等待模式，不消耗尝试次数。
+                                self.logger.warning("页面无滑块（服务端限流），进入 Cookie 等待模式")
+                                self._send_risk_control_notification()
+                                if await self._wait_for_cookie_update_forever(reason="no_slider"):
+                                    self._connect_failures = 0
+                                    self._rgv587_consecutive = 0
+                                    self._slider_just_recovered = False
+                                    self._slider_recovery_attempts = 0
+                                    self.logger.info("Cookie 更新检测到，立即重试 WS 连接")
+                                    continue
+                                continue
                             if recovered:
                                 self._connect_failures = 0
                                 self._slider_just_recovered = True
                                 self.logger.info("滑块验证通过，标记待验证，立即重试 WS 连接")
                                 continue
+                            self._slider_recovery_attempts += 1
                             self.logger.warning(
                                 f"滑块自动恢复失败 "
                                 f"({self._slider_recovery_attempts}/{self._SLIDER_MAX_ATTEMPTS_PER_CYCLE})，"
-                                f"退避 {rgv_backoff:.0f}s..."
+                                f"等待 Cookie 更新..."
                             )
-                            await asyncio.sleep(rgv_backoff)
+                            self._send_risk_control_notification()
+                            if await self._wait_for_cookie_update_forever(reason="slider_exhausted"):
+                                self._connect_failures = 0
+                                self._rgv587_consecutive = 0
+                                self._slider_just_recovered = False
+                                self._slider_recovery_attempts = 0
+                                self.logger.info("Cookie 更新检测到，立即重试 WS 连接")
+                                continue
                             continue
                         elif not slider_enabled:
                             self.logger.warning(
@@ -1914,7 +1997,14 @@ class GoofishWsTransport:
                 "1.0",
                 data_dict,
             )
+            if isinstance(result, dict) and str(result.get("_mtop_error_type", "")).strip().lower() == "risk_control":
+                self.logger.warning(f"mtop send blocked by risk control for `{chat_id}`")
+                return False
             ret = result.get("ret", []) if isinstance(result, dict) else []
+            ret_text = " | ".join(str(item) for item in ret)
+            if "RGV587" in ret_text or "FAIL_SYS_USER_VALIDATE" in ret_text:
+                self.logger.warning(f"mtop send blocked by auth/risk for `{chat_id}`: ret={ret}")
+                return False
             success = any("SUCCESS" in str(item) for item in ret) if ret else bool(result.get("data"))
             if success:
                 self._record_bot_sig(chat_id, text)
@@ -1978,7 +2068,15 @@ class GoofishWsTransport:
                     data={"data": data_val},
                 )
                 self._absorb_set_cookies(client, reason="mtop_call")
-                return resp.json() if resp.status_code == 200 else {}
+                if resp.status_code != 200:
+                    return {}
+                payload = resp.json()
+                if isinstance(payload, dict):
+                    ret = payload.get("ret", [])
+                    ret_text = " | ".join(str(item) for item in ret) if isinstance(ret, list) else str(ret)
+                    if "RGV587" in ret_text or "FAIL_SYS_USER_VALIDATE" in ret_text:
+                        payload["_mtop_error_type"] = "risk_control"
+                return payload if isinstance(payload, dict) else {}
         except Exception as exc:
             self.logger.debug(f"mtop call {api} failed: {exc}")
             return {}

@@ -147,3 +147,16 @@ def test_process_session_success_and_dry_run(monkeypatch, engine):
     out2 = engine.process_session("sid", account_id="aid", dry_run=True)
     assert out2["dry_run"] is True
     assert calls[-1]["status"] == "dry_run"
+
+
+def test_from_system_config_raises_on_invalid_json(monkeypatch):
+    class _BadJSONError(ValueError):
+        pass
+
+    def _bad_read():
+        raise _BadJSONError("invalid json")
+
+    monkeypatch.setattr("src.dashboard.config_service.read_system_config", _bad_read)
+
+    with pytest.raises(ValueError, match="invalid json"):
+        FollowUpEngine.from_system_config()

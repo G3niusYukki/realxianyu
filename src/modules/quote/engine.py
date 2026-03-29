@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import time
 from copy import deepcopy
 from typing import Any
@@ -211,11 +210,20 @@ class AutoQuoteEngine:
         try:
             done, _ = await asyncio.wait({api_task}, timeout=self.api_prefer_max_wait_seconds)
             if api_task in done:
-                api_result = api_task.result()
-                table_task.cancel()
-                with contextlib.suppress(Exception):
-                    await table_task
-                return api_result
+                try:
+                    api_result = api_task.result()
+                except Exception:
+                    # API completed early but failed; continue to table fallback path.
+                    pass
+                else:
+                    table_task.cancel()
+                    try:
+                        await table_task
+                    except asyncio.CancelledError:
+                        pass
+                    except Exception as table_cancel_error:
+                        self.logger.debug(f"Table task error after API success: {table_cancel_error}")
+                    return api_result
 
             try:
                 fallback = await table_task
@@ -229,13 +237,25 @@ class AutoQuoteEngine:
                         **fallback.explain,
                         "fallback_reason": f"api={api_error}; table={table_error}",
                         "fallback_source": "rule",
+                        "failure_class": self._classify_failure(api_error),
                     }
                     return fallback
 
             if not api_task.done():
                 api_task.cancel()
-                with contextlib.suppress(Exception):
+                try:
                     await api_task
+                except asyncio.CancelledError:
+                    pass
+                except Exception as api_after_wait:
+                    fallback.fallback_used = True
+                    fallback.explain = {
+                        **fallback.explain,
+                        "fallback_reason": f"api_after_wait:{api_after_wait}",
+                        "fallback_source": "cost_table",
+                        "failure_class": self._classify_failure(api_after_wait),
+                    }
+                    return fallback
                 fallback.fallback_used = True
                 fallback.explain = {
                     **fallback.explain,
@@ -244,8 +264,17 @@ class AutoQuoteEngine:
                 }
                 return fallback
 
-            with contextlib.suppress(Exception):
+            try:
                 return api_task.result()
+            except Exception as api_after_wait:
+                fallback.fallback_used = True
+                fallback.explain = {
+                    **fallback.explain,
+                    "fallback_reason": f"api_after_wait:{api_after_wait}",
+                    "fallback_source": "cost_table",
+                    "failure_class": self._classify_failure(api_after_wait),
+                }
+                return fallback
 
             fallback.fallback_used = True
             fallback.explain = {
@@ -326,9 +355,15 @@ class AutoQuoteEngine:
         text = str(error).lower()
         if "timeout" in text:
             return "timeout"
-        if "disabled" in text or "circuit" in text:
+        if "disabled" in text or "circuit" in text or "econnrefused" in text:
             return "unavailable"
-        if "temporary" in text:
+        if (
+            "temporary" in text
+            or "connection" in text
+            or "network" in text
+            or "reset by peer" in text
+            or "unreachable" in text
+        ):
             return "transient"
         return "provider_error"
 

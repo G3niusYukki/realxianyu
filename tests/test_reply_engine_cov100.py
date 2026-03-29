@@ -9,6 +9,7 @@ from src.modules.messages.reply_engine import (
     INTENT_LABELS,
     IntentRule,
     ReplyStrategyEngine,
+    get_word_replacements,
 )
 
 
@@ -254,6 +255,33 @@ class TestGenerateReply:
         with patch.object(engine, "_ai_classify_intent", return_value="chat"):
             reply = engine.generate_reply("随便聊聊")
             assert "默认回复" in reply
+
+
+class TestErrorObservability:
+    def test_get_word_replacements_logs_warning_on_config_error(self):
+        with patch("src.dashboard.config_service.read_system_config", side_effect=RuntimeError("broken config")):
+            with patch("src.modules.messages.reply_engine.logger.warning") as warning:
+                mapping = get_word_replacements()
+        assert mapping["小程序"] == "小丞虚"
+        warning.assert_called_once()
+
+    def test_get_content_service_logs_warning_on_init_error(self):
+        engine = _make_engine()
+        with patch("src.modules.content.service.ContentService", side_effect=RuntimeError("init failed")):
+            with patch("src.modules.messages.reply_engine.logger.warning") as warning:
+                svc = engine._get_content_service()
+        assert svc is None
+        warning.assert_called_once()
+
+    def test_check_compliance_logs_warning_on_guard_error(self):
+        engine = _make_engine(compliance_enabled=True)
+        guard = MagicMock()
+        guard.evaluate_content.side_effect = RuntimeError("guard crashed")
+        engine._compliance_guard = guard
+        with patch("src.modules.messages.reply_engine.logger.warning") as warning:
+            output = engine._check_compliance("hello")
+        assert output == "hello"
+        warning.assert_called_once()
 
 
 class TestGenerateReplyWithIntent:

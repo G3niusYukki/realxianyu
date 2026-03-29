@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- `messages/ws_live`: token 获取在 `FAIL_SYS_USER_VALIDATE` / `RGV587` 场景下增加主动 Cookie 刷新后重试（BitBrowser 不可用时可走 IM 回退），降低自动回复被 587 风控拦截的不可用窗口。
+- `messages/ws_live`: mtop 风控响应增加 `risk_control` 标记并在发送链路显式判失败，避免“风控拦截但状态显示成功”的误判。
+- `modules/quote/engine`: `api_cost_plus_markup` 回退链路补全 `fallback_reason/fallback_source/failure_class`，并增强网络类错误分类（`transient/unavailable`）。
+- `modules/followup/service`: `from_system_config()` 仅对缺失配置降级，其他读取异常显式抛出，避免静默降级掩盖损坏配置。
+- `modules/messages/reply_engine`: 补充配置读取、依赖初始化与合规检查异常告警日志，降低“静默吞错”。
+- `client/api/dashboard`: `getUnmatchedStats` 去除假成功兜底，网络失败改为显式 reject，前端以真实失败语义处理。
+- `tests/conftest`: `mock_controller` / `mock_ai_client` 改为更严格的 `spec_set` mock，减少测试因宽松 mock 造成的假阳性。
+
 ## [10.1.0] - 2026-03-28
 
 ### Added

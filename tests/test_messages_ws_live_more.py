@@ -114,3 +114,108 @@ async def test_wait_cookie_update_and_auth_markers(ws_enabled):
 def test_cookie_apply_raises_without_unb(ws_enabled):
     with pytest.raises(BrowserError):
         GoofishWsTransport(cookie_text="a=1", config={})
+
+
+@pytest.mark.asyncio
+async def test_fetch_token_rgv587_recovers_with_im_refresh(ws_enabled, monkeypatch):
+    t = _transport()
+    t.config["token_max_attempts"] = 2
+
+    async def _no_preflight():
+        return True
+
+    monkeypatch.setattr(t, "_preflight_has_login", _no_preflight)
+    monkeypatch.setattr(t, "_maybe_reload_cookie", lambda reason="": False)
+
+    refresh_calls = {"n": 0}
+
+    async def _im_refresh(urgent=False):  # noqa: ARG001
+        refresh_calls["n"] += 1
+        return True
+
+    monkeypatch.setattr(t, "_try_goofish_im_refresh", _im_refresh)
+
+    call_idx = {"n": 0}
+
+    class _Resp:
+        def __init__(self, payload):
+            self._payload = payload
+            self.status_code = 200
+            self.cookies = {}
+
+        def json(self):
+            return self._payload
+
+    class _Client:
+        def __init__(self, *args, **kwargs):  # noqa: ARG002
+            self.cookies = type("Jar", (), {"jar": []})()
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def post(self, *args, **kwargs):  # noqa: ARG002
+            call_idx["n"] += 1
+            if call_idx["n"] == 1:
+                return _Resp({"ret": ["RGV587::被挤爆"]})
+            return _Resp({"ret": ["SUCCESS::调用成功"], "data": {"accessToken": "token-after-refresh"}})
+
+    monkeypatch.setattr("src.modules.messages.ws_live.httpx.AsyncClient", _Client)
+
+    token = await t._fetch_token()
+    assert token == "token-after-refresh"
+    assert refresh_calls["n"] == 1
+    assert call_idx["n"] == 2
+
+
+@pytest.mark.asyncio
+async def test_send_text_via_mtop_rejects_risk_control_marker(ws_enabled, monkeypatch):
+    t = _transport()
+    recorded: list[tuple[str, str]] = []
+
+    def _record(chat_id: str, text: str) -> None:
+        recorded.append((chat_id, text))
+
+    async def _mtop_call(api: str, version: str, data_dict: dict):  # noqa: ARG001
+        return {"ret": [], "data": {"accepted": True}, "_mtop_error_type": "risk_control"}
+
+    monkeypatch.setattr(t, "_record_bot_sig", _record)
+    monkeypatch.setattr(t, "_mtop_call", _mtop_call)
+
+    ok = await t._send_text_via_mtop("chat-1", "hello")
+
+    assert ok is False
+    assert recorded == []
+
+
+@pytest.mark.asyncio
+async def test_mtop_call_marks_rgv587_response(ws_enabled, monkeypatch):
+    t = _transport()
+
+    class _Resp:
+        def __init__(self):
+            self.status_code = 200
+            self.cookies = {}
+
+        def json(self):
+            return {"ret": ["RGV587::被挤爆"], "data": {}}
+
+    class _Client:
+        def __init__(self, *args, **kwargs):  # noqa: ARG002
+            self.cookies = type("Jar", (), {"jar": []})()
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def post(self, *args, **kwargs):  # noqa: ARG002
+            return _Resp()
+
+    monkeypatch.setattr("src.modules.messages.ws_live.httpx.AsyncClient", _Client)
+
+    payload = await t._mtop_call("mtop.taobao.idle.pc.im.msg.send", "1.0", {"cid": "chat-1@goofish"})
+    assert payload.get("_mtop_error_type") == "risk_control"
