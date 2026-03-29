@@ -166,3 +166,13 @@ def test_ws_transport_warns_when_mtop_secret_missing(monkeypatch) -> None:
     )
 
     assert any("XIANYU_MTOP_APP_SECRET" in message for message in logger.warnings)
+
+
+def test_merge_cookie_strings_drops_stale_h5_pair_when_overlay_partial() -> None:
+    base = "unb=10001; _m_h5_tk_enc=old_enc; cookie2=base_cookie2"
+    overlay = "sgcookie=sg_new; _m_h5_tk=new_tk_123"
+    merged = GoofishWsTransport._merge_cookie_strings(base, overlay)
+    merged_map = parse_cookie_header(merged)
+
+    assert merged_map["_m_h5_tk"] == "new_tk_123"
+    assert "_m_h5_tk_enc" not in merged_map

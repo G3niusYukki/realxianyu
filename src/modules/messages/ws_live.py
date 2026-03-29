@@ -786,19 +786,33 @@ class GoofishWsTransport:
         return changed
 
     @staticmethod
+    def _sanitize_h5_token_pair(cookies: dict[str, str], changed_keys: set[str]) -> None:
+        """Keep `_m_h5_tk` / `_m_h5_tk_enc` coherent when only one side changed.
+
+        Several refresh channels (CDP / hasLogin / Set-Cookie) may update only one side
+        of the token pair. Keeping the stale opposite side can trigger
+        FAIL_BIZ_PARAM_INVALID in token API. When one side changed but the other did not,
+        drop the stale side.
+        """
+        tk_key = "_m_h5_tk"
+        enc_key = "_m_h5_tk_enc"
+        if tk_key in changed_keys and enc_key not in changed_keys:
+            cookies.pop(enc_key, None)
+        elif enc_key in changed_keys and tk_key not in changed_keys:
+            cookies.pop(tk_key, None)
+
+    @staticmethod
     def _merge_cookie_strings(base: str, overlay: str) -> str:
         """Merge two cookie strings; overlay values win for same key."""
-        result: dict[str, str] = {}
-        for text in (base, overlay):
-            for part in text.split(";"):
-                part = part.strip()
-                if "=" not in part:
-                    continue
-                k, v = part.split("=", 1)
-                k = k.strip()
-                v = v.strip()
-                if k and v:
-                    result[k] = v
+        base_map = parse_cookie_header(base)
+        overlay_map = parse_cookie_header(overlay)
+        result = dict(base_map)
+        changed_keys: set[str] = set()
+        for k, v in overlay_map.items():
+            if result.get(k) != v:
+                changed_keys.add(k)
+            result[k] = v
+        GoofishWsTransport._sanitize_h5_token_pair(result, changed_keys)
         return "; ".join(f"{k}={v}" for k, v in result.items())
 
     def _record_slider_events(self, result: dict[str, Any], trigger_source: str) -> None:
@@ -1015,6 +1029,7 @@ class GoofishWsTransport:
         """Merge Set-Cookie values from an httpx client into self.cookies."""
         merged = dict(self.cookies)
         changed = False
+        changed_keys: set[str] = set()
         for ck in client.cookies.jar:
             name = str(getattr(ck, "name", "") or "").strip()
             value = str(getattr(ck, "value", "") or "").strip()
@@ -1022,7 +1037,9 @@ class GoofishWsTransport:
                 continue
             if merged.get(name) != value:
                 changed = True
+                changed_keys.add(name)
             merged[name] = value
+        self._sanitize_h5_token_pair(merged, changed_keys)
         if changed:
             merged_text = "; ".join(f"{k}={v}" for k, v in merged.items() if str(k).strip() and str(v).strip())
             self._apply_cookie_text(merged_text, reason=reason)
@@ -1035,6 +1052,7 @@ class GoofishWsTransport:
         """Merge Set-Cookie values from a single httpx response."""
         merged = dict(self.cookies)
         changed = False
+        changed_keys: set[str] = set()
         for name, value in resp.cookies.items():
             n = str(name or "").strip()
             v = str(value or "").strip()
@@ -1042,7 +1060,9 @@ class GoofishWsTransport:
                 continue
             if merged.get(n) != v:
                 changed = True
+                changed_keys.add(n)
             merged[n] = v
+        self._sanitize_h5_token_pair(merged, changed_keys)
         if changed:
             merged_text = "; ".join(f"{k}={v}" for k, v in merged.items() if str(k).strip() and str(v).strip())
             self._apply_cookie_text(merged_text, reason=reason)
