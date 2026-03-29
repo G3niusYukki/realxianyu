@@ -22,7 +22,7 @@ from src.core.logger import get_logger
 from src.modules.messages.manual_mode import ManualModeStore
 
 _MTOP_APP_KEY = os.environ.get("XIANYU_MTOP_APP_KEY", "34839810")
-_MTOP_APP_SECRET = os.getenv("MTOP_APP_SECRET", "")
+_MTOP_APP_SECRET = os.getenv("MTOP_APP_SECRET") or os.getenv("XIANYU_MTOP_APP_SECRET", "")
 
 try:
     import websockets
@@ -322,6 +322,10 @@ class GoofishWsTransport:
         self.device_id = ""
         self._cookie_fp = ""
         self._apply_cookie_text(cookie_text, reason="init")
+        if not str(_MTOP_APP_SECRET or "").strip():
+            self.logger.warning(
+                "MTOP_APP_SECRET / XIANYU_MTOP_APP_SECRET 未配置，Token API 可能返回 FAIL_BIZ_PARAM_INVALID。"
+            )
 
         manual_timeout = int(self.config.get("manual_mode_timeout", 600))
         manual_resume = int(self.config.get("manual_mode_resume_seconds", 300))

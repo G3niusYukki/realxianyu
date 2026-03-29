@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - `messages/ws_live`: token 获取在 `FAIL_SYS_USER_VALIDATE` / `RGV587` 场景下增加主动 Cookie 刷新后重试（BitBrowser 不可用时可走 IM 回退），降低自动回复被 587 风控拦截的不可用窗口。
 - `messages/ws_live`: mtop 风控响应增加 `risk_control` 标记并在发送链路显式判失败，避免“风控拦截但状态显示成功”的误判。
+- `messages/ws_live`: MTOP 密钥环境变量新增别名兼容（`MTOP_APP_SECRET` 或 `XIANYU_MTOP_APP_SECRET` 均可），修复仅配置 `XIANYU_MTOP_APP_SECRET` 时 Token API 可能出现 `FAIL_BIZ_PARAM_INVALID`。
+- `messages/ws_live`: 启动时若未配置 MTOP 密钥输出 warning，明确提示补齐 `MTOP_APP_SECRET / XIANYU_MTOP_APP_SECRET`。
 - `modules/quote/engine`: `api_cost_plus_markup` 回退链路补全 `fallback_reason/fallback_source/failure_class`，并增强网络类错误分类（`transient/unavailable`）。
 - `modules/followup/service`: `from_system_config()` 仅对缺失配置降级，其他读取异常显式抛出，避免静默降级掩盖损坏配置。
 - `modules/messages/reply_engine`: 补充配置读取、依赖初始化与合规检查异常告警日志，降低“静默吞错”。

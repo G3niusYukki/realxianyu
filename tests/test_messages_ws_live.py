@@ -2,10 +2,16 @@
 
 import asyncio
 import base64
+import importlib
 import json
 import sys
 
-from src.modules.messages.ws_live import GoofishWsTransport, decode_sync_payload, extract_chat_event, parse_cookie_header
+from src.modules.messages.ws_live import (
+    GoofishWsTransport,
+    decode_sync_payload,
+    extract_chat_event,
+    parse_cookie_header,
+)
 
 
 def _ensure_event_loop():
@@ -96,8 +102,12 @@ def test_ws_transport_cookie_hot_reload() -> None:
 
 
 def test_ws_transport_auth_error_marker() -> None:
-    assert GoofishWsTransport._is_auth_related_error(Exception("Token API failed: ['FAIL_SYS_USER_VALIDATE']")) is True
-    assert GoofishWsTransport._is_auth_related_error(Exception("server rejected WebSocket connection: HTTP 400")) is True
+    assert GoofishWsTransport._is_auth_related_error(
+        Exception("Token API failed: ['FAIL_SYS_USER_VALIDATE']")
+    ) is True
+    assert GoofishWsTransport._is_auth_related_error(
+        Exception("server rejected WebSocket connection: HTTP 400")
+    ) is True
     assert GoofishWsTransport._is_auth_related_error(Exception("network reset by peer")) is False
 
 
@@ -114,3 +124,45 @@ def test_ws_transport_auth_hold_until_cookie_update_enabled_by_default() -> None
         config={"auth_hold_until_cookie_update": False},
     )
     assert transport_relaxed.auth_hold_until_cookie_update is False
+
+
+def test_mtop_app_secret_supports_xianyu_env_fallback(monkeypatch) -> None:
+    import src.modules.messages.ws_live as ws_live_module
+
+    with monkeypatch.context() as m:
+        m.delenv("MTOP_APP_SECRET", raising=False)
+        m.setenv("XIANYU_MTOP_APP_SECRET", "xianyu_secret_from_env")
+        importlib.reload(ws_live_module)
+        assert ws_live_module._MTOP_APP_SECRET == "xianyu_secret_from_env"
+
+    importlib.reload(ws_live_module)
+
+
+def test_ws_transport_warns_when_mtop_secret_missing(monkeypatch) -> None:
+    _ensure_event_loop()
+
+    import src.modules.messages.ws_live as ws_live_module
+
+    class _Logger:
+        def __init__(self):
+            self.warnings: list[str] = []
+
+        def warning(self, msg: str) -> None:
+            self.warnings.append(str(msg))
+
+        def info(self, _msg: str) -> None:
+            return None
+
+        def debug(self, _msg: str) -> None:
+            return None
+
+    logger = _Logger()
+    monkeypatch.setattr(ws_live_module, "_MTOP_APP_SECRET", "")
+    monkeypatch.setattr(ws_live_module, "get_logger", lambda: logger)
+
+    ws_live_module.GoofishWsTransport(
+        cookie_text="unb=10001; _m_h5_tk=token_a_123; cookie2=a; _tb_token_=t; sgcookie=s",
+        config={},
+    )
+
+    assert any("XIANYU_MTOP_APP_SECRET" in message for message in logger.warnings)
