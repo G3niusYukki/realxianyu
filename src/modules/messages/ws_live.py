@@ -450,6 +450,8 @@ class GoofishWsTransport:
     @staticmethod
     def _is_auth_related_error(exc: Exception) -> bool:
         lowered = str(exc or "").lower()
+        if "not support appkey" in lowered:
+            return False
         markers = (
             "fail_sys_user_validate",
             "rgv587",
@@ -1185,6 +1187,7 @@ class GoofishWsTransport:
 
         max_attempts = max(1, int(self.config.get("token_max_attempts", 3)))
         last_error: Exception | None = None
+        force_payload_fallback = False
 
         for attempt in range(1, max_attempts + 1):
             token_cookie = str(self.cookies.get("_m_h5_tk", "") or "")
@@ -1197,7 +1200,11 @@ class GoofishWsTransport:
                     raise BrowserError("Cookie missing `_m_h5_tk`.")
 
             t = str(int(time.time() * 1000))
-            payload_app_key = _resolve_mtop_payload_app_key()
+            payload_app_key = (
+                str(_MTOP_PAYLOAD_APP_KEY_FALLBACK or "").strip()
+                if force_payload_fallback
+                else _resolve_mtop_payload_app_key()
+            )
             data_val = json.dumps(
                 {"appKey": payload_app_key, "deviceId": self.device_id},
                 ensure_ascii=False,
@@ -1245,6 +1252,13 @@ class GoofishWsTransport:
                 last_error = BrowserError(f"Token API failed: {ret}")
 
                 self._absorb_set_cookies_from_resp(resp, reason="token_api_fail")
+
+                if "not support appkey" in ret_text.lower():
+                    fallback_key = str(_MTOP_PAYLOAD_APP_KEY_FALLBACK or "").strip()
+                    if fallback_key and payload_app_key != fallback_key and attempt < max_attempts:
+                        force_payload_fallback = True
+                        self.logger.warning("Token API rejected payload appKey, retrying with fallback appKey")
+                        continue
 
                 if "FAIL_SYS_USER_VALIDATE" in ret_text or "RGV587" in ret_text:
                     self._maybe_reload_cookie(reason="token_ret_fail")

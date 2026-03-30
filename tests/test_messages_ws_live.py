@@ -106,6 +106,9 @@ def test_ws_transport_auth_error_marker() -> None:
         Exception("Token API failed: ['FAIL_SYS_USER_VALIDATE']")
     ) is True
     assert GoofishWsTransport._is_auth_related_error(
+        Exception("Token API failed: ['FAIL_BIZ_400100001::not support appkey']")
+    ) is False
+    assert GoofishWsTransport._is_auth_related_error(
         Exception("server rejected WebSocket connection: HTTP 400")
     ) is True
     assert GoofishWsTransport._is_auth_related_error(Exception("network reset by peer")) is False

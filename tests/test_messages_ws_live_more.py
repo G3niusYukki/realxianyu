@@ -279,3 +279,58 @@ async def test_mtop_call_marks_rgv587_response(ws_enabled, monkeypatch):
 
     payload = await t._mtop_call("mtop.taobao.idle.pc.im.msg.send", "1.0", {"cid": "chat-1@goofish"})
     assert payload.get("_mtop_error_type") == "risk_control"
+
+
+@pytest.mark.asyncio
+async def test_fetch_token_retries_with_legacy_payload_appkey_on_not_support(ws_enabled, monkeypatch):
+    monkeypatch.setattr("src.modules.messages.ws_live._MTOP_APP_SECRET", "unsupported_secret")
+    monkeypatch.setattr("src.modules.messages.ws_live._MTOP_APP_KEY", "34839810")
+    monkeypatch.setattr(
+        "src.modules.messages.ws_live._MTOP_PAYLOAD_APP_KEY_FALLBACK",
+        "444e9908a51d1cb236a27862abc769c9",
+    )
+
+    t = GoofishWsTransport(
+        cookie_text="unb=10001; _m_h5_tk=token_a_123; cookie2=a; _tb_token_=t; sgcookie=s",
+        config={"queue_wait_seconds": 0.01, "message_expire_ms": 1000, "token_max_attempts": 2},
+    )
+
+    async def _no_preflight():
+        return True
+
+    monkeypatch.setattr(t, "_preflight_has_login", _no_preflight)
+    monkeypatch.setattr(t, "_maybe_reload_cookie", lambda reason="": False)
+
+    posted_keys: list[str] = []
+
+    class _Resp:
+        def __init__(self, payload):
+            self.status_code = 200
+            self.cookies = {}
+            self._payload = payload
+
+        def json(self):
+            return self._payload
+
+    class _Client:
+        def __init__(self, *args, **kwargs):
+            self.cookies = type("Jar", (), {"jar": []})()
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def post(self, *args, **kwargs):
+            payload = json.loads(kwargs.get("data", {}).get("data", "{}"))
+            posted_keys.append(str(payload.get("appKey", "")))
+            if len(posted_keys) == 1:
+                return _Resp({"ret": ["FAIL_BIZ_400100001::not support appkey||not support appkey"]})
+            return _Resp({"ret": ["SUCCESS::调用成功"], "data": {"accessToken": "token-after-appkey-switch"}})
+
+    monkeypatch.setattr("src.modules.messages.ws_live.httpx.AsyncClient", _Client)
+
+    token = await t._fetch_token()
+    assert token == "token-after-appkey-switch"
+    assert posted_keys == ["unsupported_secret", "444e9908a51d1cb236a27862abc769c9"]
