@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import ipaddress
+import os
 import time as _time_mod
+from urllib.parse import urlparse
 
 from src.dashboard.router import RouteContext, get, post
 
@@ -41,6 +44,16 @@ def handle_notifications_test(ctx: RouteContext) -> None:
     webhook_url = str(body.get("webhook_url", "")).strip()
     if not channel or not webhook_url:
         ctx.send_json({"ok": False, "error": "缺少 channel 或 webhook_url"}, status=400)
+        return
+    if channel not in {"feishu", "wechat"}:
+        ctx.send_json({"ok": False, "error": "不支持的通知渠道"}, status=400)
+        return
+    if not _is_safe_outbound_url(
+        webhook_url,
+        allowed_hosts=_notification_channel_hosts(channel),
+        extra_env_key="DASHBOARD_ALLOWED_WEBHOOK_HOSTS",
+    ):
+        ctx.send_json({"ok": False, "error": "Webhook URL 不安全或不在白名单内"}, status=400)
         return
 
     test_msg = "【闲鱼自动化】通知测试\n如果你看到这条消息，说明通知配置成功！"
@@ -82,6 +95,13 @@ def handle_ai_test(ctx: RouteContext) -> None:
     if not ai_key or not ai_base:
         ctx.send_json({"ok": False, "message": "请填写 API Key 和 API 地址"})
         return
+    if not _is_safe_outbound_url(
+        ai_base,
+        allowed_hosts=_default_ai_hosts(),
+        extra_env_key="DASHBOARD_ALLOWED_AI_TEST_HOSTS",
+    ):
+        ctx.send_json({"ok": False, "message": "API 地址不安全或不在白名单内"}, status=400)
+        return
     try:
         t0 = _time_mod.time()
         import httpx
@@ -114,3 +134,70 @@ def handle_ai_test(ctx: RouteContext) -> None:
             ctx.send_json({"ok": False, "message": msg, "latency_ms": latency})
     except Exception as exc:
         ctx.send_json({"ok": False, "message": f"连接异常: {type(exc).__name__}: {exc}"})
+
+
+def _default_ai_hosts() -> set[str]:
+    return {"dashscope.aliyuncs.com", "api.deepseek.com", "api.openai.com"}
+
+
+def _notification_channel_hosts(channel: str) -> set[str]:
+    if channel == "feishu":
+        return {"open.feishu.cn", "open.larksuite.com"}
+    if channel == "wechat":
+        return {"qyapi.weixin.qq.com", "qyapi.wechat.com"}
+    return set()
+
+
+def _read_extra_host_allowlist(env_key: str) -> set[str]:
+    raw = os.environ.get(env_key, "")
+    hosts: set[str] = set()
+    for item in raw.split(","):
+        host = item.strip().lower()
+        if host:
+            hosts.add(host)
+    return hosts
+
+
+def _host_allowed(host: str, allowed_hosts: set[str]) -> bool:
+    host_l = str(host or "").strip().lower()
+    if not host_l or not allowed_hosts:
+        return False
+    for allow in allowed_hosts:
+        allow_l = str(allow or "").strip().lower()
+        if not allow_l:
+            continue
+        if host_l == allow_l or host_l.endswith(f".{allow_l}"):
+            return True
+    return False
+
+
+def _is_safe_outbound_url(
+    raw_url: str,
+    *,
+    allowed_hosts: set[str] | None = None,
+    extra_env_key: str | None = None,
+) -> bool:
+    parsed = urlparse(str(raw_url or "").strip())
+    if parsed.scheme.lower() != "https":
+        return False
+
+    host = str(parsed.hostname or "").strip()
+    if not host:
+        return False
+    lowered = host.lower()
+    if lowered in {"localhost"}:
+        return False
+
+    try:
+        ip = ipaddress.ip_address(lowered)
+    except ValueError:
+        merged_allowed = set(allowed_hosts or set())
+        if extra_env_key:
+            merged_allowed.update(_read_extra_host_allowlist(extra_env_key))
+        if merged_allowed:
+            return _host_allowed(lowered, merged_allowed)
+        return True
+
+    if ip.is_loopback or ip.is_private or ip.is_link_local or ip.is_reserved or ip.is_unspecified:
+        return False
+    return True

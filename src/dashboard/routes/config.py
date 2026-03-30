@@ -15,6 +15,9 @@ from src.dashboard.config_service import (
     CONFIG_SECTIONS as _CONFIG_SECTIONS,
 )
 from src.dashboard.config_service import (
+    mask_sensitive as _mask_sensitive,
+)
+from src.dashboard.config_service import (
     read_system_config as _read_system_config,
 )
 from src.dashboard.config_service import (
@@ -44,7 +47,7 @@ def handle_config_get(ctx: RouteContext) -> None:
         yaml_rules = get_config().get_section("messages", {}).get("intent_rules", [])
         if isinstance(yaml_rules, list) and yaml_rules:
             ar["custom_intent_rules"] = yaml_rules
-    ctx.send_json({"ok": True, "config": cfg})
+    ctx.send_json({"ok": True, "config": _mask_sensitive(cfg)})
 
 
 # ---------------------------------------------------------------------------

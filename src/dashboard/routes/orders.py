@@ -3,11 +3,51 @@
 from __future__ import annotations
 
 import json
+import os
 import time
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from src.dashboard.router import RouteContext, get, post
+
+
+def _xgj_setting(
+    xgj_cfg: Any,
+    *,
+    field: str,
+    env_key: str,
+    default: str = "",
+    legacy_env_key: str | None = None,
+) -> str:
+    env_value = os.getenv(env_key, "").strip()
+    if not env_value and legacy_env_key:
+        env_value = os.getenv(legacy_env_key, "").strip()
+    if env_value:
+        return env_value
+
+    if isinstance(xgj_cfg, dict):
+        cfg_value = str(xgj_cfg.get(field, "")).strip()
+        if cfg_value:
+            return cfg_value
+
+    return default
+
+
+def _xgj_creds() -> tuple[str, str]:
+    """Return (app_key, app_secret) respecting system_config.json < .env priority."""
+    from src.dashboard.config_service import read_system_config as _read_system_config
+
+    cfg = _read_system_config()
+    xgj = cfg.get("xianguanjia", {}) if isinstance(cfg.get("xianguanjia"), dict) else {}
+    app_key = _xgj_setting(xgj, field="app_key", env_key="XGJ_APP_KEY", legacy_env_key="XIANGUANJIA_APP_KEY")
+    app_secret = _xgj_setting(
+        xgj,
+        field="app_secret",
+        env_key="XGJ_APP_SECRET",
+        legacy_env_key="XIANGUANJIA_APP_SECRET",
+    )
+    return app_key, app_secret
+
 
 # ---------------------------------------------------------------------------
 # GET /api/virtual-goods/metrics
@@ -243,12 +283,28 @@ def handle_xgj_proxy(ctx: RouteContext) -> None:
         ctx.send_json({"error": "Invalid apiPath"}, status=400)
         return
     cfg = _read_system_config()
-    xgj = cfg.get("xianguanjia", {})
-    app_key = str(xgj.get("app_key", ""))
-    app_secret = str(xgj.get("app_secret", ""))
-    base_url = str(xgj.get("base_url", "") or "https://open.goofish.pro")
-    mode = str(xgj.get("mode", "self_developed"))
-    seller_id = str(xgj.get("seller_id", ""))
+    xgj = cfg.get("xianguanjia", {}) if isinstance(cfg.get("xianguanjia"), dict) else {}
+    app_key, app_secret = _xgj_creds()
+    base_url = _xgj_setting(
+        xgj,
+        field="base_url",
+        env_key="XGJ_BASE_URL",
+        default="https://open.goofish.pro",
+        legacy_env_key="XIANGUANJIA_BASE_URL",
+    )
+    mode = _xgj_setting(
+        xgj,
+        field="mode",
+        env_key="XGJ_MODE",
+        default="self_developed",
+        legacy_env_key="XIANGUANJIA_MODE",
+    )
+    seller_id = _xgj_setting(
+        xgj,
+        field="seller_id",
+        env_key="XGJ_SELLER_ID",
+        legacy_env_key="XIANGUANJIA_SELLER_ID",
+    )
     if not app_key or not app_secret:
         ctx.send_json({"ok": False, "error": "闲管家 API 未配置，请在设置中配置 AppKey 和 AppSecret"}, status=400)
         return
@@ -302,7 +358,8 @@ def handle_auto_price_diagnose(ctx: RouteContext) -> None:
     logger = logging.getLogger(__name__)
     cfg = _read_system_config()
     apm_cfg = cfg.get("auto_price_modify", {})
-    xgj = cfg.get("xianguanjia", {})
+    xgj = cfg.get("xianguanjia", {}) if isinstance(cfg.get("xianguanjia"), dict) else {}
+    xgj_app_key, xgj_app_secret = _xgj_creds()
 
     poller = get_price_poller()
     result: dict = {
@@ -313,7 +370,7 @@ def handle_auto_price_diagnose(ctx: RouteContext) -> None:
         "poller_interval": int(apm_cfg.get("poll_interval_seconds", 15)),
         "max_quote_age_seconds": int(apm_cfg.get("max_quote_age_seconds", 7200)),
         "fallback_action": apm_cfg.get("fallback_action", "skip"),
-        "xgj_configured": bool(xgj.get("app_key") and xgj.get("app_secret")),
+        "xgj_configured": bool(xgj_app_key and xgj_app_secret),
         "pending_orders": [],
         "api_connection_ok": False,
         "api_error": None,
@@ -328,12 +385,29 @@ def handle_auto_price_diagnose(ctx: RouteContext) -> None:
         from src.integrations.xianguanjia.open_platform_client import OpenPlatformClient
 
         client = OpenPlatformClient(
-            base_url=str(xgj.get("base_url", "") or "https://open.goofish.pro"),
-            app_key=str(xgj.get("app_key", "")),
-            app_secret=str(xgj.get("app_secret", "")),
+            base_url=_xgj_setting(
+                xgj,
+                field="base_url",
+                env_key="XGJ_BASE_URL",
+                default="https://open.goofish.pro",
+                legacy_env_key="XIANGUANJIA_BASE_URL",
+            ),
+            app_key=xgj_app_key,
+            app_secret=xgj_app_secret,
             timeout=float(xgj.get("timeout", 30.0)),
-            mode=str(xgj.get("mode", "self_developed")).strip() or "self_developed",
-            seller_id=str(xgj.get("seller_id", "")).strip(),
+            mode=_xgj_setting(
+                xgj,
+                field="mode",
+                env_key="XGJ_MODE",
+                default="self_developed",
+                legacy_env_key="XIANGUANJIA_MODE",
+            ),
+            seller_id=_xgj_setting(
+                xgj,
+                field="seller_id",
+                env_key="XGJ_SELLER_ID",
+                legacy_env_key="XIANGUANJIA_SELLER_ID",
+            ),
         )
         resp = client.list_orders({"order_status": 11, "page_no": 1, "page_size": 50})
         if not resp.ok:
@@ -456,10 +530,11 @@ def handle_auto_price_test_modify(ctx: RouteContext) -> None:
         return
 
     cfg = _read_system_config()
-    xgj = cfg.get("xianguanjia", {})
     apm_cfg = cfg.get("auto_price_modify", {})
+    xgj = cfg.get("xianguanjia", {}) if isinstance(cfg.get("xianguanjia"), dict) else {}
+    app_key, app_secret = _xgj_creds()
 
-    if not xgj.get("app_key") or not xgj.get("app_secret"):
+    if not app_key or not app_secret:
         ctx.send_json({"ok": False, "error": "闲管家 API 未配置"}, status=400)
         return
 
@@ -468,12 +543,29 @@ def handle_auto_price_test_modify(ctx: RouteContext) -> None:
         from src.modules.quote.ledger import get_quote_ledger
 
         client = OpenPlatformClient(
-            base_url=str(xgj.get("base_url", "") or "https://open.goofish.pro"),
-            app_key=str(xgj.get("app_key", "")),
-            app_secret=str(xgj.get("app_secret", "")),
+            base_url=_xgj_setting(
+                xgj,
+                field="base_url",
+                env_key="XGJ_BASE_URL",
+                default="https://open.goofish.pro",
+                legacy_env_key="XIANGUANJIA_BASE_URL",
+            ),
+            app_key=app_key,
+            app_secret=app_secret,
             timeout=float(xgj.get("timeout", 30.0)),
-            mode=str(xgj.get("mode", "self_developed")).strip() or "self_developed",
-            seller_id=str(xgj.get("seller_id", "")).strip(),
+            mode=_xgj_setting(
+                xgj,
+                field="mode",
+                env_key="XGJ_MODE",
+                default="self_developed",
+                legacy_env_key="XIANGUANJIA_MODE",
+            ),
+            seller_id=_xgj_setting(
+                xgj,
+                field="seller_id",
+                env_key="XGJ_SELLER_ID",
+                legacy_env_key="XIANGUANJIA_SELLER_ID",
+            ),
         )
 
         detail_resp = client.get_order_detail({"order_no": order_no})
@@ -586,15 +678,10 @@ def handle_xgj_product_receive(ctx: RouteContext) -> None:
 
 def _handle_xgj_webhook(ctx: RouteContext) -> None:
     """Shared webhook handler for order and product callbacks with signature verification."""
-    from src.dashboard.config_service import read_system_config as _read_system_config
-
     content_len = int(ctx.headers.get("Content-Length", "0"))
     raw_body = ctx._handler.rfile.read(content_len) if content_len > 0 else b""
     body_str = raw_body.decode("utf-8") if raw_body else ""
-    cfg = _read_system_config()
-    xgj = cfg.get("xianguanjia", {})
-    app_key = str(xgj.get("app_key", ""))
-    app_secret = str(xgj.get("app_secret", ""))
+    app_key, app_secret = _xgj_creds()
     if not app_key or not app_secret:
         ctx.send_json({"result": "fail", "msg": "Not configured"}, status=400)
         return

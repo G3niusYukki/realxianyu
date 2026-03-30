@@ -15,7 +15,14 @@ from src.dashboard.router import RouteContext, get, post
 
 @get("/api/get-cookie")
 def handle_get_cookie(ctx: RouteContext) -> None:
-    ctx.send_json(ctx.mimic_ops.get_cookie())
+    raw = ctx.mimic_ops.get_cookie()
+    cookie_text = raw.get("cookie", "")
+    # 返回脱敏版本：前4位 + ****，防止凭证通过 CORS * 被跨域窃取
+    if cookie_text:
+        masked = cookie_text[:4] + "****"
+    else:
+        masked = ""
+    ctx.send_json({"success": raw.get("success", False), "cookie": masked, "length": raw.get("length", 0)})
 
 
 # ---------------------------------------------------------------------------

@@ -40,7 +40,7 @@ class XGJService:
 
     @staticmethod
     def _get_env_value(key: str) -> str:
-        env_path = Path(__file__).resolve().parents[2] / ".env"
+        env_path = Path(__file__).resolve().parents[3] / ".env"
         if env_path.exists():
             key_norm = f"{key}="
             for line in env_path.read_text(encoding="utf-8", errors="ignore").splitlines():

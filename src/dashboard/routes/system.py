@@ -170,10 +170,17 @@ def _check_ai_health() -> dict[str, Any]:
 def _check_xgj_health() -> dict[str, Any]:
     try:
         sys_cfg = _read_system_config()
-        xgj_cfg = sys_cfg.get("xianguanjia", {})
-        xgj_app_key = str(xgj_cfg.get("app_key", "") or os.environ.get("XGJ_APP_KEY", ""))
-        xgj_app_secret = str(xgj_cfg.get("app_secret", "") or os.environ.get("XGJ_APP_SECRET", ""))
-        xgj_base = str(xgj_cfg.get("base_url", "") or os.environ.get("XGJ_BASE_URL", "https://open.goofish.pro"))
+        xgj_cfg = sys_cfg.get("xianguanjia", {}) if isinstance(sys_cfg.get("xianguanjia"), dict) else {}
+        xgj_app_key = os.environ.get("XGJ_APP_KEY", "") or os.environ.get("XIANGUANJIA_APP_KEY", "")
+        xgj_app_secret = os.environ.get("XGJ_APP_SECRET", "") or os.environ.get("XIANGUANJIA_APP_SECRET", "")
+        xgj_base_env = os.environ.get("XGJ_BASE_URL", "") or os.environ.get("XIANGUANJIA_BASE_URL", "")
+        xgj_mode = os.environ.get("XGJ_MODE", "") or os.environ.get("XIANGUANJIA_MODE", "")
+        xgj_seller_id = os.environ.get("XGJ_SELLER_ID", "") or os.environ.get("XIANGUANJIA_SELLER_ID", "")
+        xgj_app_key = str(xgj_app_key or xgj_cfg.get("app_key", "")).strip()
+        xgj_app_secret = str(xgj_app_secret or xgj_cfg.get("app_secret", "")).strip()
+        xgj_base = str(xgj_base_env or xgj_cfg.get("base_url", "")).strip() or "https://open.goofish.pro"
+        xgj_mode = str(xgj_mode or xgj_cfg.get("mode", "self_developed")).strip() or "self_developed"
+        xgj_seller_id = str(xgj_seller_id or xgj_cfg.get("seller_id", "")).strip()
         if not xgj_app_key or not xgj_app_secret:
             return {"ok": False, "message": "AppKey 或 AppSecret 未配置"}
         from src.dashboard.mimic_ops import _test_xgj_connection
@@ -182,8 +189,8 @@ def _check_xgj_health() -> dict[str, Any]:
             app_key=xgj_app_key,
             app_secret=xgj_app_secret,
             base_url=xgj_base,
-            mode=str(xgj_cfg.get("mode", "self_developed")),
-            seller_id=str(xgj_cfg.get("seller_id", "")),
+            mode=xgj_mode,
+            seller_id=xgj_seller_id,
         )
     except Exception as exc:
         return {"ok": False, "message": f"检查异常: {type(exc).__name__}"}

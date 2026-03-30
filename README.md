@@ -115,6 +115,15 @@ cp .env.example .env
 2. `data/system_config.json`
 3. `config/config.yaml`
 
+Dashboard 安全相关环境变量（推荐按需配置）：
+
+- `DASHBOARD_API_TOKEN`：启用后，`POST/PUT/DELETE` 写操作需携带 token。
+- `DASHBOARD_ALLOWED_ORIGINS`：允许的跨域 Origin（逗号分隔）。
+- `DASHBOARD_ALLOWED_WEBHOOK_HOSTS`：通知测试接口允许的额外 webhook 域名（逗号分隔）。
+- `DASHBOARD_ALLOWED_AI_TEST_HOSTS`：AI 测试接口允许的额外域名（逗号分隔）。
+
+详细示例可参考 `.env.example` 中 “Dashboard 安全加固” 小节。
+
 #### 3. 启动 Dashboard 主服务
 
 ```bash

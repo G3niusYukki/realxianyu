@@ -168,35 +168,9 @@ class MessagesService:
         self._init_ts = time.time()
 
         app_config = get_config()
-        self.config = config or app_config.get_section("messages", {})
-
-        self._sys_ai_config: dict[str, Any] = {}
-        sys_cfg_path = os.path.join("data", "system_config.json")
-        if os.path.exists(sys_cfg_path):
-            try:
-                with open(sys_cfg_path, encoding="utf-8") as f:
-                    sys_cfg = json.load(f)
-            except (OSError, ValueError) as exc:
-                _logger.debug("Could not load system config at %s: %s", sys_cfg_path, exc)
-            else:
-                ar = sys_cfg.get("auto_reply", {})
-                if isinstance(ar, dict):
-                    if "enabled" in ar:
-                        self.config["enabled"] = ar["enabled"]
-                    for ui_key, yaml_key in [
-                        ("first_reply_delay", "first_reply_delay_seconds"),
-                        ("inter_reply_delay", "inter_reply_delay_seconds"),
-                    ]:
-                        raw = ar.get(ui_key)
-                        if isinstance(raw, str) and "-" in raw:
-                            try:
-                                parts = raw.split("-", 1)
-                                self.config[yaml_key] = [float(parts[0].strip()), float(parts[1].strip())]
-                            except (ValueError, IndexError):
-                                pass
-                ai_sys = sys_cfg.get("ai", {})
-                if isinstance(ai_sys, dict):
-                    self._sys_ai_config = ai_sys
+        self.config = dict(config) if isinstance(config, dict) else app_config.get_section("messages", {})
+        ai_cfg = self.config.get("ai", {})
+        self._sys_ai_config: dict[str, Any] = dict(ai_cfg) if isinstance(ai_cfg, dict) else {}
 
         self.quote_config = {
             **app_config.get_section("quote", {}),
