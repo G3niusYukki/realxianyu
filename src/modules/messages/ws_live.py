@@ -498,6 +498,7 @@ class GoofishWsTransport:
         wait_start = time.time()
         escalation_notified = False
         escalation_timeout = float(self.config.get("cookie_wait_escalation_timeout_seconds", 10 * 60))
+        slider_retry_interval = float(self.config.get("cookie_wait_slider_retry_seconds", 15 * 60))
 
         try:
             from src.core.bitbrowser_cdp import get_fp_config
@@ -539,6 +540,20 @@ class GoofishWsTransport:
                     )
                 except Exception:
                     pass
+
+            # Escape hatch: after slider_retry_interval, reset recovery counter
+            # so the outer _run() loop can retry slider verification. Prevents
+            # the system from being stuck in this wait forever when all cookie
+            # sources provide the same fingerprint.
+            if slider_retry_interval > 0 and (now - wait_start) >= slider_retry_interval:
+                if self._slider_recovery_attempts >= self._SLIDER_MAX_ATTEMPTS_PER_CYCLE:
+                    self._slider_recovery_attempts = 0
+                    self._slider_just_recovered = False
+                    self.logger.info(
+                        f"Cookie 等待 {int(slider_retry_interval / 60)} 分钟未更新，"
+                        "重置滑块恢复计数器，允许重新尝试滑块验证"
+                    )
+                    return True
 
             if not cc_not_configured and (now - cc_last_poll) >= cc_poll_interval:
                 cc_last_poll = now
@@ -961,27 +976,12 @@ class GoofishWsTransport:
             existing = os.environ.get("XIANYU_COOKIE_1", "") or self.cookie_text
             merged = self._merge_cookie_strings(existing, cookie_str)
 
-            # Restore the existing _m_h5_tk (and _m_h5_tk_enc) after merging.
-            # The DrissionPage browser's _m_h5_tk may be invalid or expired, causing
-            # FAIL_BIZ_PARAM_INVALID from the Token API. The IM's _m_h5_tk is known to
-            # produce RGV587 (server-side risk control) which the recovery loop handles,
-            # vs the browser's _m_h5_tk which produces FAIL_BIZ_PARAM_INVALID (parameter
-            # error that cannot be recovered without manual intervention).
-            # Preserve the existing token; only take other fields (cna, unb, sgcookie, etc.)
-            # from the browser.
-            existing_cookies = {}
-            for part in existing.split(";"):
-                part = part.strip()
-                if "=" not in part:
-                    continue
-                k, v = part.split("=", 1)
-                existing_cookies[k.strip()] = v.strip()
-            for tk in ("_m_h5_tk", "_m_h5_tk_enc"):
-                token_value = existing_cookies.get(tk)
-                if token_value:
-                    merged_parts = {p.split("=")[0].strip(): p for p in merged.split(";") if "=" in p}
-                    merged_parts[tk] = f"{tk}={token_value}"
-                    merged = "; ".join(f"{k}={v}" for k, v in merged_parts.items())
+            # Use the browser's _m_h5_tk / _m_h5_tk_enc from slider recovery.
+            # The slider was solved in the browser's session, so the risk control
+            # is lifted for that session — the browser's tokens are now valid.
+            # If the browser's _m_h5_tk causes FAIL_BIZ_PARAM_INVALID, the
+            # _run() loop treats it as transient and retries; _preflight_has_login()
+            # during reconnect will refresh the tokens via Set-Cookie anyway.
 
             changed = self._apply_cookie_text(merged, reason="slider_recovery")
             if changed:

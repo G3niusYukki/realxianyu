@@ -1229,6 +1229,18 @@ def _try_slider_drissionpage(
 
             time.sleep(random.uniform(2, 4))
 
+        # After slider passes, navigate to goofish.com/im to trigger MTOP API calls
+        # so the server sets a fresh _m_h5_tk cookie via Set-Cookie headers.
+        # Without this, the browser only has page-level cookies but not the
+        # MTOP session token needed for the Token API.
+        if tab:
+            try:
+                _log.info("DrissionPage: navigating to goofish.com/im to obtain fresh _m_h5_tk")
+                tab.get(_GOOFISH_IM_URL)
+                time.sleep(4)
+            except Exception as exc:
+                _log.debug(f"DrissionPage: post-slider navigation failed: {exc}")
+
         time.sleep(2)
 
         cookie_str = None
