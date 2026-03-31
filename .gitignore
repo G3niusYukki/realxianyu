@@ -198,7 +198,7 @@ claude_settings*.json
 .claude_settings/
 
 # Server directory (if runtime only)
-server/
+/server/
 
 # Temporary diff files
 *.diff
