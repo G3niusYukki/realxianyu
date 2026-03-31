@@ -11,7 +11,10 @@ import re
 import time
 import zipfile
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from src.dashboard.services import EnvService
 
 from src.core.config import get_config
 
@@ -36,8 +39,9 @@ class CookieService:
     _COOKIE_IMPORT_EXTS = _COOKIE_IMPORT_EXTS
     _COOKIE_HINT_KEYS = _COOKIE_HINT_KEYS
 
-    def __init__(self, project_root: Path):
+    def __init__(self, project_root: Path, env_service: EnvService | None = None):
         self.project_root = project_root
+        self.env_service = env_service
 
     @property
     def cookie_plugin_dir(self) -> Path:
@@ -664,6 +668,52 @@ class CookieService:
                 payload["message"] = "Cookie imported and presales recovery triggered"
             else:
                 payload["message"] = "Cookie imported, but presales recovery failed"
+        return payload
+
+    def update_cookie(
+        self,
+        cookie: str,
+        *,
+        auto_recover: bool = False,
+        recover_callback: Any = None,
+    ) -> dict[str, Any]:
+        parsed = self.parse_cookie_text(str(cookie or ""))
+        if not parsed.get("success"):
+            return parsed
+        cookie_text = str(parsed.get("cookie") or "").strip()
+        if not cookie_text:
+            return {"success": False, "error": "Cookie string cannot be empty"}
+        if self.env_service is not None:
+            self.env_service._set_env_value("XIANYU_COOKIE_1", cookie_text)
+        else:
+            self._set_env_value("XIANYU_COOKIE_1", cookie_text)
+        diagnosis = self.diagnose_cookie(cookie_text)
+        payload: dict[str, Any] = {
+            "success": True,
+            "message": "Cookie updated",
+            "length": len(cookie_text),
+            "cookie_items": int(parsed.get("cookie_items", 0) or 0),
+            "detected_format": str(parsed.get("detected_format") or "header"),
+            "missing_required": parsed.get("missing_required", []),
+            "cookie_grade": diagnosis.get("grade", "未知"),
+            "cookie_actions": diagnosis.get("actions", []),
+            "cookie_diagnosis": diagnosis,
+        }
+        try:
+            from src.modules.messages.ws_live import notify_ws_cookie_changed
+
+            notify_ws_cookie_changed()
+        except Exception:
+            pass
+
+        should_recover = auto_recover and str(diagnosis.get("grade") or "") != "不可用"
+        if should_recover and recover_callback is not None:
+            recover = recover_callback(cookie_text)
+            payload["auto_recover"] = recover
+            if recover.get("triggered"):
+                payload["message"] = "Cookie updated and presales recovery triggered"
+            else:
+                payload["message"] = "Cookie updated, but presales recovery failed"
         return payload
 
     def _set_env_value(self, key: str, value: str) -> None:

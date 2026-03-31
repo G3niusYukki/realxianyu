@@ -118,13 +118,13 @@ class MimicOps:
         self.module_console = module_console
         self._cost_table_repo: Any = None
         # Service instances (extracted)
-        self._cookie_service = CookieService(self.project_root)
+        self._env_service = EnvService(self.project_root)
+        self._cookie_service = CookieService(self.project_root, env_service=self._env_service)
         self._xgj_service = XGJService(self.project_root)
         self._log_service = LogService(self.project_root)
         self._quote_service = QuoteService(self.project_root)
         self._template_service = TemplateService(self.project_root)
         self._reply_test_service = ReplyTestService(self.project_root)
-        self._env_service = EnvService(self.project_root)
         self._vg_dashboard_service = VirtualGoodsDashboardService(
             project_root=self.project_root,
             xgj_config_provider=self._xgj_service._xianguanjia_service_config,
@@ -295,41 +295,11 @@ class MimicOps:
         }
 
     def update_cookie(self, cookie: str, *, auto_recover: bool = False) -> dict[str, Any]:
-        parsed = self.parse_cookie_text(str(cookie or ""))
-        if not parsed.get("success"):
-            return parsed
-        cookie_text = str(parsed.get("cookie") or "").strip()
-        if not cookie_text:
-            return {"success": False, "error": "Cookie string cannot be empty"}
-        self._env_service._set_env_value("XIANYU_COOKIE_1", cookie_text)
-        diagnosis = self.diagnose_cookie(cookie_text)
-        payload: dict[str, Any] = {
-            "success": True,
-            "message": "Cookie updated",
-            "length": len(cookie_text),
-            "cookie_items": int(parsed.get("cookie_items", 0) or 0),
-            "detected_format": str(parsed.get("detected_format") or "header"),
-            "missing_required": parsed.get("missing_required", []),
-            "cookie_grade": diagnosis.get("grade", "未知"),
-            "cookie_actions": diagnosis.get("actions", []),
-            "cookie_diagnosis": diagnosis,
-        }
-        try:
-            from src.modules.messages.ws_live import notify_ws_cookie_changed
-
-            notify_ws_cookie_changed()
-        except Exception:
-            pass
-
-        should_recover = auto_recover and str(diagnosis.get("grade") or "") != "不可用"
-        if should_recover:
-            recover = self._trigger_presales_recover_after_cookie_update(cookie_text)
-            payload["auto_recover"] = recover
-            if recover.get("triggered"):
-                payload["message"] = "Cookie updated and presales recovery triggered"
-            else:
-                payload["message"] = "Cookie updated, but presales recovery failed"
-        return payload
+        return self._cookie_service.update_cookie(
+            cookie,
+            auto_recover=auto_recover,
+            recover_callback=self._trigger_presales_recover_after_cookie_update if auto_recover else None,
+        )
 
     def import_cookie_plugin_files(
         self, files: list[tuple[str, bytes]], *, auto_recover: bool = False
