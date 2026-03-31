@@ -688,7 +688,7 @@ class CookieService:
     @staticmethod
     def _trigger_presales_recover_after_cookie_update(cookie_text: str, module_console: Any) -> dict[str, Any]:
         """Trigger presales recovery after cookie update (calls module_console externally)."""
-        from src.dashboard.mimic_ops import _now_iso
+        from src.dashboard.helpers.utils import _now_iso
 
         cookie_fp = CookieService._cookie_fingerprint(cookie_text)
         if not cookie_fp:

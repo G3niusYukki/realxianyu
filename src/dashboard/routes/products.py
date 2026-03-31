@@ -12,7 +12,7 @@ from src.dashboard.router import RouteContext, delete_prefix, get, get_prefix, p
 
 def _run_async(coro: Any) -> Any:
     """Run an async coroutine synchronously (lazy import to avoid circular deps)."""
-    from src.dashboard.mimic_ops import _run_async as _ra
+    from src.dashboard.helpers.utils import _run_async as _ra
 
     return _ra(coro)
 

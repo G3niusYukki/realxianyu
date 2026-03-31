@@ -20,7 +20,8 @@ from urllib.parse import parse_qs, urlparse
 
 from src.core.config import get_config
 from src.dashboard.config_service import read_system_config as _read_system_config
-from src.dashboard.mimic_ops import MimicOps, _error_payload, _safe_int
+from src.dashboard.helpers.utils import _error_payload, _safe_int
+from src.dashboard.mimic_ops import MimicOps
 from src.dashboard.module_console import ModuleConsole
 from src.dashboard.repository import DashboardRepository, LiveDashboardDataSource
 from src.dashboard.router import RouteContext, dispatch_delete, dispatch_get, dispatch_post, dispatch_put

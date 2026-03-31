@@ -29,7 +29,7 @@ def test_check_xgj_health_prefers_env_over_system_config(monkeypatch):
         captured.update(kwargs)
         return {"ok": True, "message": "ok"}
 
-    monkeypatch.setattr("src.dashboard.mimic_ops._test_xgj_connection", _fake_test_xgj_connection)
+    monkeypatch.setattr("src.dashboard.helpers.utils._test_xgj_connection", _fake_test_xgj_connection)
 
     result = system_routes._check_xgj_health()
     assert result["ok"] is True
@@ -71,7 +71,7 @@ def test_check_xgj_health_uses_system_config_when_env_missing(monkeypatch):
         captured.update(kwargs)
         return {"ok": True, "message": "ok"}
 
-    monkeypatch.setattr("src.dashboard.mimic_ops._test_xgj_connection", _fake_test_xgj_connection)
+    monkeypatch.setattr("src.dashboard.helpers.utils._test_xgj_connection", _fake_test_xgj_connection)
 
     result = system_routes._check_xgj_health()
     assert result["ok"] is True

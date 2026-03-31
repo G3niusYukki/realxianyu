@@ -24,10 +24,7 @@ DEFAULT_VOLUME_TEMPLATE = (
 )
 
 
-def _now_iso() -> str:
-    from src.dashboard.mimic_ops import _now_iso
-
-    return _now_iso()
+from src.dashboard.helpers.utils import _now_iso
 
 
 class TemplateService:

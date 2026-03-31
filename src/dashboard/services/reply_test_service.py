@@ -34,7 +34,7 @@ class ReplyTestService:
         return svc
 
     def test_reply(self, payload: dict[str, Any]) -> dict[str, Any]:
-        from src.dashboard.mimic_ops import _run_async
+        from src.dashboard.helpers.utils import _run_async
 
         started = time.perf_counter()
         message = str(payload.get("message") or payload.get("user_message") or payload.get("user_msg") or "").strip()

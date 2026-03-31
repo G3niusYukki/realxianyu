@@ -17,16 +17,11 @@ import yaml
 from PIL import Image
 
 from src.core.config import get_config
+from src.dashboard.helpers.utils import _now_iso
 from src.modules.quote.cost_table import CostTableRepository, normalize_courier_name
 from src.modules.quote.setup import DEFAULT_MARKUP_RULES, QuoteSetupService
 
 logger = logging.getLogger(__name__)
-
-
-def _now_iso() -> str:
-    from src.dashboard.mimic_ops import _now_iso
-
-    return _now_iso()
 
 
 class QuoteService:

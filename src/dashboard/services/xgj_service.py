@@ -187,7 +187,7 @@ class XGJService:
         os.environ[key] = value
 
     def retry_xianguanjia_delivery(self, payload: dict[str, Any]) -> dict[str, Any]:
-        from src.dashboard.mimic_ops import _error_payload
+        from src.dashboard.helpers.utils import _error_payload
         from src.modules.orders.service import OrderFulfillmentService
 
         svc_cfg = XGJService._xianguanjia_service_config()
@@ -233,7 +233,7 @@ class XGJService:
         return {"success": True, **result}
 
     def retry_xianguanjia_price(self, payload: dict[str, Any]) -> dict[str, Any]:
-        from src.dashboard.mimic_ops import _error_payload, _run_async
+        from src.dashboard.helpers.utils import _error_payload, _run_async
         from src.modules.operations.service import OperationsService
 
         svc_cfg = XGJService._xianguanjia_service_config()
@@ -266,7 +266,7 @@ class XGJService:
         return {"success": bool(result.get("success")), **result}
 
     def handle_order_callback(self, payload: dict[str, Any]) -> dict[str, Any]:
-        from src.dashboard.mimic_ops import _error_payload
+        from src.dashboard.helpers.utils import _error_payload
         from src.modules.orders.service import OrderFulfillmentService
 
         data = dict(payload or {})

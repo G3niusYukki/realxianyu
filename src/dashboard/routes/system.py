@@ -183,7 +183,7 @@ def _check_xgj_health() -> dict[str, Any]:
         xgj_seller_id = str(xgj_seller_id or xgj_cfg.get("seller_id", "")).strip()
         if not xgj_app_key or not xgj_app_secret:
             return {"ok": False, "message": "AppKey 或 AppSecret 未配置"}
-        from src.dashboard.mimic_ops import _test_xgj_connection
+        from src.dashboard.helpers.utils import _test_xgj_connection
 
         return _test_xgj_connection(
             app_key=xgj_app_key,

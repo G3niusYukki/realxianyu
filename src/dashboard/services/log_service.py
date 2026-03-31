@@ -405,7 +405,7 @@ class LogService:
     def _risk_control_status_from_logs_uncached(
         self, target: str = "presales", tail_lines: int = 300
     ) -> dict[str, Any]:
-        from src.dashboard.mimic_ops import _now_iso
+        from src.dashboard.helpers.utils import _now_iso
 
         fp = self._module_runtime_log(target)
         empty = {
