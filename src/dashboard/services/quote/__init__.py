@@ -5,4 +5,4 @@ from src.dashboard.services.quote.route_handler import RouteTableHandler
 from src.dashboard.services.quote.markup_handler import MarkupHandler
 from src.dashboard.services.quote.cost_handler import CostTableHandler
 
-__all__ = ["QuoteService", "RouteTableHandler", "MarkupHandler", "CostTableHandler"]
+__all__ = ["CostTableHandler", "MarkupHandler", "QuoteService", "RouteTableHandler"]

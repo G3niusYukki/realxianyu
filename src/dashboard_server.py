@@ -27,9 +27,7 @@ from src.dashboard.repository import DashboardRepository, LiveDashboardDataSourc
 from src.dashboard.router import RouteContext, dispatch_delete, dispatch_get, dispatch_post, dispatch_put
 from src.dashboard.server.middleware import (
     _check_api_request_access,
-    _headers_to_dict,
     _is_allowed_dashboard_origin,
-    _normalize_origin,
 )
 
 logger = logging.getLogger(__name__)

@@ -12,6 +12,7 @@ from typing import Any
 import yaml
 from PIL import Image
 
+from src.core.config import get_config
 from src.dashboard.helpers.utils import _now_iso
 from src.modules.quote.cost_table import normalize_courier_name
 from src.modules.quote.setup import DEFAULT_MARKUP_RULES, QuoteSetupService

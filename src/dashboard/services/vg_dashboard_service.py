@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from src.dashboard.helpers.utils import _error_payload, _now_iso
 from src.modules.virtual_goods.service import VirtualGoodsService

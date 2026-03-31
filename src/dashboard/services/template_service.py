@@ -23,8 +23,7 @@ DEFAULT_VOLUME_TEMPLATE = (
     "体积重大于实际重量时按体积计费！"
 )
 
-
-from src.dashboard.helpers.utils import _now_iso
+from src.dashboard.helpers.utils import _now_iso  # noqa: E402
 
 
 class TemplateService:
