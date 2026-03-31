@@ -10,11 +10,10 @@ import asyncio
 import os
 from typing import Any
 
-from src.core.logger import get_logger
-
 # Import _json_out from src.cli (the compatibility shim) so that tests patching
 # src.cli._json_out correctly intercept all calls across all modules.
 from src.cli import _json_out as _json_out_mod  # noqa: F401
+from src.core.logger import get_logger
 
 from .base import (
     _EXPECTED_PROJECT_ROOT,

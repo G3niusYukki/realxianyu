@@ -477,7 +477,7 @@ class MessagesService:
                 "volume_template": volume or DEFAULT_VOLUME_REPLY_TEMPLATE,
             }
             self._reply_templates_mtime = mtime
-        except Exception as exc:
+        except (OSError, json.JSONDecodeError) as exc:
             self.logger.warning("Load reply templates failed: %s", exc)
         return self._reply_templates_cache
 

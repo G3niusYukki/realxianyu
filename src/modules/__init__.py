@@ -46,11 +46,6 @@ except Exception:  # pragma: no cover - optional dependency/runtime environment
     GrowthService = None
 
 try:
-    from .ticketing.service import TicketingService
-except Exception:  # pragma: no cover - optional dependency/runtime environment
-    TicketingService = None
-
-try:
     from .compliance.center import ComplianceCenter
 except Exception:  # pragma: no cover - optional dependency/runtime environment
     ComplianceCenter = None
@@ -70,5 +65,4 @@ __all__ = [
     "OperationsService",
     "OrderFulfillmentService",
     "PublishResult",
-    "TicketingService",
 ]

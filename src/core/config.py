@@ -161,7 +161,7 @@ class Config:
         except yaml.YAMLError as e:
             self.logger.error(f"Invalid YAML in config file: {e}")
             raise ConfigError(f"Invalid YAML: {e}") from e
-        except Exception as e:
+        except (OSError, UnicodeDecodeError) as e:
             self.logger.error(f"Failed to load config file: {e}")
             raise ConfigError(f"Config load failed: {e}") from e
 
@@ -361,7 +361,7 @@ class Config:
         try:
             with open(sys_path, encoding="utf-8") as f:
                 sys_cfg = json.load(f)
-        except Exception:
+        except (OSError, json.JSONDecodeError):
             return
 
         if not isinstance(sys_cfg, dict):
@@ -634,7 +634,7 @@ def load_category_config(category_id: str) -> dict:
                 data = yaml.safe_load(f)
             if isinstance(data, dict):
                 result = data
-        except Exception:
+        except (OSError, yaml.YAMLError):
             pass
     _CATEGORY_CACHE[category_id] = result
     return result
@@ -650,6 +650,6 @@ def get_active_category() -> str:
             with open(sys_cfg_path, encoding="utf-8") as f:
                 sys_cfg = json.load(f)
             return sys_cfg.get("store", {}).get("category", "express")
-    except Exception:
+    except (OSError, json.JSONDecodeError):
         pass
     return "express"
