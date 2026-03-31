@@ -3,10 +3,15 @@
 from __future__ import annotations
 
 import argparse
+import importlib
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 
 from src.cli import _module_check_summary, build_parser, cmd_messages, cmd_module
+
+cmd_module_impl = importlib.import_module("src.cli.cmd_module")
 
 
 def test_module_check_summary_blocks_when_base_required_check_fails(monkeypatch) -> None:
@@ -270,3 +275,57 @@ async def test_cmd_messages_sla_benchmark_dispatch(monkeypatch) -> None:
     assert payload["action"] == "messages_sla_benchmark"
     assert payload["summary"]["samples"] == 32
     assert payload["config"]["concurrency"] == 2
+
+
+@pytest.mark.asyncio
+async def test_start_presales_module_best_effort_browser_client_in_ws_mode(monkeypatch) -> None:
+    warnings: list[str] = []
+
+    class DummyService:
+        def __init__(self, controller=None):
+            self.controller = controller
+
+        async def close(self):
+            return None
+
+    class DummyWorker:
+        def __init__(self, message_service, config):
+            self.message_service = message_service
+            self.config = config
+
+        async def run_once(self, dry_run=False):
+            _ = dry_run
+            return {"ok": True, "controller_present": self.message_service.controller is not None}
+
+        async def run_forever(self, dry_run=False, max_loops=None):
+            _ = (dry_run, max_loops)
+            return {"ok": True}
+
+    monkeypatch.setattr(cmd_module_impl, "_messages_requires_browser_runtime", lambda: False)
+    monkeypatch.setattr(
+        "src.core.browser_client.create_browser_client",
+        AsyncMock(side_effect=RuntimeError("browser unavailable")),
+    )
+    monkeypatch.setattr("src.modules.messages.service.MessagesService", DummyService)
+    monkeypatch.setattr("src.modules.messages.workflow.WorkflowWorker", DummyWorker)
+    monkeypatch.setattr(
+        cmd_module_impl,
+        "get_logger",
+        lambda: SimpleNamespace(warning=lambda msg, *args: warnings.append((msg % args) if args else msg)),
+    )
+
+    args = argparse.Namespace(
+        workflow_db=None,
+        interval=5.0,
+        limit=20,
+        claim_limit=10,
+        mode="once",
+        dry_run=True,
+        max_loops=None,
+    )
+
+    result = await cmd_module_impl._start_presales_module(args)
+
+    assert result["target"] == "presales"
+    assert result["result"]["ok"] is True
+    assert any("browser fallback unavailable" in msg for msg in warnings)

@@ -38,6 +38,19 @@ def test_extract_chat_event_invalid_returns_none():
     assert extract_chat_event({"1": {"2": "cid"}}) is None
 
 
+def test_mark_connection_ready_requests_unread_resync_only_after_reconnect(ws_enabled):
+    t = _transport()
+
+    t._mark_connection_ready()
+    assert t.consume_unread_resync_flag() is False
+
+    t._last_disconnect_reason = "RGV587"
+    t._connect_failures = 2
+    t._mark_connection_ready()
+    assert t.consume_unread_resync_flag() is True
+    assert t.consume_unread_resync_flag() is False
+
+
 @pytest.mark.asyncio
 async def test_push_event_dedupe_and_queue(ws_enabled):
     t = _transport()

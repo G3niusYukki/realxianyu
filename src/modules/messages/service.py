@@ -160,6 +160,7 @@ class MessagesService:
 
     _MANUAL_CHECK_GRACE_SECONDS = 60.0
     _SESSION_REPLY_COOLDOWN_S = 3.0
+    _WS_EMPTY_FALLBACK_SCAN_COOLDOWN_S = 15.0
 
     def __init__(self, controller=None, config: dict[str, Any] | None = None):
         MessageServiceRegistry.get_instance().register(self)
@@ -196,6 +197,7 @@ class MessagesService:
 
         # 会话级冷却（防止快速重复处理同一会话）
         self._session_last_reply_ts: dict[str, float] = {}
+        self._last_ws_empty_fallback_scan_ts = 0.0
 
         # 消息去重（按需初始化）
         self._dedup: Any | None = None
@@ -645,8 +647,13 @@ class MessagesService:
         ws_transport = await self._ensure_ws_transport()
         if ws_transport is not None:
             ws_result = await ws_transport.get_unread_sessions(limit=limit)
-            if ws_result or not self.controller:
+            if ws_result:
+                self.logger.info("get_unread_sessions: ws delivered %d session(s)", len(ws_result))
                 return ws_result
+            if not self.controller:
+                self.logger.debug("get_unread_sessions: ws queue empty, dom fallback unavailable (no controller)")
+                return ws_result
+            resync_requested = self._consume_ws_unread_resync(ws_transport)
             ws_ready = True
             try:
                 ready_fn = getattr(ws_transport, "is_ready", None)
@@ -655,13 +662,45 @@ class MessagesService:
             except Exception:
                 ws_ready = True
             if not ws_ready:
-                if self.transport_mode == "auto":
-                    self.logger.warning("WebSocket unread pull unavailable, fallback to DOM session scan")
-                    return await self._get_unread_sessions_dom(limit=limit)
+                self.logger.debug("get_unread_sessions: ws not ready, unread fallback skipped")
                 return ws_result
-            return ws_result
+            if not resync_requested:
+                cooldown_remaining = self._ws_empty_fallback_cooldown_remaining()
+                if cooldown_remaining > 0:
+                    self.logger.debug(
+                        "get_unread_sessions: ws queue empty, dom fallback skipped (cooldown %.1fs)",
+                        cooldown_remaining,
+                    )
+                    return ws_result
+            reason = "reconnect_resync" if resync_requested else "queue_empty"
+            self._last_ws_empty_fallback_scan_ts = time.monotonic()
+            self.logger.debug("get_unread_sessions: ws queue empty, starting dom fallback (reason=%s)", reason)
+            dom_result = await self._get_unread_sessions_dom(limit=limit)
+            self.logger.debug(
+                "get_unread_sessions: dom fallback completed, reason=%s unread=%d",
+                reason,
+                len(dom_result),
+            )
+            return dom_result
 
         return await self._get_unread_sessions_dom(limit=limit)
+
+    def _ws_empty_fallback_cooldown_remaining(self) -> float:
+        last_scan = float(getattr(self, "_last_ws_empty_fallback_scan_ts", 0.0) or 0.0)
+        if last_scan <= 0:
+            return 0.0
+        elapsed = time.monotonic() - last_scan
+        return max(0.0, self._WS_EMPTY_FALLBACK_SCAN_COOLDOWN_S - elapsed)
+
+    def _consume_ws_unread_resync(self, ws_transport: Any) -> bool:
+        consume = getattr(ws_transport, "consume_unread_resync_flag", None)
+        if not callable(consume):
+            return False
+        try:
+            return bool(consume())
+        except Exception as exc:
+            self.logger.debug("consume_unread_resync_flag failed: %s", exc)
+            return False
 
     _AFTERSALE_SIGNALS = frozenset(
         {
@@ -1905,7 +1944,7 @@ class MessagesService:
         if session_id:
             last_ts = self._session_last_reply_ts.get(session_id, 0)
             if time.monotonic() - last_ts < self._SESSION_REPLY_COOLDOWN_S:
-                self.logger.debug(f"process_session cooldown hit: session={session_id}")
+                self.logger.info(f"process_session skipped: reply_cooldown, session={session_id}")
                 return {"skipped": True, "reason": "reply_cooldown", "session_id": session_id}
 
         msg = str(session.get("last_message", ""))
@@ -1931,16 +1970,13 @@ class MessagesService:
                 except Exception:
                     pass
         if dedup_skipped:
+            self.logger.info(f"process_session skipped: dedup, session={session_id}")
             return {"skipped": True, "reason": "dedup", "session_id": session_id}
 
-        # 通过去重检查后记录消息已回复（Layer 1 + Layer 2）
-        if session_id and msg:
-            dedup = self._get_dedup()
-            if dedup:
-                try:
-                    dedup.mark_replied(session_id, create_time, msg)
-                except Exception:
-                    pass
+        # NOTE: mark_replied is deferred to AFTER the send attempt so that a
+        # failed send does NOT poison the dedup tables.  Previously it was
+        # called here, which meant a reply generation / send failure would
+        # permanently block the same message from ever being retried.
 
         reply_text, quote_meta = await self._generate_reply_with_quote(
             msg,
@@ -2007,7 +2043,22 @@ class MessagesService:
             if not sent:
                 self.logger.warning(f"reply_to_session returned False for session={session_id}")
 
-        # 发送成功后记录 Layer 3 回复去重 + 更新会话冷却时间戳
+        # 发送成功后记录 Layer 1+2 消息去重（mark_replied）、Layer 3 回复去重 + 更新会话冷却时间戳
+        skipped_flag = bool(quote_meta.get("skipped"))
+        should_mark_input_dedup = (
+            sent  # reply sent successfully
+            or blocked_by_policy  # compliance blocked – no point retrying
+            or skipped_flag  # system notification / post-order – no point retrying
+            or not (reply_text or "").strip()  # empty reply – no point retrying
+        )
+        if should_mark_input_dedup and session_id and msg:
+            dedup = self._get_dedup()
+            if dedup:
+                try:
+                    dedup.mark_replied(session_id, create_time, msg)
+                except Exception:
+                    pass
+
         if sent and session_id and reply_text:
             dedup = self._get_dedup()
             if dedup:

@@ -10,6 +10,8 @@ import asyncio
 import os
 from typing import Any
 
+from src.core.logger import get_logger
+
 # Import _json_out from src.cli (the compatibility shim) so that tests patching
 # src.cli._json_out correctly intercept all calls across all modules.
 from src.cli import _json_out as _json_out_mod  # noqa: F401
@@ -33,15 +35,28 @@ from .base import (
 # ---------------------------------------------------------------------------
 
 
+async def _create_presales_browser_client_if_available() -> Any | None:
+    if _messages_requires_browser_runtime():
+        from src.core.browser_client import create_browser_client
+
+        return await create_browser_client()
+
+    try:
+        from src.core.browser_client import create_browser_client
+
+        client = await create_browser_client()
+        get_logger().info("Presales browser client connected for WS empty-queue DOM fallback")
+        return client
+    except Exception as exc:
+        get_logger().warning("Presales browser fallback unavailable in ws mode: %s", exc)
+        return None
+
+
 async def _start_presales_module(args: argparse.Namespace) -> dict[str, Any]:
     from src.modules.messages.service import MessagesService
     from src.modules.messages.workflow import WorkflowWorker
 
-    client = None
-    if _messages_requires_browser_runtime():
-        from src.core.browser_client import create_browser_client
-
-        client = await create_browser_client()
+    client = await _create_presales_browser_client_if_available()
 
     service: MessagesService | None = None
     try:

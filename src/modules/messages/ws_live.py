@@ -376,6 +376,7 @@ class GoofishWsTransport:
         self._last_heartbeat_sent = 0.0
         self._last_heartbeat_ack = 0.0
         self._connect_failures = 0
+        self._resync_unread_requested = False
         self._rgv587_consecutive = 0
         self._slider_just_recovered = False
         self._active_refresh_401_streak = 0
@@ -392,6 +393,25 @@ class GoofishWsTransport:
 
     def _ensure_async_primitives(self) -> None:
         pass
+
+    def consume_unread_resync_flag(self) -> bool:
+        requested = bool(self._resync_unread_requested)
+        self._resync_unread_requested = False
+        return requested
+
+    def _mark_connection_ready(self) -> None:
+        recovered = bool(self._connect_failures > 0 or self._last_disconnect_reason)
+        self._ready.set()
+        self._connect_failures = 0
+        self._rgv587_consecutive = 0
+        self._slider_just_recovered = False
+        self._active_refresh_401_streak = 0
+        if recovered:
+            self._resync_unread_requested = True
+            self.logger.info("Connected to Goofish WebSocket transport (recovered; unread resync requested)")
+        else:
+            self.logger.info("Connected to Goofish WebSocket transport")
+        self._last_disconnect_reason = ""
 
     def _apply_cookie_text(self, cookie_text: str, reason: str = "") -> bool:
         text = str(cookie_text or "").strip()
@@ -1637,12 +1657,7 @@ class GoofishWsTransport:
                 self._last_heartbeat_ack = time.time()
                 self._last_heartbeat_sent = 0.0
                 await self._send_reg()
-                self._ready.set()
-                self._connect_failures = 0
-                self._rgv587_consecutive = 0
-                self._slider_just_recovered = False
-                self._active_refresh_401_streak = 0
-                self.logger.info("Connected to Goofish WebSocket transport")
+                self._mark_connection_ready()
 
                 while not self._stop_event.is_set():
                     now = time.time()
