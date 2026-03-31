@@ -8,7 +8,7 @@ from src.integrations.xianguanjia.models import XianGuanJiaResponse
 from src.integrations.xianguanjia.virtual_supply_client import VirtualSupplyClient
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_virtual_supply_method_surface_and_signed_request(monkeypatch) -> None:

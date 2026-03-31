@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-SERVICE_ROOT = Path(__file__).resolve().parents[1] / "services" / "gateway-service"
+SERVICE_ROOT = Path(__file__).resolve().parents[2] / "services" / "gateway-service"
 if str(SERVICE_ROOT) not in sys.path:
     sys.path.insert(0, str(SERVICE_ROOT))
 
