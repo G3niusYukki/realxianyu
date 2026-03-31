@@ -910,7 +910,6 @@ class MimicOps:
             files, module_console=self.module_console, auto_recover=auto_recover
         )
 
-
     def reset_database(self, db_type: str) -> dict[str, Any]:
         """Reset database files (routes and/or chat workflow)."""
         target = str(db_type or "all").strip().lower()

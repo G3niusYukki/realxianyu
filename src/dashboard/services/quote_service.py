@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 
 def _now_iso() -> str:
     from src.dashboard.mimic_ops import _now_iso
+
     return _now_iso()
 
 
@@ -38,18 +39,42 @@ class QuoteService:
     _MARKUP_FIELD_ALIASES: dict[str, tuple[str, ...]] = {
         "courier": ("运力", "快递", "快递公司", "物流", "渠道", "公司", "courier", "carrier", "name"),
         "normal_first_add": (
-            "normal_first_add", "普通首重", "首重普通", "首重溢价普通", "首重加价普通", "first_normal", "normal_first",
+            "normal_first_add",
+            "普通首重",
+            "首重普通",
+            "首重溢价普通",
+            "首重加价普通",
+            "first_normal",
+            "normal_first",
         ),
         "member_first_add": (
-            "member_first_add", "会员首重", "首重会员", "首重溢价会员", "首重加价会员",
-            "first_member", "member_first", "vip_first",
+            "member_first_add",
+            "会员首重",
+            "首重会员",
+            "首重溢价会员",
+            "首重加价会员",
+            "first_member",
+            "member_first",
+            "vip_first",
         ),
         "normal_extra_add": (
-            "normal_extra_add", "普通续重", "续重普通", "续重溢价普通", "续重加价普通", "extra_normal", "normal_extra",
+            "normal_extra_add",
+            "普通续重",
+            "续重普通",
+            "续重溢价普通",
+            "续重加价普通",
+            "extra_normal",
+            "normal_extra",
         ),
         "member_extra_add": (
-            "member_extra_add", "会员续重", "续重会员", "续重溢价会员", "续重加价会员",
-            "extra_member", "member_extra", "vip_extra",
+            "member_extra_add",
+            "会员续重",
+            "续重会员",
+            "续重溢价会员",
+            "续重加价会员",
+            "extra_member",
+            "member_extra",
+            "vip_extra",
         ),
     }
 
@@ -495,6 +520,7 @@ class QuoteService:
             if img.mode not in ("L", "RGB"):
                 img = img.convert("RGB")
             import pytesseract  # type: ignore
+
             return pytesseract.image_to_string(img, lang="chi_sim+eng").strip()
         except Exception:
             return ""
@@ -504,6 +530,7 @@ class QuoteService:
         result: dict[str, dict[str, float]] = {}
         try:
             import openpyxl  # type: ignore
+
             wb = openpyxl.load_workbook(io.BytesIO(content), data_only=True)
             for sheet in wb.worksheets:
                 rows: list[list[Any]] = []
@@ -800,6 +827,7 @@ class QuoteService:
                     pass
             sys_data["quote"] = dict(quote_cfg)
             from src.dashboard.config_service import write_system_config as _write_sys
+
             _write_sys(sys_data)
         except Exception:
             pass
@@ -810,6 +838,7 @@ class QuoteService:
         # Hot-reload the live MessagesService quote engine
         try:
             from src.modules.messages.service import _active_service
+
             if _active_service is not None:
                 _active_service.reload_quote_engine()
         except Exception:
