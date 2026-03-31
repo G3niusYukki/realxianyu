@@ -15,7 +15,7 @@ Pillow>=10.2.0,<11.0.0
 opencv-python-headless>=4.8.0,<5.0.0
 
 # DrissionPage (CDP-based browser automation, replaces Playwright)
-DrissionPage>=4.1
+DrissionPage>=4.1,<5.0.0
 
 # OSS Storage
 oss2>=2.18.0,<3.0.0
