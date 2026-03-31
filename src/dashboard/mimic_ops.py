@@ -15,6 +15,7 @@ from src.core.config import get_config
 from src.dashboard.module_console import MODULE_TARGETS, ModuleConsole
 from src.dashboard.services import (
     CookieService,
+    EnvService,
     LogService,
     QuoteService,
     ReplyTestService,
@@ -146,6 +147,7 @@ class MimicOps:
         self._quote_service = QuoteService(self.project_root)
         self._template_service = TemplateService(self.project_root)
         self._reply_test_service = ReplyTestService(self.project_root)
+        self._env_service = EnvService(self.project_root)
 
     # ── auto-delegation sets ──────────────────────────────────────────
     _COOKIE_DELEGATE_METHODS: frozenset[str] = frozenset(
@@ -246,55 +248,15 @@ class MimicOps:
 
     @property
     def env_path(self) -> Path:
-        return self.project_root / ".env"
+        return self._env_service.env_path
 
     @property
     def logs_dir(self) -> Path:
-        return self.project_root / "logs"
+        return self._env_service.logs_dir
 
     @property
     def cookie_plugin_dir(self) -> Path:
-        return self.project_root / "third_party" / "Get-cookies.txt-LOCALLY"
-
-    def _read_env_lines(self) -> list[str]:
-        if not self.env_path.exists():
-            return []
-        return self.env_path.read_text(encoding="utf-8", errors="ignore").splitlines()
-
-    def _get_env_value(self, key: str) -> str:
-        key_norm = f"{key}="
-        for line in self._read_env_lines():
-            if line.startswith(key_norm):
-                return line[len(key_norm) :]
-        return os.getenv(key, "")
-
-    def _set_env_value(self, key: str, value: str) -> None:
-        key_norm = f"{key}="
-        lines = self._read_env_lines()
-        updated = False
-        for idx, line in enumerate(lines):
-            if line.startswith(key_norm):
-                lines[idx] = f"{key}={value}"
-                updated = True
-                break
-        if not updated:
-            lines.append(f"{key}={value}")
-        self.env_path.parent.mkdir(parents=True, exist_ok=True)
-        self.env_path.write_text("\n".join(lines).strip() + "\n", encoding="utf-8")
-        os.environ[key] = value
-
-    @staticmethod
-    def _to_bool(value: Any, default: bool = False) -> bool:
-        if isinstance(value, bool):
-            return value
-        text = str(value or "").strip().lower()
-        if not text:
-            return default
-        return text in {"1", "true", "yes", "on", "enabled"}
-
-    def _get_env_bool(self, key: str, default: bool = False) -> bool:
-        raw = self._get_env_value(key)
-        return self._to_bool(raw, default=default)
+        return self._env_service.cookie_plugin_dir
 
     def _virtual_goods_service(self) -> VirtualGoodsService:
         return VirtualGoodsService(
@@ -742,9 +704,9 @@ class MimicOps:
 
     def get_cookie(self) -> dict[str, Any]:
         return {
-            "success": bool(self._get_env_value("XIANYU_COOKIE_1").strip()),
-            "cookie": self._get_env_value("XIANYU_COOKIE_1").strip(),
-            "length": len(self._get_env_value("XIANYU_COOKIE_1").strip()),
+            "success": bool(self._env_service._get_env_value("XIANYU_COOKIE_1").strip()),
+            "cookie": self._env_service._get_env_value("XIANYU_COOKIE_1").strip(),
+            "length": len(self._env_service._get_env_value("XIANYU_COOKIE_1").strip()),
         }
 
     def _trigger_presales_recover_after_cookie_update(self, cookie_text: str) -> dict[str, Any]:
@@ -774,7 +736,7 @@ class MimicOps:
         cookie_text = str(parsed.get("cookie") or "").strip()
         if not cookie_text:
             return {"success": False, "error": "Cookie string cannot be empty"}
-        self._set_env_value("XIANYU_COOKIE_1", cookie_text)
+        self._env_service._set_env_value("XIANYU_COOKIE_1", cookie_text)
         diagnosis = self.diagnose_cookie(cookie_text)
         payload: dict[str, Any] = {
             "success": True,
