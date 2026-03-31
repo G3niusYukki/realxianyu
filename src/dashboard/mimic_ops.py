@@ -139,103 +139,6 @@ class MimicOps:
             env_service=self._env_service,
         )
 
-    # ── auto-delegation sets ──────────────────────────────────────────
-    _COOKIE_DELEGATE_METHODS: frozenset[str] = frozenset(
-        {
-            "_cookie_fingerprint",
-            "_cookie_pairs_to_text",
-            "_extract_cookie_pairs_from_json",
-            "_is_allowed_cookie_domain",
-            "_extract_cookie_pairs_from_header",
-            "_extract_cookie_pairs_from_lines",
-            "parse_cookie_text",
-            "_recovery_stage_label",
-            "_is_cookie_cloud_configured",
-            "_recovery_advice",
-            "_cookie_domain_filter_stats",
-            "diagnose_cookie",
-            "_parse_m_h5_tk_ttl",
-            "_is_cookie_import_file",
-            "_looks_like_cookie_plugin_bundle",
-            "_cookie_hint_hit_keys",
-            "_score_cookie_candidate",
-            "export_cookie_plugin_bundle",
-        }
-    )
-
-    _XGJ_DELEGATE_METHODS: frozenset[str] = frozenset(
-        {
-            "get_xianguanjia_settings",
-            "save_xianguanjia_settings",
-            "retry_xianguanjia_delivery",
-            "retry_xianguanjia_price",
-            "handle_order_callback",
-            "handle_order_push",
-            "handle_product_callback",
-            "_xianguanjia_service_config",
-        }
-    )
-
-    _QUOTE_DELEGATE_METHODS: frozenset[str] = frozenset(
-        {
-            "route_stats",
-            "_route_stats_nonblocking",
-            "import_route_files",
-            "export_routes_zip",
-            "get_template",
-            "save_template",
-            "get_markup_rules",
-            "save_markup_rules",
-            "get_pricing_config",
-            "save_pricing_config",
-            "get_cost_summary",
-            "query_route_cost",
-            "import_markup_files",
-            "get_reply_templates",
-            "get_replies",
-            "config_path",
-            "_quote_dir",
-            "reset_database",
-        }
-    )
-
-    _LOG_DELEGATE_METHODS: frozenset[str] = frozenset(
-        {
-            "list_log_files",
-            "read_log_content",
-            "_strip_ansi",
-            "_extract_log_time",
-            "_parse_log_datetime",
-            "_risk_control_status_from_logs",
-            "_risk_control_status_from_logs_uncached",
-            "get_unmatched_message_stats",
-            "_query_message_stats_from_workflow",
-            "_module_runtime_log",
-            "_workflow_db_path",
-        }
-    )
-
-    _REPLY_TEST_DELEGATE_METHODS: frozenset[str] = frozenset(
-        {
-            "_get_sandbox_service",
-            "test_reply",
-        }
-    )
-
-    def __getattr__(self, name: str):
-        """Auto-delegate to sub-services."""
-        if name in self._COOKIE_DELEGATE_METHODS:
-            return getattr(self._cookie_service, name)
-        if name in self._XGJ_DELEGATE_METHODS:
-            return getattr(self._xgj_service, name)
-        if name in self._QUOTE_DELEGATE_METHODS:
-            return getattr(self._quote_service, name)
-        if name in self._LOG_DELEGATE_METHODS:
-            return getattr(self._log_service, name)
-        if name in self._REPLY_TEST_DELEGATE_METHODS:
-            return getattr(self._reply_test_service, name)
-        raise AttributeError(f"'{type(self).__name__}' has no attribute '{name}'")
-
     @property
     def env_path(self) -> Path:
         return self._env_service.env_path
@@ -256,6 +159,113 @@ class MimicOps:
 
     def inspect_virtual_goods_order(self, order_id: str) -> dict[str, Any]:
         return self._vg_dashboard_service.inspect_virtual_goods_order(order_id)
+
+    # ── cookie service forwarding ─────────────────────────────
+    def parse_cookie_text(self, text: str) -> dict[str, Any]:
+        return self._cookie_service.parse_cookie_text(text)
+
+    def diagnose_cookie(self, cookie_text: str) -> dict[str, Any]:
+        return self._cookie_service.diagnose_cookie(cookie_text)
+
+    def export_cookie_plugin_bundle(self) -> tuple[bytes, str]:
+        return self._cookie_service.export_cookie_plugin_bundle()
+
+    def _cookie_fingerprint(self, text: str) -> str:
+        return self._cookie_service._cookie_fingerprint(text)
+
+    def _extract_cookie_pairs_from_header(self, text: str) -> list[tuple[str, str]]:
+        return self._cookie_service._extract_cookie_pairs_from_header(text)
+
+    def _cookie_domain_filter_stats(self, text: str) -> dict[str, Any]:
+        return self._cookie_service._cookie_domain_filter_stats(text)
+
+    def _is_cookie_cloud_configured(self) -> bool:
+        return self._cookie_service._is_cookie_cloud_configured()
+
+    # ── xgj service forwarding ───────────────────────────────
+    def get_xianguanjia_settings(self) -> dict[str, Any]:
+        return self._xgj_service.get_xianguanjia_settings()
+
+    def save_xianguanjia_settings(self, data: dict[str, Any]) -> dict[str, Any]:
+        return self._xgj_service.save_xianguanjia_settings(data)
+
+    def retry_xianguanjia_delivery(self, data: dict[str, Any]) -> dict[str, Any]:
+        return self._xgj_service.retry_xianguanjia_delivery(data)
+
+    def retry_xianguanjia_price(self, data: dict[str, Any]) -> dict[str, Any]:
+        return self._xgj_service.retry_xianguanjia_price(data)
+
+    def handle_order_callback(self, data: dict[str, Any]) -> dict[str, Any]:
+        return self._xgj_service.handle_order_callback(data)
+
+    def handle_order_push(self, data: dict[str, Any]) -> dict[str, Any]:
+        return self._xgj_service.handle_order_push(data)
+
+    def handle_product_callback(self, data: dict[str, Any]) -> dict[str, Any]:
+        return self._xgj_service.handle_product_callback(data)
+
+    def _xianguanjia_service_config(self) -> dict[str, Any]:
+        return self._xgj_service._xianguanjia_service_config()
+
+    def _resolve_session_id_for_order(self, order_id: str) -> str | None:
+        return self._xgj_service._resolve_session_id_for_order(order_id)
+
+    # ── quote service forwarding ───────────────────────────────
+    def route_stats(self) -> dict[str, Any]:
+        return self._quote_service.route_stats()
+
+    def export_routes_zip(self) -> tuple[bytes, str]:
+        return self._quote_service.export_routes_zip()
+
+    def get_template(self, default: bool = False) -> dict[str, Any]:
+        return self._quote_service.get_template(default=default)
+
+    def get_markup_rules(self) -> dict[str, Any]:
+        return self._quote_service.get_markup_rules()
+
+    def import_route_files(self, files: list[tuple[str, bytes]]) -> dict[str, Any]:
+        return self._quote_service.import_route_files(files)
+
+    def import_markup_files(self, files: list[tuple[str, bytes]]) -> dict[str, Any]:
+        return self._quote_service.import_markup_files(files)
+
+    def save_template(self, name: str, content: str) -> dict[str, Any]:
+        return self._quote_service.save_template(name, content)
+
+    def save_markup_rules(self, markup_rules: Any) -> dict[str, Any]:
+        return self._quote_service.save_markup_rules(markup_rules)
+
+    def get_pricing_config(self) -> dict[str, Any]:
+        return self._quote_service.get_pricing_config()
+
+    def save_pricing_config(self, config: dict[str, Any]) -> dict[str, Any]:
+        return self._quote_service.save_pricing_config(config)
+
+    def get_cost_summary(self) -> dict[str, Any]:
+        return self._quote_service.get_cost_summary()
+
+    def query_route_cost(self, origin: str, destination: str) -> dict[str, Any]:
+        return self._quote_service.query_route_cost(origin, destination)
+
+    # ── log service forwarding ───────────────────────────────
+    def list_log_files(self) -> list[str]:
+        return self._log_service.list_log_files()
+
+    def read_log_content(self, file_name: str | None = None, tail: int | None = None) -> dict[str, Any]:
+        return self._log_service.read_log_content(file_name=file_name, tail=tail)
+
+    def get_unmatched_message_stats(self, max_lines: int = 3000, top_n: int = 10) -> dict[str, Any]:
+        return self._log_service.get_unmatched_message_stats(max_lines=max_lines, top_n=top_n)
+
+    # ── reply test / template forwarding ─────────────────────
+    def test_reply(self, body: dict[str, Any]) -> dict[str, Any]:
+        return self._reply_test_service.test_reply(body)
+
+    def get_reply_templates(self) -> dict[str, Any]:
+        return self._template_service.get_reply_templates()
+
+    def get_replies(self) -> dict[str, Any]:
+        return self._template_service.get_replies()
 
     def get_cookie(self) -> dict[str, Any]:
         return {
