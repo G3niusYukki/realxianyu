@@ -992,9 +992,14 @@ def _try_slider_drissionpage(
                 _log.info(f"DrissionPage: BitBrowser open failed: {data}")
                 return None
             except Exception as exc:
-                _log.info(f"DrissionPage: BitBrowser API error: {exc}")
-                return None
-        if not ws_url:
+                _log.info(f"DrissionPage: BitBrowser API error (attempt {open_try + 1}/3): {exc}")
+                if open_try < 2:
+                    time.sleep(2)
+                    continue
+                _log.info("DrissionPage: BitBrowser API exhausted all retries, falling back to local Chrome")
+                use_local_chrome = True
+                break
+        if not ws_url and not use_local_chrome:
             _log.info("DrissionPage: no ws URL from BitBrowser, falling back to local Chrome")
             use_local_chrome = True
 

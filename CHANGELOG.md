@@ -8,17 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- `ws_live`: 识别 `RGV587` "被挤爆"（服务器端限流），使用 10 分钟长退避而非重复刷新 cookie，避免无意义请求加重限流。
+- `slider_solver`: BitBrowser API 调用失败时增加 3 次重试（每次等待 2 秒），避免首次失败就 fallback 到本地 Chrome。
+- `slider_solver`: 修复 JSON 解析错误时 API 返回空内容被误判为成功的问题。
 - `messages/ws_live`: token 获取在 `FAIL_SYS_USER_VALIDATE` / `RGV587` 场景下增加主动 Cookie 刷新后重试（BitBrowser 不可用时可走 IM 回退），降低自动回复被 587 风控拦截的不可用窗口。
-- `messages/ws_live`: mtop 风控响应增加 `risk_control` 标记并在发送链路显式判失败，避免“风控拦截但状态显示成功”的误判。
+- `messages/ws_live`: mtop 风控响应增加 `risk_control` 标记并在发送链路显式判失败，避免"风控拦截但状态显示成功"的误判。
 - `messages/ws_live`: MTOP 密钥环境变量新增别名兼容（`MTOP_APP_SECRET` 或 `XIANYU_MTOP_APP_SECRET` 均可），修复仅配置 `XIANYU_MTOP_APP_SECRET` 时 Token API 可能出现 `FAIL_BIZ_PARAM_INVALID`。
 - `messages/ws_live`: 启动时若未配置 MTOP 密钥输出 warning，明确提示补齐 `MTOP_APP_SECRET / XIANYU_MTOP_APP_SECRET`。
-- `messages/ws_live`: Cookie 合并与 Set-Cookie 吸收时新增 `_m_h5_tk/_m_h5_tk_enc` 成对一致性修正，避免“新 `_m_h5_tk` + 旧 `_m_h5_tk_enc`”混搭导致 Token API 持续 `FAIL_BIZ_PARAM_INVALID`。
+- `messages/ws_live`: Cookie 合并与 Set-Cookie 吸收时新增 `_m_h5_tk/_m_h5_tk_enc` 成对一致性修正，避免"新 `_m_h5_tk` + 旧 `_m_h5_tk_enc`"混搭导致 Token API 持续 `FAIL_BIZ_PARAM_INVALID`。
 - `messages/ws_live`: Token API payload 的 `appKey` 在 `MTOP_APP_SECRET` 缺失时回退为 `XIANYU_MTOP_APP_KEY`，避免发送空值触发 `FAIL_BIZ_PARAM_INVALID::请求参数不能为空`。
 - `messages/ws_live`: 针对 `FAIL_BIZ_400100001::not support appkey`，Token API payload `appKey` 新增 `XIANYU_MTOP_PAYLOAD_APP_KEY` / 内置兼容值回退，避免使用不被该接口支持的 appkey。
 - `messages/ws_live`: 当 Token API 返回 `not support appkey` 时，自动切换到 payload appKey 兼容值重试，并将该错误从 auth_hold 分类中剔除，避免误判为 Cookie 鉴权问题进入等待循环。
 - `modules/quote/engine`: `api_cost_plus_markup` 回退链路补全 `fallback_reason/fallback_source/failure_class`，并增强网络类错误分类（`transient/unavailable`）。
 - `modules/followup/service`: `from_system_config()` 仅对缺失配置降级，其他读取异常显式抛出，避免静默降级掩盖损坏配置。
-- `modules/messages/reply_engine`: 补充配置读取、依赖初始化与合规检查异常告警日志，降低“静默吞错”。
+- `modules/messages/reply_engine`: 补充配置读取、依赖初始化与合规检查异常告警日志，降低"静默吞错"。
 - `client/api/dashboard`: `getUnmatchedStats` 去除假成功兜底，网络失败改为显式 reject，前端以真实失败语义处理。
 - `tests/conftest`: `mock_controller` / `mock_ai_client` 改为更严格的 `spec_set` mock，减少测试因宽松 mock 造成的假阳性。
 

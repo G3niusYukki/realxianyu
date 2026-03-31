@@ -762,6 +762,7 @@ class GoofishWsTransport:
     _slider_recovery_attempts: int = 0
     _SLIDER_MAX_ATTEMPTS_PER_CYCLE = 3
     _RGV587_BACKOFF_CAP = 300.0
+    _RGV587_SERVER_OVERLOAD_BACKOFF = 600.0
 
     _BB_COOKIE_REFRESH_COOLDOWN = 30.0
     _last_bb_cookie_refresh_at: float = 0.0
@@ -1752,17 +1753,25 @@ class GoofishWsTransport:
                         slider_cfg = self.config.get("slider_auto_solve", {})
                         slider_enabled = bool(slider_cfg.get("enabled")) if isinstance(slider_cfg, dict) else False
 
-                        rgv_backoff = min(
-                            self._RGV587_BACKOFF_CAP,
-                            60.0 * (2 ** (self._rgv587_consecutive - 1)),
-                        )
-
-                        self.logger.warning(
-                            f"RGV587 风控检测 ({self._rgv587_consecutive}), "
-                            f"slider_attempts={self._slider_recovery_attempts}/{self._SLIDER_MAX_ATTEMPTS_PER_CYCLE}, "
-                            f"slider_just_recovered={self._slider_just_recovered}, "
-                            f"退避 {rgv_backoff:.0f}s..."
-                        )
+                        server_overload = "被挤爆" in reason
+                        if server_overload:
+                            rgv_backoff = self._RGV587_SERVER_OVERLOAD_BACKOFF
+                            self.logger.warning(
+                                f"RGV587 服务器过载 (被挤爆) ({self._rgv587_consecutive}), "
+                                f"退避 {rgv_backoff:.0f}s (服务端限流, 等待期间不重复请求 token API)"
+                            )
+                        else:
+                            rgv_backoff = min(
+                                self._RGV587_BACKOFF_CAP,
+                                60.0 * (2 ** (self._rgv587_consecutive - 1)),
+                            )
+                            self.logger.warning(
+                                f"RGV587 风控检测 ({self._rgv587_consecutive}), "
+                                f"slider_attempts="
+                                f"{self._slider_recovery_attempts}/{self._SLIDER_MAX_ATTEMPTS_PER_CYCLE}, "
+                                f"slider_just_recovered={self._slider_just_recovered}, "
+                                f"退避 {rgv_backoff:.0f}s..."
+                            )
 
                         # 滑块刚成功但 RGV587 仍持续 → 滑块无法解除此次封控，跳过所有自动恢复直接进等待模式
                         if self._slider_just_recovered:
@@ -1773,6 +1782,12 @@ class GoofishWsTransport:
                                 "切换到 CookieCloud/手动更新等待模式"
                             )
                             # fall through to _wait_for_cookie_update_forever below
+
+                        # 被挤爆 (服务器过载) → 不尝试任何 cookie 刷新，直接退避等待
+                        elif server_overload:
+                            self.logger.warning("RGV587 服务器过载，所有自动恢复暂停，直接等待服务器限流解除")
+                            await asyncio.sleep(rgv_backoff)
+                            continue
 
                         # Step 1: 首次 RGV587 给 1 次 IM 机会（处理瞬时风控）
                         elif self._rgv587_consecutive <= 1:
