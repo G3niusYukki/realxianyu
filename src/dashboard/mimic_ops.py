@@ -5,7 +5,9 @@ from __future__ import annotations
 import logging
 import re
 from pathlib import Path
+from typing import Any
 
+from src.dashboard.helpers.utils import _now_iso
 from src.dashboard.module_console import ModuleConsole
 from src.dashboard.services import (
     CookieService,
@@ -20,19 +22,6 @@ from src.dashboard.services import (
 from src.dashboard.services.vg_dashboard_service import VirtualGoodsDashboardService
 
 logger = logging.getLogger(__name__)
-
-from src.dashboard.helpers.utils import (  # noqa: E402
-    DEFAULT_VOLUME_TEMPLATE,
-    DEFAULT_WEIGHT_TEMPLATE,
-    _PRODUCT_IMAGE_CACHE_TTL,
-    _error_payload,
-    _extract_json_payload,
-    _now_iso,
-    _product_image_cache,
-    _run_async,
-    _safe_int,
-    _test_xgj_connection,
-)
 
 
 class MimicOps:
