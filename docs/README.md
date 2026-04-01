@@ -44,12 +44,6 @@
 | [../SECURITY.md](../SECURITY.md) | 安全最佳实践 |
 | [../CHANGELOG.md](../CHANGELOG.md) | 版本更新日志 |
 
-### 依赖与构建
-
-| 文档 | 说明 |
-|------|------|
-| [../DEPENDENCIES.md](../DEPENDENCIES.md) | 依赖管理指南 |
-
 ---
 
 ## 技术文档
