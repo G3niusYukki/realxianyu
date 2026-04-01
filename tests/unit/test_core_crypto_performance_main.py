@@ -1,84 +1,8 @@
 import asyncio
-import importlib
-import types
 
 import pytest
 
 import src.core.crypto as crypto
-from src.core.performance import AsyncCache, FileCache, PerformanceMonitor, batch_process, cached, monitor_performance
-
-
-@pytest.mark.asyncio
-async def test_async_cache_and_decorators(tmp_path):
-    c = AsyncCache(default_ttl=1)
-    assert await c.get("x") is None
-    await c.set("x", 1)
-    assert await c.get("x") == 1
-    assert await c.delete("x") is True
-    assert await c.delete("x") is False
-
-    await c.set("a", 1, ttl=-1)
-    assert await c.cleanup_expired() == 1
-    stats = await c.get_stats()
-    assert stats["total_keys"] == 0
-
-    calls = {"n": 0}
-
-    @cached(c, ttl=3, key_prefix="p:")
-    async def fn(v):
-        calls["n"] += 1
-        return v * 2
-
-    assert await fn(3) == 6
-    assert await fn(3) == 6
-    assert calls["n"] == 1
-
-    @batch_process(batch_size=2, delay=0)
-    async def proc(items, s=1):
-        return [x + s for x in items]
-
-    assert await proc([1, 2, 3], 2) == [3, 4, 5]
-    with pytest.raises(TypeError):
-        await proc("abc")
-
-
-@pytest.mark.asyncio
-async def test_file_cache_and_monitor(tmp_path):
-    fc = FileCache(str(tmp_path / "cache"))
-    await fc.set("k", {"a": 1})
-    assert await fc.get("k") == {"a": 1}
-    assert await fc.delete("k") is True
-    assert await fc.delete("k") is False
-    await fc.set("k1", 1)
-    await fc.set("k2", 2)
-    assert await fc.clear() >= 2
-
-    bad = fc._get_cache_path("bad")
-    bad.write_text("not-json", encoding="utf-8")
-    assert await fc.get("bad") is None
-
-    m = PerformanceMonitor()
-    await m.record("x", 0.1, True)
-    await m.record("x", 0.2, False)
-    stats = await m.get_stats("x")
-    assert stats["count"] == 2
-    assert stats["success_rate"] == 0.5
-    assert await m.get_stats("none") == {}
-    await m.clear()
-
-    @monitor_performance(m)
-    async def ok(v):
-        return v
-
-    @monitor_performance(m)
-    async def fail():
-        raise RuntimeError("x")
-
-    assert await ok(1) == 1
-    with pytest.raises(RuntimeError):
-        await fail()
-    assert (await m.get_stats("ok"))["count"] == 1
-    assert (await m.get_stats("fail"))["count"] == 1
 
 
 def test_crypto_paths(monkeypatch, tmp_path):

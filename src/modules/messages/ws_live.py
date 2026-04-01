@@ -558,8 +558,8 @@ class GoofishWsTransport:
                         "请手动打开 Dashboard 更新 Cookie，或确保闲管家IM正在运行。",
                         event="cookie_expire",
                     )
-                except Exception:
-                    pass
+                except Exception as e:
+                    self.logger.warning(f"Failed to send cookie_expire notification: {e}")
 
             # Escape hatch: after slider_retry_interval, reset recovery counter
             # so the outer _run() loop can retry slider verification. Prevents
@@ -773,10 +773,9 @@ class GoofishWsTransport:
                 lines.append("提示：配置 CookieCloud 可免手动复制，实现秒级自动恢复")
 
             send_system_notification("\n".join(lines), event="risk_control")
-        except Exception:
-            pass
+        except Exception as e:
+            self.logger.warning(f"Failed to send risk_control notification (RGV587 alert): {e}")
 
-    _last_slider_recovery_at: float = 0.0
     _last_cookie_applied_at: float = 0.0
     _SLIDER_RECOVERY_COOLDOWN = 60.0
     _slider_recovery_attempts: int = 0
@@ -983,9 +982,8 @@ class GoofishWsTransport:
                         "请在 CookieCloud 扩展中点「手动同步」或在闲鱼网页重新登录",
                         event="risk_control",
                     )
-                except Exception:
-                    pass
-                for _ in range(20):
+                except Exception as e:
+                    self.logger.warning(f"Failed to send incomplete cookie notification: {e}")
                     refreshed = await self._try_cookiecloud_poll()
                     if refreshed is True:
                         self._last_cookie_applied_at = time.time()
@@ -1018,9 +1016,8 @@ class GoofishWsTransport:
                         "【闲鱼自动化】✅ 浏览器 Cookie 已合并恢复\nWS 即将重连",
                         event="risk_control",
                     )
-                except Exception:
-                    pass
-            return changed
+                except Exception as e:
+                    self.logger.warning(f"Failed to send cookie recovery notification: {e}")
         except Exception as exc:
             self.logger.info(f"Slider recovery failed: {exc}")
             return False
@@ -1517,8 +1514,8 @@ class GoofishWsTransport:
                     if self._on_manual_takeover is not None:
                         try:
                             self._on_manual_takeover(chat_id, True)
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            self.logger.debug(f"_on_manual_takeover callback failed: {e}")
                     self.logger.info(f"[人工介入] 检测到卖家手动消息: session={chat_id}, text={text[:30]}")
                 except Exception as exc:
                     self.logger.warning(f"[人工介入] set_state failed: session={chat_id}, err={exc}")

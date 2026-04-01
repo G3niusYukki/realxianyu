@@ -378,9 +378,8 @@ def _extra_checks(skip_quote: bool = False) -> list[dict[str, Any]]:
                 sys_cfg_sections_present = IMPORTANT_SECTIONS & set(sys.keys())
         except Exception:
             pass
-
-    sys_cfg_ok = sys_cfg_exists and sys_cfg_sections_present == IMPORTANT_SECTIONS
     missing_sections = IMPORTANT_SECTIONS - sys_cfg_sections_present
+    sys_cfg_ok = sys_cfg_exists and sys_cfg_sections_present == IMPORTANT_SECTIONS
     if not sys_cfg_exists:
         sys_cfg_message = "data/system_config.json 不存在，Dashboard 配置尚未初始化"
     elif missing_sections:

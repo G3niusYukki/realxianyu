@@ -557,10 +557,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     if decrypted:
                         self._send_json(decrypted)
                         return
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning("CookieCloud decryption failed, returning raw data: %s", e)
             self._send_json(data)
-            return
 
         if sub_path in ("", "/", "/health"):
             self._send_json({"status": "ok", "service": "cookiecloud-embedded"})
@@ -957,8 +956,8 @@ def run_server(host: str = "127.0.0.1", port: int = 8091, db_path: str | None = 
                                     f"进入 {WD_COOLDOWN // 60} 分钟静默期。请检查日志排查问题。",
                                     event="watchdog_alert",
                                 )
-                            except Exception:
-                                pass
+                            except Exception as e:
+                                logger.error("Watchdog notification failed: %s", e)
 
                 if refresher and not refresher.running:
                     logger.warning("Watchdog: CookieAutoRefresher 已停止，尝试重启...")

@@ -252,9 +252,12 @@ class TestRetry:
 
         await test_func()
         assert len(call_times) == 3
-        # 验证退避时间
-        assert call_times[1] - call_times[0] >= 0.1
-        assert call_times[2] - call_times[1] >= 0.2
+        # 验证退避时间（容忍 0.5x~1.5x jitter）
+        first_gap = call_times[1] - call_times[0]
+        second_gap = call_times[2] - call_times[1]
+        assert first_gap >= 0.05  # 0.1 * 0.5 jitter floor
+        assert second_gap >= 0.10  # 0.2 * 0.5 jitter floor
+        assert second_gap > first_gap * 0.8  # 依然体现指数增长
 
     @pytest.mark.asyncio
     async def test_retry_sync_function(self):

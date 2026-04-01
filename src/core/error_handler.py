@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import random
 from collections.abc import Callable
 from functools import wraps
 from typing import Any
@@ -191,7 +192,7 @@ def retry(max_attempts: int = 3, delay: float = 1.0, backoff_factor: float = 2.0
                         logger.error(f"Final attempt failed for {func.__name__}: {e}")
                         raise
 
-                    wait_time = delay * (backoff_factor**attempt)
+                    wait_time = delay * (backoff_factor**attempt) * random.uniform(0.5, 1.5)
                     logger.warning(
                         f"Attempt {attempt + 1} failed for {func.__name__}: {e}. Retrying in {wait_time:.1f}s..."
                     )
@@ -211,7 +212,7 @@ def retry(max_attempts: int = 3, delay: float = 1.0, backoff_factor: float = 2.0
                         logger.error(f"Final attempt failed for {func.__name__}: {e}")
                         raise
 
-                    wait_time = delay * (backoff_factor**attempt)
+                    wait_time = delay * (backoff_factor**attempt) * random.uniform(0.5, 1.5)
                     logger.warning(
                         f"Attempt {attempt + 1} failed for {func.__name__}: {e}. Retrying in {wait_time:.1f}s..."
                     )

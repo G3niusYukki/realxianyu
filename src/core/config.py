@@ -119,8 +119,8 @@ class Config:
             if config_path:
                 self.logger.error(f"指定的配置文件不存在: {config_path}，使用默认配置")
             self._set_defaults()
+            self._resolve_env_variables()
             self._merge_system_config()
-            self._load_env_file()
             self._apply_env_overrides()
 
     def _find_config_file(self) -> str | None:
