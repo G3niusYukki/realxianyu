@@ -403,9 +403,9 @@ def _extra_checks(skip_quote: bool = False) -> list[dict[str, Any]]:
     cookie_val = os.getenv("XIANYU_COOKIE_1", "")
     if cookie_val and cookie_val != "your_cookie_here" and len(cookie_val) > 20:
         try:
-            from src.core.cookie_health import CookieHealthChecker
+            from src.core.cookie_health import get_cookie_health_checker
 
-            checker = CookieHealthChecker(cookie_text=cookie_val, timeout_seconds=8.0)
+            checker = get_cookie_health_checker(cookie_text=cookie_val, timeout_seconds=8.0)
             result = checker.check_sync(force=True)
             _append_check(
                 checks,

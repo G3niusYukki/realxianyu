@@ -15,6 +15,7 @@ class TestWorkflowStore:
 
     def _make_store(self, db_path):
         from src.modules.messages.workflow import WorkflowStore
+
         store = WorkflowStore(db_path=db_path)
         return store
 
@@ -30,9 +31,7 @@ class TestWorkflowStore:
             self._enqueue(store, "session1")
 
             with store._db.transaction() as conn:
-                conn.execute(
-                    "UPDATE workflow_jobs SET status='running' WHERE id=1"
-                )
+                conn.execute("UPDATE workflow_jobs SET status='running' WHERE id=1")
 
             jobs = store.claim_jobs(limit=1, lease_seconds=60)
             assert len(jobs) == 0
@@ -121,8 +120,7 @@ class TestWorkflowStore:
             self._enqueue(store)
             jobs = store.claim_jobs(limit=1, lease_seconds=60)
             result = store.fail_job(
-                jobs[0].id, "error", max_attempts=1, base_backoff_seconds=1,
-                expected_lease_until=jobs[0].lease_until
+                jobs[0].id, "error", max_attempts=1, base_backoff_seconds=1, expected_lease_until=jobs[0].lease_until
             )
             assert result is True
         finally:
@@ -160,6 +158,7 @@ class TestFollowUpEngine:
 
     def _make_engine(self, db_path):
         from src.modules.followup.service import FollowUpEngine
+
         engine = FollowUpEngine(db_path=db_path)
         return engine
 
@@ -228,6 +227,7 @@ class TestAccountsService:
 
     def _make_service(self, accounts_list=None, persisted=None):
         from src.modules.accounts.service import AccountsService
+
         config = MagicMock()
         config.accounts = accounts_list or []
         config.get_section = MagicMock(return_value={})
@@ -236,13 +236,13 @@ class TestAccountsService:
             with patch("src.modules.accounts.service.get_logger", return_value=MagicMock()):
                 with patch("src.modules.accounts.service.ensure_encrypted", side_effect=lambda x: x):
                     with patch.object(AccountsService, "_load_account_stats"):
-                        with patch.object(AccountsService, "_load_persisted_accounts",
-                                          return_value=persisted or []):
+                        with patch.object(AccountsService, "_load_persisted_accounts", return_value=persisted or []):
                             svc = AccountsService(config=config)
         return svc
 
     def test_load_persisted_accounts_merge(self):
         from src.modules.accounts.service import AccountsService
+
         persisted = [{"id": "extra_acc", "name": "Extra"}]
         svc = self._make_service(
             accounts_list=[{"id": "a1", "cookie": "c1"}],
@@ -254,6 +254,7 @@ class TestAccountsService:
 
     def test_load_persisted_accounts_no_dup(self):
         from src.modules.accounts.service import AccountsService
+
         persisted = [{"id": "a1", "name": "duplicate"}]
         svc = self._make_service(
             accounts_list=[{"id": "a1", "cookie": "c1"}],
@@ -263,6 +264,7 @@ class TestAccountsService:
 
     def test_save_account_stats_failure(self):
         from src.modules.accounts.service import AccountsService
+
         svc = self._make_service()
         svc.account_stats = {"a1": {"total": 1}}
         with patch("builtins.open", side_effect=OSError("fail")):
@@ -271,6 +273,7 @@ class TestAccountsService:
 
     def test_persist_accounts(self):
         from src.modules.accounts.service import AccountsService
+
         svc = self._make_service(accounts_list=[{"id": "a1", "cookie": "c1"}])
         with tempfile.TemporaryDirectory() as tmpdir:
             with patch("src.modules.accounts.service.Path") as MockPath:
@@ -283,6 +286,7 @@ class TestAccountsService:
 
     def test_persist_accounts_failure(self):
         from src.modules.accounts.service import AccountsService
+
         svc = self._make_service(accounts_list=[{"id": "a1", "cookie": "c1"}])
         with patch("builtins.open", side_effect=OSError("fail")):
             with patch("pathlib.Path.mkdir"):
@@ -290,6 +294,7 @@ class TestAccountsService:
 
     def test_load_persisted_accounts_file_not_found(self):
         from src.modules.accounts.service import AccountsService
+
         svc = self._make_service()
         with patch("pathlib.Path.exists", return_value=False):
             result = svc._load_persisted_accounts()
@@ -297,6 +302,7 @@ class TestAccountsService:
 
     def test_load_persisted_accounts_invalid_json(self):
         from src.modules.accounts.service import AccountsService
+
         svc = self._make_service()
         with patch("pathlib.Path.exists", return_value=True):
             with patch("builtins.open", MagicMock()):
@@ -310,6 +316,7 @@ class TestDoctor:
 
     def test_extra_checks_lite_mode_port_skip(self):
         from src.core.doctor import _extra_checks
+
         with patch("src.core.doctor.resolve_runtime_mode", return_value="lite"):
             with patch("src.core.doctor.Path") as MockPath:
                 MockPath.return_value.exists.return_value = True
@@ -325,9 +332,8 @@ class TestDoctor:
 
     def test_cookie_health_check_exception(self):
         from src.core.doctor import _extra_checks
-        import src.core.cookie_health as ch_mod
 
-        def raise_on_init(*args, **kwargs):
+        def raise_on_get(*args, **kwargs):
             raise RuntimeError("import fail")
 
         with patch("src.core.doctor.resolve_runtime_mode", return_value="pro"):
@@ -340,7 +346,9 @@ class TestDoctor:
                         mock_config.return_value = mock_cfg
                         with patch("src.core.doctor.CostTableRepository"):
                             with patch.dict(os.environ, {"XIANYU_COOKIE_1": "a" * 50}):
-                                with patch.object(ch_mod, "CookieHealthChecker", side_effect=raise_on_init):
+                                with patch(
+                                    "src.core.cookie_health.get_cookie_health_checker", side_effect=raise_on_get
+                                ):
                                     checks = _extra_checks(skip_quote=False)
                                     cookie_checks = [c for c in checks if c["name"] == "Cookie在线有效性"]
                                     assert len(cookie_checks) == 1
@@ -352,6 +360,7 @@ class TestSetupWizard:
 
     def test_custom_gateway_provider(self):
         from src.setup_wizard import _prompt
+
         with patch("src.setup_wizard._prompt") as mock_prompt:
             mock_prompt.side_effect = [
                 "custom_api_key",
@@ -364,6 +373,7 @@ class TestSetupWizard:
 
     def test_custom_content_provider(self):
         from src.setup_wizard import _prompt
+
         with patch("src.setup_wizard._prompt") as mock_prompt:
             mock_prompt.side_effect = [
                 "custom_base_url",
@@ -377,6 +387,7 @@ class TestConfig:
 
     def _make_config_stub(self):
         from src.core.config import Config
+
         obj = object.__new__(Config)
         obj.logger = MagicMock()
         obj._config = {}
@@ -403,6 +414,7 @@ class TestCompliance:
 
     async def test_evaluate_batch_polish_rate_blocked(self):
         from src.core.compliance import ComplianceGuard
+
         guard = ComplianceGuard.__new__(ComplianceGuard)
         guard._rules = {"mode": "block"}
         guard._last_action_at = {}
@@ -422,6 +434,7 @@ class TestMediaService:
 
     def test_add_watermark_non_dict_config(self):
         from src.modules.media.service import MediaService
+
         svc = MediaService.__new__(MediaService)
         svc.config = {"watermark": "not_a_dict"}
         svc.logger = MagicMock()
@@ -434,11 +447,13 @@ class TestVirtualGoodsModels:
 
     def test_normalize_unknown_int_status(self):
         from src.modules.virtual_goods.models import normalize_order_status
+
         with pytest.raises(ValueError, match="Unsupported"):
             normalize_order_status(9999)
 
     def test_normalize_empty_string_status(self):
         from src.modules.virtual_goods.models import normalize_order_status
+
         with pytest.raises(ValueError, match="empty"):
             normalize_order_status("")
 
@@ -448,12 +463,14 @@ class TestVirtualGoodsIngress:
 
     def test_parse_entry_with_colon(self):
         from src.modules.virtual_goods.ingress import VirtualGoodsIngress
+
         source, kind = VirtualGoodsIngress._parse_entry("xgj:order_paid")
         assert source == "xgj"
         assert kind == "order_paid"
 
     def test_parse_entry_no_separator(self):
         from src.modules.virtual_goods.ingress import VirtualGoodsIngress
+
         source, kind = VirtualGoodsIngress._parse_entry("noseparator")
         assert source == ""
         assert kind == ""
@@ -464,21 +481,25 @@ class TestListingTemplates:
 
     def test_import_templates_module(self):
         from src.modules.listing.templates import TEMPLATES, get_template, list_templates, render_template
+
         assert isinstance(TEMPLATES, dict)
         assert len(TEMPLATES) > 0
 
     def test_list_templates(self):
         from src.modules.listing.templates import list_templates
+
         result = list_templates()
         assert isinstance(result, list)
         assert len(result) > 0
 
     def test_get_template(self):
         from src.modules.listing.templates import get_template
+
         tpl = get_template("express")
         assert tpl is not None
         assert "render" in tpl
 
     def test_render_template_callable(self):
         from src.modules.listing.templates import render_template
+
         assert callable(render_template)

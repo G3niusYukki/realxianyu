@@ -192,10 +192,20 @@ class DashboardHandler(BaseHTTPRequestHandler):
                             if isinstance(imgs_top, list) and imgs_top:
                                 pic_url = str(imgs_top[0])
                         _product_image_cache[pid] = (pic_url, time.time())
-                    except Exception:
+                    except (
+                        httpx.RequestError,
+                        httpx.TimeoutException,
+                        httpx.HTTPStatusError,
+                        json.JSONDecodeError,
+                        AttributeError,
+                        TypeError,
+                        KeyError,
+                        IndexError,
+                        ValueError,
+                    ):
                         logger.debug("Failed to fetch product detail for %s", pid)
                         _product_image_cache[pid] = ("", time.time())
-        except Exception:
+        except (httpx.RequestError, httpx.TimeoutException, httpx.HTTPStatusError):
             logger.debug("httpx client error during image enrichment", exc_info=True)
 
         for p in products:
@@ -277,7 +287,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
         try:
             data = json.loads(raw.decode("utf-8"))
             return data if isinstance(data, dict) else {}
-        except Exception:
+        except (json.JSONDecodeError, UnicodeDecodeError, TypeError):
             return {}
 
     def _read_form_or_json_body(self) -> dict[str, Any]:
@@ -295,13 +305,13 @@ class DashboardHandler(BaseHTTPRequestHandler):
         if "gzip" in content_encoding:
             try:
                 raw = _gzip_mod.decompress(raw)
-            except Exception:
+            except OSError:
                 return {}
         if "application/json" in content_type:
             try:
                 data = json.loads(raw.decode("utf-8", errors="ignore"))
                 return data if isinstance(data, dict) else {}
-            except Exception:
+            except (json.JSONDecodeError, TypeError):
                 return {}
         try:
             parsed = parse_qs(raw.decode("utf-8", errors="ignore"))
@@ -318,7 +328,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
             if content_length <= 0:
                 return []
             raw_data = self.rfile.read(content_length)
-        except Exception:
+        except (ValueError, OSError):
             return []
         if not raw_data:
             return []
@@ -340,7 +350,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
         try:
             msg = BytesParser(policy=policy.default).parsebytes(mime_raw)
-        except Exception:
+        except (ValueError, TypeError):
             return []
 
         files: list[tuple[str, bytes]] = []
@@ -378,7 +388,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
             client_fields = {"base_url", "app_key", "app_secret", "timeout", "mode", "seller_id"}
             kwargs = {k: v for k, v in xgj_cfg.items() if k in client_fields and v}
             return OpenPlatformClient(**kwargs)
-        except Exception:
+        except (ImportError, TypeError, ValueError):
             return None
 
     def _get_live_dashboard(self) -> LiveDashboardDataSource:
@@ -396,7 +406,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
             result["reply_rate_pct"] = round(100.0 * today_replied / today_inquiries, 1) if today_inquiries else 0.0
             result["total_inquiries"] = int(msg.get("total_conversations", 0) or 0)
             result["total_replied_all"] = int(msg.get("total_replied", 0) or 0)
-        except Exception:
+        except (AttributeError, TypeError, ValueError):
             result.setdefault("inquiries", 0)
             result.setdefault("total_replied", 0)
             result.setdefault("reply_rate_pct", 0.0)
@@ -408,7 +418,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 summary = po.get("summary") or {}
                 result["paid_order_count"] = summary.get("paid_order_count")
                 result["conversion_rate_pct"] = summary.get("conversion_rate_pct")
-        except Exception:
+        except (AttributeError, TypeError):
             result.setdefault("paid_order_count", None)
             result.setdefault("conversion_rate_pct", None)
 
@@ -464,7 +474,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     daily = (status.get("message_stats") or {}).get("daily_replies", {})
                     trend = [{"date": d, "value": c} for d, c in sorted(daily.items())]
                     return {"trend": trend, "source": "workflow_db"}
-                except Exception:
+                except (AttributeError, TypeError, ValueError):
                     return {"trend": [], "source": "workflow_db"}
             return self.repo.get_trend(metric=metric, days=days)
         if path == "/api/recent-operations":
@@ -533,7 +543,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 return
             try:
                 data = json.loads(fp.read_text(encoding="utf-8"))
-            except Exception:
+            except (OSError, json.JSONDecodeError):
                 self._send_json({"error": "Data corrupt"}, status=500)
                 return
             body = self._read_form_or_json_body() if method == "POST" else {}

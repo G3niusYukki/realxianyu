@@ -126,7 +126,7 @@ class DrissionPageBrowserClient:
 
             self.logger.info("Connected to DrissionPage Lite browser")
             return True
-        except Exception as exc:
+        except (OSError, RuntimeError, ConnectionError, TimeoutError) as exc:
             self.logger.error(f"DrissionPage connect failed: {exc}")
             await self.disconnect()
             return False
@@ -137,7 +137,7 @@ class DrissionPageBrowserClient:
         if self._browser is not None:
             try:
                 await asyncio.to_thread(self._browser.quit)
-            except Exception:
+            except (OSError, RuntimeError, ConnectionError, TimeoutError):
                 pass
             self._browser = None
 
@@ -168,7 +168,7 @@ class DrissionPageBrowserClient:
         try:
             await asyncio.to_thread(tab.close)
             return True
-        except Exception:
+        except (RuntimeError, ConnectionError, TimeoutError):
             return False
 
     # ------------------------------------------------------------------
@@ -182,7 +182,7 @@ class DrissionPageBrowserClient:
             if wait_load:
                 await asyncio.sleep(self.random_delay())
             return True
-        except Exception as exc:
+        except (RuntimeError, ConnectionError, TimeoutError) as exc:
             self.logger.warning(f"Navigate failed: {exc}")
             return False
 
@@ -215,7 +215,7 @@ class DrissionPageBrowserClient:
                 if await asyncio.to_thread(_click):
                     await asyncio.sleep(self.random_delay())
                     return True
-            except Exception:
+            except (RuntimeError, ConnectionError, TimeoutError):
                 await asyncio.sleep(0.2)
         return False
 
@@ -243,7 +243,7 @@ class DrissionPageBrowserClient:
             if result:
                 await asyncio.sleep(self.random_delay())
             return bool(result)
-        except Exception as exc:
+        except (RuntimeError, ConnectionError, TimeoutError) as exc:
             self.logger.warning(f"Type text failed: {exc}")
             return False
 
@@ -261,7 +261,7 @@ class DrissionPageBrowserClient:
                 return [{"selector": selector, "index": i} for i in range(len(eles))]
 
             return await asyncio.to_thread(_find)
-        except Exception:
+        except (RuntimeError, ConnectionError, TimeoutError):
             return []
 
     async def find_element(self, page_id: str, selector: str) -> dict[str, Any] | None:
@@ -278,7 +278,7 @@ class DrissionPageBrowserClient:
                 return ele.text if ele else None
 
             return await asyncio.to_thread(_text)
-        except Exception:
+        except (RuntimeError, ConnectionError, TimeoutError):
             return None
 
     async def get_value(self, page_id: str, selector: str) -> str | None:
@@ -291,7 +291,7 @@ class DrissionPageBrowserClient:
                 return ele.value if ele else None
 
             return await asyncio.to_thread(_value)
-        except Exception:
+        except (RuntimeError, ConnectionError, TimeoutError):
             return None
 
     # ------------------------------------------------------------------
@@ -314,7 +314,7 @@ class DrissionPageBrowserClient:
                 return bool(ele)
 
             return await asyncio.to_thread(_wait)
-        except Exception:
+        except (RuntimeError, ConnectionError, TimeoutError):
             return False
 
     async def wait_for_url(self, page_id: str, pattern: str, timeout: int = 30000) -> bool:
@@ -324,7 +324,7 @@ class DrissionPageBrowserClient:
             try:
                 if pattern in (tab.url or ""):
                     return True
-            except Exception:
+            except (RuntimeError, ConnectionError):
                 pass
             await asyncio.sleep(0.5)
         return False
@@ -355,7 +355,7 @@ class DrissionPageBrowserClient:
             if result:
                 await asyncio.sleep(self.random_delay())
             return bool(result)
-        except Exception as exc:
+        except (RuntimeError, ConnectionError, TimeoutError) as exc:
             self.logger.warning(f"Upload failed: {exc}")
             return False
 
@@ -376,7 +376,7 @@ class DrissionPageBrowserClient:
                 return False
 
             return await asyncio.to_thread(_scroll)
-        except Exception:
+        except (RuntimeError, ConnectionError, TimeoutError):
             return False
 
     async def scroll_to_top(self, page_id: str) -> bool:
@@ -400,7 +400,7 @@ class DrissionPageBrowserClient:
                 return tab.run_js(script, as_expr=True)
 
             return await asyncio.to_thread(_exec)
-        except Exception as exc:
+        except (RuntimeError, ConnectionError, TimeoutError) as exc:
             self.logger.debug(f"Script execute failed: {exc}")
             return None
 
@@ -419,7 +419,7 @@ class DrissionPageBrowserClient:
                 return True
 
             return await asyncio.to_thread(_shot)
-        except Exception:
+        except (OSError, RuntimeError, ConnectionError, TimeoutError):
             return False
 
     # ------------------------------------------------------------------
@@ -439,7 +439,7 @@ class DrissionPageBrowserClient:
                 return result.get("cookies", [])
 
             return await asyncio.to_thread(_cookies)
-        except Exception:
+        except (RuntimeError, ConnectionError, TimeoutError):
             return []
 
     async def add_cookie(self, page_id: str, cookie: dict[str, Any]) -> bool:
@@ -453,7 +453,7 @@ class DrissionPageBrowserClient:
 
             await asyncio.to_thread(_add)
             return True
-        except Exception:
+        except (RuntimeError, ConnectionError, TimeoutError):
             return False
 
     async def delete_cookies(self, page_id: str = "", name: str | None = None) -> bool:
@@ -467,7 +467,7 @@ class DrissionPageBrowserClient:
 
             await asyncio.to_thread(_clear)
             return True
-        except Exception:
+        except (RuntimeError, ConnectionError, TimeoutError):
             return False
 
     async def set_cookies_for_domain(self, cookies_str: str, domain: str = ".goofish.com") -> None:
@@ -512,7 +512,7 @@ class DrissionPageBrowserClient:
                         path="/",
                     )
                     ok += 1
-                except Exception:
+                except (RuntimeError, ConnectionError, TimeoutError):
                     continue
             return ok
 

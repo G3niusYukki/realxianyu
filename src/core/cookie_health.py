@@ -49,7 +49,12 @@ class CookieHealthChecker:
 
     同时检查 _m_h5_tk TTL，即使 HTTP 健康但 token 即将过期也视为不健康。
     集成飞书告警：Cookie 失效时即时通知，恢复后发送恢复消息。
+
+    Singleton: use `get_cookie_health_checker()` for a shared instance,
+    or instantiate directly for one-off checks.
     """
+
+    _instance: CookieHealthChecker | None = None
 
     def __init__(
         self,
@@ -275,3 +280,31 @@ class CookieHealthChecker:
                 logger.info("Cookie 恢复通知已发送")
             except Exception as exc:
                 logger.error(f"发送 Cookie 恢复通知失败: {exc}")
+
+
+def get_cookie_health_checker(
+    *,
+    cookie_text: str | None = None,
+    timeout_seconds: float = 10.0,
+    notifier: Any | None = None,
+) -> CookieHealthChecker:
+    """Return the shared CookieHealthChecker singleton instance.
+
+    Creates the instance on first call. Subsequent calls update
+    cookie_text and timeout on the existing instance so callers
+    always get a live checker with the latest configuration.
+    """
+    if CookieHealthChecker._instance is None:
+        CookieHealthChecker._instance = CookieHealthChecker(
+            cookie_text=cookie_text,
+            timeout_seconds=timeout_seconds,
+            notifier=notifier,
+        )
+    else:
+        if cookie_text is not None:
+            CookieHealthChecker._instance.cookie_text = cookie_text
+        if timeout_seconds != 10.0:
+            CookieHealthChecker._instance._timeout = max(3.0, float(timeout_seconds))
+        if notifier is not None:
+            CookieHealthChecker._instance._notifier = notifier
+    return CookieHealthChecker._instance

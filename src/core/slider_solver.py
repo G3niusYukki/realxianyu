@@ -256,7 +256,7 @@ def load_recorded_trajectories() -> list[dict[str, Any]]:
             steps = data.get("steps", [])
             if len(steps) >= 3:
                 trajectories.append(data)
-        except Exception:
+        except (OSError, json.JSONDecodeError, TypeError, ValueError):
             continue
 
     _trajectory_cache.extend(trajectories)
@@ -991,7 +991,7 @@ def _try_slider_drissionpage(
                     continue
                 _log.info(f"DrissionPage: BitBrowser open failed: {data}")
                 return None
-            except Exception as exc:
+            except (_httpx.RequestError, _httpx.TimeoutException, json.JSONDecodeError, ValueError, TypeError) as exc:
                 _log.info(f"DrissionPage: BitBrowser API error (attempt {open_try + 1}/3): {exc}")
                 if open_try < 2:
                     time.sleep(2)

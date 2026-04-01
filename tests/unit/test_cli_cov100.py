@@ -180,8 +180,10 @@ class TestCookieHealth:
         captured = []
         mock_checker = MagicMock()
         mock_checker.check_sync.return_value = {"healthy": True}
-        with patch("src.core.cookie_health.CookieHealthChecker", return_value=mock_checker), \
-             patch("src.cli._json_out", side_effect=lambda d: captured.append(d)), \
-             patch.dict("os.environ", {"XIANYU_COOKIE_1": "test_cookie"}):
+        with (
+            patch("src.core.cookie_health.get_cookie_health_checker", return_value=mock_checker),
+            patch("src.cli._json_out", side_effect=lambda d: captured.append(d)),
+            patch.dict("os.environ", {"XIANYU_COOKIE_1": "test_cookie"}),
+        ):
             await cmd_module(ns)
         assert captured[0]["healthy"] is True

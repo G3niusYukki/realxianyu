@@ -7,6 +7,7 @@ Core Module
 """
 
 from .config import Config
+from .cookie_health import CookieHealthChecker, get_cookie_health_checker
 from .logger import Logger
 
-__all__ = ["Config", "Logger"]
+__all__ = ["Config", "CookieHealthChecker", "Logger", "get_cookie_health_checker"]

@@ -508,10 +508,10 @@ async def cmd_module(args: argparse.Namespace) -> None:
         return
 
     if action == "cookie-health":
-        from src.core.cookie_health import CookieHealthChecker
+        from src.core.cookie_health import get_cookie_health_checker
 
         cookie_text = os.getenv("XIANYU_COOKIE_1", "")
-        checker = CookieHealthChecker(cookie_text=cookie_text, timeout_seconds=10.0)
+        checker = get_cookie_health_checker(cookie_text=cookie_text, timeout_seconds=10.0)
         result = checker.check_sync(force=True)
         _json_out(result)
         if not result.get("healthy", False):

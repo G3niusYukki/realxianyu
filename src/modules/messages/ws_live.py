@@ -234,20 +234,20 @@ def decode_sync_payload(raw_text: str) -> Any | None:
 
     try:
         buf = base64.b64decode(text)
-    except Exception:
+    except base64.binascii.Error:
         try:
             buf = base64.urlsafe_b64decode(text)
-        except Exception:
+        except base64.binascii.Error:
             return None
 
     try:
         return json.loads(buf.decode("utf-8"))
-    except Exception:
+    except (UnicodeDecodeError, json.JSONDecodeError):
         pass
 
     try:
         return MessagePackDecoder(buf).decode()
-    except Exception:
+    except (ValueError, struct.error, UnicodeDecodeError):
         pass
 
     return None
@@ -282,7 +282,7 @@ def extract_chat_event(message: Any) -> dict[str, Any] | None:
     create_time = int(time.time() * 1000)
     try:
         create_time = int(_pick(body, "5", 5, "createTime") or create_time)
-    except Exception:
+    except (ValueError, TypeError):
         pass
 
     reminder_url = str(_pick(content, "reminderUrl", "url") or "")
@@ -710,7 +710,7 @@ class GoofishWsTransport:
                 self._seen_event.clear()
                 self.logger.info("Active cookie refresh succeeded, new cookie applied")
             return changed
-        except Exception as exc:
+        except BrowserError as exc:
             self.logger.warning(f"Active cookie refresh apply failed: {exc}")
             return False
 
@@ -1148,7 +1148,7 @@ class GoofishWsTransport:
             resp = await client.post("https://passport.goofish.com/newlogin/hasLogin.do", params=params, data=data)
             try:
                 payload = resp.json()
-            except Exception:
+            except (json.JSONDecodeError, UnicodeDecodeError):
                 payload = {}
 
             content = payload.get("content", {}) if isinstance(payload, dict) else {}
@@ -1194,12 +1194,12 @@ class GoofishWsTransport:
             self.logger.info(f"_m_h5_tk expires in {ttl:.0f}s, proactively refreshing via hasLogin")
             try:
                 await self._preflight_has_login()
-            except Exception as exc:
+            except (BrowserError, httpx.HTTPError) as exc:
                 self.logger.debug(f"Proactive hasLogin refresh failed: {exc}")
         else:
             try:
                 await self._preflight_has_login()
-            except Exception as exc:
+            except (BrowserError, httpx.HTTPError) as exc:
                 self.logger.debug(f"WS hasLogin preflight failed: {exc}")
 
         now = time.time()
@@ -1262,7 +1262,7 @@ class GoofishWsTransport:
                     payload = resp.json()
 
                     self._absorb_set_cookies(client, reason="token_api")
-            except Exception as exc:
+            except (BrowserError, httpx.HTTPError, json.JSONDecodeError) as exc:
                 last_error = BrowserError(f"Token API request failed: {exc}")
                 await asyncio.sleep(min(2.0 * attempt, 6.0))
                 continue
@@ -1285,7 +1285,7 @@ class GoofishWsTransport:
                     self._maybe_reload_cookie(reason="token_ret_fail")
                     try:
                         await self._preflight_has_login()
-                    except Exception as exc:
+                    except (BrowserError, httpx.HTTPError) as exc:
                         self.logger.debug(f"WS hasLogin retry failed: {exc}")
                     refreshed = False
                     try:
@@ -1500,7 +1500,7 @@ class GoofishWsTransport:
                 if poller:
                     poller.trigger_now()
                     self.logger.debug("Order event trigger: woke price poller for text=%s", text[:40])
-            except Exception:
+            except asyncio.QueueEmpty:
                 pass
 
         if not chat_id or not sender_id or not text:
@@ -1720,7 +1720,7 @@ class GoofishWsTransport:
                                 )
                             else:
                                 self.logger.debug("hasLogin heartbeat: server returned non-success")
-                        except Exception as exc:
+                        except (BrowserError, httpx.HTTPError) as exc:
                             self.logger.debug(f"hasLogin heartbeat failed: {exc}")
 
                     try:
@@ -1999,7 +1999,7 @@ class GoofishWsTransport:
         while len(out) < safe_limit and not self._queue.empty():
             try:
                 item = self._queue.get_nowait()
-            except Exception:
+            except asyncio.QueueEmpty:
                 break
             sid = str(item.get("session_id", "") or "")
             if not sid or sid in seen_session:
@@ -2056,7 +2056,7 @@ class GoofishWsTransport:
             await self._ws.send(json.dumps(msg, ensure_ascii=False))
             self._record_bot_sig(chat_id, text)
             return True
-        except Exception as exc:
+        except (RuntimeError, websockets.exceptions.ConnectionClosed) as exc:
             self.logger.warning(f"WS send failed: {exc}, falling back to mtop")
             return await self._send_text_via_mtop(chat_id, text)
 
@@ -2162,7 +2162,7 @@ class GoofishWsTransport:
                     if "RGV587" in ret_text or "FAIL_SYS_USER_VALIDATE" in ret_text:
                         payload["_mtop_error_type"] = "risk_control"
                 return payload if isinstance(payload, dict) else {}
-        except Exception as exc:
+        except (BrowserError, httpx.HTTPError, json.JSONDecodeError) as exc:
             self.logger.debug(f"mtop call {api} failed: {exc}")
             return {}
 

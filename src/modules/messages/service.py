@@ -254,7 +254,7 @@ class MessagesService:
             from src.core.config import get_active_category
 
             active_category = get_active_category()
-        except Exception:
+        except ImportError:
             pass
 
         if active_category == "express":
@@ -393,7 +393,7 @@ class MessagesService:
             from src.core.config import get_active_category
 
             active_category = get_active_category()
-        except Exception:
+        except ImportError:
             pass
         self.reply_engine = ReplyStrategyEngine(
             default_reply=self.default_reply,
@@ -999,7 +999,7 @@ class MessagesService:
             if isinstance(faq_data, list):
                 items = [f"Q: {item.get('q', '')} A: {item.get('a', '')}" for item in faq_data[:20]]
                 return "\n常见问答参考：\n" + "\n".join(items) + "\n"
-        except Exception:
+        except (OSError, json.JSONDecodeError, TypeError, AttributeError):
             pass
         return ""
 
@@ -1165,7 +1165,7 @@ class MessagesService:
             eta_days = "1-3天"
         try:
             reply = self.courier_lock_template.format(courier=courier, price=price_label, eta_days=eta_days)
-        except Exception:
+        except (KeyError, IndexError, ValueError, TypeError):
             reply = (
                 f"好的，已为您锁定 {courier}（{price_label}）~\n先拍下链接不付款，我帮您改价，付款后系统自动发兑换码哦~"
             )
@@ -1197,7 +1197,7 @@ class MessagesService:
             entry = json.dumps(payload, ensure_ascii=False)
             with open(log_path, "a", encoding="utf-8") as f:
                 f.write(entry + "\n")
-        except Exception:
+        except (OSError, TypeError, ValueError):
             pass
 
     _BRAND_TERM_CORRECTIONS = (

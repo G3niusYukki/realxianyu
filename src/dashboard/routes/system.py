@@ -111,9 +111,9 @@ def handle_healthz(ctx: RouteContext) -> None:
 
 def _check_cookie_health(cookie_text: str) -> dict[str, Any]:
     try:
-        from src.core.cookie_health import CookieHealthChecker
+        from src.core.cookie_health import get_cookie_health_checker
 
-        checker = CookieHealthChecker(cookie_text, timeout_seconds=8.0)
+        checker = get_cookie_health_checker(cookie_text=cookie_text, timeout_seconds=8.0)
         ck_result = checker.check_sync(force=True)
         return {"ok": bool(ck_result.get("healthy")), "message": ck_result.get("message", "")}
     except Exception as exc:

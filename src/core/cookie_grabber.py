@@ -369,9 +369,9 @@ class CookieGrabber:
     async def _validate(self, cookie_str: str) -> bool:
         self._update(GrabStage.VALIDATING, "正在验证 Cookie 有效性...", "", 92)
         try:
-            from src.core.cookie_health import CookieHealthChecker
+            from src.core.cookie_health import get_cookie_health_checker
 
-            checker = CookieHealthChecker(cookie_str, timeout_seconds=10.0)
+            checker = get_cookie_health_checker(cookie_text=cookie_str, timeout_seconds=10.0)
             result = checker.check_sync(force=True)
             if not result.get("healthy"):
                 logger.warning(f"Cookie 验证失败: {result.get('message', 'unknown')}")
@@ -607,9 +607,9 @@ class CookieAutoRefresher:
         if not cookie_text:
             return False, "Cookie 未配置"
         try:
-            from src.core.cookie_health import CookieHealthChecker
+            from src.core.cookie_health import get_cookie_health_checker
 
-            checker = CookieHealthChecker(cookie_text, timeout_seconds=10.0)
+            checker = get_cookie_health_checker(cookie_text=cookie_text, timeout_seconds=10.0)
             result = checker.check_sync(force=True)
             return bool(result.get("healthy")), result.get("message", "")
         except Exception as exc:
@@ -618,9 +618,9 @@ class CookieAutoRefresher:
     @staticmethod
     def _validate_sync(cookie_str: str) -> bool:
         try:
-            from src.core.cookie_health import CookieHealthChecker
+            from src.core.cookie_health import get_cookie_health_checker
 
-            checker = CookieHealthChecker(cookie_str, timeout_seconds=10.0)
+            checker = get_cookie_health_checker(cookie_text=cookie_str, timeout_seconds=10.0)
             result = checker.check_sync(force=True)
             return bool(result.get("healthy"))
         except Exception:

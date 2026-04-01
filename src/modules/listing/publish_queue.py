@@ -11,11 +11,12 @@ import json
 import random
 import uuid
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from src.core.logger import get_logger
+from src.core.utils import now_iso
 
 logger = get_logger()
 
@@ -189,7 +190,7 @@ class QueueItem:
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return now_iso()
 
 
 _PUBLISH_WINDOWS = [

@@ -58,7 +58,6 @@ class StatusService:
         self._last_auto_recover_result: dict[str, Any] = {}
         self._last_presales_dead_restart_at: float = 0.0
         self._recover_lock = threading.Lock()
-        self._shared_cookie_checker: Any = None
 
     def _get_cookie(self) -> dict[str, Any]:
         return {
@@ -199,13 +198,10 @@ class StatusService:
         cookie_health_info: dict[str, Any] = {"healthy": False, "message": "未检查", "score": 0}
         try:
             if cookie_text:
-                from src.core.cookie_health import CookieHealthChecker
+                from src.core.cookie_health import get_cookie_health_checker
 
-                if self._shared_cookie_checker is None:
-                    self._shared_cookie_checker = CookieHealthChecker(cookie_text, timeout_seconds=5.0)
-                else:
-                    self._shared_cookie_checker.cookie_text = cookie_text
-                ck_result = self._shared_cookie_checker.check_sync(force=False)
+                checker = get_cookie_health_checker(cookie_text=cookie_text, timeout_seconds=5.0)
+                ck_result = checker.check_sync(force=False)
                 cookie_health_info = {
                     "healthy": bool(ck_result.get("healthy")),
                     "message": ck_result.get("message", ""),
