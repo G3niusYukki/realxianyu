@@ -31,7 +31,7 @@ XianyuFlow | 闲流（XianyuFlow | 闲流）是一个闲鱼平台自动化运营
                           │
 ┌─────────────────────────▼───────────────────────────────────┐
 │                   业务中枢 (mimic_ops.py)                   │
-│   Facade 代理，分发到 Services 和 Modules                  │
+│             Facade 代理 (337 行，零业务逻辑)              │
 └────┬──────────────┬──────────────┬──────────────┬──────────┘
      │              │              │              │
 ┌────▼────┐  ┌──────▼───┐  ┌─────▼─────┐  ┌────▼─────┐
@@ -112,21 +112,28 @@ src/
 │       └── signing.py           # 签名算法
 │
 ├── dashboard/                   # Dashboard 相关
-│   ├── mimic_ops.py             # [精简] Facade 代理 (~3000行)
-│   ├── services/                # 核心业务服务（从 mimic_ops 拆分）
-│   │   ├── cookie_service.py    # CookieService
-│   │   └── xgj_service.py       # XGJService
+│   ├── mimic_ops.py             # [精简完成] Facade 代理 (337行，零业务逻辑)
+│   ├── services/                # 核心业务服务（从 mimic_ops 完全拆分）
+│   │   ├── cookie_service.py    # CookieService (787行)
+│   │   ├── xgj_service.py       # XGJService (597行)
+│   │   ├── status_service.py     # StatusService (370行)
+│   │   ├── vg_dashboard_service.py # VirtualGoodsDashboardService (469行)
+│   │   ├── log_service.py        # LogService (567行)
+│   │   ├── template_service.py  # TemplateService (149行)
+│   │   ├── env_service.py       # EnvService (66行)
+│   │   ├── reply_test_service.py # ReplyTestService (100行)
+│   │   ├── quote_service.py     # QuoteService (facade to quote/ sub-package)
+│   │   └── quote/               # 报价子包
+│   │       ├── facade.py        # QuoteFacade (89行)
+│   │       ├── route_handler.py # RouteTableHandler (283行)
+│   │       ├── markup_handler.py # MarkupHandler (500行)
+│   │       └── cost_handler.py  # CostTableHandler (217行)
+│   ├── server/
+│   │   └── middleware.py        # CORS + API Token 鉴权 (97行)
 │   ├── config_service.py        # Dashboard 配置 CRUD（JSON）
 │   ├── module_console.py        # 模块控制台
 │   ├── repository.py            # 数据仓库
-│   └── routes/                  # HTTP 路由
-│       ├── accounts.py
-│       ├── config.py
-│       ├── messages.py
-│       ├── orders.py
-│       ├── products.py
-│       ├── rule_suggestions.py
-│       └── system.py
+│   └── routes/                  # HTTP 路由（11 个路由文件）
 │
 ├── cli/                         # [重构后] CLI 命令包
 │   ├── __init__.py              # 兼容垫片
@@ -289,15 +296,17 @@ client/src/
 ## 九、已知的架构问题与改进计划
 
 ### 已完成
-- [x] `mimic_ops.py` 拆分为 Services（4241行 → 3070行）
+- [x] `mimic_ops.py` 完全拆分为 Services（4241行 → 337行 Facade + 4291行 Services）
 - [x] CLI 拆分为独立模块（cli.py 2022行 → cli/ 包）
 - [x] 识别并保留 ticketing/growth（存在功能依赖）
 - [x] 识别并保留 templates/frames（Dashboard 使用）
-- [x] 消除所有 `global` 声明（ws_live.py、service.py、ledger.py、routes/system.py 等 → 单例类）
+- [x] 消除所有 `global` 声明（ws_live.py、service.py/ledger.py/routes/system.py 等 → 单例类）
 - [x] 统一配置系统，删除 ConfigSyncService（YAML 同步是死代码，Config._merge_system_config() 已处理）
+- [x] 中间件提取（CORS、API Token 鉴权 → `server/middleware.py`，97行）
+- [x] 测试重组为 `tests/unit/` + `tests/integration/`（106 + 16 文件）
+- [x] `docs/` 清理 9 个过时规划文档
 
 ### 进行中
-- [ ] `mimic_ops.py` 进一步拆分（目标：降至 2000 行以内）
 - [ ] `get_config()` 全局函数逐步替换为 DI
 
 ### 待办

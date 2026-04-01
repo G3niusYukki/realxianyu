@@ -57,35 +57,17 @@
 ### 集成文档
 
 - [integrations/xianguanjia/](integrations/xianguanjia/) - 闲管家 API 集成
-  - [ingress-design.md](integrations/xianguanjia/ingress-design.md) - 入口设计
-  - [key-model.md](integrations/xianguanjia/key-model.md) - 关键模型
   - [normalized/](integrations/xianguanjia/normalized/) - 标准化 API 文档
     - [open-platform/](integrations/xianguanjia/normalized/open-platform/) - 开放平台接口
     - [virtual-supply/](integrations/xianguanjia/normalized/virtual-supply/) - 虚拟商品供应
-
-### 前端文档
-
-- [frontend-design-token-page-spec-mapping.md](frontend-design-token-page-spec-mapping.md) - 设计令牌规范
-- [frontend-onboarding-module-breakdown.md](frontend-onboarding-module-breakdown.md) - 前端模块分解
 
 ---
 
 ## 项目记录
 
-### 审计与审查
-
-- [reviews/](reviews/) - 代码审查和审计报告
-  - [xy-audit-01-cto.md](reviews/xy-audit-01-cto.md) - CTO 审计
-  - [xy-audit-02-backend.md](reviews/xy-audit-02-backend.md) - 后端审计
-  - [xy-audit-03-qa.md](reviews/xy-audit-03-qa.md) - QA 审计
-  - [xy-audit-04-gate.md](reviews/xy-audit-04-gate.md) - 质量门禁
-  - [xy-audit-05-sre.md](reviews/xy-audit-05-sre.md) - SRE 审计
-
 ### 发布记录
 
 - [release/](release/) - 版本发布说明
-  - [2026-03-07-api-first-main-release.md](release/2026-03-07-api-first-main-release.md)
-  - [2026-03-20-thread-safety-log-terminal.md](release/2026-03-20-thread-safety-log-terminal.md)
 
 ### Superpowers 设计文档
 
@@ -94,11 +76,5 @@
 
 ---
 
-## 其他
-
-- [DOCUMENTATION_AUDIT.md](DOCUMENTATION_AUDIT.md) - 文档审计报告（历史记录）
-
----
-
 **项目主页**: https://github.com/G3niusYukki/realxianyu  
-**最后更新**: 2026-03-27
+**最后更新**: 2026-04-01

@@ -20,14 +20,54 @@ pip install -r requirements-dev.txt
 ```
 src/
 ├── cli/                # CLI entry point (python -m src.cli)
-├── core/               # Config, logging, browser client, crypto, cookie_grabber
-├── modules/            # Business logic: messages, orders, quote, listing, virtual_goods, ...
-├── dashboard/          # Dashboard facade (mimic_ops.py) + routes + services
+├── core/               # Config, logging, browser client, crypto, cookie, database (24 modules)
+├── modules/            # Business logic (14 modules: messages, orders, quote, listing, virtual_goods, ...)
+├── dashboard/          # Dashboard facade (mimic_ops.py, 337 lines) + routes + services
+│   ├── mimic_ops.py    # Facade proxy (337 lines，不含业务逻辑)
+│   ├── services/       # Extracted business services (12 files, 4,291 lines)
+│   │   ├── cookie_service.py    # Cookie 管理 (787 lines)
+│   │   ├── xgj_service.py       # 闲管家集成 (597 行)
+│   │   ├── status_service.py     # 状态管理 (370 行)
+│   │   ├── vg_dashboard_service.py # 虚拟商品 Dashboard (469 行)
+│   │   ├── log_service.py        # 日志服务 (567 行)
+│   │   ├── template_service.py # 模板服务 (149 行)
+│   │   ├── env_service.py        # 环境变量服务 (66 行)
+│   │   ├── reply_test_service.py # 回复测试 (100 行)
+│   │   └── quote/             # 报价子包
+│   │       ├── facade.py, RouteHandler.py, MarkupHandler.py, cost_handler.py
+│   ├── server/
+│   │   └── middleware.py     # CORS + API Token 鉴权 (97 行)
+│   ├── config_service.py       # Dashboard 配置 CRUD
+│   ├── module_console.py       # 模块控制台
+│   └── routes/                  # HTTP 路由（11 files）
+├── integrations/       # Third-party integrations (xianguanjia)
+│   ├── signing.py           # 笾名算法
+│   ├── open_platform_client.py
+│   ├── virtual_supply_client.py
+│   └── errors.py,             # 错误映射
+├── dashboard_server.py # HTTP 服务器入口
+└── main.py             # Python 程序入口（非常驻服务)
+client/                 React + Vite + Tailwind 前端
+tests/
+  unit/                     单元测试（106 文件）
+  └── integration/              集成测试（16 文件）
+scripts/                # Build, deploy, and utility scripts
+```
+└── cli/                # CLI entry point (python -m src.cli)
+├── core/               # Config, logging, browser client, crypto, cookie, database (24 modules)
+├── modules/            # Business logic (14 modules: messages, orders, quote, listing, virtual_goods, ...)
+├── dashboard/          # Dashboard facade (mimic_ops.py, 337 lines) + routes + services
+│   ├── mimic_ops.py    # Facade proxy — delegates to services
+│   ├── services/       # Extracted business services (12 files, 4,291 lines)
+│   ├── server/         # Middleware (CORS, auth)
+│   └── routes/         # HTTP route handlers (11 files)
 ├── integrations/       # Third-party integrations (xianguanjia)
 ├── dashboard_server.py # HTTP server entry
 └── main.py             # Python program entry
-client/                 # React frontend (Vite + Tailwind)
-tests/                  # Python test suite (100+ files)
+client/                 React frontend (Vite + Tailwind)
+tests/
+├── unit/               # Unit tests (106 files)
+└── integration/              # Integration tests (16 files)
 scripts/                # Build, deploy, and utility scripts
 ```
 
@@ -50,9 +90,11 @@ Open an [issue](https://github.com/G3niusYukki/realxianyu/issues/new?template=fe
 1. Fork the repo
 2. Create a feature branch: `git checkout -b feat/my-feature`
 3. Make your changes
-4. Run linting: `./venv/bin/python -m ruff check src/`
-5. Run format check: `./venv/bin/python -m ruff format src/ --check`
+4. Run linting: `./venv/bin/python -m ruff check src/ services/`
+5. Run format check: `./venv/bin/python -m ruff format src/ services/ --check`
 6. Run tests: `./venv/bin/python -m pytest tests/ -q`
+7. Unit tests only: `./venv/bin/python -m pytest tests/unit/ -q`
+8. Integration tests: `./venv/bin/python -m pytest tests/integration/ -q`
 6. Commit with a clear message: `git commit -m "feat: add price optimization"`
 7. Push to your fork and open a PR
 
@@ -107,7 +149,7 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/):
 - Python 3.12+
 - Type hints everywhere
 - Use `async/await` for I/O operations
-- `loguru` for logging (not `print`)
+- Python `logging` module (`logging.getLogger(__name__)`)
 - Structured JSON output from CLI commands
 
 ## Need Help?

@@ -6,7 +6,7 @@
 
 闲鱼运营自动化工具，覆盖消息自动回复、智能报价、订单履约、商品上架、Cookie 管理和运维诊断。
 
-**当前版本：v10.1.0**
+**当前版本：v10.2.0**
 
 ## 架构概览
 
@@ -39,36 +39,41 @@ v10 采用单体 + 网关的简化架构：
 ┌──────────────────────────────────────────────────────────┐
 │                     前端层  client/                        │
 │     React + TailwindCSS SPA，编译后由后端服务静态托管     │
-└────────────────────────┬────────────────────────────────┘
+└────────────────────────┬────────────────────────────────────┘
                          │ HTTP / REST
-┌────────────────────────▼────────────────────────────────┐
+┌────────────────────────▼────────────────────────────────────┐
 │            网关层  src/dashboard_server.py                │
 │      BaseHTTPRequestHandler · 路由分发 + 静态服务        │
-└────────────────────────┬────────────────────────────────┘
+│      middleware: CORS, API Token 鉴权                    │
+└────────────────────────┬────────────────────────────────────┘
                          │
-┌────────────────────────▼────────────────────────────────┐
+┌────────────────────────▼────────────────────────────────────┐
 │           业务中枢  src/dashboard/mimic_ops.py            │
-│             Facade 代理 (~3000 行)                       │
-└────┬────────────────┬──────────────────┬────────────────┘
-     │                │                  │
-┌────▼────┐   ┌──────▼───┐   ┌────────▼─────────┐
-│ dashboard/ │   │  modules/ │   │   cli/         │
-│ services/  │   │           │   │                 │
-│Cookie    │   │Messages   │   │cmd_main.py      │
-│Service   │   │Orders     │   │cmd_orders.py    │
-│XGJ       │   │Quote      │   │cmd_module.py   │
-│Service   │   │Listing    │   │cmd_quote.py    │
-│          │   │Virtual    │   │                 │
-│          │   │Goods      │   │                 │
-└──────────┘   └───────────┘   └─────────────────┘
+│             Facade 代理 (337 行)                         │
+└────┬──────────┬──────────────┬──────────────┬───────────┘
+     │          │              │              │
+┌────▼────┐ ┌──▼──────┐ ┌────▼─────┐ ┌──────▼──────┐
+│dashboard│ │ modules/│ │integrations│ │   cli/      │
+│services/│ │         │ │           │ │             │
+│Cookie  │ │Messages │ │Xianguanjia│ │cmd_main     │
+│XGJ    │ │Orders   │ │OpenPlatf│ │cmd_orders   │
+│Status │ │Quote    │ │VirtSupply│ │cmd_module   │
+│VGDash │ │Listing  │ │Signing   │ │cmd_quote    │
+│Log    │ │VirtGoods│ │          │ │             │
+│Template│ │Growth   │ │          │ │             │
+│Env    │ │FollowUp │ │          │ │             │
+│ReplyTst│ │Ops     │ │          │ │             │
+│Quote* │ │Accounts │ │          │ │             │
+└─────────┘ └─────────┘ └───────────┘ └─────────────┘
 ```
 
 ### 核心设计原则
 
-- **Facade 模式**：`mimic_ops.py` 仅作分发代理，不含业务逻辑
+- **Facade 模式**：`mimic_ops.py` 仅作分发代理（337 行），所有业务逻辑已拆分到 `src/dashboard/services/` 的 12 个服务类
 - **YAML 单一真相**：`config/config.yaml` 是唯一默认值来源，无需手动同步
 - **无 global 声明**：全局状态通过单例类（`WebSocketTransportManager`、`QuoteLedger` 等）管理
 - **CLI 模块化**：`cli/` 包按职责拆分，支持猴子补丁测试
+- **Middleware 分离**：CORS 校验与 API Token 鉴权提取到 `src/dashboard/server/middleware.py`
 
 ## 运行入口
 
@@ -172,14 +177,17 @@ cd client && npm test
 ```text
 client/                     React/Vite 前端
 config/                     YAML 主配置
-data/system_config.json     Dashboard UI 覆盖配置
+config/rules/               回复规则、报价规则配置
+data/system_config.json     Dashboard UI 覆配置
 docs/                       开发/部署/架构文档
 infra/                      Terraform / Helm / 本地基础设施脚本
 services/
   gateway-service/          Open Platform 适配网关（FastAPI）
   common/                   服务间共享库（Pydantic config 等）
 src/                        Python 单体业务与 Dashboard 服务
-tests/                      pytest 测试
+tests/
+  unit/                     单元测试（106 文件）
+  integration/              集成测试(16 文件)
 ```
 
 ## 文档

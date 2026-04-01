@@ -1,6 +1,6 @@
 # 部署指南
 
-> 基于本地工作区实测更新，最后验证日期：2026-03-27。
+> 基于本地工作区实测更新，最后验证日期：2026-04-01。
 
 ## 结论先说
 
@@ -86,7 +86,7 @@ python -m src.cli doctor --skip-quote
 - `client` 已成功 `npm run build`
 - `/healthz` 返回正常 JSON
 - `doctor --skip-quote` 非 strict 模式通过
-- `pytest tests/ -q` 结果为 `1717 passed, 16 skipped`
+- `pytest tests/ -q` 结果为 `1724 passed, 16 skipped`
 
 ## 后台运行
 

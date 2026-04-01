@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [10.2.0] - 2026-04-01
+
+### Added
+- Extracted `src/dashboard/services/` — 12 service files (4,291 lines) from `mimic_ops.py`:
+  - `cookie_service.py` (787 行), `xgj_service.py` (597 行), `status_service.py` (370 行),
+  - `vg_dashboard_service.py` (469 行), `log_service.py` (567 行), `template_service.py` (149 行),
+  - `env_service.py` (66 行), `reply_test_service.py` (100 行), `quote_service.py` (facade)
+  - `quote/` sub-package: `facade.py` (89 行), `route_handler.py` (283 行), `markup_handler.py` (500 行), `cost_handler.py` (217 行)
+- Extracted `src/dashboard/server/middleware.py` (97 lines) — CORS validation and API token auth
+- Reorganized `tests/` into `tests/unit/` (106 files) and `tests/integration/` (16 files)
+- Complete documentation rewrite: README, CHANGELOG, CONTRIBUTING, ARCHITECTURE, API docs
+
+### Changed
+- `mimic_ops.py` reduced from ~4,241 lines to 337 lines (pure facade proxy, zero business logic)
+- Unified version to 10.2.0 across `src/__init__.py`, `client/package.json`, `config/config.yaml`
+- Architecture diagram and directory overview updated to reflect current service decomposition
+- `.gitignore` scoped `server/` rule to root-only (`/server/`) to fix `src/dashboard/server/` being excluded
+
+### Fixed
+- 8 ruff lint errors: unsorted `__all__`, undefined names, unused imports, E402, UP035
+- `src/dashboard/server/middleware.py` was excluded by overly-broad `.gitignore` pattern (`server/` matched `src/dashboard/server/`)
+
+### Removed
+- 9 obsolete planning documents from `docs/`
+
 ## [10.1.1] - 2026-03-31
 
 ### Fixed
