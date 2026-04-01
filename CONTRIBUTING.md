@@ -53,23 +53,6 @@ tests/
   └── integration/              集成测试（16 文件）
 scripts/                # Build, deploy, and utility scripts
 ```
-└── cli/                # CLI entry point (python -m src.cli)
-├── core/               # Config, logging, browser client, crypto, cookie, database (24 modules)
-├── modules/            # Business logic (14 modules: messages, orders, quote, listing, virtual_goods, ...)
-├── dashboard/          # Dashboard facade (mimic_ops.py, 337 lines) + routes + services
-│   ├── mimic_ops.py    # Facade proxy — delegates to services
-│   ├── services/       # Extracted business services (12 files, 4,291 lines)
-│   ├── server/         # Middleware (CORS, auth)
-│   └── routes/         # HTTP route handlers (11 files)
-├── integrations/       # Third-party integrations (xianguanjia)
-├── dashboard_server.py # HTTP server entry
-└── main.py             # Python program entry
-client/                 React frontend (Vite + Tailwind)
-tests/
-├── unit/               # Unit tests (106 files)
-└── integration/              # Integration tests (16 files)
-scripts/                # Build, deploy, and utility scripts
-```
 
 ## How to Contribute
 
