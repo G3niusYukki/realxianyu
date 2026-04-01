@@ -5,17 +5,9 @@ from __future__ import annotations
 import mimetypes
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any
 
+from src.core.utils import run_async as _run_async
 from src.dashboard.router import RouteContext, delete_prefix, get, get_prefix, post, post_prefix, put_prefix
-
-
-def _run_async(coro: Any) -> Any:
-    """Run an async coroutine synchronously (lazy import to avoid circular deps)."""
-    from src.dashboard.helpers.utils import _run_async as _ra
-
-    return _ra(coro)
-
 
 # ---------------------------------------------------------------------------
 # GET /api/listing/templates

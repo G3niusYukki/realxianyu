@@ -1,7 +1,7 @@
 from src.dashboard.helpers.utils import (
+    _PRODUCT_IMAGE_CACHE_TTL,
     DEFAULT_VOLUME_TEMPLATE,
     DEFAULT_WEIGHT_TEMPLATE,
-    _PRODUCT_IMAGE_CACHE_TTL,
     _error_payload,
     _extract_json_payload,
     _now_iso,

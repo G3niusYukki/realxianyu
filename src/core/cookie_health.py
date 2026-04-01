@@ -168,6 +168,8 @@ class CookieHealthChecker:
                 return self._evaluate_response(resp)
         except httpx.TimeoutException:
             return self._build_result(False, "探测超时")
+        except httpx.RequestError as exc:
+            return self._build_result(False, f"网络异常: {type(exc).__name__}")
         except Exception as exc:
             return self._build_result(False, f"探测异常: {type(exc).__name__}")
 
@@ -190,6 +192,8 @@ class CookieHealthChecker:
                 return self._evaluate_response(resp)
         except httpx.TimeoutException:
             return self._build_result(False, "探测超时")
+        except httpx.RequestError as exc:
+            return self._build_result(False, f"网络异常: {type(exc).__name__}")
         except Exception as exc:
             return self._build_result(False, f"探测异常: {type(exc).__name__}")
 
