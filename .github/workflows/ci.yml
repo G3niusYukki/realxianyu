@@ -21,19 +21,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Bootstrap Python
+        uses: ./.github/actions/bootstrap-python
         with:
-          python-version: "3.12"
-          cache: pip
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install ruff bandit safety
+          install-command: |
+            pip install -r requirements.txt
+            pip install ruff bandit safety
 
       - name: Ruff lint
         run: ruff check src/ services/ --extend-ignore I001,E501,UP012,RUF100
@@ -45,22 +40,24 @@ jobs:
         run: bandit -r src/ -f json -o bandit-report.json || true
 
       - name: Upload Bandit report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: always()
         with:
           name: bandit-security-report
           path: bandit-report.json
+          if-no-files-found: ignore
           retention-days: 30
 
       - name: Check for known vulnerabilities
         run: safety check -r requirements.txt --json --output safety-report.json || true
 
       - name: Upload Safety report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: always()
         with:
           name: safety-vulnerability-report
           path: safety-report.json
+          if-no-files-found: ignore
           retention-days: 30
 
   test:
@@ -73,26 +70,22 @@ jobs:
         python-version: ["3.12"]
       fail-fast: false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+      - name: Bootstrap Python
+        uses: ./.github/actions/bootstrap-python
         with:
           python-version: ${{ matrix.python-version }}
-          cache: pip
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt -r requirements-dev.txt
-          pip install -e services/common -e services/gateway-service
+          install-command: |
+            pip install -r requirements.txt -r requirements-dev.txt
+            pip install -e services/common -e services/gateway-service
 
       - name: Run tests with coverage
         run: |
           pytest tests/ -v --tb=short --cov=src --cov-report=xml --cov-report=term-missing
 
       - name: Upload coverage report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: always()
         with:
           name: coverage-report-${{ matrix.python-version }}
@@ -106,18 +99,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - name: Bootstrap Node.js
+        uses: ./.github/actions/bootstrap-node
         with:
-          node-version: "18"
-          cache: npm
-          cache-dependency-path: client/package-lock.json
-
-      - name: Install frontend dependencies
-        working-directory: ./client
-        run: npm install
+          node-version: "22"
 
       - name: Type check TypeScript
         working-directory: ./client
@@ -128,7 +115,7 @@ jobs:
         run: npm run build
 
       - name: Upload frontend build
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: always()
         with:
           name: frontend-build
@@ -141,29 +128,17 @@ jobs:
     needs: [lint, test, frontend-build]
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Bootstrap Python
+        uses: ./.github/actions/bootstrap-python
         with:
-          python-version: "3.12"
-          cache: pip
+          install-command: pip install -r requirements.txt
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - name: Bootstrap Node.js
+        uses: ./.github/actions/bootstrap-node
         with:
-          node-version: "18"
-          cache: npm
-          cache-dependency-path: client/package-lock.json
-
-      - name: Install Python dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-
-      - name: Install frontend dependencies
-        working-directory: ./client
-        run: npm install
+          node-version: "22"
 
       - name: Build frontend
         working-directory: ./client
@@ -186,23 +161,41 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     steps:
-      - uses: actions/checkout@v4
+      - name: Decide whether dependency review is available
+        id: availability
+        shell: bash
+        run: |
+          if [[ "${{ github.event.repository.private }}" == "true" && "${{ vars.ENABLE_DEPENDENCY_REVIEW }}" != "true" ]]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v5
+        if: steps.availability.outputs.enabled == 'true'
 
       - name: Dependency Review
-        uses: actions/dependency-review-action@v3
+        if: steps.availability.outputs.enabled == 'true'
+        uses: actions/dependency-review-action@v4
         with:
           fail-on-severity: critical
-        continue-on-error: true
+
+      - name: Dependency Review Skipped
+        if: steps.availability.outputs.enabled != 'true'
+        shell: bash
+        run: |
+          echo "Dependency Review is skipped because this repository is private and ENABLE_DEPENDENCY_REVIEW is not set to true."
+          echo "Enable GitHub Advanced Security and set repository variable ENABLE_DEPENDENCY_REVIEW=true to enforce this job."
 
   pr-validation:
     name: PR Validation
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Check PR title
-        uses: amannn/action-semantic-pull-request@v5
+        uses: amannn/action-semantic-pull-request@v6
         with:
           types: |
             feat

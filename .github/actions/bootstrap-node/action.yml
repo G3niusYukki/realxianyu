@@ -1,0 +1,35 @@
+name: Bootstrap Node
+description: Set up Node.js with npm cache and install client dependencies.
+
+inputs:
+  node-version:
+    description: Node.js version to install.
+    required: false
+    default: "22"
+  cache-dependency-path:
+    description: Dependency lockfile used for npm cache keys.
+    required: false
+    default: client/package-lock.json
+  working-directory:
+    description: Directory in which the install command should run.
+    required: false
+    default: client
+  install-command:
+    description: Shell command used to install Node.js dependencies.
+    required: false
+    default: npm ci
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Node.js
+      uses: actions/setup-node@v6
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: npm
+        cache-dependency-path: ${{ inputs.cache-dependency-path }}
+
+    - name: Install dependencies
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: ${{ inputs.install-command }}
