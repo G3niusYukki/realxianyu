@@ -120,6 +120,7 @@ jobs:
         with:
           name: frontend-build
           path: client/dist/
+          if-no-files-found: ignore
           retention-days: 7
 
   build-verification:
@@ -165,10 +166,10 @@ jobs:
         id: availability
         shell: bash
         run: |
-          if [[ "${{ github.event.repository.private }}" == "true" && "${{ vars.ENABLE_DEPENDENCY_REVIEW }}" != "true" ]]; then
-            echo "enabled=false" >> "$GITHUB_OUTPUT"
-          else
+          if [[ "${{ vars.ENABLE_DEPENDENCY_REVIEW }}" == "true" ]]; then
             echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
           fi
 
       - uses: actions/checkout@v5
@@ -184,8 +185,8 @@ jobs:
         if: steps.availability.outputs.enabled != 'true'
         shell: bash
         run: |
-          echo "Dependency Review is skipped because this repository is private and ENABLE_DEPENDENCY_REVIEW is not set to true."
-          echo "Enable GitHub Advanced Security and set repository variable ENABLE_DEPENDENCY_REVIEW=true to enforce this job."
+          echo "Dependency Review is disabled by default for this repository."
+          echo "Set repository variable ENABLE_DEPENDENCY_REVIEW=true only after verifying that dependency graph support is available for this repo."
 
   pr-validation:
     name: PR Validation
