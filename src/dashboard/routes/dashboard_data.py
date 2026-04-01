@@ -4,28 +4,10 @@ from __future__ import annotations
 
 import json
 import time
-from datetime import datetime
 
+from src.core.utils import now_iso
+from src.core.utils import safe_int as _safe_int
 from src.dashboard.router import RouteContext, get
-
-
-def _now_iso() -> str:
-    return datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
-
-
-def _safe_int(value: str | None, default: int, min_value: int, max_value: int) -> int:
-    try:
-        if value is None:
-            return default
-        n = int(value)
-        if n < min_value:
-            return min_value
-        if n > max_value:
-            return max_value
-        return n
-    except (TypeError, ValueError):
-        return default
-
 
 # ---------------------------------------------------------------------------
 # GET /api/summary, /api/trend, /api/recent-operations, /api/top-products
@@ -156,7 +138,7 @@ def handle_logs_realtime_stream(ctx: RouteContext) -> None:
         first_event = {
             "success": True,
             "lines": lines,
-            "updated_at": _now_iso(),
+            "updated_at": now_iso(),
             "available_files": available_files.get("files", []),
         }
         ctx.wfile.write(f"data: {json.dumps(first_event, ensure_ascii=False)}\n\n".encode())
@@ -168,7 +150,7 @@ def handle_logs_realtime_stream(ctx: RouteContext) -> None:
             text = "\n".join(lines)
             if text != last:
                 event = json.dumps(
-                    {"success": True, "lines": lines, "updated_at": _now_iso()},
+                    {"success": True, "lines": lines, "updated_at": now_iso()},
                     ensure_ascii=False,
                 )
                 ctx.wfile.write(f"data: {event}\n\n".encode())

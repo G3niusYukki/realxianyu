@@ -9,8 +9,9 @@
 
 from __future__ import annotations
 
-import hashlib
 import hmac
+
+from src.core.utils import md5_hex as _md5_hex
 
 __all__ = [
     "sign_business_request",
@@ -20,11 +21,6 @@ __all__ = [
     "verify_open_platform_callback_signature",
     "verify_virtual_supply_callback_signature",
 ]
-
-
-def _md5_hex(value: str | bytes) -> str:
-    data = value.encode("utf-8") if isinstance(value, str) else value
-    return hashlib.md5(data).hexdigest()
 
 
 def _body_md5(body: str | bytes | None) -> str:

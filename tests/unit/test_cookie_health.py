@@ -66,6 +66,20 @@ class TestCookieHealthChecker:
         assert result["healthy"] is False
         assert "超时" in result["message"]
 
+    def test_check_sync_unhealthy_on_network_error(self, monkeypatch) -> None:
+        mock_client = Mock()
+        mock_client.__enter__ = Mock(return_value=mock_client)
+        mock_client.__exit__ = Mock(return_value=False)
+        mock_client.get = Mock(side_effect=httpx.ConnectError("boom"))
+
+        monkeypatch.setattr(httpx, "Client", lambda **kwargs: mock_client)
+
+        checker = CookieHealthChecker(cookie_text="test_cookie=abc123")
+        result = checker.check_sync(force=True)
+        assert result["healthy"] is False
+        assert "网络异常" in result["message"]
+        assert "ConnectError" in result["message"]
+
     def test_ttl_cache_returns_cached_result(self, monkeypatch) -> None:
         resp = Mock(spec=httpx.Response)
         resp.status_code = 200
@@ -148,6 +162,21 @@ class TestCookieHealthChecker:
         notifier.send_text.assert_awaited_once()
         call_text = notifier.send_text.call_args[0][0]
         assert "恢复" in call_text
+
+    @pytest.mark.asyncio
+    async def test_check_async_unhealthy_on_network_error(self, monkeypatch) -> None:
+        mock_async_client = AsyncMock()
+        mock_async_client.__aenter__ = AsyncMock(return_value=mock_async_client)
+        mock_async_client.__aexit__ = AsyncMock(return_value=False)
+        mock_async_client.get = AsyncMock(side_effect=httpx.ConnectError("boom"))
+
+        monkeypatch.setattr(httpx, "AsyncClient", lambda **kwargs: mock_async_client)
+
+        checker = CookieHealthChecker(cookie_text="test_cookie=abc123")
+        result = await checker.check_async(force=True)
+        assert result["healthy"] is False
+        assert "网络异常" in result["message"]
+        assert "ConnectError" in result["message"]
 
     def test_cookie_setter_clears_cache(self) -> None:
         checker = CookieHealthChecker(cookie_text="old_cookie")

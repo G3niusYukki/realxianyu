@@ -14,14 +14,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from src.core.utils import now_iso
 from src.dashboard.config_service import read_system_config as _read_system_config
 from src.dashboard.config_service import write_system_config as _write_system_config
 from src.dashboard.router import RouteContext, get, post
-
-
-def _now_iso() -> str:
-    return datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
-
 
 # ---------------------------------------------------------------------------
 # Health check response cache (TTL 30s)
@@ -100,7 +96,7 @@ def handle_healthz(ctx: RouteContext) -> None:
     ctx.send_json(
         {
             "status": "ok" if db_ok else "degraded",
-            "timestamp": _now_iso(),
+            "timestamp": now_iso(),
             "database": "writable" if db_ok else "error",
             "modules": modules_summary,
             "uptime_seconds": uptime_seconds,
@@ -213,7 +209,7 @@ def handle_health_check(ctx: RouteContext) -> None:
         except Exception:
             pass
 
-    result: dict[str, Any] = {"timestamp": _now_iso()}
+    result: dict[str, Any] = {"timestamp": now_iso()}
     with ThreadPoolExecutor(max_workers=3) as pool:
         fut_cookie = pool.submit(_check_cookie_health, cookie_text)
         fut_ai = pool.submit(_check_ai_health)
@@ -553,7 +549,7 @@ def _read_update_status() -> dict[str, Any]:
 
 def _write_update_status(status: str, **extra: Any) -> None:
     _UPDATE_STATUS_FILE.parent.mkdir(parents=True, exist_ok=True)
-    payload = {"status": status, "timestamp": _now_iso(), **extra}
+    payload = {"status": status, "timestamp": now_iso(), **extra}
     _UPDATE_STATUS_FILE.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
 
 
@@ -695,6 +691,6 @@ def handle_wizard_status(ctx: RouteContext) -> None:
 def handle_wizard_complete(ctx: RouteContext) -> None:
     cfg = _read_system_config()
     cfg["wizard_completed"] = True
-    cfg["wizard_completed_at"] = _now_iso()
+    cfg["wizard_completed_at"] = now_iso()
     _write_system_config(cfg)
     ctx.send_json({"ok": True})

@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import time
-from datetime import datetime
 from typing import Any
+
+from src.core.utils import now_iso, run_async, safe_int
 
 logger = logging.getLogger(__name__)
 
@@ -14,17 +14,7 @@ _PRODUCT_IMAGE_CACHE_TTL = 1800  # 30 minutes
 
 
 def _safe_int(value: str | None, default: int, min_value: int, max_value: int) -> int:
-    try:
-        if value is None:
-            return default
-        n = int(value)
-        if n < min_value:
-            return min_value
-        if n > max_value:
-            return max_value
-        return n
-    except (TypeError, ValueError):
-        return default
+    return safe_int(value, default=default, min_value=min_value, max_value=max_value)
 
 
 def _error_payload(message: str, code: str = "INTERNAL_ERROR", details: Any = None) -> dict[str, Any]:
@@ -105,12 +95,8 @@ DEFAULT_VOLUME_TEMPLATE = (
 
 
 def _run_async(coro: Any) -> Any:
-    loop = asyncio.new_event_loop()
-    try:
-        return loop.run_until_complete(coro)
-    finally:
-        loop.close()
+    return run_async(coro)
 
 
 def _now_iso() -> str:
-    return datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+    return now_iso()
