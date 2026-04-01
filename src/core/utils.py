@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import hashlib
 from datetime import datetime
 from typing import Any
 
@@ -11,12 +10,6 @@ from typing import Any
 def now_iso() -> str:
     """Return local time in second precision for dashboard payloads."""
     return datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
-
-
-def md5_hex(data: str | bytes) -> str:
-    """Return the MD5 hex digest for a string or bytes payload."""
-    payload = data.encode("utf-8") if isinstance(data, str) else data
-    return hashlib.md5(payload).hexdigest()
 
 
 def safe_int(

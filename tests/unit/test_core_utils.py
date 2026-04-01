@@ -3,7 +3,6 @@ Tests for core crypto and utility modules.
 """
 
 import asyncio
-from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -95,12 +94,6 @@ class TestCoreUtils:
         assert value[10] == "T"
         assert value[13] == ":"
         assert value[16] == ":"
-
-    def test_md5_hex_accepts_str_and_bytes(self):
-        from src.core.utils import md5_hex
-
-        assert md5_hex("abc") == "900150983cd24fb0d6963f7d28e17f72"
-        assert md5_hex(b"abc") == "900150983cd24fb0d6963f7d28e17f72"
 
     def test_safe_int_applies_default_and_bounds(self):
         from src.core.utils import safe_int
