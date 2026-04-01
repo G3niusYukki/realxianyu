@@ -1,0 +1,37 @@
+name: Bootstrap Python
+description: Set up Python with pip cache and install dependencies.
+
+inputs:
+  python-version:
+    description: Python version to install.
+    required: false
+    default: "3.12"
+  cache-dependency-path:
+    description: Newline-delimited dependency files for pip cache keys.
+    required: false
+    default: |
+      requirements.txt
+      requirements-dev.txt
+  install-command:
+    description: Shell command used to install Python dependencies.
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: ${{ inputs.python-version }}
+        cache: pip
+        cache-dependency-path: ${{ inputs.cache-dependency-path }}
+
+    - name: Upgrade pip
+      shell: bash
+      run: python -m pip install --upgrade pip
+
+    - name: Install dependencies
+      if: ${{ inputs.install-command != '' }}
+      shell: bash
+      run: ${{ inputs.install-command }}
