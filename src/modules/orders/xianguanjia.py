@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import time
 from dataclasses import dataclass
@@ -15,7 +16,10 @@ from typing import Any
 
 import httpx
 
-from src.core.utils import md5_hex as _md5_hex
+
+def _md5_hex(value: str | bytes) -> str:
+    data = value.encode("utf-8") if isinstance(value, str) else value
+    return hashlib.md5(data).hexdigest()
 
 
 def canonical_json(payload: dict[str, Any]) -> str:
